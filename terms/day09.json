@@ -1,0 +1,778 @@
+[
+ {
+  "term": "GPU",
+  "aliases": [],
+  "full": "Graphics Processing Unit (그래픽 처리 장치)",
+  "short": "단순한 계산을 동시에 처리하는 연산 유닛이 아주 많은 장치. 딥러닝의 핵심인 행렬 곱셈을 한꺼번에 많이 계산해서 학습 시간을 줄여 줘요.",
+  "analogy": "복잡한 일은 못 해도 단순 계산을 동시에 해내는 대규모 팀.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "CPU",
+  "aliases": [],
+  "full": "Central Processing Unit (중앙 처리 장치)",
+  "short": "컴퓨터의 기본 두뇌. 소수의 강한 코어로 복잡한 분기·파일 읽기·전처리 같은 일을 잘해요. 딥러닝에서도 데이터 준비는 CPU 몫이에요.",
+  "analogy": "복잡한 일을 빨리 처리하는 소수 정예.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "CUDA",
+  "aliases": [
+   "CUDA Runtime"
+  ],
+  "full": "Compute Unified Device Architecture",
+  "short": "NVIDIA GPU에서 계산을 시킬 수 있게 해 주는 연산 플랫폼·API. PyTorch가 GPU를 쓰려면 CUDA용으로 빌드된 torch가 필요해요.",
+  "analogy": "PyTorch와 GPU 사이의 통역사.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "VRAM",
+  "aliases": [
+   "GPU 메모리"
+  ],
+  "full": "Video RAM (GPU 메모리)",
+  "short": "GPU에 붙어 있는 전용 메모리. GPU는 VRAM에 올라온 값만 바로 계산할 수 있어서, 모델과 데이터를 여기로 옮겨야 해요.",
+  "analogy": "GPU 팀 전용 작업대.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "RAM",
+  "aliases": [
+   "CPU 메모리"
+  ],
+  "full": "Random Access Memory (주 메모리)",
+  "short": "CPU가 쓰는 컴퓨터의 주 메모리. VRAM과는 서로 다른 공간이라, CPU의 Tensor를 GPU에서 쓰려면 복사(.to)해야 해요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "드라이버",
+  "aliases": [
+   "GPU Driver",
+   "그래픽 드라이버"
+  ],
+  "full": "GPU Driver (그래픽 드라이버)",
+  "short": "운영체제(OS)가 GPU를 쓸 수 있게 연결해 주는 프로그램. 버전이 안 맞으면 GPU가 있어도 PyTorch가 못 써요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "nvidia-smi",
+  "aliases": [],
+  "full": "NVIDIA System Management Interface",
+  "short": "터미널에서 GPU 이름·드라이버 버전·VRAM 사용량·사용률을 보여 주는 명령. 잘 나와도 PyTorch가 GPU를 쓸 수 있다는 보장은 없어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "PyTorch",
+  "aliases": [
+   "파이토치"
+  ],
+  "full": "PyTorch",
+  "short": "Tensor 계산, 자동 미분(Autograd), 신경망 층, Optimizer까지 들어 있는 딥러닝 라이브러리. 코드에선 import torch 로 불러요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "가상환경",
+  "aliases": [
+   "venv"
+  ],
+  "full": "Virtual environment (venv)",
+  "short": "프로젝트마다 따로 쓰는 파이썬 설치 공간. 여기에 torch를 깔면 다른 프로젝트의 패키지 버전과 섞이지 않아요.",
+  "analogy": "프로젝트별로 따로 쓰는 공구함.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "병렬 처리",
+  "aliases": [
+   "병렬 연산",
+   "병렬"
+  ],
+  "full": "Parallel processing",
+  "short": "서로 독립인 계산 여러 개를 동시에 처리하는 것. 행렬 곱의 각 칸은 서로 독립이라 GPU가 동시에 계산할 수 있어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "처리량",
+  "aliases": [
+   "Throughput"
+  ],
+  "full": "Throughput (처리량)",
+  "short": "정해진 시간에 처리하는 일의 양. GPU는 같은 모양의 독립 계산이 충분히 많을 때 처리량이 커져요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "행렬",
+  "aliases": [
+   "행렬 곱셈",
+   "행렬곱"
+  ],
+  "full": "Matrix (행렬)",
+  "short": "숫자를 행과 열로 늘어놓은 2차원 표. 딥러닝의 핵심 계산은 행렬 곱셈(곱하고 더하기)이에요. 0D는 스칼라(숫자 하나), 1D는 벡터(숫자 한 줄)예요.",
+  "analogy": "엑셀 표 한 장.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Tensor",
+  "aliases": [
+   "텐서"
+  ],
+  "full": "Tensor (텐서)",
+  "short": "차원을 가진 숫자 배열. 딥러닝의 모든 데이터·가중치가 Tensor예요. NumPy 배열과 비슷하지만 GPU에 올릴 수 있고 자동 미분이 돼요.",
+  "analogy": "숫자를 담는 여러 칸짜리 상자 — 한 줄이면 벡터, 표면 행렬, 표를 여러 장 겹치면 3D.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "차원",
+  "aliases": [],
+  "full": "Dimension (차원)",
+  "short": "Tensor의 축 개수. 0D 스칼라(숫자 하나), 1D 벡터, 2D 행렬, 3D 이상은 batch·이미지·문장 같은 데이터예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "shape",
+  "aliases": [],
+  "full": "Shape (모양)",
+  "short": "Tensor가 축마다 몇 칸인지 적은 것. 예: (batch, feature) = (32, 2)는 샘플 32개 × 특성 2개. 오류 대부분이 shape가 안 맞아서 생겨요.",
+  "analogy": "표가 \"몇 행 × 몇 열\"인지.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "dtype",
+  "aliases": [
+   "자료형"
+  ],
+  "full": "Data type (자료형)",
+  "short": "Tensor 안 숫자의 종류. 입력 특성은 보통 실수 torch.float32, 분류 정답(클래스 번호)은 정수 torch.long 이에요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "device",
+  "aliases": [],
+  "full": "Device (장치)",
+  "short": "Tensor·모델이 있는 곳: \"cpu\" 또는 \"cuda\"(GPU). 모델·입력·정답이 모두 같은 device에 있어야 계산돼요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "특성",
+  "aliases": [
+   "feature"
+  ],
+  "full": "Feature (특성)",
+  "short": "샘플 하나를 설명하는 입력 값 하나하나. 표 데이터에서는 열(column)에 해당해요.",
+  "analogy": "학생을 설명하는 키·몸무게·나이 같은 항목.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "seed",
+  "aliases": [
+   "manual_seed",
+   "시드",
+   "seed",
+   "random_state"
+  ],
+  "full": "Random seed (난수 시드)",
+  "short": "난수의 출발점 번호. 고정하면 같은 환경에서 같은 난수가 나와서, 결과 차이가 코드 때문인지 운 때문인지 비교할 수 있어요.",
+  "analogy": "섞기 전 카드 순서를 똑같이 맞춰 두는 것.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Broadcasting",
+  "aliases": [
+   "broadcasting",
+   "브로드캐스팅"
+  ],
+  "full": "Broadcasting",
+  "short": "모양이 다른 Tensor끼리 계산할 때 작은 쪽을 규칙에 따라 자동으로 늘려 맞추는 것. 편하지만 의도와 다른 shape도 오류 없이 계산될 수 있어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Autograd",
+  "aliases": [
+   "자동 미분"
+  ],
+  "full": "Automatic differentiation (자동 미분)",
+  "short": "PyTorch가 계산 과정을 기록해 두었다가 backward() 한 번으로 모든 기울기를 자동으로 구해 주는 기능.",
+  "analogy": "계산 영수증을 모아 뒀다가 거꾸로 되짚어 정산하는 것.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "계산 그래프",
+  "aliases": [],
+  "full": "Computational graph",
+  "short": "어떤 값끼리 무엇을 곱하고 더했는지 연산 순서를 기록한 연결도. backward()가 이걸 거꾸로 따라가며 기울기를 구해요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "연쇄법칙",
+  "aliases": [
+   "chain rule",
+   "Chain rule"
+  ],
+  "full": "Chain rule (연쇄법칙)",
+  "short": "이어진 연산의 미분은 각 단계 미분을 곱해서 구한다는 규칙. 역전파가 이 규칙으로 기울기를 한 칸씩 곱해 가요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "requires_grad",
+  "aliases": [],
+  "full": "requires_grad (기울기 추적 여부)",
+  "short": "True면 이 Tensor로 하는 연산을 Autograd가 기록해 기울기를 구해요. 학습할 파라미터는 보통 True, 기본값은 False.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "기울기",
+  "aliases": [
+   "gradient",
+   "Gradient",
+   "그래디언트"
+  ],
+  "full": "Gradient (기울기)",
+  "short": "파라미터를 조금 늘리면 loss가 얼마나 커지는지 나타내는 값. backward() 후 .grad 에 저장되고, 지우지 않으면 누적돼요.",
+  "analogy": "산에서 발밑이 어느 쪽으로 얼마나 기울었는지.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "경사하강법",
+  "aliases": [
+   "Gradient Descent",
+   "경사하강"
+  ],
+  "full": "Gradient Descent (경사 하강법)",
+  "short": "기울기의 반대 방향으로 조금씩 움직여 loss를 줄이는 방법. 파라미터 = 파라미터 − 학습률 × 기울기.",
+  "analogy": "안개 낀 산에서 발밑 경사만 보고 한 걸음씩 내려가기.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "학습률",
+  "aliases": [
+   "learning rate",
+   "Learning rate",
+   "lr"
+  ],
+  "full": "Learning rate, lr (학습률)",
+  "short": "기울기 방향으로 한 번에 얼마나 크게 움직일지 정하는 값. 너무 작으면 느리고, 너무 크면 최적점을 지나쳐 진동·발산해요.",
+  "analogy": "내리막길에서 내딛는 보폭.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "발산",
+  "aliases": [],
+  "full": "Divergence (발산)",
+  "short": "학습률이 너무 커서 갱신할 때마다 목표를 지나쳐 loss가 점점 커지는 상태. 심하면 NaN이 돼요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "torch.no_grad()",
+  "aliases": [
+   "no_grad"
+  ],
+  "full": "torch.no_grad()",
+  "short": "이 블록 안의 연산은 계산 그래프에 기록하지 않아요. 평가·예측·수동 갱신 때 써서 메모리와 시간을 아껴요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "detach()",
+  "aliases": [
+   "detach"
+  ],
+  "full": "Tensor.detach()",
+  "short": "Tensor를 계산 그래프에서 떼어 낸 것. 값만 꺼내 출력·기록·NumPy 변환할 때 써요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "뉴런",
+  "aliases": [
+   "인공 뉴런",
+   "neuron"
+  ],
+  "full": "(Artificial) Neuron (인공 뉴런)",
+  "short": "입력마다 가중치를 곱해 더하고 편향을 더한 뒤(z = w₁x₁ + w₂x₂ + b) 활성화 함수를 통과시키는 계산 단위.",
+  "analogy": "여러 의견에 각자 다른 비중을 줘서 합친 뒤 결정을 내리는 한 사람.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "가중치",
+  "aliases": [],
+  "full": "Weight (가중치)",
+  "short": "입력에 곱해지는 숫자. 학습이란 결국 이 가중치들을 loss가 줄어드는 쪽으로 조금씩 고치는 일이에요.",
+  "analogy": "각 의견을 얼마나 중요하게 볼지 정하는 비중.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "편향",
+  "aliases": [
+   "bias"
+  ],
+  "full": "Bias (편향)",
+  "short": "가중합에 더하는 상수 b. 출력 위치를 위아래로 옮겨 주는 학습 파라미터예요.",
+  "analogy": "저울의 영점 조절.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "파라미터",
+  "aliases": [
+   "Parameter",
+   "모델 파라미터"
+  ],
+  "full": "Parameter (모델 파라미터)",
+  "short": "학습으로 값이 바뀌는 숫자들 — 가중치와 편향. model.parameters()로 모아 Optimizer에 넘겨요. 2→8→2 ANN은 42개예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "층",
+  "aliases": [
+   "layer",
+   "입력층",
+   "은닉층"
+  ],
+  "full": "Layer (층)",
+  "short": "뉴런 여러 개를 묶은 계산 단위. 층을 여러 개 쌓을수록 모델이 더 복잡한 표현을 배울 수 있어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Linear 층",
+  "aliases": [
+   "nn.Linear",
+   "Linear",
+   "선형 변환"
+  ],
+  "full": "nn.Linear (완전연결 층)",
+  "short": "입력의 마지막 차원에 가중치를 곱하고 편향을 더하는 층. nn.Linear(2, 8)은 특성 2개를 8개로 바꿔요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "활성화 함수",
+  "aliases": [],
+  "full": "Activation function (활성화 함수)",
+  "short": "층의 출력에 비선형성을 넣는 함수. 없으면 Linear를 아무리 쌓아도 Linear 하나와 같아요. 대표가 ReLU예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "ReLU",
+  "aliases": [],
+  "full": "Rectified Linear Unit",
+  "short": "음수는 0으로, 양수는 그대로 내보내는 가장 흔한 활성화 함수. 단순하지만 층 사이에 비선형성을 넣어 줘요.",
+  "analogy": "0보다 작은 소리는 아예 끄는 스위치.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "비선형성",
+  "aliases": [
+   "비선형"
+  ],
+  "full": "Nonlinearity (비선형성)",
+  "short": "직선(곱하고 더하기)만으로는 표현 못 하는 굽은 관계. 활성화 함수가 넣어 줘야 신경망이 복잡한 패턴을 배워요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "ANN",
+  "aliases": [
+   "인공신경망",
+   "신경망"
+  ],
+  "full": "Artificial Neural Network (인공신경망)",
+  "short": "인공 뉴런을 묶은 층을 여러 개 쌓은 모델. 오늘은 입력 2 → 은닉 8 → 출력 2 구조를 만들었어요.",
+  "analogy": "여러 단계의 심사위원이 차례로 판단을 넘겨주는 심사 과정.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "nn.Sequential",
+  "aliases": [
+   "Sequential"
+  ],
+  "full": "torch.nn.Sequential",
+  "short": "층을 넣은 순서대로 연결해 모델 하나로 만드는 상자. 넣은 순서가 곧 모델 구조예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "nn.Module",
+  "aliases": [
+   "Module"
+  ],
+  "full": "torch.nn.Module",
+  "short": "PyTorch의 모든 신경망이 상속하는 기본 클래스. 안에 넣은 층·파라미터를 등록해서 parameters()·to()·eval()을 한 번에 쓸 수 있게 해요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "logit",
+  "aliases": [
+   "logit",
+   "원시 점수",
+   "logits"
+  ],
+  "full": "Logits (원시 점수)",
+  "short": "모델이 마지막 층에서 낸, softmax 하기 전의 클래스별 점수. 합이 1일 필요가 없고 확률이 아니에요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "softmax",
+  "aliases": [
+   "Softmax",
+   "소프트맥스"
+  ],
+  "full": "Softmax",
+  "short": "logits를 0~1 사이, 합이 1인 확률로 바꾸는 함수. CrossEntropyLoss가 안에서 해 주니 모델 끝에는 붙이지 않아요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "argmax",
+  "aliases": [],
+  "full": "Argument of the maximum",
+  "short": "가장 큰 값이 있는 위치(번호)를 돌려주는 함수. 분류에서는 점수가 가장 큰 클래스 번호 = 예측 클래스예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "손실 함수",
+  "aliases": [
+   "손실함수",
+   "loss",
+   "Loss",
+   "손실"
+  ],
+  "full": "Loss function (손실 함수)",
+  "short": "모델 예측이 정답에서 얼마나 먼지를 숫자 하나(loss)로 만드는 함수. 학습은 이 숫자를 줄이는 방향으로 가중치를 고쳐요.",
+  "analogy": "시험 답안과 정답지를 비교해 매긴 감점 점수.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "CrossEntropyLoss",
+  "aliases": [
+   "Cross Entropy",
+   "교차 엔트로피"
+  ],
+  "full": "Cross-Entropy Loss (교차 엔트로피 손실)",
+  "short": "분류용 손실 함수. softmax 전 logits와 클래스 번호(long, shape (batch,))를 받아, 정답 클래스 확률이 낮을수록 loss를 크게 줘요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "목적함수",
+  "aliases": [],
+  "full": "Objective function (목적함수)",
+  "short": "학습이 줄이거나(또는 키우려고) 하는 기준 함수. 딥러닝에선 미분할 수 있는 loss를 목적함수로 써요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Accuracy",
+  "aliases": [
+   "accuracy",
+   "정확도"
+  ],
+  "full": "Accuracy (정확도)",
+  "short": "전체 중 맞힌 비율. 사람이 보는 성적표라서, 학습(미분)에는 loss를 쓰고 정확도는 따로 읽어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "순전파",
+  "aliases": [
+   "forward",
+   "Forward"
+  ],
+  "full": "Forward pass (순전파)",
+  "short": "입력을 층마다 차례로 통과시켜 예측(logits)을 만드는 계산. model(X)를 부르면 forward가 실행돼요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "역전파",
+  "aliases": [
+   "backward",
+   "Backward"
+  ],
+  "full": "Backpropagation (역전파)",
+  "short": "loss에서 거꾸로 거슬러 올라가며 모든 파라미터의 기울기를 구하는 계산. PyTorch에선 loss.backward() 한 줄이에요.",
+  "analogy": "결과가 틀렸을 때 \"누구 책임이 얼마인지\" 뒤에서부터 따져 올라가기.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "zero_grad",
+  "aliases": [
+   "zero_grad()"
+  ],
+  "full": "optimizer.zero_grad()",
+  "short": "지난 기울기를 비우는 명령. 기울기는 누적되기 때문에 매 step 처음에 꼭 불러야 이번 batch 기울기만 남아요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Optimizer",
+  "aliases": [
+   "optimizer",
+   "옵티마이저"
+  ],
+  "full": "Optimizer (최적화 도구)",
+  "short": "구한 기울기를 \"어떤 규칙으로\" 파라미터 갱신에 반영할지 정하는 객체. optimizer.step()이 실제로 값을 바꿔요. SGD·AdamW 등이 있어요.",
+  "analogy": "내비게이션이 알려 준 방향(기울기)을 보고 실제로 핸들을 꺾는 운전 방식.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "iteration",
+  "aliases": [
+   "Iteration",
+   "step"
+  ],
+  "full": "Iteration / step (반복 1회)",
+  "short": "batch 하나로 forward → loss → backward → optimizer.step()까지 한 번 갱신한 것. epoch당 iteration 수 = ⌈샘플 수 ÷ batch_size⌉.",
+  "analogy": "문제집에서 한 페이지 풀고 채점·복습까지 한 번.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "batch",
+  "aliases": [
+   "Batch",
+   "배치"
+  ],
+  "full": "Batch (배치)",
+  "short": "한 번에 모델에 넣어 계산하는 샘플 묶음. 이 묶음마다 기울기를 구해 가중치를 한 번 고쳐요.",
+  "analogy": "문제집 전체가 아니라 한 번에 푸는 한 페이지.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "mini-batch",
+  "aliases": [
+   "미니배치",
+   "mini batch"
+  ],
+  "full": "Mini-batch (미니배치)",
+  "short": "전체 데이터를 작게 나눈 batch. 전체를 한 번에 넣는 것과 하나씩 넣는 것 사이에서 속도·메모리·기울기 흔들림의 균형을 맞춰요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "batch size",
+  "aliases": [
+   "batch_size",
+   "Batch size",
+   "batch 크기"
+  ],
+  "full": "Batch size (배치 크기)",
+  "short": "batch 하나에 들어가는 샘플 수. 키우면 기울기가 안정되고 step 수가 줄지만 메모리를 더 써요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "epoch",
+  "aliases": [
+   "Epoch",
+   "에폭"
+  ],
+  "full": "Epoch (에폭)",
+  "short": "train 데이터 전체를 한 바퀴 다 본 단위. 200개를 batch 32로 나누면 7번 갱신하면 1 epoch이에요.",
+  "analogy": "문제집을 처음부터 끝까지 한 번 푼 것.",
+  "day": 9,
+  "key": true
+ },
+ {
+  "term": "Dataset",
+  "aliases": [
+   "TensorDataset"
+  ],
+  "full": "Dataset / TensorDataset",
+  "short": "샘플을 번호로 꺼낼 수 있게 묶은 자료 구조. TensorDataset(X, y)는 X와 y를 같은 번호끼리 짝지어 묶어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "DataLoader",
+  "aliases": [],
+  "full": "torch.utils.data.DataLoader",
+  "short": "Dataset에서 batch_size만큼씩 꺼내 주는 도구. shuffle로 epoch마다 순서를 섞을 수 있어요.",
+  "analogy": "카드 더미를 섞어서 몇 장씩 나눠 주는 딜러.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "shuffle",
+  "aliases": [],
+  "full": "Shuffle (섞기)",
+  "short": "epoch마다 데이터 순서를 무작위로 섞는 옵션. train은 True(순서 패턴을 외우지 않게), valid/test는 False.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "학습 루프",
+  "aliases": [
+   "training loop"
+  ],
+  "full": "Training loop (학습 루프)",
+  "short": "batch마다 zero_grad → forward → loss → backward → step 다섯 단계를 반복하는 코드 구조.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "model.train()",
+  "aliases": [
+   "train()"
+  ],
+  "full": "Training mode (학습 모드)",
+  "short": "Dropout·BatchNorm 같은 층을 학습용 동작으로 바꾸는 스위치. 기울기 계산을 켜고 끄는 것과는 상관없어요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "model.eval()",
+  "aliases": [
+   "eval()",
+   "평가 모드"
+  ],
+  "full": "Evaluation mode (평가 모드)",
+  "short": "Dropout을 끄고 BatchNorm이 저장된 통계를 쓰게 바꾸는 스위치. 기울기 기록은 안 끄니 평가 땐 torch.no_grad()와 함께 써요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Dropout",
+  "aliases": [
+   "dropout",
+   "드롭아웃"
+  ],
+  "full": "Dropout (드롭아웃)",
+  "short": "학습할 때 뉴런 출력 일부를 확률 p로 무작위로 0으로 끄는 층. 특정 뉴런에만 기대지 못하게 해 과적합을 줄여요. 평가 땐 꺼져요(그대로 통과).",
+  "analogy": "매번 팀원 몇 명이 랜덤으로 결석해도 일이 굴러가도록 훈련하기.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "BatchNorm",
+  "aliases": [
+   "BatchNorm1d",
+   "Batch Normalization",
+   "배치 정규화"
+  ],
+  "full": "Batch Normalization (배치 정규화)",
+  "short": "층의 중간값을 현재 batch의 평균·분산으로 정리(정규화)해 학습을 안정시키는 층. 평가 땐 학습 중 모아 둔 running 통계를 써요.",
+  "analogy": "매 시합마다 선수들 기록을 같은 기준으로 환산해 비교하기.",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "CNN",
+  "aliases": [],
+  "full": "Convolutional Neural Network (합성곱 신경망)",
+  "short": "이미지처럼 가로·세로 구조가 있는 데이터에 쓰는 신경망. 입력 shape는 보통 (batch, channel, height, width)예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "RNN",
+  "aliases": [],
+  "full": "Recurrent Neural Network (순환 신경망)",
+  "short": "문장·시계열처럼 순서가 있는 데이터를 앞에서부터 차례로 읽는 신경망.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "Transformer",
+  "aliases": [
+   "트랜스포머"
+  ],
+  "full": "Transformer",
+  "short": "문장 속 단어들이 서로 얼마나 관련 있는지(attention)를 계산해 처리하는 신경망 구조. 요즘 언어 모델의 기본 구조예요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ },
+ {
+  "term": "임베딩",
+  "aliases": [
+   "embedding",
+   "Embedding"
+  ],
+  "full": "Embedding (임베딩)",
+  "short": "단어 같은 기호를 의미를 담은 숫자 벡터로 바꾼 것. 문장은 (batch, sequence, feature) shape가 돼요.",
+  "analogy": "",
+  "day": 9,
+  "key": false
+ }
+]

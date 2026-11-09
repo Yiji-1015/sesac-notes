@@ -1,0 +1,520 @@
+[
+ {
+  "term": "Decision Tree",
+  "aliases": [
+   "결정트리",
+   "의사결정나무",
+   "DecisionTreeClassifier",
+   "DecisionTreeRegressor"
+  ],
+  "full": "Decision Tree (결정 트리)",
+  "short": "\"글자수 ≤ 500?\" 같은 예/아니오 질문을 이어 가며 자료를 나누고, 마지막 잎에서 예측하는 모델. 질문은 학습 자료로 자동 선택돼요.",
+  "analogy": "스무고개 — 질문을 하나씩 던지며 답을 좁혀 가는 것.",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "루트",
+  "aliases": [
+   "루트 노드",
+   "Root"
+  ],
+  "full": "Root node (루트 노드)",
+  "short": "트리의 맨 위, 첫 번째 질문이 있는 곳.",
+  "analogy": "스무고개의 첫 질문.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "내부 노드",
+  "aliases": [
+   "노드",
+   "Node"
+  ],
+  "full": "Internal node (내부 노드)",
+  "short": "루트 다음에 이어지는 중간 질문들. 자료를 다시 둘로 나눠요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "잎",
+  "aliases": [
+   "leaf",
+   "Leaf",
+   "잎 노드"
+  ],
+  "full": "Leaf node (잎 노드)",
+  "short": "더 이상 나누지 않는 트리의 끝. 분류는 그 잎에 떨어진 학습 행의 클래스 비율, 회귀는 y 평균으로 예측해요.",
+  "analogy": "스무고개 끝에 나온 최종 답.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "Gini 불순도",
+  "aliases": [
+   "Gini",
+   "지니 불순도"
+  ],
+  "full": "Gini impurity (지니 불순도)",
+  "short": "한 노드에 클래스가 얼마나 섞였는지 재는 값. 1 − Σ(각 클래스 비율)². 0이면 한 클래스만(깨끗), 이진 분류에선 0.5가 가장 섞인 상태. 트리는 이 값을 가장 많이 줄이는 질문을 골라요.",
+  "analogy": "바구니에 사과·배가 반반이면 지저분(0.5), 사과만 있으면 깨끗(0).",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "불순도",
+  "aliases": [
+   "Impurity"
+  ],
+  "full": "Impurity (불순도)",
+  "short": "노드 안에 서로 다른 정답이 섞인 정도. 낮을수록 그 노드의 예측을 자신 있게 할 수 있어요. 시험 점수나 오차가 아니에요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "탐욕적 방법",
+  "aliases": [
+   "Greedy"
+  ],
+  "full": "Greedy method (탐욕적 방법)",
+  "short": "전체 최적을 한 번에 찾지 않고, 매 단계에서 '지금 가장 좋아 보이는' 선택을 하고 넘어가는 방식. 빠르지만 나중에 더 좋은 길은 놓칠 수 있어요.",
+  "analogy": "갈림길마다 당장 가까워 보이는 길만 고르는 등산.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "max_depth",
+  "aliases": [],
+  "full": "max_depth (최대 깊이)",
+  "short": "트리가 질문을 최대 몇 단계까지 할 수 있는지. 작으면 과소적합, None(제한 없음)이면 잎이 깨끗해질 때까지 나눠 과적합 위험.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "min_samples_leaf",
+  "aliases": [],
+  "full": "min_samples_leaf (잎의 최소 행 수)",
+  "short": "각 잎에 있어야 하는 최소 학습 행 수. 키우면 행 1~2개짜리 잎(잡음 분할)을 막아요. '잎 개수'가 아니에요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "min_samples_split",
+  "aliases": [],
+  "full": "min_samples_split (분할 최소 행 수)",
+  "short": "노드를 더 나누려면 그 노드에 최소 몇 행이 있어야 하는지. '나눌지 말지' 조건이에요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "가지치기",
+  "aliases": [
+   "ccp_alpha",
+   "Pruning"
+  ],
+  "full": "Cost-Complexity Pruning (비용-복잡도 가지치기)",
+  "short": "다 키운 트리에서 불순도를 별로 못 줄이는 가지를 잘라 단순하게 만드는 것. ccp_alpha가 클수록 더 많이 잘려요.",
+  "analogy": "웃자란 나뭇가지를 쳐서 모양을 다듬는 것.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "seed",
+  "aliases": [
+   "seed",
+   "random_state"
+  ],
+  "full": "random_state (난수 고정값)",
+  "short": "무작위 과정(추출, 특성 후보, 분할 섞기 등)을 매번 같게 만드는 번호. 결과를 재현하려고 고정해요(예: 42).",
+  "analogy": "카드를 섞는 방법을 정해 두어 매번 같은 순서가 나오게 하는 것.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "앙상블",
+  "aliases": [
+   "Ensemble"
+  ],
+  "full": "Ensemble (앙상블)",
+  "short": "여러 모델(여기선 트리 여러 개)의 예측을 묶어 하나의 답을 내는 방법. 대표 방식이 배깅(Random Forest)과 부스팅(XGBoost). 항상 점수가 오르는 건 아니에요.",
+  "analogy": "한 사람 의견보다 여러 사람에게 물어 종합하는 것.",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "Random Forest",
+  "aliases": [
+   "랜덤 포레스트",
+   "RandomForestClassifier",
+   "RandomForestRegressor"
+  ],
+  "full": "Random Forest (랜덤 포레스트)",
+  "short": "트리마다 다른 표본(중복 허용 추출)과 분할마다 다른 특성 후보를 줘서 서로 다른 트리를 독립적으로 여러 개 만들고, 분류는 확률·회귀는 예측을 평균하는 앙상블.",
+  "analogy": "서로 다른 자료를 본 전문가 100명의 의견을 평균하는 것.",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "Bagging",
+  "aliases": [
+   "배깅"
+  ],
+  "full": "Bootstrap Aggregating (배깅)",
+  "short": "중복 허용 추출로 만든 서로 다른 표본에서 모델을 각각 독립적으로 학습하고 결과를 평균하는 앙상블 방식. Random Forest가 대표.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "중복 허용 추출",
+  "aliases": [
+   "Bootstrap",
+   "부트스트랩"
+  ],
+  "full": "Bootstrap sampling (중복 허용 추출)",
+  "short": "자료에서 하나 뽑고 다시 넣고를 반복해 같은 크기의 표본을 만드는 방법. 어떤 행은 여러 번, 어떤 행은 한 번도 안 뽑혀서 트리마다 보는 자료가 달라져요.",
+  "analogy": "제비뽑기 후 뽑은 제비를 다시 통에 넣고 또 뽑는 것.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "n_estimators",
+  "aliases": [],
+  "full": "n_estimators (트리 개수 / 보정 회차)",
+  "short": "Random Forest에선 숲의 트리 수, XGBoost에선 보정 트리를 추가하는 회차. 깊이가 아니에요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "max_features",
+  "aliases": [],
+  "full": "max_features (분할마다 볼 특성 후보 수)",
+  "short": "Random Forest가 분할할 때마다 무작위로 살펴볼 특성의 수·비율. 작을수록 트리끼리 더 달라지지만 각 트리는 약해져요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "estimators_",
+  "aliases": [],
+  "full": "estimators_ (학습된 개별 트리 목록)",
+  "short": "Random Forest 안에 학습된 트리들을 담은 목록. n_estimators=100이면 100개.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "n_jobs",
+  "aliases": [],
+  "full": "n_jobs (병렬 작업 수)",
+  "short": "계산에 쓸 CPU 작업 수. -1이면 전부. 수업에선 재현성을 위해 1로 고정해요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "특성 중요도",
+  "aliases": [
+   "Feature importance",
+   "feature_importances_"
+  ],
+  "full": "Feature importance (특성 중요도)",
+  "short": "학습된 모델이 어떤 특성(열)에 얼마나 기댔는지 나타낸 값. '중요 = 원인'이 아니고, 영향의 방향(+/−)도 알려 주지 않아요.",
+  "analogy": "",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "MDI",
+  "aliases": [
+   "Mean Decrease in Impurity",
+   "불순도 기반 중요도"
+  ],
+  "full": "Mean Decrease in Impurity (불순도 감소 기반 중요도)",
+  "short": "각 분기에서 줄어든 불순도 × 그 분기가 다룬 자료 비중을 특성별로 더한 값(트리들 평균). 학습 자료 기준이고 합은 1. 값 종류가 많은 특성이 높게 나오기 쉬워요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "순열 중요도",
+  "aliases": [
+   "Permutation importance",
+   "permutation_importance"
+  ],
+  "full": "Permutation importance (순열 중요도)",
+  "short": "평가 자료에서 한 열의 값을 행끼리 뒤섞었을 때 점수가 얼마나 떨어지는지로 중요도를 재는 방법. 다시 학습하지 않으며 음수도 나올 수 있어요.",
+  "analogy": "요리에서 소금만 몰래 다른 가루로 바꿔 보고 맛이 얼마나 망가지는지 보는 것.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "get_feature_names_out",
+  "aliases": [],
+  "full": "get_feature_names_out() (변환 후 열 이름)",
+  "short": "전처리를 거친 뒤 실제 열 이름과 순서를 돌려주는 함수. 원-핫으로 열이 늘어나니 중요도가 어느 열 것인지 알려면 필요해요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "더미",
+  "aliases": [
+   "더미 열",
+   "Dummy variable"
+  ],
+  "full": "Dummy variable (더미 열)",
+  "short": "원-핫 인코딩으로 생긴 0/1 열. 범주 2열이 더미 6열로 펼쳐졌어요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "부스팅",
+  "aliases": [
+   "Boosting"
+  ],
+  "full": "Boosting (부스팅)",
+  "short": "앞 모델이 틀린 부분을 다음 모델이 보정하도록 트리를 순서대로 추가하는 앙상블 방식. 기본 점수에 보정값을 조금씩 누적해요.",
+  "analogy": "오답 노트를 보며 틀린 유형만 골라 다시 공부하기를 반복하는 것.",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "XGBoost",
+  "aliases": [
+   "XGBClassifier",
+   "XGBRegressor",
+   "xgboost"
+  ],
+  "full": "eXtreme Gradient Boosting",
+  "short": "손실을 줄이는 트리를 순서대로 추가하는 그래디언트 부스팅 구현. 트리 복잡도·잎 값에 규제를 걸어 과적합을 제어하고, sklearn처럼 fit/predict로 Pipeline에 연결돼요.",
+  "analogy": "",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "그래디언트 부스팅",
+  "aliases": [
+   "Gradient Boosting"
+  ],
+  "full": "Gradient Boosting (그래디언트 부스팅)",
+  "short": "손실의 기울기(gradient) 정보를 따라 '지금 틀린 방향'을 다음 트리가 배우게 하는 부스팅. 제곱오차에선 그 방향이 곧 잔차예요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "학습률",
+  "aliases": [
+   "learning_rate",
+   "Learning rate"
+  ],
+  "full": "Learning rate (학습률)",
+  "short": "한 회차의 보정을 얼마나 반영할지 정하는 비율(예: 0.05). 작으면 조금씩 안정적으로 고치지만 회차가 더 필요해요.",
+  "analogy": "운전대를 한 번에 확 꺾지 않고 조금씩 돌리는 정도.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "Hessian",
+  "aliases": [
+   "곡률"
+  ],
+  "full": "Hessian (손실의 곡률, 2차 미분)",
+  "short": "손실이 얼마나 휘어 있는지 나타내는 값. XGBoost는 기울기와 함께 이걸로 보정값을 계산하고, min_child_weight는 자식 노드의 Hessian 합 하한이에요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "min_child_weight",
+  "aliases": [],
+  "full": "min_child_weight (자식 노드 최소 Hessian 합)",
+  "short": "XGBoost에서 노드를 나눌 때 자식에 보정할 정보(Hessian 합)가 이만큼은 모여야 한다는 조건. 행 수(min_samples_leaf)와는 달라요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "subsample",
+  "aliases": [
+   "colsample_bytree"
+  ],
+  "full": "subsample / colsample_bytree (행·특성 부분 표본 비율)",
+  "short": "XGBoost가 회차마다 쓸 행의 비율 / 트리마다 쓸 특성의 비율. 낮추면 다양성↑·과적합↓, 너무 낮으면 정보 부족.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "L2 규제",
+  "aliases": [
+   "reg_lambda"
+  ],
+  "full": "L2 regularization (L2 규제)",
+  "short": "값의 제곱에 벌점을 줘 크게 튀지 않게 하는 규제. XGBoost의 reg_lambda는 잎 값에 걸어 한 번의 보정을 보수적으로 만들어요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "objective",
+  "aliases": [
+   "binary:logistic",
+   "reg:squarederror"
+  ],
+  "full": "objective (학습 목표 손실)",
+  "short": "XGBoost가 학습하며 줄일 손실의 종류. 이진분류는 binary:logistic, 회귀는 reg:squarederror. 문제 유형에 맞춰야 해요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "eval_metric",
+  "aliases": [],
+  "full": "eval_metric (학습 진단 지표)",
+  "short": "학습 중 진행을 확인하는 지표(logloss, rmse). 모델 선택 지표(F1)와는 별개예요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "hist",
+  "aliases": [
+   "tree_method"
+  ],
+  "full": "tree_method=\"hist\" (히스토그램 방식)",
+  "short": "값을 구간으로 묶어 분할 기준을 빠르게 찾는 XGBoost 트리 생성 방식. CPU에서 돌아가요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "GPU",
+  "aliases": [],
+  "full": "Graphics Processing Unit (그래픽 처리 장치)",
+  "short": "대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 이번 수업은 CPU만으로 충분해요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "조기 종료",
+  "aliases": [
+   "early stopping",
+   "early_stopping_rounds",
+   "Early Stopping"
+  ],
+  "full": "Early stopping (조기 종료)",
+  "short": "따로 떼어 둔 stop 자료의 손실이 정한 회차(예: 15회) 동안 나아지지 않으면 학습을 멈추는 방법. 잡음까지 배우기 전에 멈춰 과적합을 줄여요.",
+  "analogy": "모의고사 점수가 더 안 오르면 벼락치기를 멈추는 것.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "교차검증",
+  "aliases": [
+   "Cross-validation",
+   "CV",
+   "cross_validate"
+  ],
+  "full": "Cross-validation (교차검증)",
+  "short": "train을 여러 조각(fold)으로 나눠, 돌아가며 한 조각으로 평가하고 나머지로 학습하는 방법. 한 번의 분할 운에 덜 흔들리고, 점수 평균과 흩어짐을 함께 봐요. 전처리도 fold마다 다시 학습해야 해요.",
+  "analogy": "모의고사를 문제지 5세트로 돌려 가며 봐서 실력을 평균 내는 것.",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "fold",
+  "aliases": [
+   "5-fold",
+   "폴드"
+  ],
+  "full": "Fold (교차검증 조각)",
+  "short": "교차검증에서 나눈 한 조각. 5-fold면 train 60건을 12건씩 5조각으로 나눠 각 회차에 48건 학습, 12건 평가.",
+  "analogy": "피자를 5조각으로 나눈 것 중 한 조각.",
+  "day": 7,
+  "key": true
+ },
+ {
+  "term": "StratifiedKFold",
+  "aliases": [
+   "층화 분할"
+  ],
+  "full": "Stratified K-Fold (층화 K겹 분할)",
+  "short": "모든 fold의 클래스 비율(예: 실패 비율)을 원본과 비슷하게 맞춰 나누는 분할. 소수 클래스가 있는 분류에 써요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "KFold",
+  "aliases": [],
+  "full": "K-Fold (K겹 분할)",
+  "short": "자료를 K조각으로 그냥 나누는 교차검증 분할. 클래스가 없는 회귀(연속 정답)에 써요. shuffle=True면 섞어서 나눠요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "neg_root_mean_squared_error",
+  "aliases": [],
+  "full": "Negative RMSE (음수 RMSE 점수)",
+  "short": "sklearn이 모든 점수를 '클수록 좋다'로 통일하려고 RMSE에 −를 붙인 것. 보고할 땐 다시 −를 붙여 원래 RMSE(ms)로 되돌려요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "그룹 단위 분할",
+  "aliases": [
+   "GroupKFold"
+  ],
+  "full": "Group split (그룹 단위 분할)",
+  "short": "같은 고객·요청 등 한 그룹의 행이 학습과 평가 양쪽에 동시에 들어가지 않게 그룹째로 나누는 방법.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "시간 순서 분할",
+  "aliases": [
+   "TimeSeriesSplit"
+  ],
+  "full": "Time-ordered split (시간 순서 분할)",
+  "short": "과거 자료로 학습하고 그 뒤의 자료로 평가하도록 시간 순서대로 나누는 방법. 미래 정보가 학습에 들어가지 않게 해요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "신뢰구간",
+  "aliases": [
+   "95% 신뢰구간"
+  ],
+  "full": "Confidence interval (신뢰구간)",
+  "short": "진짜 값이 들어 있을 것으로 추정하는 통계적 범위. fold 점수의 평균 ± 표준편차는 흩어짐 기록일 뿐 신뢰구간이 아니에요.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "과적합",
+  "aliases": [
+   "Overfitting",
+   "오버피팅"
+  ],
+  "full": "Overfitting (과적합)",
+  "short": "학습 자료의 우연한 잡음까지 외워서 train 점수만 높고 새 자료 점수는 낮은 상태.",
+  "analogy": "",
+  "day": 7,
+  "key": false
+ }
+]

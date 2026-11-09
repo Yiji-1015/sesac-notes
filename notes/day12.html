@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day12 · 순서 모델 (RNN · LSTM · Autoencoder · Transformer) | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag dl">딥러닝</span>
+      <h1>Day12 · 순서 모델 (RNN · LSTM · Autoencoder · Transformer)</h1>
+      <div class="meta">2026-11-02(월) · Padding/Mask · RNN · LSTM · Autoencoder · Attention · Transformer · 아키텍처 비교 · 길이·속도 측정</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>순서 데이터는 <code>[B, T, F]</code>(개수 · 시점 · 특징). 모든 시점에 <b>같은 가중치</b>를 써서 길이가 달라도 같은 모델로 읽고, 길이를 맞추려 채운 <b>Padding은 계산에서 꼭 뺀다</b>(lengths · Mask).</li>
+          <li><b>RNN → LSTM → Transformer</b>는 "순서를 더 잘 읽기"의 발전: 메모 한 장(h) → 곱하지 않고 <b>더하는</b> 기억 통로(c) → 모든 위치를 한 번에 직접 보기(Attention, 대신 비용 T²).</li>
+          <li><b>Autoencoder</b>는 목적이 다른 갈래: 미래가 아니라 <b>입력 자신</b>을 좁은 통로로 되살리고, 잘 못 되살리면 "이상 후보". 예측·재구성 결과는 <b>따로</b> 기록해요.</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>torch</code> (이미 설치된 것 그대로)</td></tr>
+        <tr><td><a href="#seq">① 순서 데이터 · Padding · Mask · Window</a></td><td><code>pad_sequence()</code>, <code>masked_fill()</code>, <code>unfold()</code>, <code>pack_padded_sequence()</code></td></tr>
+        <tr><td><a href="#rnn">② RNN</a></td><td><code>nn.RNN()</code> → <code>output, h_n</code></td></tr>
+        <tr><td><a href="#lstm">③ LSTM</a></td><td><code>nn.LSTM()</code> → <code>output, (h_n, c_n)</code></td></tr>
+        <tr><td><a href="#ae">④ Autoencoder</a></td><td><code>nn.Sequential(nn.Linear …)</code>, <code>nn.MSELoss(reduction="none")</code>, <code>TensorDataset</code></td></tr>
+        <tr><td><a href="#attn">⑤ Attention · Transformer</a></td><td><code>nn.MultiheadAttention()</code>, <code>nn.TransformerEncoderLayer()</code>, <code>nn.TransformerEncoder()</code>, <code>src_key_padding_mask</code></td></tr>
+        <tr><td><a href="#compare">⑥ 아키텍처 비교</a></td><td>같은 분할·지표로 Params·Best Epoch·Valid·시간·메모리 기록</td></tr>
+        <tr><td><a href="#speed">⑦ 길이 T · Padding · 속도 측정</a></td><td><code>perf_counter()</code>, <code>torch.cuda.synchronize()</code>, <code>torch.cuda.max_memory_allocated()</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>torch</code></td><td>RNN·LSTM·Transformer 층, Padding 도구, 손실 함수, DataLoader 전부 (Day9부터 설치됨)</td><td><code>import torch</code>, <code>from torch import nn</code>, <code>from torch.nn.utils.rnn import pad_sequence</code></td></tr>
+        <tr><td><code>matplotlib</code> <small>(선택)</small></td><td>loss 곡선, 예측 vs 실제, Mask·Latent 그림</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+      </table>
+      <h3>🔧 확인</h3>
+<pre><code>python -c "import torch; print(torch.__version__); print('CUDA:', torch.cuda.is_available())"</code></pre>
+      <div class="callout">💡 오늘 쓰는 순서 모델 도구(<code>nn.RNN</code>, <code>nn.LSTM</code>, <code>nn.MultiheadAttention</code>, <code>pad_sequence</code> …)는 전부 <code>torch</code> 안에 들어 있어서 따로 설치할 게 없어요. 정상 설치된 환경은 그대로 두고, 기본 학습은 CPU로, GPU 비교는 GPU가 있을 때만 해요.</div>
+      <div class="callout">🤔 <strong>왜 설치 버전을 기록해?</strong> — 시간·메모리 측정값과 일부 기본 동작은 PyTorch 버전·장치에 따라 달라져요. 나중에 결과를 다시 만들거나 남과 비교하려면 "어떤 환경에서 잰 숫자인지"가 같이 있어야 해요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>Day11의 이미지는 "한 장" 데이터였죠. 오늘은 <b>순서가 의미를 가지는 데이터</b>예요(센서·문장·로그·오디오). 같은 단어라도 순서를 바꾸면 뜻이 달라져요(“woman ate raccoon” vs “raccoon ate woman”). 그래서 시계열은 순서를 마구 섞으면 같은 문제가 아니에요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">📈</div><strong>다음 값 예측</strong><span>과거 12개 관측을 보고 다음 1개 맞히기 (설비 센서)</span></div>
+        <div class="usecase"><div class="emoji">💬</div><strong>순서 분류</strong><span>문장·로그·신호 한 줄을 보고 클래스 고르기</span></div>
+        <div class="usecase"><div class="emoji">🏭</div><strong>점검 후보 찾기</strong><span>정상 패턴을 되살리지 못하는 사례 표시</span></div>
+        <div class="usecase"><div class="emoji">🌐</div><strong>긴 문맥 읽기</strong><span>Transformer: 멀리 떨어진 위치끼리 직접 연결</span></div>
+      </div>
+      <table>
+        <tr><th>입출력 구조</th><th>하는 일</th><th>예</th></tr>
+        <tr><td><b>Many-to-one</b></td><td>전체 순서를 읽고 클래스·값 하나</td><td>문장 감성 분류</td></tr>
+        <tr><td><b>Many-to-many</b></td><td>각 시점마다 태그·상태·예측</td><td>시점별 상태 표시</td></tr>
+        <tr><td><b>Next-step</b></td><td>과거 Window로 다음 시점 값</td><td>과거 12개 → 다음 1개</td></tr>
+        <tr><td><b>Encoder–Decoder</b></td><td>입력 순서를 다른 길이의 출력 순서로</td><td>번역</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="seq">① 순서 데이터 [B, T, F] · Padding · Mask · Window</h2>
+      <table>
+        <tr><th>축</th><th>뜻</th><th>예 (오늘 LSTM 예측)</th></tr>
+        <tr><td><b>B</b> · Batch</td><td>Window(순서) 개수</td><td>B개</td></tr>
+        <tr><td><b>T</b> · Time</td><td>시점 수 (길이)</td><td>T=12, 과거 12개 관측</td></tr>
+        <tr><td><b>F</b> · Feature</td><td>한 시점에 동시에 관측한 특성 수</td><td>F=1, 시점마다 값 1개</td></tr>
+      </table>
+      <p>순서마다 길이가 달라요(4, 2, 5 …). 한 묶음(Tensor)으로 만들려면 가장 긴 길이에 맞춰 <b>0을 채워야</b> 해요. 이게 <b>Padding</b>. 대신 "진짜 길이(<code>lengths</code>)"나 "어디가 채운 칸인지(<b>Mask</b>)"를 함께 들고 다녀요. Padding을 쓰면 T는 batch 안의 <b>최대 길이</b>가 돼요.</p>
+<pre><code>순서 [3, 1, 4] 를 길이 5에 맞춤 → [3, 1, 4, 0, 0]
+
+✕ Padding까지 평균:  (3+1+4+0+0) ÷ 5 = 1.6     ← 틀림
+○ 실제 길이로 평균:  (3+1+4) ÷ 3     = 2.67</code></pre>
+      <div class="callout">🤔 <strong>왜 길이가 달라도 같은 모델에 넣을 수 있어?</strong> — 순서 모델은 <b>모든 시점에 같은 가중치</b>를 써요. 시점마다 다른 가중치(W₁, W₂, …)를 쓰면 길이 4로 배운 모델은 5번째 시점용 W₅가 없어서 못 읽고, 길이가 바뀔 때마다 새로 배워야 하죠. 같은 W를 반복하면 길이가 4든 50이든 그대로 읽어요. 그래서 <code>nn.RNN(input_size, hidden_size)</code>에는 길이 T를 정하는 인자가 아예 없어요. (Day11 Conv가 "모든 <b>위치</b>에 같은 Kernel"이었던 것과 같은 생각이에요.)</div>
+      <div class="callout">🤔 <strong>왜 Padding은 계속 빼라고 해?</strong> — Padding은 길이를 맞추려고 채운 0이라 <b>실제 값이 아니에요</b>. 평균에 섞이면 위처럼 값이 작아지고, "마지막 값"을 꺼내면 진짜 마지막이 아닌 0을 꺼내고, Attention에선 가짜 칸에 비율을 나눠 줘요. 그래서 오늘 모든 모델에서 따로 빼요.</div>
+      <figure><img class="smooth" src="img/day12/padding_mask.png" alt="길이 12, 8, 10, 5인 센서 순서 네 개를 12로 맞추며 회색 Padding을 채운 그림과, True/False로 된 4×12 Mask 행렬"><figcaption><b>무엇을 보나:</b> 왼쪽은 길이가 다른 센서 기록 4개를 가장 긴 12에 맞춘 모습이에요. 회색 빗금 칸이 채워 넣은 0(Padding). 오른쪽은 같은 모양의 Mask로, 회색 <b>T</b>(True) 칸이 정확히 왼쪽의 회색 칸과 겹쳐요. 빨간 숫자는 "0까지 넣고 평균"한 값인데, 샘플3은 진짜 평균 0.38이 <b>0.16</b>으로 반 토막 나요. <b>🤔 왜 짧을수록 더 틀려?</b> 짧은 샘플일수록 채운 0이 많아서 평균의 분모(12)에서 가짜 칸 비중이 커져요. 그러면 모델은 "짧다"는 사실을 "값이 작다"로 착각해요. Mask로 회색 칸을 빼고 진짜 길이로 나누면 길이와 상관없이 정직한 평균이 나와요.</figcaption></figure>
+
+      <h3>🔧 명령어: Mask 만들기 · Padding 칸 0으로 · <code>pad_sequence()</code></h3>
+<pre><code>import torch
+x = torch.randn(4, 6, 3)                              # [B=4, T=6, F=3]
+lengths = torch.tensor([6, 4, 5, 3])                  # 샘플별 실제 길이
+mask = torch.arange(6)[None, :] &gt;= lengths[:, None]   # [4, 6], True = Padding 칸
+x = x.masked_fill(mask.unsqueeze(-1), 0.0)            # Padding 칸을 0으로
+print(x.shape, x.dtype, lengths.shape)                # [4, 6, 3] float32 [4]
+
+from torch.nn.utils.rnn import pad_sequence
+seqs = [torch.ones(4, 3), torch.ones(2, 3) * 2, torch.ones(5, 3) * 3]   # 길이 4, 2, 5
+padded = pad_sequence(seqs, batch_first=True)         # → [3, 5, 3] = [B, T, F]
+valid = (~(torch.arange(5)[None, :] &gt;= torch.tensor([4, 2, 5])[:, None])).unsqueeze(-1)
+mean = (padded * valid).sum(1) / valid.sum(1)         # 실제 칸만 평균</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>sequences</code> <small>(필수)</small></td><td>길이가 다른 Tensor들의 리스트 (각각 [T, F])</td><td></td></tr>
+        <tr><td><code>batch_first</code></td><td>True면 [B, T, F], <b>기본 False</b>면 [T, B, F]</td><td>모델 쪽 설정과 다르면 Batch와 Time이 뒤바뀐 채로 계산됨 (오류 없이 틀릴 수 있어 위험)</td></tr>
+        <tr><td><code>padding_value</code></td><td>채울 값 (기본 0.0)</td><td>값을 바꿔도 Mask로 빼면 결과가 같아야 함 → Mask 검사용으로 써먹기 좋음</td></tr>
+        <tr><td><code>arange(T)[None, :] &gt;= lengths[:, None]</code></td><td>Broadcasting으로 [B, T] Mask 생성, <b>True = 제외할 칸</b></td><td>True/False 뜻을 반대로 쓰면 진짜 값이 빠지고 Padding만 남음</td></tr>
+        <tr><td><code>masked_fill(mask, 0.0)</code></td><td>True 칸을 지정 값으로</td><td>Mask를 [B,T,1]로 늘려야 F축 전체에 적용됨 (<code>unsqueeze(-1)</code>)</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 시계열 창 자르기 <code>unfold()</code></h3>
+      <p>긴 시계열 하나를 "과거 12개 → 다음 1개" 문제 여러 개로 잘라요.</p>
+<pre><code>window = train_s.unfold(0, 13, 1)          # [창 개수, 13] = 과거 12 + 정답 1
+x = window[:, :12].unsqueeze(-1)           # [N, 12, 1]  ← F=1 축 추가
+y = window[:, 12:13]                       # [N, 1]
+# 예: 길이 20, size=5, step=1 → Window 20 − 5 + 1 = 16개</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>dimension</code> <small>(필수)</small></td><td>어느 축을 따라 자를지</td><td></td></tr>
+        <tr><td><code>size</code> <small>(필수)</small></td><td>창 길이 (입력 12 + 정답 1)</td><td>크면 더 먼 과거를 보지만 창 개수는 줄어듦 (길이 − size + 1개)</td></tr>
+        <tr><td><code>step</code> <small>(필수)</small></td><td>창 시작점 간격 — 기본값 없음, 꼭 지정</td><td>크면 겹침이 줄고 창 개수도 줄어듦</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 시간으로 먼저 train/valid/test를 나눈 뒤 잘라?</strong> — 통째로 잘라 놓고 섞어 나누면, 겹치는 창 때문에 valid 창의 값이 train 창 안에 그대로 들어 있어요. 모델이 "미래"를 이미 본 셈이라(<b>누수</b>) 점수가 부풀어요. 그리고 <code>unfold</code> 결과는 원본과 메모리를 <b>공유하는 view</b>라, 원본을 고치면 창도 같이 바뀌어요.</div>
+      <figure><img class="smooth" src="img/day12/windows.png" alt="사인파 센서 기록을 train, valid, test 구간으로 시간 순서대로 나누고, 과거 12개 점과 다음 1개 별로 된 창 세 개를 표시한 그림"><figcaption><b>무엇을 보나:</b> 사인파 센서 기록 하나(회색 선)에서 창 3개를 예로 그렸어요. 보라 점 12개 = 모델이 보는 과거, 분홍 별 = 맞혀야 할 다음 값. <code>unfold(0, 13, 1)</code>은 이 13칸짜리 창을 <b>1칸씩 밀며</b> 전부 만들어요. 배경색은 시간 순서로 먼저 자른 train/valid/test 구간이에요. <b>🤔 왜 먼저 자르고 창을 만들어?</b> 창은 서로 12칸씩 겹쳐요. 섞어서 나누면 train 창의 "과거 12개" 안에 valid 창의 정답(별)이 그대로 들어가 버려요. 미래를 미리 본 모델은 시험 점수만 좋고 실전에선 틀려요.</figcaption></figure>
+
+      <h3>🔧 명령어: Padding 건너뛰기 <code>pack_padded_sequence()</code></h3>
+      <p>RNN·LSTM에 "여기까지만 진짜야"라고 알려 주는 포장. 포장하면 RNN이 Padding 칸을 아예 계산하지 않아요(<code>.data</code> 모양은 [Σ길이, F]).</p>
+<pre><code>from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+
+packed = pack_padded_sequence(padded, lengths, batch_first=True, enforce_sorted=False)
+out_packed, h_n = rnn(packed)                     # h_n = 샘플마다 '실제' 마지막 시점
+output, out_lengths = pad_packed_sequence(out_packed, batch_first=True)   # 다시 [B, T, H]로</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>lengths</code> <small>(필수)</small></td><td>샘플별 실제 길이 (CPU Tensor 또는 정수 목록)</td><td>틀리면 진짜 값이 잘리거나 Padding이 섞임. GPU Tensor면 오류</td></tr>
+        <tr><td><code>enforce_sorted</code></td><td>기본 True: 길이 내림차순으로 정렬돼 있어야 함</td><td>False면 내부에서 정렬했다가 원래 순서로 돌려줌 (편하지만 약간의 비용)</td></tr>
+        <tr><td><code>total_length</code> (pad_packed)</td><td>다시 펼 때 맞출 길이</td><td>안 주면 batch 안 최대 실제 길이로 펼쳐져 원래 T보다 짧을 수 있음</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Pack을 써?</strong> — Padding 칸도 RNN은 한 시점으로 계산해 버려서, 마지막 상태 h_n이 "0을 몇 번 더 읽은 뒤의 상태"가 돼요. Pack하면 샘플마다 실제 길이까지만 계산하니까 h_n이 진짜 마지막 시점 값이고, 쓸데없는 계산도 줄어요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="rnn">② RNN — 메모 한 장으로 과거를 요약</h2>
+      <p>RNN은 글을 읽으며 적는 <b>메모 한 장</b>이에요. 칸이 정해져 있어서 중요한 것만 적어요. 시점마다 "지금 입력 x<sub>t</sub>"와 "직전 메모 h<sub>t−1</sub>"를 섞어 새 메모 h<sub>t</sub>를 만들어요. 같은 Cell을 시간축에 반복 적용하는 거예요.</p>
+      <div class="flow">
+        <span class="step">x₁ → <b>h₁</b></span><span class="arrow">→</span>
+        <span class="step">x₂ → <b>h₂</b></span><span class="arrow">→</span>
+        <span class="step">x₃ → <b>h₃</b></span><span class="arrow">→</span>
+        <span class="step">x₄ → <b>h₄</b><br><small>마지막 요약</small></span>
+      </div>
+<pre><code>h_t = tanh( W_x · x_t  +  W_h · h_(t-1)  +  b )
+            └ 지금 입력 ┘   └ 직전 메모 ┘        ← 모든 시점에 같은 W_x, W_h</code></pre>
+      <figure>
+        <svg viewBox="0 0 660 235" style="width:100%;height:auto" role="img" aria-label="같은 RNN Cell을 시간축으로 네 번 펼친 그림. 각 Cell은 x_t와 직전 h를 받아 새 h를 다음 Cell로 넘긴다">
+          <defs><marker id="d12rnnArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+          <text x="20" y="98" font-size="13" fill="var(--muted)">h₀=0</text>
+          <line x1="62" y1="94" x2="88" y2="94" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12rnnArrow)"/>
+          <g font-size="14" fill="var(--text)" text-anchor="middle">
+            <rect x="90" y="64" width="100" height="60" rx="12" fill="var(--accent)" opacity="0.9"/><text x="140" y="92" fill="#fff" font-weight="bold">RNN Cell</text><text x="140" y="111" fill="#fff" font-size="11">W_x, W_h</text>
+            <rect x="240" y="64" width="100" height="60" rx="12" fill="var(--accent)" opacity="0.9"/><text x="290" y="92" fill="#fff" font-weight="bold">RNN Cell</text><text x="290" y="111" fill="#fff" font-size="11">W_x, W_h</text>
+            <rect x="390" y="64" width="100" height="60" rx="12" fill="var(--accent)" opacity="0.9"/><text x="440" y="92" fill="#fff" font-weight="bold">RNN Cell</text><text x="440" y="111" fill="#fff" font-size="11">W_x, W_h</text>
+            <rect x="540" y="64" width="100" height="60" rx="12" fill="var(--accent)" opacity="0.9"/><text x="590" y="92" fill="#fff" font-weight="bold">RNN Cell</text><text x="590" y="111" fill="#fff" font-size="11">W_x, W_h</text>
+            <text x="140" y="196">x₁</text><text x="290" y="196">x₂</text><text x="440" y="196">x₃</text><text x="590" y="196">x₄</text>
+            <text x="215" y="86" font-size="13">h₁</text><text x="365" y="86" font-size="13">h₂</text><text x="515" y="86" font-size="13">h₃</text>
+            <text x="590" y="24" font-weight="bold" fill="var(--accent2)">h₄ = 마지막 요약</text>
+            <text x="140" y="24" font-size="12" fill="var(--muted)">output[:, 0]</text><text x="290" y="24" font-size="12" fill="var(--muted)">output[:, 1]</text><text x="440" y="24" font-size="12" fill="var(--muted)">output[:, 2]</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="2" marker-end="url(#d12rnnArrow)">
+            <line x1="192" y1="94" x2="238" y2="94"/><line x1="342" y1="94" x2="388" y2="94"/><line x1="492" y1="94" x2="538" y2="94"/>
+            <line x1="140" y1="178" x2="140" y2="127"/><line x1="290" y1="178" x2="290" y2="127"/><line x1="440" y1="178" x2="440" y2="127"/><line x1="590" y1="178" x2="590" y2="127"/>
+            <line x1="140" y1="62" x2="140" y2="32"/><line x1="290" y1="62" x2="290" y2="32"/><line x1="440" y1="62" x2="440" y2="32"/><line x1="590" y1="62" x2="590" y2="32"/>
+          </g>
+          <text x="330" y="226" text-anchor="middle" font-size="12" fill="var(--muted)">네 상자는 그림만 네 개일 뿐, 실제로는 같은 가중치 한 벌을 4번 다시 쓰는 것</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> RNN을 시간 방향으로 "펼쳐" 그린 그림이에요. 보라 상자 4개는 <b>똑같은 Cell(같은 W_x, W_h)</b>이고, 아래에서 그 시점 입력 x<sub>t</sub>, 왼쪽에서 직전 메모 h<sub>t−1</sub>을 받아 새 메모 h<sub>t</sub>를 오른쪽으로 넘겨요. 위로 나가는 화살표들이 <code>output</code>(모든 시점), 마지막 h₄가 <code>h_n</code>이에요. <b>🤔 왜 이렇게 생겼어?</b> 가중치를 한 벌만 두고 반복하니 길이가 4든 100이든 같은 모델로 읽을 수 있어요. 대신 x₁의 정보가 h₄까지 가려면 상자 3개를 <b>차례로</b> 통과해야 해요 → 느리고(병렬 불가), 멀수록 흐려져요(③의 문제).</figcaption>
+      </figure>
+      <div class="callout">🤔 <strong>왜 tanh로 감싸?</strong> — 같은 계산을 수십 번 반복하니까, 값을 −1~1 사이로 눌러 두지 않으면 시점마다 커져서 폭주할 수 있어요. 그리고 비선형이 있어야 "지금 입력과 과거"를 단순 합보다 복잡하게 섞을 수 있어요.</div>
+      <table>
+        <tr><th>결과</th><th>뜻</th><th>shape (<code>batch_first=True</code>)</th></tr>
+        <tr><td><code>output</code></td><td>마지막 층의 <b>모든 시점</b> 출력</td><td>[B, T, D×H]</td></tr>
+        <tr><td><code>h_n</code></td><td><b>모든 층·방향</b>의 마지막 상태</td><td>[L×D, B, H] (<code>batch_first</code>와 상관없이 고정)</td></tr>
+      </table>
+      <p><small>L = 층 수(num_layers), D = 방향 수(양방향이면 2), H = hidden_size</small></p>
+      <div class="callout">🤔 <strong>h에는 뭐가 들어 있어?</strong> — 지금까지 읽은 입력을 정해진 크기(<code>hidden_size</code>)로 요약한 값이에요. 길이가 4든 50이든 크기가 같으니 <b>다 담지 못하고</b>, 학습하면서 예측에 필요한 것 위주로 남아요.</div>
+      <figure><img class="smooth" src="img/day12/rnn_hidden.png" alt="사인파 입력과, nn.RNN의 8칸 Hidden state가 시점마다 바뀌는 색 지도"><figcaption><b>무엇을 보나:</b> 위는 입력 사인파(18~20 시점에 일부러 튀는 값 2를 넣음), 아래는 진짜 <code>nn.RNN(1, 8)</code>에 넣었을 때 나온 <code>output</code> = 시점마다의 Hidden state 8칸이에요(빨강 +, 파랑 −). 줄 하나가 메모의 한 칸이고, 가로로 시간이 흘러요. ※ 학습 전 무작위 가중치라 각 칸의 "뜻"은 아직 없어요. <b>🤔 무엇을 알 수 있어?</b> ① 입력이 오르내리면 h도 같은 주기로 출렁여요 → h는 입력을 따라가는 요약이에요. ② 튀는 구간(18~20)에서 h[4]·h[7]이 크게 변했다가, 이후 몇 시점 동안 <b>여운</b>이 남고 서서히 원래 리듬으로 돌아와요 → 과거가 h를 통해 다음 시점으로 전달된다는 증거이자, 시간이 지나면 흐려진다는 증거예요. ③ 값이 −1~1을 넘지 않는 건 tanh 때문이에요.</figcaption></figure>
+
+      <h3>🔧 명령어: <code>nn.RNN()</code> — 순서 분류</h3>
+<pre><code>class RNNClassifier(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.rnn = nn.RNN(3, 8, batch_first=True)   # F=3 → H=8
+        self.fc = nn.Linear(8, 2)                   # 2클래스 Head
+    def forward(self, x):
+        _, h_n = self.rnn(x)                        # h_n: [1, B, 8]
+        return self.fc(h_n[-1])                     # 마지막 층의 마지막 상태 → [B, 2]
+
+x = torch.randn(4, 6, 3)                            # [B=4, T=6, F=3]
+print(RNNClassifier()(x).shape)                     # torch.Size([4, 2])
+# output, h_n = rnn(x, hx=None)  ← hx(초기 상태)를 생략하면 0에서 시작</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>input_size</code> <small>(필수)</small></td><td>F, 한 시점의 특징 수</td><td>데이터의 F와 다르면 오류 (W_x 모양이 안 맞으니까)</td></tr>
+        <tr><td><code>hidden_size</code> <small>(필수)</small></td><td>H, 메모(요약)의 크기</td><td>크면 더 많이 기억하지만 파라미터가 H²로 늘고 과적합 위험↑</td></tr>
+        <tr><td><code>batch_first</code></td><td>True면 입력·output이 [B, T, F] (기본 False = [T, B, F])</td><td>h_n에는 적용 안 됨 → h_n은 항상 [L×D, B, H]</td></tr>
+        <tr><td><code>num_layers</code></td><td>RNN 층을 몇 개 쌓을지 (기본 1)</td><td>h_n 첫 축이 층 수만큼 늘어나서 <code>h_n[-1]</code>로 마지막 층을 골라야 함</td></tr>
+        <tr><td><code>bidirectional</code></td><td>양방향으로 읽기 (기본 False)</td><td>D=2 → output 마지막 축이 2H, 두 방향을 어떻게 합칠지 정해야 함</td></tr>
+        <tr><td><code>nonlinearity</code>, <code>dropout</code>, <code>bias</code></td><td>활성화(기본 "tanh") · 층 사이 Dropout(기본 0.0) · Bias(기본 True)</td><td>dropout은 층이 2개 이상일 때만 효과 (층 "사이"에 넣으니까)</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 분류는 <code>h_n[-1]</code>, 예측은 <code>output[:, -1]</code>로 마지막 시점을 꺼내요. 1층·단방향·Padding 없음이면 둘은 같은 값. 하지만 <b>Padding이 있으면</b> <code>output[:, -1]</code>은 Padding 칸일 수 있어요 → 실제 길이나 pack을 써야 해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="lstm">③ LSTM — 곱하지 말고 더해서 기억을 잇는다</h2>
+      <p><b>RNN의 문제</b>: 역전파가 긴 시간축을 거꾸로 지나면서 같은 W를 시점마다 계속 곱해요. 1보다 작은 수를 여러 번 곱하면 0에 가까워지듯, 먼 과거에서 오는 기울기(Gradient)가 사라져요(<b>기울기 소실</b>). 1보다 크면 반대로 폭발해요. 게다가 앞 시점이 끝나야 다음을 계산하니 병렬화도 어려워요.</p>
+      <table>
+        <tr><th>곱한 횟수</th><th>0.9¹</th><th>0.9¹⁰</th><th>0.9²⁰</th><th>0.9⁵⁰</th></tr>
+        <tr><td>값</td><td>0.90</td><td>0.35</td><td>0.12</td><td><b>0.005</b></td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day12/vanishing.png" alt="0.5, 0.9, 0.99, 1.05를 t번 곱한 값의 로그 그래프. 0.9의 50제곱은 0.005, 0.99의 50제곱은 0.605"><figcaption><b>무엇을 보나:</b> 같은 수를 t번 곱했을 때 남는 값(세로축은 로그, 한 칸 = 100배). 보라 0.9는 50번 만에 <b>0.005</b>, 초록 0.99는 50번 곱해도 <b>0.605</b>가 남아요. 빨강 1.05는 반대로 100번이면 100배 이상 폭발해요. <b>🤔 왜 이게 기울기 이야기야?</b> 역전파는 연쇄법칙이라 시점을 하나 거슬러 갈 때마다 "그 시점의 변화율"이 하나씩 <b>곱해져요</b>. RNN은 매 시점 같은 W와 tanh를 거치니 같은 크기의 수가 반복해서 곱해지는 셈 → 1보다 조금만 작아도 먼 과거의 기울기는 사실상 0이 돼서, 먼 과거 입력을 고치는 학습이 안 돼요.</figcaption></figure>
+      <p><b>LSTM의 해결</b>: 오래 들고 가는 기억 통로 <b>c (Cell state)</b>를 따로 두고, 이 통로에서는 <b>더하기</b>로 기억을 이어요. 얼마나 지울지·쓸지·꺼낼지는 <b>Gate</b>(0~1 비율)가 정하고, Gate 값도 학습한 가중치로 계산해요.</p>
+<pre><code>f_t : Forget gate  — 이전 기억 c_(t-1)을 얼마나 남길지 (0~1)
+i_t : Input gate   — 새 후보 g_t를 얼마나 쓸지 (0~1)
+c_t = f_t ⊙ c_(t-1)  +  i_t ⊙ g_t          ← 남길 양 + 새로 쓸 양
+o_t : Output gate  — h_t = o_t ⊙ tanh(c_t)  ← 지금 밖으로 꺼낼 부분
+
+예) 이전 c 2 × forget 0.5 = 1
+    새 후보 0.5 × input 0.4 = 0.2
+    새 c = 1 + 0.2 = 1.2        (원리 설명용 숫자)</code></pre>
+      <figure>
+        <svg viewBox="0 0 680 300" style="width:100%;height:auto" role="img" aria-label="LSTM Cell 그림. 위쪽 c 통로에서 forget gate를 곱하고 input gate와 후보를 곱한 값을 더하며, output gate가 tanh(c)를 골라 h로 내보낸다">
+          <defs><marker id="d12lstmCArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent2)"/></marker><marker id="d12lstmArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+          <rect x="90" y="30" width="500" height="240" rx="18" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/>
+          <!-- c 통로 -->
+          <line x1="20" y1="70" x2="650" y2="70" stroke="var(--accent2)" stroke-width="5" marker-end="url(#d12lstmCArrow)"/>
+          <text x="20" y="58" font-size="13" font-weight="bold" fill="var(--accent2)">c_(t-1)</text>
+          <text x="630" y="56" font-size="13" font-weight="bold" fill="var(--accent2)">c_t</text>
+          <text x="340" y="52" text-anchor="middle" font-size="12" fill="var(--accent2)">기억 통로: 곱하기 한 번 + 더하기 한 번뿐</text>
+          <circle cx="200" cy="70" r="16" fill="#fff" stroke="var(--accent2)" stroke-width="2.5"/><text x="200" y="76" text-anchor="middle" font-size="18" font-weight="bold" fill="var(--text)">×</text>
+          <circle cx="340" cy="70" r="16" fill="#fff" stroke="var(--accent2)" stroke-width="2.5"/><text x="340" y="77" text-anchor="middle" font-size="20" font-weight="bold" fill="var(--text)">+</text>
+          <!-- h 입력 -->
+          <line x1="20" y1="240" x2="150" y2="240" stroke="var(--muted)" stroke-width="2.5"/>
+          <text x="20" y="262" font-size="13" fill="var(--text)">h_(t-1)</text>
+          <line x1="150" y1="290" x2="150" y2="242" stroke="var(--muted)" stroke-width="2.5"/>
+          <text x="160" y="290" font-size="13" fill="var(--text)">x_t</text>
+          <line x1="150" y1="240" x2="480" y2="240" stroke="var(--muted)" stroke-width="2.5"/>
+          <!-- gates -->
+          <g font-size="12.5" text-anchor="middle" font-weight="bold">
+            <rect x="170" y="150" width="60" height="44" rx="8" fill="var(--accent)"/><text x="200" y="170" fill="#fff">f</text><text x="200" y="186" fill="#fff" font-size="10.5">σ 0~1</text>
+            <rect x="260" y="150" width="60" height="44" rx="8" fill="var(--accent)"/><text x="290" y="170" fill="#fff">i</text><text x="290" y="186" fill="#fff" font-size="10.5">σ 0~1</text>
+            <rect x="350" y="150" width="60" height="44" rx="8" fill="var(--muted)"/><text x="380" y="170" fill="#fff">g 후보</text><text x="380" y="186" fill="#fff" font-size="10.5">tanh</text>
+            <rect x="450" y="150" width="60" height="44" rx="8" fill="var(--accent)"/><text x="480" y="170" fill="#fff">o</text><text x="480" y="186" fill="#fff" font-size="10.5">σ 0~1</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="2">
+            <line x1="200" y1="240" x2="200" y2="196"/><line x1="290" y1="240" x2="290" y2="196"/><line x1="380" y1="240" x2="380" y2="196"/><line x1="480" y1="240" x2="480" y2="196"/>
+          </g>
+          <line x1="200" y1="148" x2="200" y2="89" stroke="var(--accent)" stroke-width="2.5" marker-end="url(#d12lstmArrow)"/>
+          <circle cx="335" cy="120" r="14" fill="#fff" stroke="var(--muted)" stroke-width="2"/><text x="335" y="126" text-anchor="middle" font-size="16" font-weight="bold" fill="var(--text)">×</text>
+          <line x1="290" y1="148" x2="324" y2="129" stroke="var(--accent)" stroke-width="2.5"/>
+          <line x1="380" y1="148" x2="346" y2="129" stroke="var(--muted)" stroke-width="2.5"/>
+          <line x1="337" y1="105" x2="339" y2="89" stroke="var(--muted)" stroke-width="2.5" marker-end="url(#d12lstmArrow)"/>
+          <!-- output -->
+          <line x1="540" y1="70" x2="540" y2="104" stroke="var(--accent2)" stroke-width="2" marker-end="url(#d12lstmArrow)"/>
+          <rect x="515" y="106" width="50" height="26" rx="6" fill="#fff" stroke="var(--accent2)"/><text x="540" y="124" text-anchor="middle" font-size="11.5" fill="var(--text)">tanh</text>
+          <circle cx="540" cy="172" r="14" fill="#fff" stroke="var(--muted)" stroke-width="2"/><text x="540" y="178" text-anchor="middle" font-size="16" font-weight="bold" fill="var(--text)">×</text>
+          <line x1="540" y1="134" x2="540" y2="156" stroke="var(--accent2)" stroke-width="2"/>
+          <line x1="512" y1="172" x2="524" y2="172" stroke="var(--accent)" stroke-width="2.5"/>
+          <line x1="554" y1="172" x2="655" y2="172" stroke="var(--text)" stroke-width="2.5" marker-end="url(#d12lstmArrow)"/>
+          <text x="600" y="164" font-size="13" font-weight="bold" fill="var(--text)">h_t</text>
+          <text x="600" y="194" font-size="11" fill="var(--muted)">→ output</text>
+          <text x="200" y="122" text-anchor="middle" font-size="11" fill="var(--accent)" transform="translate(-30 0)">지울 비율</text>
+          <text x="420" y="122" font-size="11" fill="var(--muted)">새로 쓸 양</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> LSTM Cell 하나의 내부예요. 위쪽 분홍 굵은 선이 <b>c(Cell state) 통로</b>, 아래에서 h<sub>t−1</sub>과 x<sub>t</sub>가 들어와 보라색 Gate 3개(f·i·o, 0~1 비율)와 후보 g를 만들어요. c 통로에서는 ① f를 <b>곱해</b> 지울 만큼 지우고 ② i×g를 <b>더해</b> 새로 적어요. 오른쪽에선 o가 tanh(c) 중 지금 꺼낼 부분을 골라 h<sub>t</sub>로 내보내요. <b>🤔 왜 이 모양이 기울기 소실을 막아?</b> c 통로 위에는 큰 행렬 곱도 tanh도 없고 "f 곱하기 + 더하기"뿐이에요. 거꾸로 흐르는 기울기도 이 통로에선 f만 곱해지며 지나가니, f가 1에 가까우면 거의 줄지 않고 먼 과거까지 닿아요.</figcaption>
+      </figure>
+      <div class="callout">🤔 <strong>왜 LSTM이 긴 순서를 RNN보다 잘 기억해?</strong> — RNN은 매 시점 <b>같은 W를 곱하고 tanh를 통과</b>하니까, 50시점이면 그 효과가 50번 곱해져 거의 0이 돼요. LSTM의 c 통로는 "남길 비율 f를 곱하고 새것을 <b>더하는</b>" 구조라, 기울기도 이 통로를 따라 거의 f만 곱해지며 흘러가요. f는 학습되는 값이라 "이건 오래 들고 가야 해" 싶으면 1에 가깝게 배울 수 있어요 → 먼 과거까지 신호가 살아남아요. 아래에서 직접 비교해 보세요.</div>
+      <div class="lab">
+        <div class="readout">
+          <label>시점 수 T <input type="range" id="vgT" min="1" max="100" step="1" value="50"> <b id="vgTv">50</b></label>
+          <label>RNN이 매번 곱하는 값 <input type="range" id="vgW" min="0.5" max="1.1" step="0.01" value="0.9"> <b id="vgWv">0.90</b></label>
+          <label>LSTM forget gate f <input type="range" id="vgF" min="0.5" max="1" step="0.01" value="0.99"> <b id="vgFv">0.99</b></label>
+        </div>
+        <table>
+          <tr><th></th><th>먼 과거까지 남는 신호</th><th></th></tr>
+          <tr><td>RNN (값<sup>T</sup>)</td><td><progress id="vgRnnBar" max="1" value="0"></progress></td><td><b id="vgRnn">0</b></td></tr>
+          <tr><td>LSTM c 통로 (f<sup>T</sup>)</td><td><progress id="vgLstmBar" max="1" value="0"></progress></td><td><b id="vgLstm">0</b></td></tr>
+        </table>
+        <div class="verdict" id="vgVerdict"></div>
+      </div>
+      <figure><img class="smooth" src="img/day12/grad_timestep.png" alt="nn.RNN과 nn.LSTM에서 마지막 출력의 기울기가 과거 시점 입력에 얼마나 남는지 실측한 로그 그래프"><figcaption><b>무엇을 보나:</b> 위 슬라이더의 "곱셈 모형"이 아니라 <b>진짜 <code>nn.RNN</code>·<code>nn.LSTM</code></b>에서 <code>backward()</code>로 잰 값이에요. 마지막 시점 출력을 각 과거 입력 x<sub>t</sub>로 미분한 크기를, 거리(가로축)별로 그렸어요(세로 로그, 학습 전, seed 20개 평균). 보라 RNN과 주황 기본 LSTM은 50칸 과거에서 1e-10 수준까지 떨어지지만, forget gate bias를 3으로 줘서 f가 약 0.95가 된 초록 LSTM은 60칸 과거까지 <b>거의 평평</b>해요. <b>🤔 왜 기본 LSTM도 떨어져?</b> 학습 전 기본 LSTM은 f가 약 0.5(sigmoid(0))라서 c 통로에서도 매번 절반씩 곱해져요. LSTM의 장점은 "구조상 f를 1 가까이 <b>배울 수 있다</b>"는 것 — 학습이 오래 기억할 필요를 느끼면 초록 선처럼 바뀌어요. (그래서 실전에선 forget bias를 1 이상으로 시작하는 기법도 써요.)</figcaption></figure>
+      <table>
+        <tr><th>상태</th><th>역할</th><th>비유</th></tr>
+        <tr><td><b>c</b> (Cell state)</td><td>안에서만 오래 들고 가는 기억</td><td>서랍 속 노트</td></tr>
+        <tr><td><b>h</b> (Hidden state)</td><td>그중 지금 필요한 부분을 꺼낸 출력 (output으로 나감)</td><td>책상 위에 꺼낸 메모</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 상태가 h와 c 두 개야?</strong> — "오래 보관할 것"과 "지금 내보낼 것"은 달라요. c에는 길게 보관하고, Output gate가 그중 지금 예측에 필요한 부분만 골라 h로 꺼내요. 그래서 보관과 출력을 따로 조절할 수 있어요.</div>
+      <div class="callout">💡 같은 hidden이어도 LSTM은 Gate 3개 + 후보 1개 = <b>가중치 네 벌</b>이라 파라미터가 RNN의 4배예요. (F=1, H=16: RNN 16·1 + 16·16 + 2·16 = 304개 vs LSTM 4 × 304 = 1,216개)</div>
+
+      <h3>🔧 명령어: <code>nn.LSTM()</code> — 과거 12개로 다음 1개 예측</h3>
+<pre><code>class LSTMForecaster(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.lstm = nn.LSTM(1, 16, batch_first=True)   # F=1 → H=16
+        self.head = nn.Linear(16, 1)                   # 16차원 → 값 1개
+    def forward(self, x):                              # [B, 12, 1]
+        output, _ = self.lstm(x)                       # [B, 12, 16]
+        return self.head(output[:, -1])                # 마지막 시점 [B, 16] → [B, 1]
+
+x = torch.randn(4, 12, 1)
+print(LSTMForecaster()(x).shape)                       # torch.Size([4, 1])
+# output, (h_n, c_n) = lstm(x, hx=None)   ← hx=(h_0, c_0), 생략하면 둘 다 0
+loss = nn.MSELoss()(pred, y)                           # 예측 [B,1] vs 다음 실제 값 [B,1]</code></pre>
+      <table>
+        <tr><th>인자 / 결과</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>input_size</code>, <code>hidden_size</code>, <code>num_layers</code>, <code>batch_first</code>, <code>bidirectional</code>, <code>dropout</code></td><td>RNN과 똑같음</td><td></td></tr>
+        <tr><td><code>proj_size</code></td><td>출력 h 크기를 줄여 투영 (기본 0 = 안 함)</td><td>0이 아니면 h_n·output 크기가 proj_size로 바뀜 (c_n은 그대로 H)</td></tr>
+        <tr><td><code>(h_n, c_n)</code></td><td>괄호로 묶인 <b>두 상태</b>, 기본 둘 다 [L×D, B, H]</td><td>하나의 Tensor처럼 다루면 오류</td></tr>
+        <tr><td><code>nn.MSELoss()</code></td><td>예측과 정답 차이의 제곱 평균</td><td>분류라면 <code>nn.CrossEntropyLoss()</code> — 정답이 숫자가 아니라 클래스니까</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>양방향 LSTM을 미래 예측에 쓸 때</b>는 예측 시점 이후의 관측이 입력 Window에 섞이지 않았는지 확인해요. 과거 Window 안을 거꾸로 읽는 것 자체는 누수가 아니에요. 그리고 Gate 계산은 <code>nn.LSTM</code>이 다 알아서 해요 — 우리가 정하는 건 <code>hidden_size</code>와 층 수 정도.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="ae">④ Autoencoder — 정답이 입력 자신</h2>
+      <p>RNN·LSTM은 <b>미래</b>를 맞혀요. Autoencoder는 목적이 달라요. 입력 x를 <b>작게 줄였다가(z)</b> 다시 <b>원래대로 되살리기(x̂)</b>. 긴 글을 세 줄로 요약했다가 다시 풀어 쓰는 것과 비슷해요. 오늘은 Linear 층으로 만든 MLP형이라 시간축이 없어요.</p>
+      <div class="flow">
+        <span class="step">x · 8<br><small>[B,8]</small></span><span class="arrow">→</span>
+        <span class="step"><b>Encoder</b><br><small>8 → 4 → 2</small></span><span class="arrow">→</span>
+        <span class="step"><b>z · 2</b><br><small>Latent [B,2]</small></span><span class="arrow">→</span>
+        <span class="step"><b>Decoder</b><br><small>2 → 4 → 8</small></span><span class="arrow">→</span>
+        <span class="step">x̂ ≈ x<br><small>[B,8]</small></span>
+      </div>
+      <table>
+        <tr><th></th><th>예측 (LSTM)</th><th>재구성 (Autoencoder)</th></tr>
+        <tr><td>입력 → 출력</td><td>과거 12개 → 다음 1개</td><td>x 8개 → x̂ 8개</td></tr>
+        <tr><td>정답</td><td>미래 값</td><td><b>x 자신</b></td></tr>
+        <tr><td>지표</td><td>예측 MSE</td><td>재구성 오차</td></tr>
+      </table>
+      <table>
+        <tr><th>가운데(Latent)가</th><th>결과</th></tr>
+        <tr><td>너무 넓으면 (모델이 너무 크면)</td><td>그대로 베끼기만 함 → 배운 게 없고 일반화가 약해짐</td></tr>
+        <tr><td>적당히 좁으면</td><td>중요한 패턴만 골라 담음</td></tr>
+        <tr><td>너무 좁으면</td><td>중요한 정보까지 잃음 → Underfitting</td></tr>
+      </table>
+      <figure>
+        <svg viewBox="0 0 660 230" style="width:100%;height:auto" role="img" aria-label="Autoencoder 모래시계 그림. 8칸 입력이 4칸, 2칸 Latent로 좁아졌다가 다시 4칸, 8칸으로 넓어진다">
+          <defs><marker id="d12aeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+          <polygon points="150,30 290,75 290,155 150,200" fill="var(--accent)" opacity="0.12"/>
+          <polygon points="370,75 510,30 510,200 370,155" fill="var(--accent2)" opacity="0.12"/>
+          <g fill="var(--accent)">
+            <rect x="130" y="30" width="20" height="170" rx="4"/><rect x="215" y="70" width="20" height="90" rx="4" opacity="0.85"/>
+          </g>
+          <rect x="315" y="92" width="30" height="46" rx="6" fill="var(--text)"/>
+          <g fill="var(--accent2)"><rect x="425" y="70" width="20" height="90" rx="4" opacity="0.85"/><rect x="510" y="30" width="20" height="170" rx="4"/></g>
+          <g font-size="13" text-anchor="middle" fill="var(--text)">
+            <text x="140" y="220">x · 8칸</text><text x="225" y="180">4칸</text><text x="330" y="160" font-weight="bold">z · 2칸</text><text x="435" y="180">4칸</text><text x="520" y="220">x̂ · 8칸</text>
+            <text x="220" y="20" font-weight="bold" fill="var(--accent)">Encoder (압축)</text><text x="440" y="20" font-weight="bold" fill="var(--accent2)">Decoder (복원)</text>
+            <text x="330" y="84" font-size="12" fill="var(--muted)">Latent</text>
+          </g>
+          <line x1="40" y1="115" x2="122" y2="115" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12aeArrow)"/><text x="40" y="105" font-size="12" fill="var(--muted)">입력</text>
+          <line x1="538" y1="115" x2="620" y2="115" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12aeArrow)"/><text x="575" y="105" font-size="12" fill="var(--muted)">x와 비교</text>
+          <text x="600" y="140" text-anchor="middle" font-size="12" fill="var(--text)">재구성 오차</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 오늘 Autoencoder(<code>8 → 4 → 2 → 4 → 8</code>)를 막대 높이 = 칸 수로 그린 모래시계예요. 가운데 검은 2칸이 Latent z. 끝에서 나온 x̂를 처음 x와 비교한 차이가 재구성 오차예요. <b>🤔 왜 모래시계 모양이어야 해?</b> 가운데가 8칸이면 "그대로 복사"로 오차 0을 쉽게 만들어요. 2칸으로 조이면 8개 숫자를 2개로 <b>요약하는 규칙</b>을 배워야만 되살릴 수 있어요. 그 규칙이 바로 "정상 데이터의 패턴"이고, 이 패턴에서 벗어난 입력은 2칸에 잘 안 담겨서 되살리기에 실패해요.</figcaption>
+      </figure>
+      <div class="callout">🤔 <strong>왜 가운데를 일부러 좁게 만들어?</strong> — 통로가 입력만큼 넓으면 "그대로 복사"가 제일 쉬운 답이라 아무 규칙도 안 배워요. 8개를 2개로 줄여야 하면, 8개 값 사이에 <b>공통으로 반복되는 패턴</b>을 찾아 그것만 담을 수밖에 없어요. 그게 Autoencoder가 배우는 "주요 패턴"이에요. 다만 분류 모델이 아니라서 z의 각 칸이 무슨 뜻인지는 따로 분석해야 해요.</div>
+      <div class="callout">🤔 <strong>왜 "오차 큼 = 이상"이 아니라 "이상 후보"야?</strong> — 정상 데이터로만 배운 모델은 낯선 입력을 잘 못 되살려서 오차가 커져요. 하지만 전처리 실수, 모델 용량, 학습 분포 밖의 정상 데이터 때문에도 오차가 클 수 있어서 <b>확정할 수 없어요</b>. 그래서 점검할 후보로만 표시해요.</div>
+      <figure><img class="smooth" src="img/day12/ae_recon.png" alt="정상 샘플은 입력과 재구성이 거의 겹치고 칸별 오차가 0에 가깝지만, 이상 샘플은 재구성이 크게 어긋나 칸별 오차 막대가 큰 그림"><figcaption><b>무엇을 보나:</b> 사인파 조각(8칸, 진폭·위상 무작위)으로 <b>정상만</b> 학습한 진짜 Autoencoder(8-4-2-4-8)의 결과예요. 왼쪽 정상 샘플은 검은 입력 x와 초록 점선 x̂가 거의 겹쳐 오차 0.002, 아래 칸별 막대도 안 보일 만큼 작아요. 오른쪽 이상 샘플(일부러 만든 패턴 없는 잡음)은 x̂가 엉뚱하게 "사인파처럼" 매끈하게 나와 오차 <b>1.171</b>(약 600배). <b>🤔 왜 이상 샘플을 사인파처럼 되살려?</b> Decoder는 2칸 z로부터 "자기가 배운 패턴(사인파)"밖에 그릴 줄 몰라요. 그래서 낯선 입력도 가장 비슷한 사인파로 바꿔 그리고, 그 차이가 그대로 오차가 돼요.</figcaption></figure>
+      <figure><img class="smooth" src="img/day12/ae_error_hist.png" alt="정상 valid 400개와 이상 60개의 재구성 오차 분포 히스토그램과 99% 분위수 기준선"><figcaption><b>무엇을 보나:</b> 샘플마다 오차 1개(<code>reduction="none"</code> → <code>mean(dim=1)</code>)를 모아 그린 분포예요(가로 로그 눈금). 초록 정상 valid는 0.001 근처에 모이고, 빨강 이상은 0.05~1로 멀리 떨어져 있어요. 보라 점선이 아래 코드의 <code>torch.quantile(valid_err, 0.99)</code> 기준값이에요. <b>🤔 왜 정상도 4개가 넘어가?</b> "valid 오차의 99%"를 기준으로 잡으면 정의상 정상의 약 1%(400개 중 4개)는 기준을 넘어요. 기준을 높이면 놓치는 이상이, 낮추면 헛경보가 늘어요 → 몇 %로 할지는 업무가 정하고, 넘은 것은 "확정"이 아니라 "점검 후보"예요. (여기 이상 샘플은 일부러 티 나게 만든 거라 실제보다 깔끔하게 갈려요.)</figcaption></figure>
+      <div class="callout warn">⚠️ 예측 MSE와 재구성 오차는 정답도 단위도 달라요. <b>평균 내거나 한 표에서 순위 매기지 말고</b> 목적별로 표를 따로 만드세요.</div>
+
+      <h3>🔧 명령어: Autoencoder forward와 재구성 오차</h3>
+<pre><code>model = nn.Sequential(
+    nn.Linear(8, 4), nn.ReLU(),        # Encoder
+    nn.Linear(4, 2), nn.ReLU(),        #   → Latent z (2칸)
+    nn.Linear(2, 4), nn.ReLU(),        # Decoder
+    nn.Linear(4, 8))                   #   → x̂ (8칸)
+x = torch.randn(5, 8)
+recon = model(x)
+loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
+score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)
+print(recon.shape, score.shape)            # [5, 8] [5]</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>nn.Linear(in_features, out_features, bias=True)</code></td><td>마지막 차원을 in → out으로 변환</td><td><code>nn.Linear(4, 2)</code>의 2가 Latent 크기 — 1·2·4로 바꿔 압축률과 valid 오차를 비교</td></tr>
+        <tr><td><code>nn.ReLU()</code></td><td>층 사이 비선형</td><td>모두 빼면 선형 변환만 남아 곧은 평면 위의 패턴만 담을 수 있음</td></tr>
+        <tr><td>마지막 <code>nn.Linear(4, 8)</code> 뒤 활성화 없음</td><td>복원 값이 음수도 될 수 있게</td><td>여기에 ReLU를 붙이면 음수 입력을 영영 복원 못 함</td></tr>
+        <tr><td><code>nn.Sequential(*modules)</code></td><td>순서대로 실행</td><td>중간 출력(z)은 자동으로 안 돌려줌 → <code>model[:4](x)</code>처럼 앞부분만 잘라 Encoder로 사용</td></tr>
+      </table>
+      <div class="figs">
+        <figure><img class="smooth" src="img/day12/ae_latent.png" alt="2칸 Latent z 평면에 정상 샘플이 위상 색깔 순서대로 고리 모양으로 놓이고 이상 샘플은 흩어진 산점도"><figcaption><b>무엇을 보나:</b> 학습된 Encoder(<code>model[:4]</code>)로 뽑은 z 2칸을 좌표로 찍었어요. 정상 점들의 색(사인파 위상)이 <b>무지개처럼 순서대로</b> 고리를 이뤄요. 빨간 ✕(이상)는 고리 안쪽·바깥 등 아무 데나 흩어져요. <b>🤔 왜 고리야?</b> 정상 데이터는 사실 "진폭·위상" 두 가지만 달라요. Autoencoder가 아무도 안 알려 줬는데 이 두 성질을 2칸에 펼쳐 담은 거예요. 다만 z[0]·z[1] 각각이 무슨 뜻인지는 정해져 있지 않아서 이렇게 그려 보며 해석해야 해요.</figcaption></figure>
+        <figure><img class="smooth" src="img/day12/latent_size.png" alt="Latent 크기 1, 2, 4, 8에 따른 valid 재구성 MSE 막대. 1에서 0.032, 2부터 0.002 이하"><figcaption><b>무엇을 보나:</b> 가운데 칸 수만 1·2·4·8로 바꿔 학습한 valid 재구성 오차예요(앞뒤 층 16칸, 같은 데이터·epoch, seed 3개 중 최솟값). 1칸이면 0.032로 크고, 2칸부터 0.002 이하로 뚝 떨어져요. <b>🤔 왜 2에서 꺾여?</b> 이 데이터의 본질이 "진폭·위상" 두 숫자라서 2칸이면 거의 다 담겨요. 그보다 줄이면 필요한 정보를 잃고(Underfitting), 늘려도 얻는 게 적고 복사에 가까워져요. 실전에선 이렇게 크기를 바꿔 가며 "꺾이는 지점"을 찾아요.</figcaption></figure>
+      </div>
+
+      <h3>🔧 명령어: 샘플별 오차 <code>reduction="none"</code></h3>
+<pre><code>loss_fn = nn.MSELoss(reduction="none")
+error = loss_fn(recon, x).mean(dim=1)      # [B, F] → [B]  샘플마다 점수 1개</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>input</code>, <code>target</code> <small>(필수)</small></td><td>재구성 결과, 원본 입력 (같은 Shape)</td><td>Shape가 다르면 Broadcasting으로 엉뚱하게 계산되거나 경고</td></tr>
+        <tr><td><code>reduction</code></td><td><code>"none"</code> | <code>"mean"</code>(기본) | <code>"sum"</code></td><td>기본 "mean"이면 숫자 하나로 합쳐져 <b>어느 샘플</b>이 이상한지 못 봄 → 점검엔 "none"</td></tr>
+        <tr><td><code>.mean(dim=1)</code></td><td>특징(F) 축 평균</td><td>dim=0이면 샘플 축을 평균해 특징별 오차가 됨 (목적이 다름)</td></tr>
+        <tr><td><code>size_average</code>, <code>reduce</code></td><td>예전 호환용 인자</td><td>쓰지 말고 <code>reduction</code>만 사용</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 입력 = 정답 Batch · Denoising · 기준값</h3>
+<pre><code>from torch.utils.data import TensorDataset, DataLoader
+loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
+for (xb,) in loader:                       # Tensor 하나면 (x,) 한 개짜리 Tuple로 나옴
+    noisy = xb + 0.1 * torch.randn_like(xb)    # Denoising: 입력만 흔들고
+    loss = nn.MSELoss()(model(noisy), xb)      #            정답은 깨끗한 원본
+
+valid_err = nn.MSELoss(reduction="none")(model(x_valid), x_valid).mean(dim=1)
+threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함
+is_candidate = valid_err &gt; threshold            # True = 점검 후보</code></pre>
+      <table>
+        <tr><th>명령 / 규칙</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>TensorDataset(*tensors)</code></td><td>첫 차원 길이가 같은 Tensor들을 묶음</td><td>AE는 정답이 x 자신이라 Tensor 하나만 넣어도 됨 → <code>(xb,)</code>로 꺼냄</td></tr>
+        <tr><td>Denoising: 노이즈 입력 → 깨끗한 target</td><td>입력과 정답의 역할을 나눔</td><td>정답까지 흔들면 "노이즈도 그대로 복원"을 배워 버림</td></tr>
+        <tr><td>Scaler·Normalize는 train에서 fit</td><td>valid/test엔 같은 규칙만 적용</td><td>valid 정보로 기준을 정하면 누수</td></tr>
+        <tr><td>기준값(임계값)은 <b>valid</b>에서, test는 마지막에 한 번</td><td>모델 선택 후 test 반복 조회 금지</td><td>test를 보며 기준을 고르면 test에 맞춘 숫자가 돼서 실전 성능을 과대평가</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="attn">⑤ Attention · Transformer — 필요한 위치를 직접 골라 본다</h2>
+      <p><b>LSTM의 남은 문제</b>: 여전히 한 시점씩 차례로 계산해서 느리고, 먼 시점 정보는 중간을 모두 거쳐 와야 해요. <b>Attention</b>은 순차 전달 대신 위치끼리의 관계를 <b>한 번에 직접</b> 가중합으로 계산해요.</p>
+      <table>
+        <tr><th></th><th>LSTM</th><th>Attention</th></tr>
+        <tr><td>4번 위치가 1번을 보려면</td><td>1 → 2 → 3 → 4 차례로 거쳐 옴</td><td>4가 1·2·3을 한 번에 직접 봄</td></tr>
+        <tr><td>계산</td><td>순차 (현재 상태가 이전 상태에 의존해서 나눠 돌릴 수 없음)</td><td>병렬 (한꺼번에) — 그래서 [B, T, E] 전체를 한 번에 받음</td></tr>
+      </table>
+      <h3>Query · Key · Value</h3>
+      <p>회의에 비유하면: 내 질문(<b>Query</b>, 찾을 정보)과 관련 있는 사람(<b>Key</b>, 비교할 위치)일수록 그 사람 말(<b>Value</b>, 합산할 내용)에 더 귀 기울여요.</p>
+<pre><code>weight = softmax( Q · Kᵀ / √d )     ← 어디를 얼마나 볼지 (합 = 1)
+출력   = weight · V                 ← 그 비율대로 Value 섞기
+
+예) weight [0.2, 0.3, 0.5],  Value [10, 20, 30]
+    출력 = 0.2×10 + 0.3×20 + 0.5×30 = 23     (가중합 원리용 숫자)</code></pre>
+      <figure>
+        <svg viewBox="0 0 680 250" style="width:100%;height:auto" role="img" aria-label="Query와 세 Key의 점수를 softmax로 비율 0.2, 0.3, 0.5로 바꾸고, Value 10, 20, 30과 곱해 더해 23을 만드는 흐름">
+          <defs><marker id="d12qkvArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+          <g font-size="13" text-anchor="middle">
+            <rect x="10" y="100" width="80" height="50" rx="10" fill="var(--accent2)"/><text x="50" y="122" fill="#fff" font-weight="bold">Query</text><text x="50" y="140" fill="#fff" font-size="11">찾는 것</text>
+            <text x="175" y="22" font-weight="bold" fill="var(--text)">① Q·K 점수</text>
+            <text x="320" y="22" font-weight="bold" fill="var(--text)">② softmax</text>
+            <text x="465" y="22" font-weight="bold" fill="var(--text)">③ × Value</text>
+            <text x="610" y="22" font-weight="bold" fill="var(--text)">④ 더하기</text>
+          </g>
+          <g font-size="12.5" text-anchor="middle" fill="var(--text)">
+            <rect x="135" y="40" width="80" height="44" rx="8" fill="var(--surface)" stroke="var(--accent)"/><text x="175" y="58">Key 1</text><text x="175" y="76" font-weight="bold">점수 낮음</text>
+            <rect x="135" y="103" width="80" height="44" rx="8" fill="var(--surface)" stroke="var(--accent)"/><text x="175" y="121">Key 2</text><text x="175" y="139" font-weight="bold">중간</text>
+            <rect x="135" y="166" width="80" height="44" rx="8" fill="var(--surface)" stroke="var(--accent)"/><text x="175" y="184">Key 3</text><text x="175" y="202" font-weight="bold">점수 높음</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="1.6" marker-end="url(#d12qkvArrow)">
+            <line x1="92" y1="118" x2="133" y2="62"/><line x1="92" y1="125" x2="133" y2="125"/><line x1="92" y1="132" x2="133" y2="188"/>
+            <line x1="217" y1="62" x2="268" y2="62"/><line x1="217" y1="125" x2="268" y2="125"/><line x1="217" y1="188" x2="268" y2="188"/>
+            <line x1="372" y1="62" x2="413" y2="62"/><line x1="372" y1="125" x2="413" y2="125"/><line x1="372" y1="188" x2="413" y2="188"/>
+            <line x1="519" y1="62" x2="573" y2="118"/><line x1="519" y1="125" x2="573" y2="125"/><line x1="519" y1="188" x2="573" y2="132"/>
+          </g>
+          <g font-size="13" font-weight="bold" fill="var(--text)">
+            <rect x="270" y="52" width="20" height="20" fill="var(--accent)" opacity="0.35"/><text x="296" y="68">0.2</text>
+            <rect x="270" y="112" width="30" height="26" fill="var(--accent)" opacity="0.6"/><text x="306" y="131">0.3</text>
+            <rect x="270" y="171" width="50" height="34" fill="var(--accent)"/><text x="326" y="193">0.5</text>
+            <text x="415" y="67">0.2 × 10 = 2</text><text x="415" y="130">0.3 × 20 = 6</text><text x="415" y="193">0.5 × 30 = 15</text>
+          </g>
+          <circle cx="610" cy="125" r="34" fill="var(--accent)"/><text x="610" y="122" text-anchor="middle" font-size="12" fill="#fff">출력</text><text x="610" y="141" text-anchor="middle" font-size="17" font-weight="bold" fill="#fff">23</text>
+          <text x="320" y="240" text-anchor="middle" font-size="12" fill="var(--muted)">비율의 합 = 1 · 점수가 높은 Key의 Value(30)가 출력을 가장 많이 끌어당김</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 위 예시 숫자를 순서대로 그린 거예요. ① Query를 각 Key와 내적해 "얼마나 관련 있나" 점수를 내고, ② softmax로 합이 1인 비율(0.2 / 0.3 / 0.5)로 바꾸고, ③ 각 위치의 Value에 그 비율을 곱해, ④ 모두 더하면 23. <b>🤔 왜 이렇게 해?</b> "어디를 볼지"를 정답처럼 정해 두지 않고 <b>점수로 부드럽게</b> 나눠 주니 미분이 되고, 그래서 학습으로 "어떤 Key가 중요한지"를 배울 수 있어요. 결과 23은 가장 관련 높은 위치(30) 쪽으로 기운 평균이에요.</figcaption>
+      </figure>
+      <div class="callout">🤔 <strong>왜 √d로 나눠?</strong> — Q·K는 d개 숫자를 곱해 더한 값이라, 차원 d가 클수록 점수가 커지고 점수끼리 차이도 벌어져요. 차이가 크면 softmax가 한 위치에 거의 100%를 몰아줘서 나머지 위치는 기울기가 거의 0 → <b>학습이 잘 안 돼요</b>. √d로 나누면 점수 크기가 d와 무관하게 적당해져서 골고루 보면서 배울 수 있어요. 예: 점수 [8, 4, 0] 그대로면 0.98 / 0.02 / 0.00, √16 = 4로 나눈 [2, 1, 0]이면 0.67 / 0.24 / 0.09. 아래에서 점수를 바꿔 보세요.</div>
+      <div class="lab">
+        <div class="readout">
+          <label>위치 1 점수 <input type="range" id="sc1" min="-4" max="12" step="1" value="8"> <b id="sc1v">8</b></label>
+          <label>위치 2 점수 <input type="range" id="sc2" min="-4" max="12" step="1" value="4"> <b id="sc2v">4</b></label>
+          <label>위치 3 점수 <input type="range" id="sc3" min="-4" max="12" step="1" value="0"> <b id="sc3v">0</b></label>
+        </div>
+        <div class="readout">
+          <label><input type="checkbox" id="scaleOn"> √d = √16 = 4 로 나누기</label>
+        </div>
+        <table>
+          <tr><th></th><th>위치 1 (V=10)</th><th>위치 2 (V=20)</th><th>위치 3 (V=30)</th></tr>
+          <tr><td>weight</td>
+            <td><progress id="w1bar" max="1" value="0"></progress> <b id="w1">0</b></td>
+            <td><progress id="w2bar" max="1" value="0"></progress> <b id="w2">0</b></td>
+            <td><progress id="w3bar" max="1" value="0"></progress> <b id="w3">0</b></td></tr>
+        </table>
+        <div class="readout"><div>출력 = Σ weight × V = <span class="big" id="attnOut">0</span></div></div>
+        <div class="verdict" id="attnVerdict"></div>
+      </div>
+      <figure><img class="smooth" src="img/day12/softmax_scale.png" alt="점수 8, 4, 0을 그대로 softmax하면 0.98, 0.02, 0.00이고, 4로 나누면 0.67, 0.24, 0.09가 되는 막대그래프"><figcaption><b>무엇을 보나:</b> 같은 점수 [8, 4, 0]을 그대로 softmax(왼쪽)하면 위치1이 <b>0.98</b>을 독차지하고 나머지는 사실상 0, √16 = 4로 나눈 [2, 1, 0](오른쪽)은 0.67 / 0.24 / 0.09로 다른 위치도 조금씩 봐요. Value가 [10, 20, 30]이면 출력도 10.2 vs 14.2로 달라요. <b>🤔 왜 왼쪽이 학습에 나빠?</b> 0.00이 된 위치는 점수를 조금 바꿔도 비율이 거의 안 변해서 기울기가 0에 가까워요. 그러면 "사실 위치3이 더 중요했다"는 걸 배울 길이 막혀요. 점수 차이를 √d로 눌러 주면 모든 위치에 기울기가 살아 있어요.</figcaption></figure>
+      <h3>Transformer에 더 필요한 것</h3>
+      <p>한 Batch 흐름: 입력 → Embedding <b>+ Position</b> → Self-Attention → FFN·Residual·정규화 → Pooling·Head</p>
+      <table>
+        <tr><th>재료</th><th>🤔 왜 필요?</th></tr>
+        <tr><td><b>Position</b> (위치 정보)</td><td>Attention은 위치끼리 비교만 해서 <b>순서를 몰라요</b>. “woman ate raccoon”과 “raccoon ate woman”을 같은 단어 묶음으로 봐요. 그래서 위치마다 다른 값을 입력에 더해 순서를 알려 줘요</td></tr>
+        <tr><td><b>Padding Mask</b></td><td>채운 Key를 Attention에서 빼야 가짜 칸에 비율을 나눠 주지 않아요. Pooling에서도 채운 출력은 따로 빼요</td></tr>
+        <tr><td><b>Causal Mask</b></td><td>다음 토큰 예측에선 미래 위치를 보면 정답을 미리 보는 셈 → 미래 위치를 가려요</td></tr>
+        <tr><td><b>Multi-head</b></td><td>Q·K·V를 여러 갈래로 투영하면 Head마다 <b>다른 관계</b>(가까운 위치, 같은 종류 …)를 따로 볼 수 있어요</td></tr>
+        <tr><td><b>Residual</b> (입력 + 변환 결과)</td><td>입력을 그대로 더해 주는 지름길이 있어서 기울기가 층을 건너 바로 흘러요 → 여러 층을 쌓아도 학습이 돼요</td></tr>
+        <tr><td><b>LayerNorm</b></td><td>위치 하나 안의 Feature로 정규화 → 길이·Padding이 제각각이어도 OK (BatchNorm은 여러 샘플을 묶어 정규화해서 순서 데이터엔 불편)</td></tr>
+        <tr><td><b>한 층 구성</b></td><td>Self-Attention(위치끼리 섞기) + Feedforward(위치마다 따로 변환), 각각 뒤에 Residual + LayerNorm. 입력·출력 크기 [B, T, E]가 같아서 여러 층을 쌓아 문맥을 강화할 수 있어요</td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day12/attention_heatmap.png" alt="실제 4칸과 Padding 2칸으로 된 길이 6 순서의 Self-Attention 가중치 6×6 표. Mask가 없으면 pad 열에 비율이 가고, key_padding_mask를 쓰면 pad 열이 0"><figcaption><b>무엇을 보나:</b> 길이 6 순서(실제 x0~x3 + Padding 2칸)에 <code>softmax(QKᵀ/√d)</code>를 직접 계산한 Attention 가중치 표예요. 행 = 보는 주체(Query), 열 = 보이는 대상(Key), 한 행의 합 = 1. 왼쪽(Mask 없음)은 빨간 점선 안 pad 열에 행마다 0.3~0.6이나 새어 나가요. 오른쪽(<code>key_padding_mask</code>)은 pad 열이 전부 <b>0.00</b>이고 그 몫이 실제 칸으로 재분배돼요. ※ Q·K 투영은 무작위(seed 4)라 어떤 칸이 진한지에는 의미가 없어요. <b>🤔 왜 열만 0이고 pad 행은 남아?</b> Mask는 "이 Key를 보지 마"라는 표시라 <b>열</b>을 막아요. pad 위치도 Query로서 출력은 계속 만들어지니(아래 두 줄), Pooling 때 그 출력을 따로 빼야 해요(<code>masked_mean</code>).</figcaption></figure>
+      <figure style="max-width:440px;margin:16px auto"><img class="smooth" src="img/day12/causal_mask.png" alt="6×6 Causal Mask. 대각선과 그 아래는 O(볼 수 있음), 대각선 위는 X(미래라서 차단)"><figcaption><b>무엇을 보나:</b> Causal Mask(<code>attn_mask</code>, [T, T])예요. 행 t3을 보면 t0~t3(초록 O)만 볼 수 있고 t4·t5(회색 X)는 막혀요. 아래로 갈수록 볼 수 있는 칸이 하나씩 늘어 계단(삼각형) 모양이 돼요. <b>🤔 왜 삼각형?</b> "다음 값 맞히기"에서 t3 시점의 예측이 t4를 보면 정답을 베끼는 셈이에요. "자기 자신과 과거만"이라는 규칙을 모든 행에 적용하면 대각선 위가 전부 막힌 삼각형이 돼요. Padding Mask(열 단위)와 달리 <b>위치 쌍</b> 단위로 막아요.</figcaption></figure>
+
+      <h3>🔧 명령어: <code>nn.MultiheadAttention()</code> — Self-Attention</h3>
+<pre><code>x = torch.randn(2, 5, 16)                       # [B, T, E]
+attn = nn.MultiheadAttention(embed_dim=16, num_heads=4, batch_first=True)
+output, weights = attn(x, x, x)                 # Self-Attention: query = key = value = x
+print(output.shape)                             # [2, 5, 16]  문맥이 섞인 표현
+print(weights.shape)                            # [2, 5, 5]   Head 평균 Attention (각 행 합 = 1)
+out, _ = attn(x, x, x, key_padding_mask=mask, need_weights=False)   # mask: [B, T], True = Padding</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>embed_dim</code> <small>(필수)</small></td><td>E, 입력·출력 벡터 크기</td><td><code>num_heads</code>로 나누어떨어져야 함 — E를 Head 수만큼 똑같이 쪼개 쓰니까 (16 ÷ 4 = Head당 4)</td></tr>
+        <tr><td><code>num_heads</code> <small>(필수)</small></td><td>병렬 Attention Head 수</td><td>늘리면 다양한 관계를 보지만 Head당 차원이 작아짐</td></tr>
+        <tr><td><code>batch_first</code></td><td>기본 False = [T, B, E]</td><td>[B, T, E] 데이터를 False로 넣으면 B와 T가 뒤바뀐 Attention</td></tr>
+        <tr><td><code>key_padding_mask</code></td><td>[B, T], <b>bool True = 차단</b> (그 Key를 보지 않음)</td><td>빼면 Padding이 섞임. 뜻을 반대로 넣으면 진짜 값을 차단</td></tr>
+        <tr><td><code>attn_mask</code></td><td>[T, T] 위치 쌍 차단 (Causal Mask 등)</td><td></td></tr>
+        <tr><td><code>need_weights</code></td><td>가중치 반환 여부 (기본 True)</td><td>False면 weights 계산·반환을 생략해 조금 가벼워짐</td></tr>
+        <tr><td><code>dropout</code>, <code>bias</code>, <code>kdim</code>, <code>vdim</code>, <code>add_bias_kv</code>, <code>add_zero_attn</code></td><td>선택 인자 (기본 0.0, True, None, None, False, False)</td><td></td></tr>
+      </table>
+
+      <h3>🔧 명령어: <code>nn.TransformerEncoderLayer</code> · <code>nn.TransformerEncoder</code></h3>
+<pre><code>layer = nn.TransformerEncoderLayer(d_model=16, nhead=4, dim_feedforward=32,
+                                   dropout=0.1, batch_first=True)
+x = torch.randn(2, 5, 16)
+print(layer(x).shape)                     # [2, 5, 16]  입력·출력 Shape 유지
+encoder = nn.TransformerEncoder(layer, num_layers=2)   # 같은 Layer를 복제해 2층
+# encoder(src, mask=None, src_key_padding_mask=None, is_causal=None)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>d_model</code>, <code>nhead</code> <small>(필수)</small></td><td>E 크기, Head 수</td><td><code>d_model</code>은 <code>nhead</code>로 나누어떨어져야 함</td></tr>
+        <tr><td><code>dim_feedforward</code></td><td>Feedforward 중간 크기 (<b>기본 2048</b>)</td><td>d_model=16에 2048이면 FFN이 모델 대부분을 차지 → 작은 데이터면 32처럼 줄여야 과적합·계산이 줄어듦</td></tr>
+        <tr><td><code>dropout</code></td><td>기본 0.1</td><td>0.0이면 결과가 결정적이라 검사·비교에 편함</td></tr>
+        <tr><td><code>activation</code>, <code>layer_norm_eps</code>, <code>norm_first</code>, <code>bias</code></td><td>기본 "relu", 1e-5, False, True</td><td><code>norm_first=True</code>면 LayerNorm을 Attention·FFN 앞에 둠</td></tr>
+        <tr><td><code>batch_first</code></td><td>기본 False = [T, B, E]</td><td>True로 맞춰야 [B, T, E] 그대로 넣음</td></tr>
+        <tr><td><code>num_layers</code> <small>(Encoder, 필수)</small></td><td>Layer 반복 수</td><td>늘리면 문맥을 더 깊게 섞지만 파라미터·시간이 층 수에 비례</td></tr>
+        <tr><td><code>norm</code>, <code>enable_nested_tensor</code>, <code>mask_check</code></td><td>최종 LayerNorm(기본 None) · 최적화(기본 True) · Mask 검사(기본 True)</td><td><code>enable_nested_tensor=False</code>면 Padding 건너뛰기 최적화를 끔 → 경고 없이 단순하게 동작</td></tr>
+      </table>
+
+      <h3>🔧 명령어: Position Embedding + Padding Mask + 실제 위치만 평균</h3>
+<pre><code>class TransformerClassifier(nn.Module):
+    def __init__(self, max_len=64, d_model=16):
+        super().__init__()
+        self.pos = nn.Embedding(max_len, d_model)          # 위치 0~63 → 16칸 벡터
+        layer = nn.TransformerEncoderLayer(d_model, 4, batch_first=True, dropout=0.0)
+        self.encoder = nn.TransformerEncoder(layer, 1, enable_nested_tensor=False)
+        self.head = nn.Linear(d_model, 2)
+
+    def forward(self, x, padding_mask):                    # padding_mask: [B, T], True = Padding
+        pos = torch.arange(x.size(1), device=x.device)     # [T]
+        z = self.encoder(x + self.pos(pos),                # [T, E] → Batch에 Broadcasting
+                         src_key_padding_mask=padding_mask)
+        return self.head(masked_mean(z, padding_mask))     # [B, E] → logits [B, 2]
+
+def masked_mean(x, padding_mask):
+    if bool(padding_mask.all(dim=1).any()):
+        raise ValueError("실제 길이는 1 이상")              # 전부 Padding이면 0으로 나누게 됨
+    valid = (~padding_mask).unsqueeze(-1)                  # [B, T, 1], True = 실제 값
+    summed = x.masked_fill(~valid, 0).sum(dim=1)
+    return summed / valid.sum(dim=1)                       # 분모 = 실제 길이</code></pre>
+      <table>
+        <tr><th>인자 / 규칙</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>nn.Embedding(max_len, d_model)</code></td><td>학습 가능한 Position Embedding</td><td>입력 길이 T가 <code>max_len</code>보다 길면 없는 위치 번호라 오류</td></tr>
+        <tr><td><code>x + self.pos(pos)</code></td><td>입력에 위치 표현을 <b>더함</b></td><td>빼면 순서를 섞어도 결과가 같아짐 (순서를 모르는 모델)</td></tr>
+        <tr><td><code>src_key_padding_mask</code></td><td>[B, T], True = Padding Key 제외</td><td>Mask를 넣어도 Padding <b>위치의 출력</b>은 남아 있음 → Pooling에서 다시 빼야 함</td></tr>
+        <tr><td><code>masked_mean</code> 분모</td><td>실제 길이</td><td>T로 나누면 짧은 순서일수록 평균이 작아져 길이가 점수에 섞임</td></tr>
+        <tr><td>길이 0 검사</td><td>모든 위치가 Padding인 샘플 막기</td><td>검사 없이 나누면 0 ÷ 0 = NaN이 학습 전체로 퍼짐</td></tr>
+      </table>
+      <div class="callout">💡 <strong>제대로 됐는지 확인하는 법</strong> — Padding 칸 값을 99로 바꿔도 출력이 같으면 Mask가 잘 걸린 것(Padding 불변). Position 없이 순서를 섞었는데 결과가 같으면 모델이 순서를 모른다는 뜻.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="compare">⑥ 아키텍처 비교 — 목표·길이·자원에 맞게 고르기</h2>
+      <p>점수 하나가 아니라 <b>입력 구조와 학습 비용</b>을 함께 비교해요.</p>
+      <table>
+        <tr><th>항목</th><th>RNN / LSTM</th><th>MLP형 Autoencoder</th><th>Transformer</th></tr>
+        <tr><td>핵심 연결</td><td>Hidden·Gate 반복</td><td>Encoder–Latent–Decoder</td><td>Self-Attention</td></tr>
+        <tr><td>주 목표</td><td>분류·예측</td><td>압축·재구성</td><td>문맥 분류·예측</td></tr>
+        <tr><td>병렬화</td><td>시간축 순차</td><td>층 내부 병렬</td><td>높음</td></tr>
+        <tr><td>길이 비용</td><td>O(T)</td><td>입력 차원 의존</td><td>Attention O(T²)</td></tr>
+        <tr><td>핵심 표현</td><td>Hidden·Cell state</td><td>Latent z</td><td>위치별 Embedding</td></tr>
+        <tr><td>Shape</td><td>output [B,T,H], h_n [L·D,B,H]</td><td>[B,8] → [B,2] → [B,8]</td><td>[B,T,E] → [B,T,E] → Pooling [B,E]</td></tr>
+        <tr><td>대표 지표</td><td>Accuracy·MSE</td><td>Reconstruction error</td><td>Accuracy·AUC·MSE</td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day12/params_compare.png" alt="RNN 321개, LSTM 1,233개, Autoencoder 98개, Transformer 1층 FFN 32는 3,298개, FFN 기본 2048은 69,826개인 파라미터 수 막대그래프"><figcaption><b>무엇을 보나:</b> 이 페이지 코드의 모델들을 실제로 만들어 <code>sum(p.numel())</code>로 센 크기예요(세로 로그 눈금, 한 칸 = 10배). LSTM(1,233)은 같은 hidden 16인 RNN(321)의 약 4배, Transformer는 <code>dim_feedforward=32</code>면 3,298개인데 기본값 2048을 그대로 두면 <b>69,826개</b>로 20배 넘게 커져요. <b>🤔 왜 이런 차이가?</b> LSTM은 Gate 3개 + 후보 1개로 가중치가 네 벌이고, Transformer의 FFN은 <code>d_model × dim_feedforward × 2</code>라 중간 크기에 정비례해요. 점수가 비슷하다면 작은 쪽이 빠르고 과적합도 덜하니, 비교표에 Params를 꼭 같이 적는 이유예요.</figcaption></figure>
+      <table>
+        <tr><th>비교 규칙</th><th>🤔 왜?</th></tr>
+        <tr><td>같은 train·valid·test·Window·Feature·Target 사용</td><td>데이터가 다르면 점수 차이가 모델 때문인지 데이터 때문인지 알 수 없어요</td></tr>
+        <tr><td>Epoch·Optimizer·주 지표·선택 규칙을 <b>먼저</b> 정함</td><td>결과를 보고 규칙을 고르면 원하는 모델이 이기게 맞출 수 있어요</td></tr>
+        <tr><td>Params·Best Epoch·Valid 지표·시간·Peak Memory를 함께 기록</td><td>점수가 비슷하면 가볍고 빠른 쪽이 실전에선 나아요</td></tr>
+        <tr><td>Autoencoder 재구성은 별도 표</td><td>목표와 단위가 다른 지표라 한 표에서 순위를 매기면 의미가 없어요</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>자주 하는 실수</strong> — BTF와 TBF 축 순서 혼동 · Padding을 마지막 상태·평균 Pooling에 포함 · 시점별 예측에서 허용하지 않은 미래 관측 참조 · 목표가 다른 지표·분할을 한 표에서 직접 순위화 · h_n과 c_n을 하나로 취급 · 양방향 출력의 두 방향을 어떻게 합쳤는지 설명 안 함.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="speed">⑦ 길이 T · Padding · 속도 측정</h2>
+      <table>
+        <tr><th>길이 T</th><th>16</th><th>32</th><th>64</th><th>128</th></tr>
+        <tr><td>RNN·LSTM 순차 단계</td><td>16</td><td>32</td><td>64</td><td>128</td></tr>
+        <tr><td>Attention 점수 T²</td><td>256</td><td>1,024</td><td>4,096</td><td>16,384</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 길어지면 Transformer가 더 무거워져?</strong> — 모든 위치 쌍을 비교하니까 길이 T면 T×T번 비교하고, 그 점수 표를 메모리에 들고 있어야 해요. 길이 2배 → 순차 단계는 2배, Attention 점수는 <b>4배</b>. 다만 RNN은 단계를 나눠 돌릴 수 없고 Attention은 한꺼번에 계산하니, 실제 시간은 장치·Batch·오버헤드에 따라 달라져요 — <b>직접 재 봐야</b> 해요. Transformer가 항상 빠르거나 RNN이 항상 가벼운 건 아니에요.</div>
+      <figure><img class="smooth" src="img/day12/length_cost.png" alt="왼쪽은 길이 T에 따른 순차 단계 T와 Attention 점수 칸 T제곱의 로그 그래프, 오른쪽은 CPU에서 실측한 LSTM과 Transformer 순전파 시간"><figcaption><b>무엇을 보나:</b> 왼쪽은 계산량 "개수"예요. 두 선 모두 로그-로그라 직선인데, 보라(T²)가 주황(T)보다 <b>두 배 가파르게</b> 올라가요(T=512면 26만 칸). 오른쪽은 이 노트북 CPU에서 <code>nn.LSTM</code>과 <code>TransformerEncoder</code> 1층(B=32, E=16)을 실제로 잰 순전파 시간이에요. T=128 근처까지는 둘 다 1ms 아래에서 측정 잡음 속에 비슷하다가, 512에서는 Transformer가 약 10ms로 LSTM(약 2.3ms)의 4배쯤이 돼요. <b>🤔 왜 짧을 땐 비슷해?</b> 짧은 길이에선 T² 표가 작아서 계산보다 함수 호출 같은 고정 비용이 시간을 차지해요. 길어질수록 T² 항이 고정 비용을 압도하면서 차이가 벌어져요. 숫자는 장치·버전마다 달라요 → 직접 재 봐야 하는 이유.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 Padding 비율이 높으면 손해야?</strong> — 실제 정보가 없는 칸에도 연산과 메모리를 써요. 길이가 비슷한 것끼리 묶는 Bucket, PackedSequence, Nested Tensor가 상황에 따라 이 낭비를 줄여 줘요.</div>
+
+      <h3>🔧 명령어: 한 Batch 순전파를 반복해 시간 재기</h3>
+<pre><code>import time, torch
+# model(x, lengths) -&gt; logits; 입력·모델 장치는 동일, 호출 전 model.eval()
+with torch.inference_mode():
+    for _ in range(2):                      # 워밍업 (재지 않음)
+        model(x, lengths)
+    if x.device.type == "cuda":
+        torch.cuda.synchronize(x.device)
+        torch.cuda.reset_peak_memory_stats(x.device)
+    start = time.perf_counter()
+    for _ in range(20):
+        model(x, lengths)
+    if x.device.type == "cuda":
+        torch.cuda.synchronize(x.device)
+    seconds = time.perf_counter() - start
+print("samples/s:", len(x) * 20 / seconds)  # B × 20 / seconds
+peak = torch.cuda.max_memory_allocated(x.device) if x.device.type == "cuda" else "N/A"   # byte</code></pre>
+      <table>
+        <tr><th>명령</th><th>뜻</th><th>빼먹으면? (왜)</th></tr>
+        <tr><td>워밍업</td><td>첫 실행의 준비 시간을 빼고 재기</td><td>첫 측정만 유난히 느리게 나옴 (초기화·메모리 할당이 섞이니까)</td></tr>
+        <tr><td><code>torch.cuda.synchronize(device=None)</code></td><td>GPU 계산이 진짜 끝날 때까지 기다림</td><td>CUDA는 비동기라 명령만 던지고 바로 돌아와서, 시간이 실제보다 짧게 찍힘</td></tr>
+        <tr><td><code>torch.cuda.reset_peak_memory_stats()</code></td><td>최대 메모리 기록 초기화</td><td>앞서 돌린 작업의 최대값이 섞임</td></tr>
+        <tr><td><code>torch.cuda.max_memory_allocated()</code></td><td>구간 최대 GPU 메모리 (byte)</td><td>CPU에서는 호출하지 않고 <b>N/A</b>로 기록 (0이라 적으면 오해)</td></tr>
+        <tr><td><code>torch.inference_mode()</code></td><td>기울기 기록 끄기 (forward만 잼)</td><td>역전파용 기록까지 시간·메모리에 섞임</td></tr>
+        <tr><td><code>len(x) * 20 / seconds</code></td><td>초당 처리 샘플 수 (한 epoch가 아닌 20회 순전파)</td><td>반복 수를 안 곱하면 값이 20배 작게 나옴</td></tr>
+      </table>
+      <div class="callout">💡 <strong>공정한 비교 조건</strong> — 같은 길이 분포·Batch size·dtype·Device·Warm-up을 쓰고, 데이터 로딩·Padding 생성·장치 전송 시간을 포함할지 <b>측정 범위</b>를 적어요. 결과엔 평균 시간·samples/s·Peak VRAM·하드웨어·버전·Mask·Padding 비율을 함께 남겨요. 장치(CPU/GPU) 비교는 같은 모델·가중치·입력을 유지하고, 작은 입력에선 Launch·전송 오버헤드가 계산 시간을 지배할 수 있다는 점도 같이 해석해요.</div>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>20261102_2.pdf</code> (Day12 딥러닝 핵심 아키텍처 및 학습, 104쪽) · 요약: <code>Day12_개념지도.pdf</code></li>
+        <li>공식 문서: <a href="https://pytorch.org/docs/stable/generated/torch.nn.RNN.html" target="_blank">torch.nn.RNN</a> · <a href="https://pytorch.org/docs/stable/generated/torch.nn.LSTM.html" target="_blank">torch.nn.LSTM</a> · <a href="https://pytorch.org/docs/stable/generated/torch.nn.utils.rnn.pad_sequence.html" target="_blank">pad_sequence</a> · <a href="https://pytorch.org/docs/stable/generated/torch.nn.utils.rnn.pack_padded_sequence.html" target="_blank">pack_padded_sequence</a> · <a href="https://pytorch.org/docs/stable/generated/torch.nn.MultiheadAttention.html" target="_blank">MultiheadAttention</a> · <a href="https://pytorch.org/docs/stable/generated/torch.nn.TransformerEncoderLayer.html" target="_blank">TransformerEncoderLayer</a> · Attention Is All You Need (Vaswani et al., 2017)</li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day11.html">← 이전: Day11</a>
+      <a href="day13.html">다음: Day13 →</a>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== softmax와 √d 체험 =====
+  (() => {
+    const V = [10, 20, 30];
+    const ids = ['sc1', 'sc2', 'sc3'];
+    const scaleOn = document.getElementById('scaleOn');
+    function draw() {
+      const s = ids.map(id => +document.getElementById(id).value);
+      ids.forEach((id, i) => { document.getElementById(id + 'v').textContent = s[i]; });
+      const z = scaleOn.checked ? s.map(v => v / 4) : s;
+      const m = Math.max(...z), e = z.map(v => Math.exp(v - m)), sum = e.reduce((a, b) => a + b, 0);
+      const w = e.map(v => v / sum);
+      w.forEach((v, i) => {
+        document.getElementById('w' + (i + 1)).textContent = v.toFixed(2);
+        document.getElementById('w' + (i + 1) + 'bar').value = v;
+      });
+      document.getElementById('attnOut').textContent = w.reduce((a, v, i) => a + v * V[i], 0).toFixed(1);
+      const top = Math.max(...w);
+      const gap = Math.max(...z) - Math.min(...z);
+      const why = scaleOn.checked
+        ? ` 🤔 왜? 점수를 4로 나눠 차이가 ${gap.toFixed(1)}로 줄었어요 → softmax(지수 함수)가 덜 치우쳐요.`
+        : ` 🤔 왜? 점수 차이 ${gap.toFixed(0)}이 그대로 지수(e^x)로 커져서 큰 점수 하나가 거의 다 가져가요.`;
+      document.getElementById('attnVerdict').textContent = (top > 0.9
+        ? `⚠️ 한 위치에 ${(top * 100).toFixed(0)}% 몰림 → 사실상 한 곳만 봄, 나머지 위치는 기울기가 거의 0이라 배우기 어려움.`
+        : `✅ 가장 큰 비율 ${(top * 100).toFixed(0)}% → 여러 위치를 골고루 섞음, 모든 위치로 기울기가 흘러감.`) + why;
+    }
+    ids.forEach(id => document.getElementById(id).addEventListener('input', draw));
+    scaleOn.addEventListener('change', draw);
+    draw();
+  })();
+
+  // ===== 기울기 소실: RNN 곱하기 vs LSTM 더하기 통로 =====
+  (() => {
+    const T = document.getElementById('vgT'), W = document.getElementById('vgW'), F = document.getElementById('vgF');
+    const show = v => v >= 0.01 ? v.toFixed(3) : v.toExponential(1);
+    function draw() {
+      const t = +T.value, w = +W.value, f = +F.value;
+      const r = Math.pow(w, t), l = Math.pow(f, t);
+      document.getElementById('vgTv').textContent = t;
+      document.getElementById('vgWv').textContent = w.toFixed(2);
+      document.getElementById('vgFv').textContent = f.toFixed(2);
+      document.getElementById('vgRnn').textContent = show(r);
+      document.getElementById('vgLstm').textContent = show(l);
+      document.getElementById('vgRnnBar').value = Math.min(r, 1);
+      document.getElementById('vgLstmBar').value = Math.min(l, 1);
+      let msg;
+      if (r > 10) msg = `💥 RNN 값 ${show(r)}: 1보다 큰 수를 ${t}번 곱해서 폭발했어요(기울기 폭발). `;
+      else if (r < 0.01) msg = `📉 RNN 값 ${show(r)}: 1보다 작은 수를 ${t}번 곱해서 거의 0 — 먼 과거는 학습에 거의 영향을 못 줘요(기울기 소실). `;
+      else msg = `RNN 값 ${show(r)}: 아직 신호가 남아 있어요 (T가 짧거나 곱하는 값이 1에 가까움). `;
+      msg += l >= 0.3
+        ? `LSTM c 통로는 ${show(l)} — f를 1 가까이 배우면 더하기 통로로 기억이 오래 살아남아요.`
+        : `LSTM도 f가 작으면 ${show(l)}로 줄어요 — "지워도 되는 기억"이라고 배운 경우예요. f는 학습으로 정해져요.`;
+      document.getElementById('vgVerdict').textContent = msg;
+    }
+    [T, W, F].forEach(el => el.addEventListener('input', draw));
+    draw();
+  })();
+  </script>
+</body>
+</html>

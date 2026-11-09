@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="site-header">
+      <h1>📚 부트캠프 학습 노트</h1>
+      <p>SeSAC Vision·멀티모달 AI — 배운 내용을 하루 한 페이지로</p>
+    </header>
+
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="제목·내용으로 검색…">
+      <button class="filter-btn active" data-tag="all">전체</button>
+      <button class="filter-btn" data-tag="머신러닝">머신러닝</button>
+      <button class="filter-btn" data-tag="딥러닝">딥러닝</button>
+      <button class="filter-btn" data-tag="컴퓨터비전">컴퓨터비전</button>
+      <a class="filter-btn" href="glossary.html" style="text-decoration:none">📚 용어 사전</a>
+    </div>
+
+    <!--
+      ✏️ 새 노트 추가하는 법
+      1) notes/_template.html 을 복사해서 이름을 바꿉니다 (예: notes/day17.html)
+      2) 아래 해당 주차 <div class="grid"> 안에 카드(<a class="card">…</a>)를 하나 복사해 붙이고
+         href / data-tag / 제목 / 설명만 바꾸면 끝!
+      3) 새 주차는 <section class="week"> 블록을 통째로 복사하세요.
+      4) 새 태그를 쓰면 위 toolbar 에 filter-btn 도 하나 추가하세요.
+    -->
+
+    <section class="week">
+      <h2>11월 2주차</h2>
+      <div class="grid">
+        <a class="card" href="notes/day16.html" data-tag="컴퓨터비전">
+          <span class="tag cv">컴퓨터비전</span> <small class="day">Day16 · 2026-11-09(월)</small>
+          <h3>OCR·문서 구조화·VLM·엣지 배포</h3>
+          <p>OCR·구조화·VLM 근거 검증·TensorRT 엣지 배포</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="week">
+      <h2>11월 1주차</h2>
+      <div class="grid">
+        <a class="card" href="notes/day15.html" data-tag="컴퓨터비전">
+          <span class="tag cv">컴퓨터비전</span> <small class="day">Day15 · 2026-11-06(금)</small>
+          <h3>객체탐지와 YOLO</h3>
+          <p>박스 좌표·IoU·mAP·NMS + train/val/predict/track</p>
+        </a>
+        <a class="card" href="notes/day14.html" data-tag="딥러닝">
+          <span class="tag dl">딥러닝</span> <small class="day">Day14 · 2026-11-05(목)</small>
+          <h3>전이학습과 오류 분석</h3>
+          <p>Backbone·Head, 불균형, Macro F1, Grad-CAM</p>
+        </a>
+        <a class="card" href="notes/day13.html" data-tag="컴퓨터비전">
+          <span class="tag cv">컴퓨터비전</span> <small class="day">Day13 · 2026-11-04(수)</small>
+          <h3>OpenCV 이미지·영상 전처리</h3>
+          <p>색공간·필터·이진화·형태학·영상·증강</p>
+        </a>
+        <a class="card" href="notes/day12.html" data-tag="딥러닝">
+          <span class="tag dl">딥러닝</span> <small class="day">Day12 · 2026-11-02(월)</small>
+          <h3>순서 모델 (RNN·LSTM·Transformer)</h3>
+          <p>Padding·RNN·LSTM·AE·Attention</p>
+        </a>
+        <a class="card" href="notes/day11.html" data-tag="딥러닝">
+          <span class="tag dl">딥러닝</span> <small class="day">Day11 · 2026-11-02(월)</small>
+          <h3>CNN·이미지 분류·전이학습</h3>
+          <p>합성곱·Pooling 이미지 분류, ResNet 전이학습</p>
+        </a>
+      </div>
+    </section>
+
+    <section class="week">
+      <h2>10월 4주차</h2>
+      <div class="grid">
+        <a class="card" href="notes/day10.html" data-tag="딥러닝">
+          <span class="tag dl">딥러닝</span> <small class="day">Day10 · 2026-10-30(금)</small>
+          <h3>Optimizer·Regularization</h3>
+          <p>학습률·과적합 진단, Dropout·조기종료</p>
+        </a>
+        <a class="card" href="notes/day09.html" data-tag="딥러닝">
+          <span class="tag dl">딥러닝</span> <small class="day">Day9 · 2026-10-29(목)</small>
+          <h3>GPU·Tensor·ANN</h3>
+          <p>GPU 확인부터 Tensor·역전파·학습 루프까지</p>
+        </a>
+        <a class="card" href="notes/day08.html" data-tag="머신러닝">
+          <span class="tag ml">머신러닝</span> <small class="day">Day8 · 2026-10-28(수)</small>
+          <h3>평가지표·특성설계·K-Means</h3>
+          <p>P/R/F1·AUC·log1p·KMeans</p>
+        </a>
+        <a class="card" href="notes/day07.html" data-tag="머신러닝">
+          <span class="tag ml">머신러닝</span> <small class="day">Day7 · 2026-10-27(화)</small>
+          <h3>트리·앙상블·교차검증</h3>
+          <p>트리·RF·XGBoost·중요도 + 5-fold CV</p>
+        </a>
+        <a class="card" href="notes/day06.html" data-tag="머신러닝">
+          <span class="tag ml">머신러닝</span> <small class="day">Day6 · 2026-10-26(월)</small>
+          <h3>회귀·분류·KNN·모델 비교</h3>
+          <p>선형·로지스틱·KNN·스케일링 + Pipeline</p>
+        </a>
+      </div>
+    </section>
+
+    <p class="empty" id="empty">검색 결과가 없어요.</p>
+  </main>
+
+  <script>
+    // 검색 + 태그 필터
+    const search = document.getElementById('search');
+    const buttons = document.querySelectorAll('.filter-btn');
+    let currentTag = 'all';
+
+    function applyFilter() {
+      const q = search.value.trim().toLowerCase();
+      let visibleCount = 0;
+      document.querySelectorAll('.week').forEach(week => {
+        let weekVisible = 0;
+        week.querySelectorAll('.card').forEach(card => {
+          const matchTag = currentTag === 'all' || card.dataset.tag === currentTag;
+          const matchText = card.textContent.toLowerCase().includes(q);
+          const show = matchTag && matchText;
+          card.style.display = show ? '' : 'none';
+          if (show) weekVisible++;
+        });
+        week.style.display = weekVisible ? '' : 'none';
+        visibleCount += weekVisible;
+      });
+      document.getElementById('empty').style.display = visibleCount ? 'none' : 'block';
+    }
+
+    search.addEventListener('input', applyFilter);
+    buttons.forEach(btn => btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTag = btn.dataset.tag;
+      applyFilter();
+    }));
+  </script>
+  <script src="glossary.js"></script>
+  <script src="note.js"></script>
+</body>
+</html>

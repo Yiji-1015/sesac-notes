@@ -1,0 +1,401 @@
+[
+ {
+  "term": "Precision",
+  "aliases": [
+   "정밀도",
+   "precision_score"
+  ],
+  "full": "Precision (정밀도)",
+  "short": "양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP).",
+  "analogy": "",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "Recall",
+  "aliases": [
+   "재현율",
+   "recall_score"
+  ],
+  "full": "Recall (재현율)",
+  "short": "실제 양성 중 모델이 찾아낸 비율. TP ÷ (TP + FN).",
+  "analogy": "",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "F1",
+  "aliases": [
+   "F1 score",
+   "f1_score"
+  ],
+  "full": "F1 score",
+  "short": "Precision과 Recall의 조화평균.",
+  "analogy": "",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "조화평균",
+  "aliases": [
+   "Harmonic mean"
+  ],
+  "full": "Harmonic mean (조화평균)",
+  "short": "2·P·R ÷ (P + R)처럼 계산하는 평균. 두 값 중 하나라도 낮으면 결과도 낮아져서, 한 지표만 극단적으로 올리는 꼼수를 막아요.",
+  "analogy": "왕복 평균 속도처럼, 느린 구간이 전체를 크게 끌어내리는 평균.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "pos_label",
+  "aliases": [],
+  "full": "pos_label (양성 클래스 지정)",
+  "short": "Precision·Recall·F1을 어느 클래스 기준으로 계산할지 정하는 인자. 기본값은 1(=실패).",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "ROC 곡선",
+  "aliases": [
+   "ROC",
+   "roc_curve",
+   "ROC curve"
+  ],
+  "full": "Receiver Operating Characteristic curve (ROC 곡선)",
+  "short": "임계값을 1 → 0으로 내리면서 가로축 FPR, 세로축 TPR을 찍어 이은 곡선. 임계값 하나가 아니라 모든 임계값에서의 성능을 한눈에 보여 줘요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "AUC",
+  "aliases": [
+   "ROC-AUC",
+   "roc_auc_score",
+   "Area Under the Curve"
+  ],
+  "full": "Area Under the ROC Curve (ROC 곡선 아래 넓이)",
+  "short": "양성 1건·음성 1건을 뽑았을 때 양성 쪽 점수가 더 높을 확률. 점수의 '순위'만 평가하므로 임계값을 바꿔도 그대로예요. 0.5는 무작위 수준, 1은 완벽. 발견 비율(Recall)이 아니에요.",
+  "analogy": "실패 요청과 성공 요청을 한 쌍씩 비교해 '실패 쪽을 더 위험하다고 줄 세웠나'를 채점하는 것.",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "FPR",
+  "aliases": [
+   "False Positive Rate"
+  ],
+  "full": "False Positive Rate (거짓 양성 비율)",
+  "short": "실제 음성 중 잘못 양성이라고 한 비율. FP ÷ (FP + TN). ROC 곡선의 가로축.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "TPR",
+  "aliases": [
+   "True Positive Rate"
+  ],
+  "full": "True Positive Rate (참 양성 비율)",
+  "short": "실제 양성 중 찾아낸 비율. TP ÷ (TP + FN). Recall과 같아요. ROC 곡선의 세로축.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "확률 보정",
+  "aliases": [
+   "Calibration"
+  ],
+  "full": "Probability calibration (확률 보정)",
+  "short": "모델이 낸 확률이 실제 빈도와 맞는지(0.8짜리들 중 정말 80%가 양성인지) 확인하고 맞추는 것. 확률 0.8이 곧 '80% 확실'은 아니에요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "불균형 자료",
+  "aliases": [
+   "Imbalanced data",
+   "클래스 불균형"
+  ],
+  "full": "Imbalanced data (클래스 불균형 자료)",
+  "short": "한 클래스가 다른 클래스보다 훨씬 많은 자료(예: 성공 14 · 실패 6). Accuracy가 속기 쉬워 실제 양성 수, Precision·Recall 관점도 함께 봐요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "OOF",
+  "aliases": [
+   "Out-of-fold"
+  ],
+  "full": "Out-of-fold prediction (폴드 밖 예측)",
+  "short": "교차검증에서 각 행을 그 행을 학습하지 않은 fold 모델로 예측해 모은 것. 모아서 한 번에 계산한 점수는 fold 점수 평균과 다를 수 있어요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "nested CV",
+  "aliases": [
+   "Nested cross-validation",
+   "중첩 교차검증"
+  ],
+  "full": "Nested cross-validation (중첩 교차검증)",
+  "short": "후보를 고르는 교차검증을 바깥 교차검증 안에 한 번 더 넣어, 고른 최고 점수의 낙관성까지 평가하는 방법.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "특성 설계",
+  "aliases": [
+   "Feature Engineering",
+   "특성 공학"
+  ],
+  "full": "Feature Engineering (특성 설계)",
+  "short": "원본 입력을 변환·조합해 모델이 쓰기 좋은 새 특성을 만드는 일(예: log 변환, 비율). 예측 시점에 알 수 있는 값만 써야 하고, 효과는 같은 조건 비교로 확인해요.",
+  "analogy": "재료를 그대로 넣지 않고 다지고 섞어 양념을 만드는 것.",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "파생 특성",
+  "aliases": [
+   "Derived feature"
+  ],
+  "full": "Derived feature (파생 특성)",
+  "short": "기존 열로 계산해 새로 만든 특성. 예: log_input_chars = log(1 + 글자수), chars_per_slot = 글자수 ÷ (1 + 허용 도구수).",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "log1p",
+  "aliases": [
+   "np.log1p",
+   "로그 변환"
+  ],
+  "full": "log(1 + x) 변환",
+  "short": "x에 1을 더한 뒤 로그를 씌우는 함수. 값이 0이어도 안전하고(log(1)=0), 99 → 4.6, 999 → 6.9처럼 큰 값의 차이를 완만하게 줄여요.",
+  "analogy": "1, 10, 100, 1000을 '자릿수'로 보면 1, 2, 3, 4로 고르게 보이는 것.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "FunctionTransformer",
+  "aliases": [],
+  "full": "FunctionTransformer (함수 변환 단계)",
+  "short": "직접 만든 함수(예: add_features)를 Pipeline의 한 단계로 넣어 주는 도구. 학습·예측 때 같은 변환이 자동으로 적용돼요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "지도학습",
+  "aliases": [
+   "Supervised learning"
+  ],
+  "full": "Supervised learning (지도학습)",
+  "short": "입력과 정답(y)을 함께 주고 정답을 맞히도록 학습하는 방식. 회귀·분류, KNN이 여기에 속해요.",
+  "analogy": "정답지가 있는 문제집으로 공부하는 것.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "비지도학습",
+  "aliases": [
+   "Unsupervised learning"
+  ],
+  "full": "Unsupervised learning (비지도학습)",
+  "short": "정답(y) 없이 입력만 보고 데이터 속 구조(비슷한 것끼리의 묶음 등)를 찾는 방식. K-Means가 대표.",
+  "analogy": "정답지 없이 사진 더미를 비슷한 것끼리 나눠 보는 것.",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "K-Means",
+  "aliases": [
+   "KMeans",
+   "K-평균"
+  ],
+  "full": "K-Means clustering (K-평균 군집화)",
+  "short": "K개 중심을 정해 각 점을 가장 가까운 중심에 할당하고, 중심을 소속 점들의 평균으로 옮기는 과정을 반복해 데이터를 K개 군집으로 묶는 비지도학습. 거리 기반이라 표준화가 필요해요.",
+  "analogy": "운동장에 흩어진 학생들을 깃발 K개 근처로 모이게 한 뒤, 깃발을 무리의 한가운데로 옮기기를 반복하는 것.",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "군집",
+  "aliases": [
+   "클러스터",
+   "Cluster",
+   "군집화"
+  ],
+  "full": "Cluster (군집)",
+  "short": "서로 가까운(비슷한) 데이터끼리 묶인 그룹. 군집 번호 0·1·2는 순서나 성공/실패 의미가 없는 이름표예요.",
+  "analogy": "",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "군집 중심",
+  "aliases": [
+   "cluster_centers_",
+   "Centroid",
+   "중심점"
+  ],
+  "full": "Cluster center / Centroid (군집 중심)",
+  "short": "한 군집에 속한 점들의 평균 위치. 새 입력은 가장 가까운 중심의 군집에 할당돼요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "k-means++",
+  "aliases": [],
+  "full": "k-means++ (초기 중심 선택법)",
+  "short": "처음 K개 중심을 서로 멀리 떨어지게 뽑아 더 나은 결과를 얻기 쉽게 하는 K-Means의 초기화 방법.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "n_clusters",
+  "aliases": [],
+  "full": "n_clusters (군집 개수 K)",
+  "short": "K-Means가 만들 군집의 개수. KNN의 K(이웃 수)와는 뜻이 달라요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "n_init",
+  "aliases": [],
+  "full": "n_init (초기화 시도 횟수)",
+  "short": "시작 중심을 바꿔 K-Means를 몇 번 돌릴지. 그중 inertia가 가장 작은 결과를 써요. 운 나쁜 시작점에 갇히는 걸 줄여요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "inertia",
+  "aliases": [
+   "inertia_"
+  ],
+  "full": "Inertia (군집 내 제곱거리 합)",
+  "short": "각 점에서 소속 군집 중심까지 거리를 제곱해 모두 더한 값. 작을수록 촘촘하지만 K를 늘리면 거의 항상 줄어서 이것만으로 K를 고르면 안 돼요.",
+  "analogy": "",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "silhouette",
+  "aliases": [
+   "silhouette_score",
+   "실루엣"
+  ],
+  "full": "Silhouette score (실루엣 점수)",
+  "short": "내 군집과는 가깝고 옆 군집과는 먼지를 −1~1로 나타낸 점수. 높을수록 군집이 잘 나뉜 것. 업무적 의미는 따로 해석해야 해요.",
+  "analogy": "",
+  "day": 8,
+  "key": true
+ },
+ {
+  "term": "fit_predict",
+  "aliases": [],
+  "full": "fit_predict (학습 + 할당 한 번에)",
+  "short": "주어진 자료로 군집 중심을 학습하고 바로 군집 번호를 돌려주는 함수. 새 입력에 쓰면 중심을 다시 배워 버리니, 새 입력은 predict로 기존 중심에 할당해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "PCA",
+  "aliases": [
+   "Principal Component Analysis",
+   "주성분 분석"
+  ],
+  "full": "Principal Component Analysis (주성분 분석)",
+  "short": "여러 특성을 정보 손실이 적게 더 적은 개수의 새 축으로 압축하는 비지도 변환. 자료에서 배우는 변환이라 학습 자료로만 fit해야 해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "특성 선택",
+  "aliases": [
+   "Feature selection"
+  ],
+  "full": "Feature selection (특성 선택)",
+  "short": "여러 특성 중 쓸 열만 골라내는 것. 평가 자료를 보고 고르면 누수·선택 편향이 생기니 학습 fold 안에서 해야 해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "동결",
+  "aliases": [
+   "evaluation_lock",
+   "Freeze"
+  ],
+  "full": "Freeze / Lock (설정 동결)",
+  "short": "test를 열기 전에 모델·특성·임계값·선택 규칙을 파일로 기록해 더 이상 바꾸지 않는 것. test 점수를 보고 바꾸면 test가 선택용 자료가 돼 버려요.",
+  "analogy": "시험 전에 답안 작성 규칙을 봉인해 두는 것.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "재학습",
+  "aliases": [
+   "Refit"
+  ],
+  "full": "Refit (재학습)",
+  "short": "선택을 마친 뒤 같은 설정의 새 Pipeline을 train+valid(개발 80건)로 다시 학습하는 것. 그 뒤 test 20건으로 딱 한 번 평가해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "clone",
+  "aliases": [
+   "clone()"
+  ],
+  "full": "sklearn.base.clone (학습 안 된 복사본)",
+  "short": "설정은 같지만 학습 상태는 없는 새 모델 객체를 만드는 함수. 이전에 학습한 값(중앙값 등)이 섞이지 않게 해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "JSON",
+  "aliases": [
+   "json.dumps"
+  ],
+  "full": "JavaScript Object Notation",
+  "short": "설정이나 결과를 사람과 프로그램이 모두 읽기 쉬운 텍스트로 저장하는 형식. ensure_ascii=False면 한글이 깨지지 않아요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "ValueError",
+  "aliases": [],
+  "full": "ValueError (값 오류)",
+  "short": "입력 값이 약속과 다를 때 파이썬이 내는 오류. 필수 열이 빠진 입력은 예측 전에 이 오류로 분명하게 막아요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "matplotlib",
+  "aliases": [],
+  "full": "Matplotlib (그래프 라이브러리)",
+  "short": "ROC 곡선, 군집 그림 같은 그래프를 그리는 파이썬 라이브러리.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ }
+]

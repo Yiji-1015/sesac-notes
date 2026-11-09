@@ -1,0 +1,359 @@
+[
+ {
+  "term": "객체탐지",
+  "aliases": [
+   "Object Detection"
+  ],
+  "full": "Object Detection",
+  "short": "사진 속 물체가 무엇인지(클래스)와 어디 있는지(박스)를 함께 찾는 작업.",
+  "analogy": "\"고양이 사진이야\"가 아니라 \"고양이는 여기, 강아지는 저기\"라고 손가락으로 짚어 주는 것.",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "Bounding Box",
+  "aliases": [
+   "바운딩 박스",
+   "BBox"
+  ],
+  "full": "Bounding Box (경계 상자)",
+  "short": "물체를 딱 감싸는 직사각형. 숫자 4개(좌표)로 위치와 크기를 나타내요.",
+  "analogy": "사진 위에 물체 둘레로 그린 네모 테두리.",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "xyxy",
+  "aliases": [],
+  "full": "x1, y1, x2, y2",
+  "short": "박스를 왼쪽 위 꼭짓점(x1,y1)과 오른쪽 아래 꼭짓점(x2,y2)으로 적는 방식. 그리기·IoU 계산에 편해요.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "cxcywh",
+  "aliases": [
+   "xywh"
+  ],
+  "full": "center x, center y, width, height",
+  "short": "박스를 중심점(cx,cy)과 너비·높이(w,h)로 적는 방식. YOLO 라벨이 이 형식이에요.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "정규화 좌표",
+  "aliases": [],
+  "full": "Normalized coordinates",
+  "short": "픽셀 좌표를 사진 폭(W)·높이(H)로 나눠 0~1 사이로 바꾼 값. 사진 크기가 바뀌어도 그대로 쓸 수 있어요.",
+  "analogy": "\"왼쪽에서 30px\" 대신 \"왼쪽에서 30% 지점\"이라고 말하는 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "라벨",
+  "aliases": [
+   "Label",
+   "정답 라벨"
+  ],
+  "full": "Label",
+  "short": "사람이 미리 적어 둔 정답. 탐지에서는 사진마다 txt 파일에 '클래스 cx cy w h'를 물체 하나당 한 줄씩 적어요.",
+  "analogy": "문제집 뒤의 정답지.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "GT",
+  "aliases": [
+   "Ground Truth"
+  ],
+  "full": "Ground Truth",
+  "short": "사람이 표시한 진짜 정답 박스. 모델 예측을 이것과 비교해서 채점해요.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "Confidence",
+  "aliases": [
+   "conf",
+   "신뢰도"
+  ],
+  "full": "Confidence score (신뢰도 점수)",
+  "short": "모델이 그 박스에 대해 \"이게 맞을 거야\"라고 매긴 점수(0~1). 낮은 후보를 걸러낼 때 기준으로 써요.",
+  "analogy": "학생이 답 옆에 적은 \"확신 정도\".",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "IoU",
+  "aliases": [
+   "Intersection over Union"
+  ],
+  "full": "Intersection over Union (겹침 비율)",
+  "short": "두 박스가 얼마나 겹치는지를 0~1로 나타낸 값. 겹친 넓이 ÷ 두 박스를 합친 넓이.",
+  "analogy": "두 장의 스티커가 얼마나 정확히 포개졌는지 점수로 매긴 것. 1이면 완전히 같음.",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "NMS",
+  "aliases": [
+   "Non-Maximum Suppression",
+   "비최대 억제"
+  ],
+  "full": "Non-Maximum Suppression (비최대 억제)",
+  "short": "한 물체에 겹쳐 나온 박스 여러 개 중 점수가 가장 높은 것만 남기고, 그것과 많이 겹치는 같은 클래스 박스들을 지우는 정리 단계.",
+  "analogy": "한 사람을 여러 명이 동시에 \"저기 있다!\"고 가리킬 때, 가장 확신하는 한 명의 손가락만 남기는 것.",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "TP",
+  "aliases": [
+   "True Positive"
+  ],
+  "full": "True Positive (맞춘 탐지)",
+  "short": "같은 클래스 정답과 IoU 기준 이상으로 1:1 짝지어진 예측. 제대로 찾은 것.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "FP",
+  "aliases": [
+   "False Positive"
+  ],
+  "full": "False Positive (헛탐지)",
+  "short": "정답과 짝이 없는 예측. 없는 걸 찾았거나, 클래스가 틀렸거나, 중복 박스인 경우.",
+  "analogy": "화재경보기가 토스트 연기에 울리는 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "FN",
+  "aliases": [
+   "False Negative"
+  ],
+  "full": "False Negative (놓침)",
+  "short": "실제로 있는데 어떤 예측과도 짝지어지지 않은 정답. 못 찾은 것.",
+  "analogy": "진짜 불이 났는데 경보기가 안 울린 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "Precision",
+  "aliases": [
+   "정밀도"
+  ],
+  "full": "Precision (정밀도)",
+  "short": "모델이 찾았다고 한 것 중 진짜인 비율. TP ÷ (TP + FP).",
+  "analogy": "\"네가 가리킨 것 중 몇 개가 맞았어?\"",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "Recall",
+  "aliases": [
+   "재현율"
+  ],
+  "full": "Recall (재현율)",
+  "short": "실제로 있는 것 중 모델이 찾아낸 비율. TP ÷ (TP + FN).",
+  "analogy": "\"있는 것 중에 몇 개나 찾아냈어?\"",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "AP",
+  "aliases": [
+   "Average Precision"
+  ],
+  "full": "Average Precision",
+  "short": "한 클래스에 대해 conf 기준을 바꿔 가며 그린 Precision–Recall 곡선 아래 넓이. 그 클래스를 전반적으로 얼마나 잘 찾는지.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "mAP",
+  "aliases": [
+   "mean Average Precision",
+   "mAP50",
+   "mAP50-95"
+  ],
+  "full": "mean Average Precision",
+  "short": "클래스별 AP의 평균. 탐지 모델의 대표 점수. mAP50은 IoU 0.5 기준, mAP50-95는 0.5~0.95 여러 기준의 평균(더 엄격).",
+  "analogy": "과목별 점수(AP)의 평균 = 평균 점수(mAP).",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "YOLO",
+  "aliases": [
+   "You Only Look Once"
+  ],
+  "full": "You Only Look Once",
+  "short": "사진을 한 번만 통과시켜 모든 위치·크기의 물체 후보를 동시에 예측하는 빠른 탐지 모델 계열.",
+  "analogy": "사진을 한 번 훑어보고 바로 \"여기, 여기, 여기!\" 하고 짚는 사람.",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "Backbone",
+  "aliases": [
+   "백본"
+  ],
+  "full": "Backbone",
+  "short": "모델 앞부분. 사진에서 선·모서리·질감·모양 같은 특징을 뽑아내는 부분.",
+  "analogy": "눈과 시각 피질 — 무엇이 보이는지 정리하는 곳.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "Neck",
+  "aliases": [],
+  "full": "Neck",
+  "short": "Backbone이 뽑은 여러 크기의 특징을 섞어서, 작은 물체와 큰 물체를 함께 다룰 수 있게 하는 중간 부분.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "Head",
+  "aliases": [],
+  "full": "Head",
+  "short": "모델 끝부분. 특징을 보고 최종으로 클래스·박스·점수를 예측해요.",
+  "analogy": "보고 정리한 걸 바탕으로 최종 답을 말하는 입.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "격자",
+  "aliases": [
+   "Grid"
+  ],
+  "full": "Grid (격자 칸)",
+  "short": "YOLO가 사진을 나누는 칸. 칸마다 박스 후보를 하나씩 내요. 촘촘한 격자는 작은 물체, 성긴 격자는 큰 물체 담당.",
+  "analogy": "바둑판처럼 나눠 칸마다 \"여기 뭐 있어?\"라고 묻는 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "epoch",
+  "aliases": [
+   "에폭"
+  ],
+  "full": "Epoch",
+  "short": "학습 데이터 전체를 한 바퀴 다 본 것. epochs=30이면 30바퀴.",
+  "analogy": "문제집을 처음부터 끝까지 한 번 푼 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "dataset.yaml",
+  "aliases": [],
+  "full": "Dataset config file",
+  "short": "YOLO에게 학습·검증 사진 폴더 위치와 클래스 이름을 알려 주는 안내서 파일.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "가중치",
+  "aliases": [
+   ".pt"
+  ],
+  "full": "Weights (모델 가중치)",
+  "short": "모델이 학습하면서 조정한 숫자들. .pt 파일에 저장돼요. 이게 곧 '배운 내용'이에요.",
+  "analogy": "공부해서 머릿속에 쌓인 지식.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "best.pt",
+  "aliases": [
+   "last.pt"
+  ],
+  "full": "best / last checkpoint",
+  "short": "best.pt는 검증 점수가 가장 좋았던 시점의 모델, last.pt는 마지막 epoch의 모델.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "증강",
+  "aliases": [
+   "Augmentation",
+   "mosaic"
+  ],
+  "full": "Data Augmentation",
+  "short": "사진을 뒤집고, 자르고, 밝기를 바꾸는 등 일부러 변형해서 더 다양한 예시로 학습시키는 기법. 탐지에서는 박스도 같이 변환해야 해요.",
+  "analogy": "같은 문제를 숫자만 바꿔 여러 번 풀어 보는 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "추론",
+  "aliases": [
+   "Inference"
+  ],
+  "full": "Inference (추론)",
+  "short": "학습이 끝난 모델에 새 사진을 넣어 결과를 얻는 것.",
+  "analogy": "공부를 마치고 실제 시험을 치는 것.",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "추적",
+  "aliases": [
+   "Tracking"
+  ],
+  "full": "Object Tracking",
+  "short": "영상의 프레임 사이에서 같은 물체를 이어 붙여 같은 번호(Track ID)를 유지하는 것.",
+  "analogy": "군중 속 한 사람을 계속 눈으로 따라가는 것.",
+  "day": 15,
+  "key": true
+ },
+ {
+  "term": "Track ID",
+  "aliases": [
+   "track_id"
+  ],
+  "full": "Track ID",
+  "short": "추적할 때 개체마다 붙는 번호. Class ID(종류)와 달리 '몇 번째 그 사람'인지를 나타내요.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "ID switch",
+  "aliases": [],
+  "full": "ID switch",
+  "short": "같은 물체인데 추적 번호가 중간에 바뀌는 실패. 가려졌다 나오거나 비슷한 물체가 엇갈릴 때 생겨요.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "FPS",
+  "aliases": [],
+  "full": "Frames Per Second",
+  "short": "1초에 처리하는 프레임(사진) 수. 클수록 빠름.",
+  "analogy": "",
+  "day": 15,
+  "key": false
+ },
+ {
+  "term": "누수",
+  "aliases": [
+   "Data leakage",
+   "leakage"
+  ],
+  "full": "Data Leakage (데이터 누수)",
+  "short": "검증·테스트용 정보가 학습에 섞여 들어가 점수가 실제보다 좋게 나오는 문제.",
+  "analogy": "시험 문제를 미리 보고 공부한 것.",
+  "day": 15,
+  "key": false
+ }
+]

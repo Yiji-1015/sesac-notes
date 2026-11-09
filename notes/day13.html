@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day13 · OpenCV 이미지·영상 전처리 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag cv">컴퓨터비전</span>
+      <h1>Day13 · OpenCV 이미지·영상 전처리</h1>
+      <div class="meta">2026-11-04(수) · 이미지 배열 · 색공간 · Resize · Filter · Threshold · 형태학 · 영상 · 증강 · 검증</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>사진은 <b>숫자 격자</b>: <code>shape = (H, W, C)</code>, <code>uint8</code>(0~255), OpenCV 색 순서는 <b>BGR</b>. 크기를 줄 때만 <b>(W, H)</b>.</li>
+          <li><code>Gray → Blur → Threshold → Morphology</code>(또는 <code>Canny</code>)를 지나며 숫자의 뜻이 밝기 → 경계 → 물체 → 모양으로 바뀐다. 인자는 <b>목적에 맞게 고르고 기록</b>한다.</li>
+          <li>영상은 같은 처리를 <b>Frame마다 반복</b>하고, 증강은 <b>라벨 뜻이 안 바뀌는 변형을 train에만</b> 쓰며, 결과는 <b>원본과 다시 비교해 검증</b>한다.</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install opencv-python numpy matplotlib</code></td></tr>
+        <tr><td><a href="#array">① 이미지 = 숫자 배열</a></td><td><code>cv2.imread()</code>, <code>cv2.imwrite()</code>, <code>img.shape</code>, <code>cv2.split()</code> / <code>merge()</code>, <code>cv2.imshow()</code></td></tr>
+        <tr><td><a href="#color">② 색공간 · 크기</a></td><td><code>cv2.cvtColor()</code>, <code>cv2.resize()</code></td></tr>
+        <tr><td><a href="#filter">③ Filter · Edge</a></td><td><code>cv2.GaussianBlur()</code>, <code>cv2.medianBlur()</code>, <code>cv2.bilateralFilter()</code>, <code>cv2.Canny()</code></td></tr>
+        <tr><td><a href="#thresh">④ Threshold · 형태학</a></td><td><code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getStructuringElement()</code>, <code>cv2.morphologyEx()</code></td></tr>
+        <tr><td><a href="#video">⑤ 영상 Frame 처리</a></td><td><code>cv2.VideoCapture()</code>, <code>cv2.VideoWriter()</code>, <code>cap.get(CAP_PROP_FPS)</code></td></tr>
+        <tr><td><a href="#augment">⑥ 데이터 증강</a></td><td><code>cv2.flip()</code>, <code>cv2.getRotationMatrix2D()</code> + <code>cv2.warpAffine()</code>, <code>cv2.convertScaleAbs()</code></td></tr>
+        <tr><td><a href="#verify">⑦ 일괄 처리 · 검증</a></td><td><code>sorted(Path.glob())</code>, <code>imread(path, 0)</code> 재읽기, 검증표</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>opencv-python</code></td><td>이미지·영상 읽기/쓰기, 색 변환, 필터, 이진화, 형태학, 회전</td><td><code>import cv2</code></td></tr>
+        <tr><td><code>numpy</code></td><td>OpenCV 이미지의 실제 정체 (숫자 배열), 자르기·계산</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>matplotlib</code></td><td>원본·결과를 나란히 그려서 비교</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python --version
+python -m pip install opencv-python numpy matplotlib
+python -m pip show opencv-python numpy matplotlib
+python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK</code></pre>
+      <div class="callout">💡 pip 이름과 import 이름이 달라요: <code>opencv-python</code> → <code>import cv2</code>. 강의는 <b>OpenCV 4.x 공식 문서</b>를 최종 기준으로 확인하라고 안내해요.</div>
+      <div class="callout">🤔 <strong>왜?</strong> — 원본 폴더(<code>data/</code>)는 건드리지 않고 결과는 <code>outputs/</code>에 따로 저장해요. 원본을 덮어쓰면 <b>나중에 비교·재현·복구</b>를 할 수 없기 때문이에요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>카메라가 남기는 건 <b>숫자 격자</b>뿐이에요. 컴퓨터는 "흠집"이 뭔지 몰라요. 전처리는 촬영 조건이 제각각인 사진·영상을 <b>다음 단계(규칙 판단이나 모델)가 쓸 수 있는 입력</b>으로 맞춰 주는 일이에요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🏭</div><strong>제품 외관 검사</strong><span>크기·색·잡음 조건을 맞춰 흠집 후보 찾기</span></div>
+        <div class="usecase"><div class="emoji">📄</div><strong>문서 글자 인식</strong><span>글자와 배경을 구분하도록 이진화</span></div>
+        <div class="usecase"><div class="emoji">🧠</div><strong>모델 입력 준비</strong><span>크기 224×224로 맞추고 증강 (Day14로 연결)</span></div>
+        <div class="usecase"><div class="emoji">🎥</div><strong>영상 처리</strong><span>Frame마다 같은 처리 후 다시 영상으로 저장</span></div>
+      </div>
+      <div class="flow">
+        <span class="step">읽기·확인<br><small>imread · shape</small></span><span class="arrow">→</span>
+        <span class="step">밝기로<br><small>cvtColor</small></span><span class="arrow">→</span>
+        <span class="step">크기 맞추기<br><small>resize</small></span><span class="arrow">→</span>
+        <span class="step">잡음 줄이기<br><small>GaussianBlur</small></span><span class="arrow">→</span>
+        <span class="step">경계·영역<br><small>Canny / threshold</small></span><span class="arrow">→</span>
+        <span class="step">저장·재확인<br><small>imwrite · imread</small></span>
+      </div>
+      <table>
+        <tr><th>출력 한 칸을 정할 때 보는 곳</th><th>예</th></tr>
+        <tr><td><b>자기 칸만</b></td><td>Gray 변환, Threshold</td></tr>
+        <tr><td><b>주변 칸까지</b></td><td>Blur, Canny, Morphology</td></tr>
+        <tr><td><b>다른 자리에서</b></td><td>Resize, 회전(warpAffine)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 이렇게 나눠 봐?</strong> — 어떤 칸을 보는지가 곧 그 처리의 성격이에요. "자기 칸만" 보는 처리는 잡음인지 아닌지 <b>판단할 수 없고</b>, "주변 칸까지" 보는 처리는 그걸 판단할 수 있는 대신 <b>세부가 흐려져요</b>. 그래서 순서와 인자를 목적에 맞게 골라야 해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="array">① 이미지 = 숫자 배열</h2>
+      <p>영상에서 한 장을 꺼내면 이미지(Frame), 이미지는 위치별 숫자의 배열이에요. 컬러 사진은 칸(Pixel) 하나에 숫자 3개(B, G, R), 각 0~255. Gray는 <code>[H, W]</code>, 컬러는 <code>[H, W, C]</code>.</p>
+      <table>
+        <tr><th>항목</th><th>뜻</th><th>예</th><th>확인 코드</th></tr>
+        <tr><td><code>shape</code></td><td>(세로 H, 가로 W, 채널 C)</td><td>(240, 320, 3)</td><td><code>img.shape</code></td></tr>
+        <tr><td><code>dtype</code></td><td>숫자의 자료형</td><td>uint8</td><td><code>img.dtype</code></td></tr>
+        <tr><td>min / max</td><td>값 범위</td><td>0 / 255</td><td><code>img.min(), img.max()</code></td></tr>
+        <tr><td><code>ndim</code></td><td>차원 수 (Gray는 2, 컬러는 3)</td><td>3</td><td><code>img.ndim</code></td></tr>
+      </table>
+      <p>한 칸 값은 <code>img[y, x]</code>로 봐요 — <b>세로(y)가 먼저</b>. 예: <code>[20, 80, 200]</code>은 B=20, G=80, R=200 → 빨강 쪽 색. shape가 <code>(345, 450, 3)</code>이면 450은 <b>Width(열의 수)</b>예요.</p>
+      <figure><img class="smooth" src="img/day13/pixel_grid.png" alt="원본 이미지의 빨간 사각형 모서리 6×6칸을 확대해 칸마다 B·G·R 숫자를 적은 그림"><figcaption><b>무엇을 보나:</b> 왼쪽 노란 네모 6×6칸을 확대하면 칸마다 숫자가 <b>3개</b>(B, G, R) 들어 있어요. 빨간 칸은 <code>B 0 · G 0 · R 255</code>, 배경 칸은 세 값이 비슷한 회색(약 63·70·78). 세로 눈금이 y(행), 가로 눈금이 x(열)이에요. <b>🤔 왜?</b> 사진은 처음부터 "빨강"이라는 뜻이 아니라 이 숫자 격자로 저장되기 때문이에요. 그래서 <code>shape = (240, 320, 3)</code>은 "240줄 × 320칸 × 숫자 3개"이고, 한 칸을 꺼낼 땐 줄 번호(y)부터 <code>img[y, x]</code>로 써요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 shape부터 확인해?</strong> — shape를 모르고 처리하면 채널 축과 공간 축을 뒤바꾸거나, 잘못된 크기로 저장할 수 있어요. 그리고 <code>uint8</code>은 0~255만 담을 수 있는 자료형이라 <b>더하기·빼기를 함부로 하면 값이 넘쳐요</b>(⑥ 밝기 조절에서 다시 나와요). 그래서 읽자마자 <code>shape · dtype · min/max</code>를 찍어 봐요.</div>
+      <div class="callout">🤔 <strong>왜 세로(y)가 먼저?</strong> — 이미지는 NumPy 배열이고, 배열은 "몇 번째 <b>줄(행)</b>, 몇 번째 <b>칸(열)</b>" 순서로 셉니다. 줄 = 세로 위치(y), 칸 = 가로 위치(x)라서 <code>(H, W)</code>, <code>img[y, x]</code>가 돼요. 참고로 Day11 PyTorch <code>Conv2d</code>는 <code>[N, C, H, W]</code>(채널이 앞)라서, 모델에 넣을 땐 축 순서를 또 바꿔야 해요.</div>
+      <div class="figs">
+        <figure><img src="img/day13/original.png" alt="색 사각형, 원, 사각형, 흰 선이 있는 원본 이미지"><figcaption>원본 <code>(240, 320, 3)</code> · BGR을 제대로 표시</figcaption></figure>
+        <figure><img src="img/day13/bgr_as_rgb.png" alt="빨강과 파랑이 뒤바뀐 이미지"><figcaption>BGR 배열을 <b>변환 없이</b> RGB로 해석하면 빨강↔파랑이 뒤바뀜</figcaption></figure>
+      </div>
+      <div class="callout warn">⚠️ OpenCV(<code>imread</code>)는 <b>B, G, R</b>, Matplotlib(<code>imshow</code>)는 <b>R, G, B</b>. Matplotlib로 볼 땐 <code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code> 후 표시, RGB 배열을 <code>imwrite</code>로 저장할 땐 다시 BGR로 되돌려요.</div>
+      <div class="callout">🤔 <strong>왜 OpenCV는 BGR일까?</strong> — 강의 PDF는 "OpenCV 기본 색상 순서는 BGR"이라는 사실만 알려 줘요. 흔히 알려진 배경은, OpenCV가 처음 만들어질 무렵 카메라 장비·Windows 이미지 형식이 BGR 순서로 저장하는 경우가 많았고, 그 뒤로는 <b>기존 코드와의 호환</b> 때문에 바꾸지 않았다는 거예요. 이유가 무엇이든 실전 규칙은 하나: <b>라이브러리가 바뀌는 경계에서 색 순서를 꼭 맞춘다.</b></div>
+
+      <h3>🔧 명령어: 읽기 <code>cv2.imread()</code> · 저장 <code>cv2.imwrite()</code></h3>
+<pre><code>from pathlib import Path
+import cv2
+
+img = cv2.imread("data/scene.png", cv2.IMREAD_COLOR)
+if img is None:                              # 읽기 실패는 에러가 아니라 None!
+    raise RuntimeError("image read failed")
+print(img.shape, img.dtype, img.min(), img.max())
+
+Path("outputs").mkdir(parents=True, exist_ok=True)
+if not cv2.imwrite("outputs/copy.png", img):  # 성공 여부를 bool로 돌려줌
+    raise OSError("image save failed")</code></pre>
+      <div class="callout">🤔 <strong>왜 <code>None</code> 검사를 직접 해?</strong> — <code>imread</code>는 경로가 틀려도 <b>에러를 내지 않고 None을 돌려줘요</b>. 검사하지 않으면 몇 줄 뒤 <code>cvtColor</code>에서 엉뚱한 에러가 나서 원인을 찾기 어려워요. <code>imwrite</code>도 실패하면 False만 돌려주니 반환값을 확인합니다.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>filename</code> <small>(필수)</small></td><td>파일 경로</td><td>틀리면 <code>imread</code>는 <code>None</code> — 에러가 안 나니 직접 확인</td></tr>
+        <tr><td><code>flags=cv2.IMREAD_COLOR</code></td><td>BGR 3채널로 읽기 (기본)</td><td>원본이 흑백·투명이어도 3채널로 맞춰 줘서 뒤 처리가 단순해짐</td></tr>
+        <tr><td><code>cv2.IMREAD_GRAYSCALE</code> (또는 <code>0</code>)</td><td>처음부터 흑백 <code>[H, W]</code>로 읽기</td><td>채널이 1개라 메모리·계산이 줄어듦. 저장한 Gray 결과를 다시 읽어 확인할 때도 사용</td></tr>
+        <tr><td><code>cv2.IMREAD_UNCHANGED</code></td><td>파일 그대로 (투명도 Alpha 채널 유지 가능)</td><td>기본 COLOR는 Alpha를 버리기 때문에, PNG의 4번째 채널이 필요하면 이걸 씀</td></tr>
+        <tr><td><code>imwrite</code>의 확장자</td><td>저장 형식(인코더)을 결정</td><td>.png는 손실 없음, .jpg는 손실 압축 → 0/255 Mask를 jpg로 저장하면 중간값이 생김</td></tr>
+        <tr><td><code>imwrite</code>의 <code>params=[]</code></td><td>(선택) 압축 품질 등 인코더 옵션</td><td></td></tr>
+      </table>
+
+      <h3>🔧 명령어: 화면에 띄우기 <code>cv2.imshow()</code> · <code>cv2.waitKey()</code></h3>
+<pre><code>cv2.imshow("result", img)    # 운영체제 창에 표시
+cv2.waitKey(0)               # 0 = 키를 누를 때까지 무기한 대기
+cv2.destroyAllWindows()
+
+# 창이 안 열리는 환경이면: 저장하거나 RGB로 바꿔 Matplotlib로
+import matplotlib.pyplot as plt
+plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)); plt.savefig("outputs/view.png")</code></pre>
+      <div class="callout warn">⚠️ 원격 서버·Notebook·일부 VS Code 환경에서는 GUI 창이 안 열릴 수 있어요. 🤔 <b>왜?</b> — <code>imshow</code>는 <b>운영체제의 창</b>을 띄우는 기능이라, 화면(디스플레이)이 없는 서버에서는 띄울 곳이 없거든요. 그럴 땐 <code>cv2.imwrite()</code>로 저장하거나 Matplotlib로 그려요.</div>
+
+      <h3>🔧 명령어: 채널 나누기·합치기 <code>cv2.split()</code> · <code>cv2.merge()</code></h3>
+<pre><code>b, g, r = cv2.split(img)          # 각각 [H, W]
+merged = cv2.merge([b, g, r])     # 원래대로 [H, W, 3]
+print("same:", (merged == img).all())
+rgb = cv2.merge([r, g, b])        # 순서를 바꿔 RGB로</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>split(src)</code></td><td>채널별 2차원 배열의 튜플</td><td>채널 하나만 보고 싶을 때 (예: 빨강 채널 밝기만)</td></tr>
+        <tr><td><code>merge(mv)</code></td><td>H·W·dtype이 같은 채널 배열들을 하나로 합침</td><td><b>넣는 순서 = 채널 순서</b>라, <code>[r, g, b]</code>로 넣으면 RGB 배열이 됨</td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day13/bgr_channels.png" alt="원본과 B, G, R 채널을 각각 흑백으로 표시한 4장의 그림"><figcaption><b>무엇을 보나:</b> <code>split</code>한 채널 하나하나는 흑백 사진(<code>(240, 320)</code>)이에요. 노란 네모의 빨간 사각형은 R 채널에서만 흰색(255), B·G에서는 검정(0). 하늘색 원은 B·G에서 밝고 R에서 어두워요. <b>🤔 왜?</b> 각 채널은 "그 색이 얼마나 섞였나"만 담은 밝기 지도이기 때문이에요. 하늘색 = 파랑 + 초록이라 B·G가 밝고, 주황 = 빨강 + 약간의 초록이라 R이 가장 밝아요. 채널 순서를 바꾸면(BGR↔RGB) 이 지도가 다른 색 자리에 들어가서 위의 "빨강↔파랑 뒤바뀜"이 생겨요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="color">② 색공간 · 크기 맞추기</h2>
+      <p>색공간은 "정답"이 아니라 <b>목적에 따라 고르는 표현</b>이에요.</p>
+      <table>
+        <tr><th>목적</th><th>표현</th><th>변환 코드</th><th>결과 shape</th></tr>
+        <tr><td>Matplotlib에 색 표시</td><td>RGB</td><td><code>COLOR_BGR2RGB</code></td><td>(H, W, 3)</td></tr>
+        <tr><td>밝기·경계 분석 (Threshold, Edge)</td><td>Gray</td><td><code>COLOR_BGR2GRAY</code></td><td>(H, W)</td></tr>
+        <tr><td>특정 색 범위 고르기</td><td>HSV (uint8: H 0~179, S·V 0~255)</td><td><code>COLOR_BGR2HSV</code></td><td>(H, W, 3)</td></tr>
+        <tr><td>Gray 결과를 컬러 영상에 저장·그리기</td><td>BGR</td><td><code>COLOR_GRAY2BGR</code></td><td>(H, W, 3)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 경계·이진화는 Gray로?</strong> — 경계는 "밝기가 갑자기 바뀌는 곳"이라 <b>밝기 하나면 충분</b>해요. 색 3개(예: B52·G136·R214)를 섞어 밝기 1개(150)로 만들면 계산할 숫자가 1/3로 줄고, Threshold도 기준값 하나로 끝나요.</div>
+      <div class="callout">🤔 <strong>왜 색 고르기는 HSV로?</strong> — BGR에서는 그늘이 지면 B·G·R 세 값이 <b>모두</b> 바뀌어서 "빨강"을 범위로 잡기 어려워요. HSV는 <b>색 종류(H)</b>, 진하기(S), 밝기(V)를 따로 떼어 두니까, 조명이 바뀌어도 주로 V만 변하고 H는 비교적 그대로예요. 참고로 uint8에는 0~255만 들어가서 360°짜리 색상환을 반으로 줄여 <b>H는 0~179</b>예요.</div>
+      <figure><img class="smooth" src="img/day13/hsv_lighting.png" alt="왼쪽이 그늘진 사진의 H, S, V 채널과 BGR 범위 마스크, HSV 범위 마스크 비교"><figcaption><b>무엇을 보나:</b> 왼쪽으로 갈수록 그늘을 만든 사진이에요. V(밝기) 채널은 왼쪽이 어둡게 변했지만, H(색 종류) 채널에서 주황 사각형은 <b>전체가 고른 회색</b>이에요. 그래서 BGR 범위로 찾으면 밝은 오른쪽 일부(2,707칸)만 잡히고, HSV의 H 범위로 찾으면 사각형 전체(10,724칸)가 잡혀요(흰 선이 지나가는 자리만 빠짐). <b>🤔 왜?</b> 그늘은 "색 종류"가 아니라 "밝기"를 바꾸기 때문이에요. BGR에서는 그늘이 B·G·R 세 값을 모두 끌어내려 범위를 벗어나지만, HSV는 그 변화가 거의 V에만 모이니 H로 고른 범위가 그대로 유지돼요.</figcaption></figure>
+      <div class="callout warn">⚠️ <code>GRAY2BGR</code>은 같은 밝기 값을 3채널로 <b>복제</b>할 뿐, 원래 색을 되살리지 못해요. 🤔 <b>왜?</b> — Gray로 바꿀 때 색 3개를 섞어 하나로 만들면서 "어떤 색이었는지" 정보가 버려졌기 때문이에요. 그래도 쓰는 이유는 컬러 VideoWriter나 컬러 도형 그리기가 <b>3채널을 요구</b>하기 때문이에요.</div>
+
+      <h3>🔧 명령어: <code>cv2.cvtColor()</code></h3>
+<pre><code>gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)   # (240, 320)
+rgb  = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)    # (240, 320, 3)
+hsv  = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)    # (240, 320, 3)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>src</code> <small>(필수)</small></td><td>입력 이미지</td><td>입력 채널 수가 code와 안 맞으면 에러 (예: Gray에 BGR2GRAY)</td></tr>
+        <tr><td><code>code</code> <small>(필수)</small></td><td>변환 종류 <code>COLOR_입력2출력</code></td><td>이름 그대로 읽으면 됨: BGR → GRAY</td></tr>
+        <tr><td><code>dstCn=0</code></td><td>(선택) 출력 채널 수, 0이면 자동</td><td>보통 그대로 둠</td></tr>
+      </table>
+      <div class="figs">
+        <figure><img src="img/day13/gray.png" alt="흑백으로 바뀐 이미지"><figcaption><code>COLOR_BGR2GRAY</code> → <code>(240, 320)</code> · 색 3개를 섞어 밝기 1개로</figcaption></figure>
+      </div>
+
+      <h3>크기 바꾸기와 보간법</h3>
+      <p>줄일 땐 여러 픽셀을 하나로 <b>요약</b>하고, 키울 땐 없던 픽셀 값을 주변에서 <b>추정</b>해요. 이 추정 방법이 <b>보간법</b>.</p>
+      <div class="figs">
+        <figure><img src="img/day13/up_nearest.png" alt="계단처럼 각진 확대 이미지"><figcaption>작게 줄인 뒤 다시 확대 · <code>INTER_NEAREST</code> · 경계가 뚜렷하지만 <b>계단</b></figcaption></figure>
+        <figure><img class="smooth" src="img/day13/up_linear.png" alt="부드럽게 확대된 이미지"><figcaption>같은 확대 · <code>INTER_LINEAR</code> · 주변 4개 값으로 <b>부드럽게</b></figcaption></figure>
+      </div>
+      <table>
+        <tr><th>보간법</th><th>언제</th><th>🤔 왜?</th></tr>
+        <tr><td><code>INTER_AREA</code></td><td><b>축소</b>에 자주 사용</td><td>줄어드는 칸이 덮는 <b>면적의 평균</b>을 내서, 몇 칸을 건너뛰며 고르는 방식보다 잔무늬·깨짐이 적음</td></tr>
+        <tr><td><code>INTER_LINEAR</code></td><td>기본값, 확대에도 사용</td><td>가까운 4칸을 거리에 따라 섞어 값이 <b>부드럽게</b> 이어짐</td></tr>
+        <tr><td><code>INTER_NEAREST</code></td><td>0/255 <b>Mask</b>에 적합</td><td>가장 가까운 값을 그대로 복사해서 <b>중간값(예: 128)이 안 생김</b> → Mask 뜻이 유지됨. 대신 계단 현상</td></tr>
+      </table>
+
+      <div class="figs">
+      <figure><img class="smooth" src="img/day13/resize_shrink.png" alt="촘촘한 동심원 무늬를 NEAREST, LINEAR, AREA로 축소한 비교"><figcaption><b>무엇을 보나:</b> 바깥으로 갈수록 줄무늬가 촘촘해지는 그림을 1/5로 줄였어요. NEAREST·LINEAR는 원본에 없던 <b>가짜 동심원·바둑판 무늬</b>가 생기고, AREA는 너무 촘촘한 곳이 차분한 <b>회색</b>이 돼요. <b>🤔 왜?</b> NEAREST·LINEAR는 5칸 중 몇 칸만 "골라서" 보는데, 그 칸이 하필 흰 줄·검은 줄 어느 쪽에 걸리느냐에 따라 엉뚱한 무늬가 생겨요. AREA는 덮는 면적을 <b>모두 평균</b>하니 흰·검 줄이 섞여 회색이 돼요. 그래서 축소엔 AREA.</figcaption></figure>
+      <figure><img class="smooth" src="img/day13/resize_mask.png" alt="0과 255만 있는 마스크를 NEAREST와 LINEAR로 확대하고 한 줄의 값을 그래프로 그린 그림"><figcaption><b>무엇을 보나:</b> 0/255 Mask를 8배 키웠을 때 NEAREST는 값 종류가 그대로 2개, LINEAR는 45개예요. 오른쪽 그래프에서 초록(NEAREST)은 0→255로 <b>계단</b>처럼 뛰고, 빨강(LINEAR)은 경사로 이어져 128 같은 <b>중간값</b>이 생겨요. <b>🤔 왜?</b> LINEAR는 이웃 값을 거리에 따라 섞어서 경계에 "반쯤 물체"인 값을 만들어요. Mask에서 128은 물체인지 배경인지 뜻이 없으니, Mask는 가장 가까운 값을 그대로 복사하는 NEAREST로 키워요.</figcaption></figure>
+      </div>
+      <h3>🔧 명령어: <code>cv2.resize()</code></h3>
+<pre><code>small = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
+half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+# 320×240 이미지를 dsize=(160, 120)으로 → shape는 (120, 160, 3)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>src</code> <small>(필수)</small></td><td>입력 이미지</td><td></td></tr>
+        <tr><td><code>dsize</code> <small>(필수 자리)</small></td><td>출력 크기 <b>(W, H)</b>, 배율을 쓸 땐 <code>None</code> 또는 <code>(0, 0)</code></td><td>가로세로 비율이 원본과 다르면 <b>찌그러짐</b> (320×240 → 224×224는 4:3 → 1:1)</td></tr>
+        <tr><td><code>fx</code>, <code>fy</code> (기본 0)</td><td>가로·세로 배율</td><td>둘 다 0.5면 비율 유지하며 절반. dsize와 동시에 쓰기보다 <b>한 방식만</b> 골라야 코드가 명확</td></tr>
+        <tr><td><code>interpolation</code></td><td>보간법 (기본 <code>INTER_LINEAR</code>)</td><td>축소는 AREA, Mask는 NEAREST — 위 표의 이유 참고</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>제일 많이 하는 실수</b>: <code>shape</code>는 <b>(H, W)</b>, <code>dsize</code>는 <b>(W, H)</b>. 순서가 반대예요. 🤔 <b>왜 반대?</b> — shape는 NumPy 배열의 "줄 수, 칸 수"이고, dsize는 OpenCV의 "이미지 크기" 표기(가로×세로, 예: 320×240)를 따르기 때문이에요. 서로 다른 관례가 한 코드에서 만나니 헷갈리는 거예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="filter">③ Filter · Edge — 주변 칸까지 보고 계산</h2>
+      <p>칸 하나만 봐서는 그게 잡음인지 알 수 없어요. 필터는 <b>Kernel</b>(작은 창)을 옮기며 주변 값을 섞어 새 값을 만들어요. 같은 위치끼리 곱한 뒤 모두 더해요.</p>
+<pre><code>입력 3×3 이웃          평균 Kernel
+10  10  10            1/9 1/9 1/9
+10 100  10     ×      1/9 1/9 1/9     →  출력 = (10×8 + 100) ÷ 9 = 20
+10  10  10            1/9 1/9 1/9         (튀는 점 100이 20으로 누그러짐)</code></pre>
+      <div class="callout">💡 이 계산은 Day11 CNN의 합성곱(Conv2d)과 <b>같은 계산</b>이에요. 오늘은 사람이 Kernel 값을 정하고, CNN은 그 값을 배워요.</div>
+      <table>
+        <tr><th>Kernel 설정</th><th>효과</th><th>🤔 왜?</th></tr>
+        <tr><td>작은 Kernel</td><td>세부 보존, 효과 약함</td><td>섞는 이웃이 적으니 원래 값이 많이 남음</td></tr>
+        <tr><td>큰 Kernel</td><td>더 강한 Blur, 세부 손실·연산 증가</td><td>먼 칸까지 섞어서 작은 무늬가 평균에 묻히고, 곱셈 횟수도 늘어남</td></tr>
+        <tr><td>합이 1인 평균 Kernel</td><td>밝기 평균화 (Blur)</td><td>가중치 합이 1이라 전체 밝기는 그대로 유지</td></tr>
+        <tr><td>음수 가중치 포함</td><td>경계·선명도 강조 (Sharpen)</td><td>주변을 빼서 "나와 이웃의 차이"가 커지는 곳이 강조됨</td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day13/blur_kernels.png" alt="GaussianBlur 커널 크기 3, 7, 15를 나란히 비교한 그림"><figcaption><b>무엇을 보나:</b> 같은 사진에 Kernel만 3 → 7 → 15로 키웠어요. 노란 네모 안의 가는 줄무늬가 3에선 그대로, 7에선 흐려지고, 15에선 회색 덩어리가 돼요. 색 사각형·원 테두리도 점점 번져요. <b>🤔 왜?</b> Kernel이 크면 더 먼 칸까지 섞기 때문이에요. 줄무늬 간격보다 Kernel이 넓어지면 흰 줄과 검은 줄이 한 평균 안에 같이 들어가 회색이 돼요 — 잡음이 줄어드는 것과 세부가 사라지는 것은 같은 원리예요.</figcaption></figure>
+      <table>
+        <tr><th>필터</th><th>방식</th><th>장점</th><th>주의</th></tr>
+        <tr><td><code>GaussianBlur</code></td><td>가운데에 더 큰 가중치를 준 평균</td><td>자연스러운 Blur</td><td>Edge도 흐려짐</td></tr>
+        <tr><td><code>medianBlur</code></td><td>이웃 값 중 <b>중앙값</b> 선택</td><td>점 잡음(소금·후추)에 강함</td><td>ksize는 1보다 큰 홀수</td></tr>
+        <tr><td><code>bilateralFilter</code></td><td>거리 + 밝기 차이까지 고려</td><td>Edge 보존</td><td>비교적 느림</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Gaussian은 가운데를 크게?</strong> — 가까운 칸일수록 나와 비슷한 값일 가능성이 높아요. 그래서 가운데에 큰 가중치를 주면 평균 필터보다 <b>덜 뭉개지고 자연스럽게</b> 흐려져요.</div>
+      <div class="callout">🤔 <strong>왜 소금·후추 잡음엔 Median?</strong> — 점 잡음은 주변과 동떨어진 <b>극단값</b>(0 또는 255)이에요. 평균은 극단값 하나에도 끌려가서 흐린 점이 남지만, 중앙값은 값을 줄 세운 뒤 <b>가운데 것</b>을 고르니 극단값이 아예 뽑히지 않아요. 아래 체험에서 직접 확인해 보세요.</div>
+      <div class="callout">🤔 <strong>왜 Bilateral은 경계를 지켜?</strong> — 거리만이 아니라 <b>밝기 차이</b>로도 가중치를 줘서, 경계 건너편처럼 밝기가 크게 다른 칸은 거의 섞지 않아요. 대신 칸마다 가중치를 새로 계산해야 해서 느려요.</div>
+
+      <div class="lab">
+        <strong>🧪 체험: 평균 vs 중앙값 — 가운데 칸에 점 잡음을 넣어 보세요</strong>
+        <table>
+          <tr><td id="mdC0">10</td><td id="mdC1">10</td><td id="mdC2">10</td></tr>
+          <tr><td id="mdC3">10</td><td id="mdC4"><b>100</b></td><td id="mdC5">10</td></tr>
+          <tr><td id="mdC6">10</td><td id="mdC7">10</td><td id="mdC8">10</td></tr>
+        </table>
+        <div class="readout">
+          <label>가운데 값 <input type="range" id="mdSlider" min="0" max="255" step="1" value="100"> <b id="mdVal">100</b></label>
+        </div>
+        <div class="readout">
+          <div>평균 Kernel 출력 <span class="big" id="mdMean">20</span></div>
+          <div>Median 출력 <span class="big" id="mdMedian">10</span></div>
+        </div>
+        <div class="verdict" id="mdVerdict"></div>
+      </div>
+
+      <div class="figs">
+        <figure><img src="img/day13/noisy.png" alt="흰 점과 검은 점 잡음이 많은 이미지"><figcaption>점 잡음이 낀 원본</figcaption></figure>
+        <figure><img src="img/day13/gaussian.png" alt="가우시안 블러 결과"><figcaption><code>GaussianBlur((5,5), 0)</code> · 점이 흐려지지만 남음</figcaption></figure>
+        <figure><img src="img/day13/median.png" alt="미디언 블러 결과"><figcaption><code>medianBlur(5)</code> · 점 잡음이 거의 사라짐</figcaption></figure>
+      </div>
+      <figure><img class="smooth" src="img/day13/filter_noise.png" alt="가우시안 잡음과 소금후추 잡음에 각각 Gaussian, Median, Bilateral 필터를 적용한 2×4 비교"><figcaption><b>무엇을 보나:</b> 윗줄은 고르게 퍼진 잡음, 아랫줄은 점 잡음이에요. 각 그림 위 PSNR은 깨끗한 원본과 얼마나 비슷한지(클수록 비슷)이고, <b>초록 테두리</b>가 그 줄의 1등이에요. 퍼진 잡음엔 Bilateral(28.9dB), 점 잡음엔 Median(31.2dB)이 이겨요. Bilateral은 점 잡음을 거의 못 지워요(23.6dB). <b>🤔 왜?</b> 점 잡음은 0·255 극단값이라 Median은 아예 뽑지 않지만, Bilateral은 "밝기가 크게 다른 칸은 안 섞는다"는 규칙 때문에 튀는 점을 <b>경계로 착각해 보존</b>해요. 반대로 퍼진 잡음은 작은 차이라 Bilateral이 섞어 주면서 진짜 경계는 지켜요. 그래서 "잡음 종류부터 확인"하라는 거예요.</figcaption></figure>
+      <div class="callout">💡 <strong>가장자리(Border)</strong> — Kernel이 이미지 밖으로 나가면 실제 픽셀이 없어요. <code>BORDER_REFLECT</code>(경계값을 거울처럼 반사), <code>BORDER_REPLICATE</code>(가장자리 픽셀 반복) 등 규칙에 따라 가장자리 결과가 달라져요. 🤔 <b>왜 규칙이 필요?</b> — 바깥 칸 값을 "뭔가로" 정해야 곱하고 더할 수 있으니까요. 0(검정)으로 채우면 가장자리가 어둡게 번질 수 있어요.</div>
+
+      <h3>🔧 명령어: <code>cv2.GaussianBlur()</code> · <code>cv2.medianBlur()</code> · <code>cv2.bilateralFilter()</code></h3>
+<pre><code>gaussian  = cv2.GaussianBlur(gray, ksize=(5, 5), sigmaX=0)
+median    = cv2.medianBlur(gray, ksize=5)
+bilateral = cv2.bilateralFilter(gray, d=9, sigmaColor=75, sigmaSpace=75)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>ksize=(5, 5)</code> <small>(필수)</small></td><td>Kernel 크기, <b>양수 홀수</b> (또는 0이면 sigma로 계산)</td><td>크면 더 흐려지고 세부가 사라짐. 🤔 홀수인 이유: 출력할 <b>가운데 칸</b>이 딱 하나 있어야 하니까</td></tr>
+        <tr><td><code>sigmaX=0</code> <small>(필수)</small></td><td>가로 방향 퍼짐 정도. 0이면 Kernel 크기로부터 자동 계산</td><td>크면 먼 칸에도 가중치를 줘서 더 넓게 섞음</td></tr>
+        <tr><td><code>sigmaY=0</code>, <code>borderType</code></td><td>(선택) 세로 퍼짐(0이면 sigmaX와 같게), 가장자리 규칙</td><td></td></tr>
+        <tr><td><code>medianBlur</code>의 <code>ksize</code></td><td>정수 하나, 1보다 큰 홀수 (3, 5, 7 …)</td><td>짝수면 에러. 크면 더 큰 잡음 덩어리도 지우지만 가는 선도 사라짐</td></tr>
+        <tr><td><code>bilateralFilter</code>의 <code>d</code></td><td>이웃 지름</td><td>클수록 연산 증가 (느림)</td></tr>
+        <tr><td><code>sigmaColor</code> / <code>sigmaSpace</code></td><td>밝기 차이 / 거리를 얼마나 봐줄지</td><td>sigmaColor가 크면 경계 건너편도 섞여서 일반 Blur에 가까워짐</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "크면 무조건 좋다"가 아닐까?</strong> — 파라미터가 크면 잡음은 더 줄지만 <b>정보 손실과 연산량도 함께 늘어나요</b>. 그래서 먼저 <b>잡음 종류</b>(점 잡음인가, 고르게 퍼진 잡음인가)와 <b>Edge를 보존해야 하는지</b>를 확인하고 필터를 골라요.</div>
+
+      <h3>Canny Edge — "여기가 경계인가?"</h3>
+      <p>밝기가 <b>갑자기 바뀌는 곳</b>만 흰색(255)으로 남겨요. <b>강한 경계</b>(threshold2 이상)는 확실히 남기고, <b>약한 경계</b>(threshold1~threshold2)는 강한 경계에 <b>연결된 것만</b> 남기는 방식이에요.</p>
+      <div class="callout">🤔 <strong>왜 기준값이 두 개?</strong> — 하나만 쓰면 낮게 잡을 땐 잡음까지 경계가 되고, 높게 잡을 땐 선이 군데군데 끊겨요. 두 개를 쓰면 "확실한 선"에 이어진 약한 부분은 살리고, <b>외따로 떨어진 약한 점(잡음)은 버릴 수</b> 있어요.</div>
+      <div class="figs">
+        <figure><img src="img/day13/canny_noblur.png" alt="잡음 때문에 점이 많은 경계 이미지"><figcaption>Blur 없이 <code>Canny(70, 150)</code> · 이 그림에서 경계 픽셀 12,138개 (잡음도 경계로 잡힘)</figcaption></figure>
+        <figure><img src="img/day13/canny_blur.png" alt="깔끔한 경계 이미지"><figcaption>GaussianBlur 후 같은 Canny · 3,528개 (도형 윤곽 위주)</figcaption></figure>
+      </div>
+      <div class="callout">🤔 <strong>왜 Canny 전에 Blur?</strong> — 잡음 점 하나하나도 "주변과 밝기가 갑자기 다른 곳"이라 Canny 눈에는 경계로 보여요. 먼저 Blur로 잡음을 누그러뜨리면 <b>잡음으로 생기는 불필요한 Edge가 줄어요</b>. (개념 지도 예시도 Blur 없이 1,996칸 → Blur 후 915칸)</div>
+
+      <h3>🔧 명령어: <code>cv2.Canny()</code></h3>
+<pre><code>blur  = cv2.GaussianBlur(gray, (5, 5), 0)     # 잡음 Edge를 줄이려고 먼저 Blur
+edges = cv2.Canny(blur, threshold1=70, threshold2=150)
+cv2.imwrite("outputs/edges.png", edges)        # 0 / 255 의 1채널</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>image</code> <small>(필수)</small></td><td>보통 Gray(+Blur) 이미지</td><td>Blur를 빼면 잡음 Edge가 크게 늘어남 (위 그림)</td></tr>
+        <tr><td><code>threshold1</code> / <code>threshold2</code> <small>(필수)</small></td><td>약한 / 강한 경계 기준 (밝기 <b>변화량</b> 기준)</td><td>낮추면 잡음 Edge↑, 높이면 약한 경계를 놓침</td></tr>
+        <tr><td><code>apertureSize=3</code></td><td>(선택) 밝기 변화를 재는 Kernel 크기</td><td>크면 더 굵은 변화에 반응</td></tr>
+        <tr><td><code>L2gradient=False</code></td><td>(선택) 변화량을 정확한 거리(L2)로 잴지</td><td>True면 조금 더 정확하지만 느림</td></tr>
+      </table>
+      <div class="callout warn">⚠️ Canny의 70/150은 <b>밝기 이진화 기준이 아니에요</b>(밝기 변화량 기준). 그리고 <b>Edge 수가 많다고 좋은 결과가 아니에요</b> — 많아진 만큼 잡음일 수 있어요.</div>
+      <figure><img class="smooth" src="img/day13/canny_thresholds.png" alt="같은 블러 이미지에 Canny 기준값을 (20,50), (70,150), (200,400)으로 바꾼 비교"><figcaption><b>무엇을 보나:</b> 입력은 같고 기준값만 바꿨어요(보기 쉽게 검은 선 = 경계). 낮은 (20, 50)은 11,413칸 — 잡음 결까지 경계, (70, 150)은 3,528칸 — 도형 윤곽 위주, 높은 (200, 400)은 1,567칸 — 원·사각형 경계가 사라지고 아주 강한 줄무늬·흰 선만 남아요. <b>🤔 왜?</b> 기준값은 "밝기가 얼마나 급하게 바뀌어야 경계로 인정하나"예요. 낮추면 작은 흔들림(잡음)도 통과하고, 높이면 대비가 약한 진짜 경계(어두운 배경 위 원)도 탈락해요. 가장 좋은 값은 목적에 따라 달라서 결과를 눈으로 비교하며 고르고 기록해요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="thresh">④ Threshold · 형태학 — "여기가 물체인가?"</h2>
+      <p><b>Threshold</b>는 기준값 T로 칸마다 0(배경) / 255(물체)를 정해요. 입력은 보통 Gray 1채널이고, 결과 Binary는 뒤의 형태학 처리에 쓰기 좋아요. 아래 슬라이더로 T를 바꿔 보세요.</p>
+      <div class="callout">🤔 <strong>왜 이진화가 필요해?</strong> — 밝기 150은 "얼마나 밝은가"일 뿐, <b>"여기가 물체인가?"에는 답하지 못해요</b>. 기준을 정해 예/아니오(255/0)로 바꿔야 물체 영역의 넓이를 세거나 모양을 다듬는 규칙을 만들 수 있어요.</div>
+      <div class="lab">
+        <svg width="0" height="0" aria-hidden="true" focusable="false">
+          <filter id="thrFilter" color-interpolation-filters="sRGB">
+            <feComponentTransfer>
+              <feFuncR id="thrFuncR" type="discrete" tableValues="0 1"/>
+              <feFuncG id="thrFuncG" type="discrete" tableValues="0 1"/>
+              <feFuncB id="thrFuncB" type="discrete" tableValues="0 1"/>
+            </feComponentTransfer>
+          </filter>
+        </svg>
+        <div class="figs">
+          <figure><img src="img/day13/gray.png" alt="흑백 입력 이미지"><figcaption>입력 (Gray)</figcaption></figure>
+          <figure><img id="thrImg" src="img/day13/gray.png" alt="기준값에 따라 이진화된 이미지"><figcaption>결과 (<code>THRESH_BINARY</code>)</figcaption></figure>
+        </div>
+        <div class="readout">
+          <label>기준값 T <input type="range" id="thrSlider" min="0" max="254" step="1" value="128"> <b id="thrVal">128</b></label>
+        </div>
+        <div class="readout"><div>밝기 &gt; T 이면 <b>255(흰색)</b>, 나머지는 <b>0(검정)</b></div></div>
+        <div class="verdict" id="thrVerdict"></div>
+      </div>
+<pre><code>THRESH_BINARY, T = 128
+Gray 값 :  40   110   160   220
+결과    :   0     0   255   255</code></pre>
+      <table>
+        <tr><th>방법</th><th>기준값 정하는 법</th><th>장점</th><th>주의</th></tr>
+        <tr><td><b>Fixed</b></td><td>사람이 값 하나 지정</td><td>단순·빠름</td><td>조명 변화에 취약</td></tr>
+        <tr><td><b>Otsu</b></td><td>밝기 히스토그램으로 자동 결정</td><td>물체·배경 밝기가 두 무리로 갈릴 때 유용</td><td>Blur가 도움될 수 있음</td></tr>
+        <tr><td><b>Adaptive</b></td><td>지역마다 따로 계산</td><td>조명이 고르지 않아도 대응</td><td><code>blockSize</code>·<code>C</code> 조정 필요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Fixed는 조명에 약해?</strong> — 조명이 밝아지면 물체·배경 밝기가 <b>함께</b> 올라가요. T=128로 고정해 두면 어제는 배경이던 곳이 오늘은 물체가 될 수 있어요. 사진마다 사람이 T를 다시 정할 수도 없고요.</div>
+      <figure><img class="smooth" src="img/day13/hist_lighting.png" alt="보통 날과 어두운 날의 밝기 히스토그램과 고정 T=128 이진화 결과"><figcaption><b>무엇을 보나:</b> 같은 장면을 어둡게(×0.55) 찍으면 히스토그램의 두 봉우리(물체·배경)가 <b>통째로 왼쪽</b>으로 이동해요. 보통 날엔 T=128이 두 봉우리 사이라 물체(26%)를 잘 잡지만, 어두운 날엔 두 봉우리가 모두 128 왼쪽이라 화면 <b>100%가 물체</b>로 판정돼요. <b>🤔 왜?</b> T는 "밝기 숫자"에 고정된 선인데, 조명은 물체와 배경의 숫자를 함께 움직이기 때문이에요. 선은 그대로인데 데이터가 이사를 가 버린 셈 — 그래서 히스토그램을 보고 T를 따라 움직이는 Otsu가 필요해요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 Otsu?</strong> — 밝기 히스토그램이 "어두운 무리 + 밝은 무리" 두 봉우리로 갈려 있으면, Otsu는 <b>두 무리가 각각 가장 똘똘 뭉치도록(무리 안 퍼짐이 가장 작도록)</b> 하는 T를 자동으로 찾아요. 그래서 사진마다 T를 손으로 고르지 않아도 되고, 조명이 바뀌어도 T가 따라 움직여요. 잡음이 봉우리를 흐리면 잘 안 되니 <b>먼저 Blur하면 도움</b>이 돼요.</div>
+      <div class="callout">🤔 <strong>왜 Adaptive?</strong> — 한쪽만 밝게 비춘 사진처럼 조명이 고르지 않으면 <b>사진 전체에 맞는 T 하나가 없어요</b>. Adaptive는 칸마다 주변 <code>blockSize</code>×<code>blockSize</code> 영역의 평균(또는 가우시안 평균)에서 <code>C</code>를 뺀 값을 그 칸만의 기준으로 써요.</div>
+      <figure><img class="smooth" src="img/day13/otsu_hist.png" alt="두 봉우리 히스토그램 위에 무리 안 퍼짐 곡선과 Otsu가 고른 T=125를 표시한 그림"><figcaption><b>무엇을 보나:</b> 보라 막대는 밝기 히스토그램(왼쪽 봉우리 = 어두운 물체, 오른쪽 = 밝은 배경), 주황 곡선은 T를 0~255로 옮겨 보며 계산한 "무리 안 퍼짐"이에요. 곡선이 가장 낮은 곳 = <b>Otsu T = 125</b>, 두 봉우리 사이 골짜기예요. <b>🤔 왜?</b> T를 봉우리 한가운데에 두면 한 무리가 둘로 쪼개져 각 무리 안의 값이 넓게 퍼져요. 골짜기에 둘 때 두 무리가 각각 가장 똘똘 뭉치니 퍼짐이 최소가 돼요. Otsu는 이 계산을 자동으로 해서 retval로 돌려줘요.</figcaption></figure>
+      <figure><img class="smooth" src="img/day13/adaptive_vs_global.png" alt="오른쪽에서만 빛이 든 문서를 Fixed, Otsu, Adaptive로 이진화한 비교"><figcaption><b>무엇을 보나:</b> 오른쪽만 밝은 문서예요. Fixed(T=128)와 Otsu(T=111)는 사진 전체에 기준값이 <b>하나</b>라 어두운 왼쪽 글자가 배경과 함께 검게 묻혀요. Adaptive는 글자 세 줄이 모두 살아남아요(배경에 작은 점 몇 개는 남음). <b>🤔 왜?</b> 왼쪽의 "밝은 종이"가 오른쪽의 "검은 글자"보다 어두울 정도로 조명 차이가 크면, 어떤 T 하나로도 둘을 동시에 가를 수 없어요. Adaptive는 칸마다 <b>주변 31×31 평균 − 10</b>을 기준으로 삼으니 "주변보다 어두운가?"만 묻게 되어 조명 차이가 상쇄돼요.</figcaption></figure>
+
+      <h3>🔧 명령어: <code>cv2.threshold()</code> · <code>cv2.adaptiveThreshold()</code></h3>
+<pre><code>retval, binary = cv2.threshold(gray, thresh=140, maxval=255, type=cv2.THRESH_BINARY)
+print("used threshold:", retval)
+
+# Otsu: thresh 자리는 무시되고 자동으로 정해진 값이 retval로 나옴
+blur = cv2.GaussianBlur(gray, (5, 5), 0)
+retval, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+# Adaptive: 칸마다 주변 영역으로 기준을 따로 계산
+adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                 cv2.THRESH_BINARY, blockSize=11, C=2)</code></pre>
+      <table>
+        <tr><th>인자 / 반환</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>thresh</code></td><td>기준값 T</td><td>낮추면 바탕도 물체로, 높이면 물체도 바탕으로 (밝기 &gt; T인 칸이 늘거나 줄기 때문)</td></tr>
+        <tr><td><code>maxval</code></td><td>기준을 넘은 칸에 줄 값 (보통 255)</td><td>255가 관례인 이유: 흰색 = 전경이라 형태학·저장에서 바로 보이니까</td></tr>
+        <tr><td><code>type</code></td><td><code>THRESH_BINARY</code> / <code>THRESH_BINARY_INV</code>(흑백 반대)</td><td>INV면 어두운 쪽이 255 → 물체가 배경보다 어두울 때 사용</td></tr>
+        <tr><td><code>+ cv2.THRESH_OTSU</code></td><td>T를 자동 결정</td><td>retval에 실제로 고른 T가 들어오니 기록해 둠</td></tr>
+        <tr><td>반환 <code>retval, dst</code></td><td><b>실제 쓴 기준값</b>, 결과 이미지 — 2개!</td><td>하나로 받으면 튜플이 들어와 뒤에서 에러</td></tr>
+        <tr><td><code>blockSize</code> (Adaptive)</td><td>주변 영역 크기 (홀수)</td><td>작으면 잡음에 민감, 크면 Fixed에 가까워짐</td></tr>
+        <tr><td><code>C</code> (Adaptive)</td><td>주변 평균에서 빼는 값</td><td>크면 흰색(전경)으로 판정되는 칸이 늘어남</td></tr>
+      </table>
+
+      <h3>형태학(Morphology) — 물체 모양 다듬기</h3>
+      <p>이진화 후엔 흰 먼지·작은 검은 구멍이 남아요. Kernel로 흰 영역(전경)을 깎거나 부풀려서 정리해요. <b>Erosion(침식)</b>은 Kernel 안이 <b>모두 흰색</b>일 때만 흰색을 남기고, <b>Dilation(팽창)</b>은 Kernel 안에 <b>하나라도 흰색</b>이 있으면 흰색으로 만들어요.</p>
+      <table>
+        <tr><th>연산</th><th>순서</th><th>효과</th><th>예</th></tr>
+        <tr><td><b>Erosion</b> (침식)</td><td>1회</td><td>흰 영역 축소</td><td>붙은 물체 분리</td></tr>
+        <tr><td><b>Dilation</b> (팽창)</td><td>1회</td><td>흰 영역 확대</td><td>끊긴 부분 연결</td></tr>
+        <tr><td><b>Opening</b></td><td>침식 → 팽창</td><td><b>작은 흰 잡음 제거</b></td><td>먼지 제거</td></tr>
+        <tr><td><b>Closing</b></td><td>팽창 → 침식</td><td><b>작은 검은 구멍 메우기</b></td><td>문자 끊김 보완</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Opening은 "침식 → 팽창" 순서?</strong> — 먼저 깎으면 Kernel보다 작은 흰 먼지는 <b>통째로 사라져요</b>. 사라진 건 다시 부풀려도 돌아오지 않죠. 반면 큰 물체는 조금 깎였다가 팽창으로 <b>원래 크기로 돌아와요</b>. Closing은 정반대: 먼저 부풀려 작은 검은 구멍을 메우고, 다시 깎아 바깥 크기를 되돌려요.</div>
+      <figure><img class="smooth" src="img/day13/morph_grid.png" alt="작은 격자 위 이진 도형에 Erosion, Dilation, Opening, Closing을 적용하고 바뀐 칸을 색으로 표시한 그림"><figcaption><b>무엇을 보나:</b> 한 칸 = 픽셀 하나. <b>빨강</b>은 원본보다 깎인 칸, <b>청록</b>은 새로 생긴 칸이에요. Erosion은 먼지 3개와 물체 테두리 한 겹을, Dilation은 구멍·틈과 바깥 한 겹을 바꿔요. Opening은 먼지만 빨강, Closing은 구멍·틈만 청록 — 물체 크기는 그대로예요. <b>🤔 왜?</b> 3×3 Kernel 안이 모두 흰색이어야 남는 Erosion은 1칸짜리 먼지를 통째로 지우고, 하나라도 흰색이면 칠하는 Dilation은 1~2칸 구멍을 메워요. 두 연산을 반대 순서로 이어 붙이면 큰 물체는 "깎였다 돌아오고(또는 부풀었다 돌아오고)" 작은 것만 바뀌어요.</figcaption></figure>
+      <div class="figs">
+        <figure><img src="img/day13/objects.png" alt="흰 물체에 흰 먼지와 검은 구멍이 있는 이진 이미지"><figcaption>이진화 결과 · 흰 먼지 점 + 물체 안 검은 구멍</figcaption></figure>
+        <figure><img src="img/day13/opened.png" alt="오프닝 결과"><figcaption>Opening만 · 먼지 ✓ 구멍은 남음</figcaption></figure>
+        <figure><img src="img/day13/closed.png" alt="클로징 결과"><figcaption>Closing만 · 구멍 ✓ 먼지는 남음</figcaption></figure>
+        <figure><img src="img/day13/open_close.png" alt="오프닝 후 클로징 결과"><figcaption>Opening → Closing · 둘 다 정리</figcaption></figure>
+      </div>
+      <div class="callout warn">⚠️ 작은 흰 점이 <b>진짜 결함</b>이라면? Opening(3×3 Kernel)이 그것까지 지울 수 있어요. 🤔 <b>왜?</b> — Opening은 "작은 흰 것 = 잡음"이라고 가정하는 연산이라, 작은 결함과 먼지를 <b>구별하지 못해요</b>. 그래서 원본·단계별 결과·설정을 나란히 남겨 무엇을 잃었는지 확인해요.</div>
+
+      <h3>🔧 명령어: <code>cv2.getStructuringElement()</code> · <code>cv2.morphologyEx()</code></h3>
+<pre><code>kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(5, 5))
+print(kernel)                                   # 0/1로 된 Kernel 모양 확인
+
+opened = cv2.morphologyEx(binary, op=cv2.MORPH_OPEN, kernel=kernel, iterations=1)
+closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>shape</code></td><td>Kernel 모양 <code>MORPH_RECT</code> / <code>MORPH_ELLIPSE</code> / <code>MORPH_CROSS</code></td><td>RECT는 각진 모서리를 잘 유지, ELLIPSE는 둥근 물체를 덜 각지게 다듬음 (Kernel 모양이 그대로 물체 가장자리에 찍히기 때문)</td></tr>
+        <tr><td><code>ksize</code></td><td>Kernel 크기</td><td>크면 더 큰 먼지·구멍까지 처리하지만, 물체 모양도 더 변함</td></tr>
+        <tr><td><code>anchor=(-1,-1)</code></td><td>(선택) 기준점, 기본은 가운데</td><td>보통 그대로 둠</td></tr>
+        <tr><td><code>op</code></td><td><code>MORPH_OPEN</code> / <code>MORPH_CLOSE</code> (침식·팽창만이면 <code>MORPH_ERODE</code> / <code>MORPH_DILATE</code>)</td><td>OPEN은 먼지, CLOSE는 구멍 — 남은 문제가 무엇인지 보고 고름</td></tr>
+        <tr><td><code>iterations</code></td><td>반복 횟수 (기본 1)</td><td>Kernel 크기와 함께 실제 영향 범위를 결정 (3×3을 2번 ≈ 더 큰 Kernel)</td></tr>
+      </table>
+      <div class="callout">💡 관례: <b>흰색(255) = 전경(물체)</b>. 🤔 <b>왜 관례를 확인?</b> — 침식·팽창은 <b>흰색</b>을 깎고 부풀리는 연산이라, 물체가 검은색이면 효과가 정반대로 나와요. 물체가 어두우면 <code>THRESH_BINARY_INV</code>로 뒤집고 시작해요.</div>
+      <div class="flow">
+        <span class="step">원본</span><span class="arrow">→</span>
+        <span class="step">Gray</span><span class="arrow">→</span>
+        <span class="step">Blur</span><span class="arrow">→</span>
+        <span class="step">Binary</span><span class="arrow">→</span>
+        <span class="step">Closing</span>
+      </div>
+      <div class="callout">🤔 <strong>왜 이 순서?</strong> — 각 단계가 다음 단계의 약점을 막아 줘요. Gray로 밝기만 남기고 → Blur로 잡음을 줄여야 Threshold가 잡음 점을 물체로 착각하지 않고 → 그래도 남은 먼지·구멍은 Morphology가 정리해요. <b>처리 순서가 바뀌면 결과도 달라지니</b> 각 단계의 입력·출력 shape와 값 범위를 기록해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="video">⑤ 영상 — 같은 처리를 Frame마다</h2>
+      <p>영상은 시간 순서로 이어진 Frame(이미지)의 묶음. 그래서 영상 처리 = <b>이미지 처리 + 시간 순서 + 저장 설정</b>. 한 장 처리 함수를 그대로 재사용해요.</p>
+      <div class="flow">
+        <span class="step"><b>read()</b><br><small>Frame 한 장 읽기</small></span><span class="arrow">→</span>
+        <span class="step"><b>process_frame()</b><br><small>Gray · Resize · Edge</small></span><span class="arrow">→</span>
+        <span class="step"><b>write()</b><br><small>출력 영상에 추가</small></span><span class="arrow">↻</span>
+        <span class="step">끝나면 <b>release()</b></span>
+      </div>
+      <table>
+        <tr><th>속성</th><th>뜻</th><th>확인</th></tr>
+        <tr><td>Frame</td><td>시간 t의 한 장</td><td><code>cap.read()</code></td></tr>
+        <tr><td>FPS</td><td>초당 Frame 수 (재생 속도)</td><td><code>cap.get(cv2.CAP_PROP_FPS)</code></td></tr>
+        <tr><td>Frame Size</td><td>(width, height)</td><td><code>CAP_PROP_FRAME_WIDTH</code> / <code>HEIGHT</code></td></tr>
+        <tr><td>Frame 수</td><td>전체 장수</td><td><code>CAP_PROP_FRAME_COUNT</code></td></tr>
+        <tr><td>Codec</td><td>압축·저장 방식</td><td><code>fourcc</code></td></tr>
+      </table>
+<pre><code>재생시간 = Frame 수 ÷ FPS   (일정한 FPS를 가정)
+48장 ÷ 12FPS = 4초      30장 ÷ 30FPS = 1초      15장 ÷ 30FPS = 0.5초</code></pre>
+      <div class="callout">💡 저장 <b>FPS</b>(재생 빈도)와 연산 <b>처리속도</b>(초당 몇 장 계산했나)는 다른 것. 🤔 <b>왜 구분?</b> — 처리가 느려도 저장 FPS가 30이면 영상은 30FPS로 재생돼요. 반대로 같은 Frame 수인데 저장 FPS를 절반으로 하면 재생시간이 2배가 되어 <b>느리게</b> 보여요.</div>
+
+      <h3>모든 Frame을 처리할까, 일부만 할까?</h3>
+<pre><code>step = 5
+frame_idx = 0
+while True:
+    ok, frame = cap.read()
+    if not ok:
+        break
+    if frame_idx % step == 0:          # 5장마다 1장만 처리
+        result = process_frame(frame)
+    frame_idx += 1</code></pre>
+      <div class="callout">🤔 <strong>왜 건너뛰어? 왜 조심해?</strong> — 옆 Frame끼리는 거의 똑같아서, 건너뛰면 <b>처리량이 크게 줄어요</b>. 하지만 그 사이에 지나간 <b>빠른 사건을 놓칠 수 있고</b>, 줄어든 Frame을 원래 FPS로 저장하면 재생시간도 짧아져요. 시간 기준이 필요하면 <code>CAP_PROP_POS_MSEC</code>이나 FPS로 Timestamp를 계산해요.</div>
+      <figure><img class="smooth" src="img/day13/video_timeline.png" alt="48개 Frame 타임라인에서 5장마다 처리하는 Frame과 놓친 빠른 사건을 표시한 그림"><figcaption><b>무엇을 보나:</b> 수업 예제 영상(48장, 12FPS = 4초)의 Frame을 한 칸씩 늘어놓았어요. 진보라 10칸이 <code>step=5</code>로 처리하는 Frame이고, 아래 썸네일처럼 옆 Frame끼리는 거의 같아요. 빨간 테두리 #12~14에만 있는 빠른 사건은 처리 Frame(#10, #15) 사이에 끼어 <b>한 장도 안 뽑혀요</b>. <b>🤔 왜?</b> 건너뛰기는 "옆 Frame은 비슷하다"는 가정에 기대요. 그 가정 덕에 처리량이 1/5로 줄지만, step보다 짧게 지나가는 사건에서는 가정이 깨져서 놓쳐요. 그래서 step은 잡아야 할 사건의 길이(초 × FPS)보다 작게 정해요.</figcaption></figure>
+
+      <h3>🔧 명령어: 읽기 <code>cv2.VideoCapture()</code> · 저장 <code>cv2.VideoWriter()</code></h3>
+<pre><code>def process_frame(frame):                 # Frame 함수는 파일을 열고 닫지 않음
+    gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    small = cv2.resize(gray, size, interpolation=cv2.INTER_AREA)
+    edge  = cv2.Canny(cv2.GaussianBlur(small, (3, 3), 0), 80, 160)
+    return cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR)   # 컬러 Writer엔 3채널로
+
+size = (160, 120)                         # (W, H)
+cap = cv2.VideoCapture("data/sample.avi")
+writer = None
+try:
+    assert cap.isOpened()
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    assert 0 &lt; fps &lt; float("inf")         # 0이나 무한대면 잘못 읽힌 값
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    writer = cv2.VideoWriter("outputs/edge.avi", fourcc, fps, size)
+    assert writer.isOpened()
+    while True:
+        ok, frame = cap.read()
+        if not ok:                        # 끝 또는 읽기 실패
+            break
+        writer.write(process_frame(frame))   # write는 반복 안에서
+finally:
+    cap.release()                         # release는 반복이 끝난 뒤
+    if writer is not None:
+        writer.release()</code></pre>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면? / 🤔 왜?</th></tr>
+        <tr><td><code>VideoCapture(source)</code></td><td>파일 경로 또는 카메라 번호 (<code>0</code> = 기본 카메라)</td><td>열기 실패도 에러가 아니라서 <code>isOpened()</code>로 직접 확인</td></tr>
+        <tr><td><code>cap.read()</code></td><td><code>(ok, frame)</code> 두 개 반환</td><td>마지막 Frame 다음엔 <code>ok=False</code> → 이걸로 반복을 끝냄</td></tr>
+        <tr><td><code>cap.get(prop)</code> / <code>set(prop, value)</code></td><td>속성값(float) 읽기 / 설정 시도</td><td>코덱에 따라 값이 부정확할 수 있고, set은 모든 백엔드가 지원하지 않음 → 그래서 FPS를 검사</td></tr>
+        <tr><td><code>VideoWriter_fourcc(*"MJPG")</code></td><td>코덱 코드 (<code>"mp4v"</code>, <code>"XVID"</code> 등)</td><td>확장자·코덱·설치된 코덱 조합이 맞아야 열림</td></tr>
+        <tr><td><code>fps</code> <small>(필수)</small></td><td>저장할 재생 속도</td><td>입력 FPS와 다르게 주면 재생시간이 바뀜 (절반 → 2배 느리게)</td></tr>
+        <tr><td><code>frameSize</code> <small>(필수)</small></td><td>모든 Frame의 <b>(W, H)</b></td><td>write하는 Frame 크기와 다르면 <b>조용히 저장 실패</b> — Writer는 한 가지 크기로만 파일을 만들기 때문</td></tr>
+        <tr><td><code>isColor=True</code></td><td>(선택) 컬러 Frame 여부 (기본 True)</td><td>Gray Frame을 저장하려면 False로 두거나, GRAY2BGR로 3채널로 바꿔서 넣기</td></tr>
+        <tr><td><code>release()</code></td><td>파일·카메라 자원 해제</td><td>안 하면 파일 끝 정보가 안 써져 <b>재생이 안 될 수 있고</b>, 카메라도 계속 잡고 있음</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Frame 함수와 반복·I/O를 나눠?</strong> — <code>process_frame</code> 안에서 <code>VideoCapture</code>를 매번 열면 반복 I/O로 <b>성능이 크게 떨어지고</b> 자원 관리도 복잡해져요. 처리 함수는 "배열 → 배열"만 하고, 열기·반복·저장은 바깥에서 맡으면 같은 함수를 이미지에도 그대로 쓸 수 있어요.</div>
+      <div class="callout warn">⚠️ <b>영상 저장이 안 될 때 확인 순서</b>: ① <code>writer.isOpened()</code> True? ② Frame (W, H) = frameSize? ③ Gray Frame + isColor=True 아닌지? ④ 확장자·fourcc·설치 코덱 조합? ⑤ release 후 파일 크기와 다시 읽기 확인. MJPG는 손실 압축이라 픽셀이 원본과 완전히 같지는 않아요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="augment">⑥ 데이터 증강 — 정답은 그대로, 사진만 다양하게</h2>
+      <p>학습 사진을 뒤집고·돌리고·밝게 해서(Flip·Crop·Rotation·Brightness·Blur) 모델이 다양한 조건을 미리 보게 해요. 단, <b>라벨 뜻이 바뀌면 안 돼요</b>.</p>
+      <div class="callout">🤔 <strong>왜 증강?</strong> — 실제 현장 사진은 조금 기울거나, 밝거나 어둡게 찍혀요. 학습 자료에 그런 조건이 없으면 모델은 "똑바르고 밝은 사진"만 알게 돼요. 증강은 <b>새로 찍지 않고도 학습 자료의 조건 범위를 넓혀</b> 줘요.</div>
+      <div class="figs">
+        <figure><img src="img/day13/flip.png" alt="좌우 반전된 이미지"><figcaption><code>flip(img, 1)</code> 좌우 반전</figcaption></figure>
+        <figure><img class="smooth" src="img/day13/rotate10.png" alt="10도 회전된 이미지"><figcaption>10° 회전 · 모서리에 <b>빈 곳</b>이 생김</figcaption></figure>
+        <figure><img src="img/day13/bright30.png" alt="밝기를 올린 이미지"><figcaption>밝기 +30 (<code>beta=30</code>)</figcaption></figure>
+      </div>
+      <table>
+        <tr><th>과제</th><th>써도 되는 변형</th><th>조심할 변형</th></tr>
+        <tr><td>일반 사물 분류</td><td>좌우 반전, 밝기, 작은 Crop</td><td>큰 회전, 과도한 Blur</td></tr>
+        <tr><td>문자 OCR</td><td>작은 회전, 명암, 노이즈</td><td><b>좌우·상하 반전</b> (b → d)</td></tr>
+        <tr><td>교통 표지</td><td>밝기, 날씨 효과</td><td>좌우 반전이 뜻을 바꿀 수 있음</td></tr>
+        <tr><td>의료 영상</td><td>도메인 기준에 따른 제한적 변형</td><td>임의 색상·방향 변경</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 과제마다 달라?</strong> — 컵은 뒤집어도 컵이지만, 글자 b를 좌우로 뒤집으면 d가 되고, "좌회전" 표지를 뒤집으면 "우회전"이 돼요. <b>변형 후에도 정답 라벨이 그대로인가?</b>가 유일한 기준이에요.</div>
+      <figure><img class="smooth" src="img/day13/aug_label.png" alt="컵, 글자 b, 좌회전 표지를 좌우 반전한 결과 비교"><figcaption><b>무엇을 보나:</b> 세 그림에 똑같이 <code>flip(img, 1)</code>을 했어요. 컵은 손잡이 방향만 바뀌어 여전히 컵(O), 글자 b는 d가 되고, 좌회전 화살표는 우회전이 돼요(X). <b>🤔 왜?</b> 증강은 "같은 정답의 다른 사진"을 만드는 일이라, 변형 후 라벨이 바뀌면 모델에게 <b>틀린 정답</b>을 가르치는 셈이에요. 방향 자체가 뜻인 글자·표지에서는 반전이 바로 그 뜻을 뒤집어요.</figcaption></figure>
+      <div class="flow">
+        <span class="step">원본 기준으로<br><b>먼저 분할</b></span><span class="arrow">→</span>
+        <span class="step"><b>train</b><br><small>기본 전처리 + 무작위 증강</small></span><span class="arrow">/</span>
+        <span class="step"><b>valid · test</b><br><small>정해진 전처리만 (고정)</small></span>
+      </div>
+      <div class="callout warn">⚠️ <b>valid/test에는 무작위 증강을 하지 않아요.</b> 🤔 <b>왜?</b> — 평가 입력이 실행마다 달라지면 점수 차이가 모델 때문인지 증강 운 때문인지 <b>구분할 수 없어요</b>. 그리고 <b>원본 단위로 먼저 분할</b>해야 같은 원본의 증강본이 train과 test에 갈라져 들어가는 일이 없어요.</div>
+      <div class="callout">🤔 <strong>왜 Seed·설정을 기록?</strong> — 무작위 변형은 seed가 같아야 <b>같은 결과가 다시 나와요</b>. 변환 설정(dict/JSON)·seed·호출 순서·버전을 남기면 같은 실험을 재현하고, 설정 차이가 결과에 준 영향을 분리할 수 있어요. 원본은 덮어쓰지 말고, 결과 파일명에 변환 정보를 남기세요.</div>
+
+      <h3>🔧 명령어: 반전 <code>cv2.flip()</code></h3>
+<pre><code>horizontal = cv2.flip(img, flipCode=1)    # 좌우
+vertical   = cv2.flip(img, flipCode=0)    # 상하
+both       = cv2.flip(img, flipCode=-1)   # 둘 다</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>flipCode</code> <small>(필수)</small></td><td><code>1</code> = 좌우, <code>0</code> = 상하, 음수 = 둘 다</td><td>상하 반전은 하늘·땅이 뒤집혀 일반 사진에선 부자연스러움 → 과제에 맞는지 확인</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 회전 <code>getRotationMatrix2D()</code> + <code>warpAffine()</code></h3>
+<pre><code>h, w = img.shape[:2]
+M = cv2.getRotationMatrix2D(center=(w / 2, h / 2), angle=10, scale=1.0)   # 2×3 행렬
+rotated = cv2.warpAffine(img, M, dsize=(w, h), borderMode=cv2.BORDER_REFLECT)</code></pre>
+      <div class="callout">🤔 <strong>왜 두 단계?</strong> — <code>getRotationMatrix2D</code>는 "어느 칸이 어디로 가는지"를 적은 <b>2×3 행렬(지도)</b>만 만들고, <code>warpAffine</code>이 그 지도대로 <b>실제 픽셀을 재배치</b>해요. 지도를 따로 두니 회전·이동·확대를 하나의 행렬로 합쳐 한 번에 적용할 수 있어요.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>center</code></td><td>회전 중심 (x, y) — 여기는 (W/2, H/2) 순서</td><td>중심을 모서리로 주면 사진이 화면 밖으로 크게 빠져나감</td></tr>
+        <tr><td><code>angle</code></td><td>각도 (<b>도</b> 단위, 양수 = 반시계)</td><td>크면 모서리 손실↑, 큰 회전은 라벨 뜻도 바꿀 수 있음</td></tr>
+        <tr><td><code>scale</code></td><td>크기 배율 (1.0 = 그대로)</td><td>1보다 작게 하면 빈 모서리가 더 커짐</td></tr>
+        <tr><td><code>M</code> <small>(필수)</small></td><td>getRotationMatrix2D가 만든 2×3 행렬</td><td></td></tr>
+        <tr><td><code>dsize</code> <small>(필수)</small></td><td>출력 크기 <b>(W, H)</b></td><td>원본 크기로 두면 회전으로 삐져나간 모서리는 잘림</td></tr>
+        <tr><td><code>borderMode</code></td><td>빈 모서리 채우는 규칙</td><td>기본은 검은색 → 모델이 "검은 삼각형"을 특징으로 배울 수 있음. <code>BORDER_REFLECT</code>면 주변을 반사해 덜 티 남</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 밝기 · Crop · Blur</h3>
+<pre><code>bright = cv2.convertScaleAbs(img, alpha=1.0, beta=30)    # 밝기 +30
+
+h, w = img.shape[:2]
+crop = img[h//10 : h - h//10, w//10 : w - w//10]         # NumPy 자르기 [y, x]
+crop = cv2.resize(crop, (w, h))                          # 원래 크기로
+
+blur = cv2.GaussianBlur(img, (5, 5), 0)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>alpha</code></td><td>곱하는 값 (대비)</td><td>1보다 크면 대비↑</td></tr>
+        <tr><td><code>beta</code></td><td>더하는 값 (밝기)</td><td>음수면 어둡게. 결과는 절댓값을 취해 0~255 uint8로 맞춰짐</td></tr>
+        <tr><td><code>img[y1:y2, x1:x2]</code></td><td>잘라내기 (세로 먼저!)</td><td>너무 많이 자르면 물체가 잘려 라벨 뜻이 바뀔 수 있음</td></tr>
+        <tr><td>Crop 후 <code>resize</code></td><td>원래 크기로 되돌림</td><td>모델 입력 크기를 모든 사진에서 같게 맞추기 위해</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>img + 30</code> 대신 convertScaleAbs?</strong> — uint8 배열에 그냥 30을 더하면 250 + 30 = 280이 256을 넘쳐 <b>24로 되돌아가요</b>(가장 밝은 곳이 갑자기 검게). convertScaleAbs는 계산 뒤 0~255로 <b>잘라 맞춰</b> 주니 밝은 곳은 255에서 멈춰요.</div>
+      <figure><img class="smooth" src="img/day13/brightness_overflow.png" alt="uint8에 30을 더했을 때 넘침과 convertScaleAbs의 잘라내기를 비교한 그래프와 띠"><figcaption><b>무엇을 보나:</b> 왼쪽 그래프: 원래 밝기(가로) → 바꾼 뒤 밝기(세로). 빨강(<code>img + 30</code>)은 226에서 갑자기 0으로 떨어지는 톱니, 초록(<code>convertScaleAbs</code>)은 255에서 평평하게 멈춰요. 오른쪽 띠에서 빨강 방법은 가장 밝던 끝이 <b>검게</b> 변했어요. <b>🤔 왜?</b> uint8은 0~255만 담는 칸이라 256 이상은 256을 뺀 나머지만 남아요(시계가 12 다음에 1로 돌아가듯). convertScaleAbs는 계산 후 범위를 벗어난 값을 0과 255로 잘라 주니 "밝게"라는 의도가 지켜져요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="verify">⑦ 일괄 처리 · 검증 — 파일이 열린다고 끝이 아니다</h2>
+      <p>프로젝트에서는 이미지 폴더와 영상을 같은 설정으로 처리하고, <b>원본 대비 결과를 수치와 그림으로 검증</b>해요. 파일이 열리더라도 작업에 필요한 경계·글자·관심 영역이 남아 있어야 해요.</p>
+
+      <h3>🔧 명령어: 폴더 일괄 처리 <code>sorted(Path.glob())</code></h3>
+<pre><code>from pathlib import Path
+import cv2
+
+src_dir = Path("data/images")
+out_dir = Path("outputs/images")
+out_dir.mkdir(parents=True, exist_ok=True)       # 출력 폴더 준비
+for path in sorted(src_dir.glob("*.png")):       # 순서 고정
+    img = cv2.imread(str(path))
+    if img is None:
+        raise RuntimeError(f"read failed: {path}")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, (320, 240))
+    if not cv2.imwrite(str(out_dir / path.name), resized):
+        raise OSError(f"save failed: {path}")
+
+print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 → (240, 320)</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>Path.glob("*.png")</code></td><td>패턴에 맞는 파일 경로를 순회</td><td>파일 이름을 손으로 적지 않아도 폴더 전체를 처리</td></tr>
+        <tr><td><code>sorted(...)</code></td><td>파일 순서 고정</td><td>glob 순서는 운영체제마다 달라질 수 있어서, 정렬해야 <b>재현성</b>이 생김</td></tr>
+        <tr><td><code>mkdir(parents=True, exist_ok=True)</code></td><td>상위 폴더까지 만들고, 이미 있어도 OK</td><td>폴더가 없으면 <code>imwrite</code>가 에러 없이 False만 돌려줌</td></tr>
+        <tr><td><code>str(path)</code></td><td>Path를 문자열로</td><td>cv2 함수는 문자열 경로를 받음</td></tr>
+        <tr><td><code>imread(path, 0)</code></td><td>저장 결과를 Gray로 다시 읽기</td><td>저장이 "성공"해도 크기·채널이 의도와 같은지는 <b>다시 읽어 봐야</b> 앎</td></tr>
+      </table>
+
+      <h3>검증표와 테스트 상황</h3>
+      <table>
+        <tr><th>검증 항목</th><th>원본 예시</th><th>결과 예시</th><th>판정</th></tr>
+        <tr><td>파일 수</td><td>10</td><td>10</td><td>일치</td></tr>
+        <tr><td>Shape</td><td>다양함</td><td>240×320</td><td>설정 일치</td></tr>
+        <tr><td>dtype</td><td>uint8</td><td>uint8</td><td>유지</td></tr>
+        <tr><td>값 범위</td><td>0~255 이내</td><td>0~255 이내</td><td>범위 확인</td></tr>
+        <tr><td>읽기 재확인</td><td>가능</td><td>가능</td><td>정상</td></tr>
+        <tr><td>영상 (시간)</td><td colspan="2">Frame 수 · FPS · 재생시간</td><td>입력과 비교</td></tr>
+      </table>
+      <table>
+        <tr><th>상황</th><th>기대 결과</th><th>확인</th></tr>
+        <tr><td>정상 PNG</td><td>읽기·처리·저장 성공</td><td>shape·dtype·재읽기</td></tr>
+        <tr><td>다른 크기 이미지</td><td>설정 크기로 통일</td><td>원본 비율·왜곡 확인</td></tr>
+        <tr><td>Gray 입력</td><td>채널 처리 분기</td><td>BGR 변환 필요 여부</td></tr>
+        <tr><td>빈 영상 / 손상 파일</td><td>명확한 실패 기록</td><td>출력 생성 금지</td></tr>
+        <tr><td>FPS 0 또는 미확인</td><td>대체 규칙 또는 중단</td><td>보고서 기록</td></tr>
+        <tr><td>출력 폴더 없음</td><td>폴더 생성 후 저장</td><td>파일 수 확인</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Shape가 같아도 안심하면 안 돼?</strong> — Opening이 진짜 결함을 지웠거나, Threshold가 글자를 날려도 shape는 똑같아요. 그래서 <b>원본·단계별 결과·설정</b>을 함께 남기고 그림으로 직접 비교해서, 어떤 정보를 잃었는지와 처리의 한계를 설명해요.</div>
+      <figure><img class="smooth" src="img/day13/verify_diff.png" alt="Opening 전후 이진 이미지와 사라진 픽셀을 빨갛게 표시한 차이 그림"><figcaption><b>무엇을 보나:</b> 처리 전후 모두 <code>shape (60, 90)</code>, uint8로 숫자 검증은 통과해요. 하지만 차이 그림(빨강 = 사라진 칸)을 보면 Opening이 작은 흰 결함 3개(12칸)를 지웠어요. 흰 칸 수도 2,357 → 2,345로 줄었어요. <b>🤔 왜?</b> shape·dtype은 "그릇 모양"만 확인하고, 안에 무엇이 남았는지는 말해 주지 않아요. 원본과 결과를 빼서(차이) 그려 보거나 흰 칸 수 같은 <b>내용 숫자</b>를 함께 기록해야 정보 손실이 드러나요.</figcaption></figure>
+      <div class="callout warn">⚠️ <strong>코드 리뷰 체크리스트</strong>
+        <ul>
+          <li>읽은 직후 None·shape·dtype을 확인했나?</li>
+          <li>BGR/RGB와 (H, W)/(W, H)를 혼동하지 않았나?</li>
+          <li>필터·Threshold·Morphology 설정을 코드나 JSON에 남겼나?</li>
+          <li>원본을 보존하고 출력 폴더를 분리했나?</li>
+          <li>영상 Writer의 FPS·Frame Size·채널이 일치하나?</li>
+        </ul>
+      </div>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>Day13_20261104.pdf</code> (p.2–11 큰 그림, p.18–35 배열·색공간·Resize, p.36–54 Filter·Threshold·형태학, p.55–73 영상·증강, p.74–89 프로젝트·검증)</li>
+        <li>요약: <code>Day13_개념지도.pdf</code> · <code>OpenCV_치트시트.pdf</code></li>
+        <li>공식 문서: <a href="https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html" target="_blank">OpenCV-Python Tutorials</a> · <a href="https://docs.opencv.org/4.x/d4/d13/tutorial_py_filtering.html" target="_blank">Smoothing Images</a> · <a href="https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html" target="_blank">Thresholding</a> · <a href="https://docs.opencv.org/4.x/d9/d61/tutorial_py_morphological_ops.html" target="_blank">Morphological Transformations</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day12.html">← 이전: Day12</a>
+      <a href="day14.html">다음: Day14 →</a>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== Threshold 체험: SVG 필터로 밝기 > T 이면 흰색, 아니면 검정 =====
+  (() => {
+    const slider = document.getElementById('thrSlider');
+    const img = document.getElementById('thrImg');
+    const funcs = ['thrFuncR', 'thrFuncG', 'thrFuncB'].map(id => document.getElementById(id));
+    img.style.filter = 'url(#thrFilter)';
+    function draw() {
+      const t = +slider.value;
+      const table = Array.from({ length: 256 }, (_, v) => (v > t ? 1 : 0)).join(' ');
+      funcs.forEach(f => f.setAttribute('tableValues', table));
+      document.getElementById('thrVal').textContent = t;
+      document.getElementById('thrVerdict').textContent =
+        t < 80 ? `T=${t}: 어두운 바탕까지 물체(흰색)로 잡혀요 — 왜? 바탕의 밝기도 ${t}보다 커서 "물체"로 판정되니까`
+        : t > 180 ? `T=${t}: 아주 밝은 부분만 남아 제품도 바탕(검정)이 돼요 — 왜? 제품 밝기가 ${t}를 못 넘으니까`
+        : `T=${t}: 도형과 바탕이 나뉘기 시작해요 — 그래도 조명 때문에 밝은 바탕이 같이 잡힐 수 있어요 (그래서 Otsu·Adaptive가 있어요)`;
+    }
+    slider.addEventListener('input', draw);
+    draw();
+  })();
+
+  // ===== 평균 vs 중앙값 체험: 8칸은 10, 가운데 칸만 바꿈 =====
+  (() => {
+    const slider = document.getElementById('mdSlider');
+    function draw() {
+      const c = +slider.value;
+      const vals = [10, 10, 10, 10, c, 10, 10, 10, 10];
+      const mean = vals.reduce((a, b) => a + b, 0) / 9;
+      const median = [...vals].sort((a, b) => a - b)[4];
+      document.getElementById('mdC4').innerHTML = `<b>${c}</b>`;
+      document.getElementById('mdVal').textContent = c;
+      document.getElementById('mdMean').textContent = mean.toFixed(1);
+      document.getElementById('mdMedian').textContent = median;
+      document.getElementById('mdVerdict').textContent =
+        Math.abs(c - 10) < 20
+          ? '가운데가 이웃과 비슷하면 둘 다 거의 같은 값이에요 — 잡음이 없으니 섞어도 달라질 게 없어요'
+          : `평균은 (10×8 + ${c}) ÷ 9 = ${mean.toFixed(1)}로 끌려가서 흐린 점이 남아요. 중앙값은 9개를 줄 세운 5번째 값이라, 9개 중 8개를 차지하는 10이 뽑혀요 → 점 잡음이 통째로 사라짐`;
+    }
+    slider.addEventListener('input', draw);
+    draw();
+  })();
+  </script>
+</body>
+</html>

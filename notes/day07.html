@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day7 · 트리·앙상블·교차검증 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag ml">머신러닝</span>
+      <h1>Day7 · 트리·앙상블·교차검증</h1>
+      <div class="meta">2026-10-27(화) · Decision Tree · Random Forest · XGBoost · 특성 중요도 · 5-fold CV</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li><b>트리</b>는 "글자수 ≤ 500?" 같은 질문으로 자료를 나눠 예측하고, 깊어질수록 과적합 위험이 커진다.</li>
+          <li><b>Random Forest</b>는 서로 다른 트리를 <b>동시에</b> 여러 개 만들어 평균, <b>XGBoost</b>는 앞의 부족한 점을 <b>순서대로</b> 보정한다.</li>
+          <li><b>교차검증</b>은 train을 5조각으로 돌려 가며 평가해 한 번의 분할에 덜 흔들리게 한다. 전처리도 fold 안에서 다시 학습!</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install scikit-learn xgboost</code></td></tr>
+        <tr><td><a href="#tree">① Decision Tree</a></td><td><code>DecisionTreeClassifier</code> / <code>DecisionTreeRegressor</code>, <code>tree_.threshold</code>, <code>get_depth()</code></td></tr>
+        <tr><td><a href="#overfit">② 복잡도 · 과적합</a></td><td><code>max_depth=</code>, <code>min_samples_leaf=</code>, <code>min_samples_split=</code>, <code>ccp_alpha=</code></td></tr>
+        <tr><td><a href="#forest">③ Random Forest</a></td><td><code>RandomForestClassifier(n_estimators=, max_features=)</code>, <code>estimators_</code></td></tr>
+        <tr><td><a href="#importance">④ 특성 중요도</a></td><td><code>feature_importances_</code>, <code>get_feature_names_out()</code>, <code>permutation_importance()</code></td></tr>
+        <tr><td><a href="#xgb">⑤ XGBoost</a></td><td><code>XGBClassifier</code> / <code>XGBRegressor(learning_rate=, objective=, tree_method=)</code></td></tr>
+        <tr><td><a href="#cv">⑥ 교차검증</a></td><td><code>StratifiedKFold</code>, <code>KFold</code>, <code>cross_validate(scoring=, return_train_score=)</code></td></tr>
+        <tr><td><a href="#checks7">⑦ 입력 검사 · 저장</a></td><td><code>statistics_</code>, <code>transform(new).shape</code>, <code>joblib.dump</code> / <code>joblib.load</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>scikit-learn</code></td><td>트리·랜덤포레스트·교차검증·중요도·Pipeline</td><td><code>from sklearn.tree import DecisionTreeClassifier</code> 등</td></tr>
+        <tr><td><code>xgboost</code></td><td>그래디언트 부스팅 트리 (sklearn처럼 fit/predict)</td><td><code>from xgboost import XGBClassifier, XGBRegressor</code></td></tr>
+        <tr><td><code>numpy</code>, <code>pandas</code></td><td>배열 계산, 비교표·중요도표 만들기</td><td><code>import numpy as np</code>, <code>import pandas as pd</code></td></tr>
+        <tr><td><code>joblib</code></td><td>학습한 Pipeline 저장·복원 (scikit-learn과 함께 설치됨)</td><td><code>import joblib</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python --version
+python -m pip show scikit-learn xgboost
+python -m pip install "xgboost==3.1.3"        # xgboost가 없을 때만 (강의 검증 버전 예시)
+python -c "import xgboost; print(xgboost.__version__)"
+python -m pip check</code></pre>
+      <div class="callout">💡 오늘은 <b>GPU 불필요</b>. XGBoost도 <code>tree_method="hist"</code>, <code>device="cpu"</code>, <code>n_jobs=1</code>로 CPU에서 돌려요. CUDA 설치는 선행 조건이 아니에요.</div>
+      <div class="callout warn">⚠️ 기존 <code>.venv</code>를 그대로 쓰고 xgboost만 추가하세요. 강의 실행 검증 환경: Python 3.13.5 · scikit-learn 1.8.0 · XGBoost 3.1.3 (PDF 6쪽).</div>
+      <div class="callout">🤔 <strong>왜 <code>n_jobs=1</code>로 하지?</strong> — 병렬로 돌리면 빠르지만, 작업 순서가 매번 조금씩 달라져 결과 재현이 어려워질 수 있고 노트북 CPU를 모두 잡아먹어요. 수업에선 <b>같은 숫자가 다시 나오는 것</b>이 속도보다 중요해서 1로 고정해요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>트리 계열은 표(엑셀 같은 데이터)에서 가장 많이 쓰는 모델이에요. 특히 "왜 이렇게 예측했어?"를 <b>조건문</b>으로 설명할 수 있다는 게 장점이에요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🌳</div><strong>설명 가능한 규칙</strong><span>"글자수 &gt; 500이면 실패 위험" 같은 조건</span></div>
+        <div class="usecase"><div class="emoji">💳</div><strong>신용 · 이상거래</strong><span>표 데이터 분류에 강한 앙상블</span></div>
+        <div class="usecase"><div class="emoji">📊</div><strong>무엇을 봤나?</strong><span>특성 중요도로 모델이 의존한 열 확인</span></div>
+        <div class="usecase"><div class="emoji">🔁</div><strong>믿을 만한 비교</strong><span>교차검증으로 운에 덜 흔들리는 점수</span></div>
+      </div>
+      <table>
+        <tr><th></th><th>Decision Tree</th><th>Random Forest</th><th>XGBoost</th></tr>
+        <tr><td>모양</td><td>트리 1개</td><td>트리 여러 개 (독립)</td><td>트리 여러 개 (순차)</td></tr>
+        <tr><td>결합</td><td>—</td><td>확률·수치 <b>평균</b></td><td>기본 점수에 보정값 <b>누적</b></td></tr>
+        <tr><td>장점</td><td>규칙을 따라가기 쉬움</td><td>다양성으로 흔들림 감소</td><td>손실을 차근차근 줄임</td></tr>
+      </table>
+      <div class="callout">💡 데이터 계약은 Day6 그대로예요: 입력 X 4열(<code>input_chars</code>·<code>allowed_tools</code>·<code>task_type</code>·<code>priority</code>), 분류 정답 <code>failed</code>(주 지표: 실패 클래스 F1), 회귀 정답 <code>elapsed_ms</code>(RMSE, ms), 금지 입력(<code>failed</code>·<code>elapsed_ms</code>·<code>retry_count</code>·<code>status</code>·<code>request_id</code>), 고정 분할 train 60 · valid 20 · test 20. 수업용 합성 요청 100건이라 실서비스 성능을 대표하지 않아요.</div>
+      <div class="callout">🤔 <strong>왜 모델을 바꿔도 분할은 그대로 두지?</strong> — 분할까지 바꾸면 점수 차이가 "모델이 달라서"인지 "시험지가 달라서"인지 구분할 수 없어요. 같은 ID·같은 순서를 유지해야 모델만의 차이를 볼 수 있어요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="tree">① Decision Tree — 질문으로 나눠 예측</h2>
+      <p>한 번에 <b>한 특성의 조건</b>을 검사해 자료를 둘로 나눠요. 질문은 사람이 쓰는 게 아니라 <b>학습 자료로 자동 선택</b>돼요.</p>
+      <table>
+        <tr><th>용어</th><th>뜻</th></tr>
+        <tr><td>루트</td><td>첫 질문</td></tr>
+        <tr><td>내부 노드</td><td>다음 질문들</td></tr>
+        <tr><td>잎(leaf)</td><td>최종 예측 위치 — 분류는 잎의 클래스 분포, 회귀는 잎의 y <b>평균</b></td></tr>
+      </table>
+      <p><b>어떤 질문이 좋은가?</b> — 나눈 뒤에 <b>덜 섞여 있을수록</b> 좋은 질문이에요. 섞인 정도를 <b>Gini 불순도</b>로 재요.</p>
+<pre><code>Gini = 1 − (성공 비율)² − (실패 비율)²
+  성공 3 · 실패 3  →  1 − 0.5² − 0.5² = 0.5   (최대로 섞임)
+  성공 3 · 실패 0  →  1 − 1² − 0²     = 0     (깨끗함)
+
+분할 후 Gini = 왼쪽 Gini × (왼쪽 비율) + 오른쪽 Gini × (오른쪽 비율)
+감소량 = 부모 Gini − 분할 후 Gini   ← 가장 많이 줄이는 질문을 고른다
+
+예) 후보 A "≤ 250": 왼쪽 2건(0,0) Gini 0 · 오른쪽 4건(0,1,1,1) Gini 0.375
+    → 분할 후 = 0×2/6 + 0.375×4/6 = 0.25,  감소량 0.5 − 0.25 = 0.25
+    후보 B "≤ 500": 왼쪽 3건(0,0,0) · 오른쪽 3건(1,1,1) 모두 Gini 0 → 감소량 0.5  ✅ 선택</code></pre>
+      <div class="callout">🤔 <strong>왜 "덜 섞인" 쪽이 좋은 질문이지?</strong> — 잎이 한 클래스로만 차 있으면 그 잎에 떨어진 새 입력을 <b>자신 있게</b> 예측할 수 있어요. 반반 섞인 잎은 동전 던지기와 같죠. Gini는 "그 노드에서 무작위로 두 개를 뽑았을 때 클래스가 다를 확률"이라, 0이면 깨끗하고 0.5(이진 분류 최대)면 최악이에요. 분할 후 Gini를 <b>건수 비율로 가중</b>하는 이유는 큰 쪽 노드가 더 많은 자료를 대표하기 때문이에요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/gini_curve.png" alt="노드 안의 실패 비율에 따른 Gini 불순도 곡선"><figcaption><b>무엇을 보나:</b> 가로축은 한 노드 안의 실패 비율, 세로축은 Gini예요. 양 끝(한 클래스만 있음)에서 0, 정확히 반반(0.5)일 때 꼭대기 0.5인 <b>언덕 모양</b>이에요. <b>🤔 왜?</b> Gini = 1 - p² - (1-p)²는 "무작위로 두 개 뽑았을 때 클래스가 다를 확률"이라, 한쪽으로 쏠릴수록 같은 걸 뽑기 쉬워 0으로 떨어져요. 좋은 질문은 자식 노드들을 이 언덕의 <b>양 끝 쪽으로</b> 밀어내는 질문이에요.</figcaption></figure></div>
+      <p>아래 6개 요청의 기준선을 움직여 보세요. 점을 클릭하면 성공 ↔ 실패가 바뀌어요.</p>
+      <div class="lab">
+        <canvas id="giniCanvas" width="480" height="200"></canvas>
+        <div class="readout">
+          <label>질문: 글자수 ≤ <input type="range" id="giniThr" min="50" max="950" step="50" value="250"> <b id="giniThrV">250</b> ?</label>
+        </div>
+        <div class="readout">
+          <div>왼쪽 <b id="giniL">-</b></div>
+          <div>오른쪽 <b id="giniR">-</b></div>
+          <div>분할 후 Gini <b id="giniW">-</b></div>
+          <div>감소량 = <span class="big" id="giniD">-</span></div>
+        </div>
+        <div class="verdict" id="giniVerdict"></div>
+      </div>
+      <div class="callout warn">⚠️ Gini는 노드가 얼마나 섞였는지 재는 값이지 시험 점수나 회귀 오차가 아니에요. 그리고 트리는 매 단계에서 가장 좋은 질문을 고를 뿐, 전체 최적을 한 번에 찾는 건 아니에요.</div>
+      <div class="callout">🤔 <strong>왜 전체 최적이 아니지?</strong> — 가능한 모든 트리 모양을 다 비교하는 건 경우의 수가 너무 많아요. 그래서 트리는 "<b>지금 이 노드에서</b> 가장 많이 줄이는 질문"을 고르고 다음으로 넘어가요(탐욕적 방법). 빠르지만, 지금은 덜 좋아 보여도 나중에 더 좋은 길을 여는 질문은 놓칠 수 있어요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/tree_plot.png" alt="수업 데이터로 학습한 깊이 3 결정트리 구조"><figcaption><b>무엇을 보나:</b> 수업 데이터 train 60건으로 학습한 기본 트리(<code>max_depth=3, min_samples_leaf=3</code>)를 그대로 그렸어요. 상자마다 질문·gini·samples(행 수)·value([성공, 실패] 수)가 있고, 주황은 성공 쪽, 파랑은 실패 쪽, 색이 진할수록 한 클래스로 깨끗해요. <b>🤔 왜?</b> 루트에서 "input_chars ≤ 1866" 한 번에 실패만 6건인 잎(gini 0)을 떼어 냈어요. 그 질문이 그 순간 Gini를 가장 많이 줄였기 때문이에요(탐욕적 선택). 잎이 4개라 위 표의 <code>get_n_leaves()</code> = 4와 일치하고, 각 잎의 클래스 비율이 곧 <code>predict_proba</code> 값이에요(예: 오른쪽 아래 잎 실패 5/7 ≈ 0.71).</figcaption></figure></div>
+
+      <h3>🔧 명령어: <code>DecisionTreeClassifier</code> · <code>DecisionTreeRegressor</code></h3>
+<pre><code>import numpy as np
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+X = np.array([[100], [200], [300], [700], [800], [900]])
+tree = DecisionTreeClassifier(max_depth=1, random_state=42).fit(X, [0, 0, 0, 1, 1, 1])
+print(tree.tree_.threshold[0])                    # 500.0  ← 찾은 질문
+print(tree.predict([[250], [850]]))               # [0 1]
+print(tree.predict_proba([[250], [850]]))         # 잎의 클래스 비율
+print(tree.get_depth(), tree.get_n_leaves())      # 1 2
+
+reg = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, [100, 120, 140, 700, 720, 740])
+print(reg.predict([[250], [850], [1200]]))        # [120. 720. 720.]  ← 잎 평균</code></pre>
+      <table>
+        <tr><th>인자 / 속성</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>max_depth</code></td><td>질문을 최대 몇 단계까지</td><td>1이면 질문 1개·잎 2개. None이면 잎이 깨끗해질 때까지 계속 나눔 → 과적합 위험</td></tr>
+        <tr><td><code>random_state</code></td><td>난수 고정 (특성 후보 순서·동률 처리 등)</td><td>안 고정하면 같은 점수의 분할 중 무엇을 고를지가 실행마다 달라질 수 있음 → 결과 재현용</td></tr>
+        <tr><td><code>tree_.threshold[0]</code></td><td>루트 질문의 기준값 (500.0)</td><td>300과 700 사이의 <b>중간값</b>을 기준으로 잡아요 — 두 그룹을 가르는 가장 무난한 선이라서</td></tr>
+        <tr><td><code>get_depth()</code> / <code>get_n_leaves()</code></td><td>실제 깊이 / 잎 개수</td><td>복잡도 확인용</td></tr>
+        <tr><td><code>DecisionTreeRegressor</code></td><td>연속값 트리 (기본 기준 <code>squared_error</code>)</td><td>잎의 y <b>평균</b>으로 예측: 왼쪽 (100+120+140)/3 = 120, 오른쪽 720</td></tr>
+      </table>
+      <div class="callout">💡 <code>fit</code>에서 질문을 찾고, <code>predict</code>는 찾은 질문을 따라 잎으로 내려갈 뿐이에요(예측 때 다시 학습하지 않음). 회귀 트리는 학습 범위 밖(1200)도 마지막 잎 평균(720)을 내요 — 선형처럼 직선을 연장하지 않아요.</div>
+      <div class="callout">🤔 <strong>왜 잎에서 "평균"을 내지?</strong> — 회귀 트리는 제곱오차를 줄이는 기준(<code>squared_error</code>)으로 나누는데, 한 묶음의 숫자들과의 제곱오차를 가장 작게 만드는 하나의 값이 바로 <b>평균</b>이에요. 그리고 1200이 들어와도 "글자수 &gt; 500?" → 예 → 오른쪽 잎으로 갈 뿐이라, 잎 바깥의 새 값을 만들어 내지 못해요(<b>외삽 안 함</b>).</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/tree_regression_step.png" alt="회귀 트리의 계단 모양 예측과 선형회귀 직선 비교"><figcaption><b>무엇을 보나:</b> 위 코드의 6개 점에 깊이 1 회귀 트리를 맞춘 결과예요. 초록 예측은 500에서 한 번 뛰는 <b>계단</b>이고, 계단 높이는 각 잎의 평균(120, 720)이에요. 회색 점선은 비교용 직선이에요. <b>🤔 왜?</b> 트리는 "≤ 500?"으로 잎을 고른 뒤 그 잎의 평균만 말해요. 그래서 오른쪽 회색 구간(학습 범위 밖) 1200을 넣어도 직선처럼 올라가지 않고 720에 머물러요.</figcaption></figure></div>
+      <div class="callout warn">⚠️ 한 잎에 실패만 있어서 확률 1이 나와도, 그건 그 잎의 <b>학습 비율</b>이지 새 입력의 결과를 보장하는 게 아니에요.</div>
+      <div class="callout">🤔 <strong>왜 확률 1을 믿으면 안 되지?</strong> — <code>predict_proba</code>는 "이 잎에 떨어진 학습 행 중 실패 비율"이에요. 잎에 학습 행이 3개뿐이면 3/3 = 1.0이 쉽게 나오지만, 겨우 3건으로 본 비율이라 새 입력에선 얼마든지 달라질 수 있어요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="overfit">② 복잡도와 과적합</h2>
+      <p>깊은 트리는 학습 자료의 작은 차이, 우연한 잡음까지 나눠 버려요. <b>train 점수만 높고 새 자료 점수가 낮으면</b> 과적합을 의심해요.</p>
+      <table>
+        <tr><th>max_depth</th><th>train F1</th><th>valid F1</th></tr>
+        <tr><td>1</td><td>0.500</td><td>0.286</td></tr>
+        <tr><td>3</td><td>0.710</td><td>0.333</td></tr>
+        <tr><td>5</td><td>0.882</td><td>0.500</td></tr>
+        <tr><td>None (제한 없음)</td><td><b>1.000</b></td><td>0.500</td></tr>
+      </table>
+      <p>(<code>min_samples_leaf=1</code>로 둔 진단 실험) 제한 없는 트리는 train을 완벽히 외웠지만 valid는 깊이 5보다 나아지지 않았어요. 한 번의 분할만 보고 "최적 깊이"를 단정하진 않아요. 이 표는 깊이별 실험 결과이지, epoch에 따른 학습 곡선이나 미래 성능 보장이 아니에요.</p>
+      <div class="callout">🤔 <strong>왜 깊어질수록 train만 좋아지지?</strong> — 질문을 계속 허락하면 트리는 결국 <b>학습 행 하나하나를 각자 잎에 가둘 수</b> 있어요. 그러면 train은 전부 맞히지만(1.000), 그 질문들 중 상당수는 우연한 잡음을 가르는 질문이라 새 자료에선 쓸모가 없어요. train–valid 격차는 과적합의 단서예요. 다만 valid가 20건이라 표본 크기·분포 차이도 함께 살펴요.</div>
+      <div class="figs">
+        <figure><img class="smooth" src="img/day07/depth_overfit.png" alt="max_depth별 train F1과 valid F1 비교 그래프"><figcaption><b>무엇을 보나:</b> 수업 데이터로 깊이를 바꿔 직접 계산한 결과예요(위 표 + 깊이 2·4·6 추가). 회색 train은 깊어질수록 1.0까지 오르지만 보라 valid는 0.5에서 멈추고, 분홍 틈이 계속 벌어져요. <b>🤔 왜?</b> 깊이가 늘면 잎 개수가 2 → 14로 늘어나 train 행을 더 잘게 가둘 수 있어요. 새로 생긴 잎들이 잡음을 가르는 데 쓰이면 train만 좋아지고 valid는 그대로라, 그 틈이 과적합의 신호예요.</figcaption></figure>
+        <figure><img class="smooth" src="img/day07/tree_boundary_depths.png" alt="합성 2차원 자료에서 깊이 2 트리와 제한 없는 트리의 결정 영역"><figcaption><b>무엇을 보나:</b> 같은 합성 자료에서 깊이 2(왼쪽)와 제한 없음(오른쪽)의 판단 영역이에요. 트리 경계는 늘 <b>가로·세로 선</b>으로만 만들어져요. <b>🤔 왜?</b> 트리 질문은 "한 특성 ≤ 기준값?"이라 한 번에 한 축만 잘라요. 제한을 풀면 반대색 점 하나까지 따로 가두는 가늘고 작은 직사각형이 생기는데, 그게 "잡음까지 외운" 모습이에요.</figcaption></figure>
+      </div>
+      <div class="callout">💡 트리는 거리 기반이 아니라서 <b>스케일링이 필수가 아니에요</b>. 그래도 결측 대체(중앙값·최빈값)와 One-hot은 같은 경로로 유지해요 → 변환 결과 (60, 8) = 수치 2 + 범주 더미 6. (일부 구현은 결측을 직접 처리하지만, 오늘은 비교를 위해 명시적인 대체 경로를 고정해요.)</div>
+      <div class="callout">🤔 <strong>왜 트리는 스케일이 상관없지?</strong> — 트리는 "글자수 ≤ 500?"처럼 <b>한 특성 안에서 크다/작다만 비교</b>해요. 글자수를 1000으로 나눠도 "≤ 0.5?"로 질문만 바뀔 뿐 같은 행들이 같은 쪽으로 가요. 여러 특성을 섞어 거리를 재는 KNN과 달리 단위끼리 경쟁할 일이 없어요.</div>
+
+      <h3>🔧 명령어: 복잡도 제한 인자</h3>
+<pre><code>model = build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42), scale="none")
+model.fit(X_train, y_train)
+est = model["model"]                       # Pipeline에서 트리만 꺼내기
+print(est.get_depth(), est.get_n_leaves()) # 3 4
+# train F1 0.710 · valid F1 0.333 · FP=4 · FN=4
+
+for depth in [1, 2, 3, 5, None]:           # 다른 조건은 고정, 깊이만 바꿈
+    m = build(DecisionTreeClassifier(max_depth=depth, min_samples_leaf=1,
+                                     random_state=42), scale="none").fit(X_train, y_train)
+    print(depth, m["model"].get_n_leaves(),
+          f1_score(y_train, m.predict(X_train)), f1_score(y_valid, m.predict(X_valid)))</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>max_depth</code></td><td>최대 질문 깊이</td><td>너무 작으면 필요한 규칙도 못 배움 (과소적합, 깊이 1: train .500), 너무 크면 잡음까지 외움</td></tr>
+        <tr><td><code>min_samples_leaf</code></td><td><b>각 잎</b>에 필요한 최소 학습 행 수</td><td>키우면 "행 1~2개짜리 잎"을 못 만들어 작은 조각(잡음) 분할이 억제됨. "잎 5개"라는 뜻 아님!</td></tr>
+        <tr><td><code>min_samples_split</code></td><td>노드를 더 나누는 데 필요한 최소 행 수</td><td>"나눌지 말지"의 조건이라, 나눈 뒤 각 자식 잎의 크기 조건과는 다름</td></tr>
+        <tr><td><code>ccp_alpha</code></td><td>복잡도 비용을 고려한 사후 가지치기</td><td>잎 하나 늘 때마다 alpha만큼 벌점 → 클수록 불순도를 크게 줄이지 못하는 가지가 잘려 더 단순해짐</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 복잡도를 학습 전에 정하지?</strong> — 트리는 내버려 두면 train을 다 외울 때까지 자라요. 깊이·잎 크기 같은 제약은 "얼마나 자세히 외울 수 있게 할지"를 미리 정하는 <b>하이퍼파라미터</b>라, 같은 분할·같은 지표에서 후보를 비교해 골라요. 오늘의 기본 비교 트리는 <code>max_depth=3, min_samples_leaf=3, random_state=42</code>예요.</div>
+      <div class="callout">💡 <code>build(모델)</code>은 <a href="day06.html#scaling">Day6</a>에서 만든 "전처리 + 모델" Pipeline 함수예요. 트리·숲·XGB는 수치 스케일링 없이(<code>scale="none"</code>) 결측 대체 + One-hot만 거쳐요(아래 코드에서 <code>build(rf)</code>처럼 줄여 적어도 트리 계열은 스케일링 없음으로 보면 돼요). <code>model["model"]</code>, <code>model["pre"]</code>처럼 단계 이름으로 꺼낼 수 있어요.</div>
+      <div class="callout warn">⚠️ valid에서 틀린 행만 지우면 성능 개선이 아니라 <b>평가 자료를 결과에 맞춘 부당한 비교</b>예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="forest">③ Random Forest — 서로 다른 트리들의 평균</h2>
+      <div class="flow">
+        <span class="step">train 자료</span><span class="arrow">→</span>
+        <span class="step"><b>트리마다 다른 자료</b><br><small>중복 허용 추출</small></span><span class="arrow">→</span>
+        <span class="step"><b>분할마다 특성 후보도 랜덤</b><br><small>max_features</small></span><span class="arrow">→</span>
+        <span class="step">결합<br><small>분류: 확률 평균 · 회귀: 예측 평균</small></span>
+      </div>
+      <p>같은 실수를 반복하는 트리 100개보다, <b>서로 다른 관점</b>을 가진 트리를 묶는 게 핵심이에요.</p>
+      <div class="callout">🤔 <strong>왜 "서로 달라야" 하지?</strong> — 트리 100개가 모두 똑같다면 평균을 내도 트리 1개와 같아요. 트리마다 <b>다른 표본</b>(중복 허용 추출)과 분할마다 <b>다른 특성 후보</b>를 주면 각 트리의 실수가 서로 다른 곳에서 나요. 그러면 평균을 낼 때 제각각인 실수들이 서로 상쇄되어, 한 트리가 잡음에 휘둘리는 정도(흔들림)가 줄어들어요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/rf_averaging.png" alt="1차원 회귀에서 개별 트리 5개와 숲 평균의 예측 곡선"><figcaption><b>무엇을 보나:</b> 같은 점들에 대해, 서로 다른 표본으로 학습한 트리 5개(얇은 파랑)와 트리 100개의 평균(굵은 보라)을 겹쳐 그렸어요. 점선은 진짜 패턴이에요. <b>🤔 왜?</b> 트리마다 본 표본이 달라 <b>튀는 위치가 서로 달라요</b>. 평균을 내면 한 트리만 튄 곳은 다른 트리들이 눌러 줘서 보라 선이 덜 출렁이고 점선에 더 가깝게 붙어요. 트리들이 다 같은 곳에서 튄다면 평균을 내도 줄어들지 않겠죠 — 그래서 "서로 달라야" 해요.</figcaption></figure></div>
+      <table>
+        <tr><th>가상 트리 3개의 실패 확률</th><th>계산</th><th>결과</th></tr>
+        <tr><td rowspan="2">0.51 · 0.51 · 0.01</td><td>클래스만 다수결: 실패 2표</td><td>실패(1)</td></tr>
+        <tr><td><b>확률을 먼저 평균</b>: (0.51+0.51+0.01)/3 = 0.343</td><td><b>성공(0)</b> ← sklearn 방식</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 결과가 다르지?</strong> — 다수결은 0.51과 0.99를 똑같이 "실패 1표"로 세지만, 확률 평균은 <b>얼마나 확신했는지</b>까지 반영해요. 두 트리는 겨우 0.51(거의 반반)인데 한 트리는 0.01(강한 성공)이라, 평균하면 0.343 &lt; 0.5 → 성공이에요. 위 확률 3개는 설명용 가상 값이에요. 아래에서 직접 바꿔 보세요.</div>
+      <div class="lab">
+        <div class="readout">
+          <label>트리1 <input type="range" id="rfP1" min="0" max="1" step="0.01" value="0.51"> <b id="rfP1v">0.51</b></label>
+          <label>트리2 <input type="range" id="rfP2" min="0" max="1" step="0.01" value="0.51"> <b id="rfP2v">0.51</b></label>
+          <label>트리3 <input type="range" id="rfP3" min="0" max="1" step="0.01" value="0.01"> <b id="rfP3v">0.01</b></label>
+        </div>
+        <div class="readout">
+          <div>클래스 다수결 <b id="rfVote">-</b></div>
+          <div>확률 평균 <b id="rfMean">-</b> → <span class="big" id="rfPred">-</span></div>
+        </div>
+        <div class="verdict" id="rfVerdict"></div>
+      </div>
+      <div class="callout warn">⚠️ Random Forest의 다음 트리는 앞 트리의 잔차를 배우지 <b>않아요</b> (그건 부스팅). 그리고 <code>n_estimators=100</code>은 깊이 100이 아니라 <b>트리 개수</b>예요. 회귀 숲은 각 트리의 숫자 예측을 평균해요.</div>
+
+      <h3>🔧 명령어: <code>RandomForestClassifier</code> · <code>RandomForestRegressor</code></h3>
+<pre><code>from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+rf = RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=2,
+                            max_features="sqrt", random_state=42, n_jobs=1)
+forest = build(rf).fit(X_train, y_train)
+print(len(forest["model"].estimators_))      # 100  ← 학습된 개별 트리 목록
+# train F1 0.800 · valid F1 0.222 · FP=2 · FN=5
+
+rfr = RandomForestRegressor(n_estimators=100, max_depth=4, min_samples_leaf=2,
+                            max_features=1.0, random_state=42, n_jobs=1)
+forest_r = build(rfr).fit(X_train, yr_train)
+# valid MAE 600.34 ms · RMSE 690.37 ms · R² −0.276</code></pre>
+      <table>
+        <tr><th>인자</th><th>수업 값</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_estimators</code></td><td>100</td><td>숲의 트리 수</td><td>늘리면 평균이 안정적이지만 계산↑. 같은 실수를 하는 트리가 늘 뿐이면 성능 개선은 보장 안 됨</td></tr>
+        <tr><td><code>max_depth</code>, <code>min_samples_leaf</code></td><td>4, 2</td><td>개별 트리의 복잡도</td><td>트리 수와는 다른 조절 — "몇 명에게 묻나" vs "한 명이 얼마나 자세히 아나"</td></tr>
+        <tr><td><code>max_features</code></td><td>분류 <code>"sqrt"</code> / 회귀 <code>1.0</code></td><td>분할마다 살펴볼 특성 후보 수·비율</td><td>작을수록 트리마다 다른 특성을 보게 되어 더 다양(상관↓), 대신 각 트리는 약해짐. 1.0이면 전체 특성을 후보로</td></tr>
+        <tr><td><code>random_state</code> / <code>n_jobs</code></td><td>42 / 1</td><td>난수 재현 / 병렬 작업 수</td><td>random_state를 안 고정하면 추출·특성 후보가 매번 달라져 점수도 달라짐. <code>n_jobs=-1</code>이면 CPU 전부</td></tr>
+      </table>
+      <div class="callout">💡 이번 자료에서는 단일 Tree(train 0.710 / valid 0.333)보다 Forest(train 0.800 / valid 0.222)가 낮았어요. 앙상블이라는 이름이나 트리 수가 아니라 <b>같은 평가 조건의 결과와 오류</b>로 판단해요.</div>
+      <div class="callout">🤔 <strong>왜 숲이 더 나빴을까? (가능한 이유)</strong> — 숲의 장점은 "트리마다 다른 실수를 평균으로 줄이는 것"인데, 자료가 60건뿐이고 실패가 소수라 각 트리가 볼 실패 사례가 더 적어요. 확률을 평균하면 실패 확률이 0.5 아래로 <b>무난하게 깎이기</b> 쉬워 실패를 덜 예측하게 되고(FN 5), F1이 떨어졌어요. 앙상블은 흔들림을 줄여 줄 뿐, 없는 신호를 만들어 주진 못해요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/rf_vs_tree_boundary.png" alt="합성 자료에서 트리 1개와 랜덤포레스트의 결정 영역 비교"><figcaption><b>무엇을 보나:</b> 넉넉한 합성 자료(160건)에서 깊은 트리 1개(왼쪽)와 숲(오른쪽)의 판단 영역이에요. 왼쪽의 각진 섬·가는 띠가 오른쪽에선 대부분 사라지고 경계가 부드러워졌어요. <b>🤔 왜?</b> 개별 트리의 섬은 표본마다 다른 곳에 생기니, 평균을 내면 대부분 다수 의견에 묻혀 사라져요. 다만 이건 자료가 충분할 때의 모습이에요. 위의 수업 자료처럼 60건에 실패가 소수면 평균이 실패 확률을 0.5 아래로 깎아 오히려 F1이 떨어질 수 있어요.</figcaption></figure></div>
+
+      <!-- ============================================================ -->
+      <h2 id="importance">④ 특성 중요도 — 모델이 무엇에 기댔나</h2>
+      <table>
+        <tr><th></th><th>MDI (불순도 기반)</th><th>순열 중요도 (Permutation)</th></tr>
+        <tr><td>아이디어</td><td>각 분기에서 줄어든 불순도 × 그 분기가 다룬 자료 비중을 특성별로 합산 → 여러 트리 평균</td><td>한 열을 행끼리 <b>섞었을 때</b> 점수가 얼마나 떨어지나 (기준 F1 − 섞은 F1, 여러 번 반복)</td></tr>
+        <tr><td>계산 자료</td><td>학습 자료</td><td>평가 자료 (valid 등)</td></tr>
+        <tr><td>재학습</td><td>—</td><td>안 함 (학습된 모델 고정)</td></tr>
+        <tr><td>값</td><td>합 = 1 (분기 없으면 모두 0)</td><td>점수 감소량 · <b>음수도 가능</b></td></tr>
+        <tr><td>대상 열</td><td>변환 후 8개 열 (더미 포함)</td><td>원본 4개 열 (범주 더미 묶음째)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 열을 섞으면 중요도가 되지?</strong> — 한 열의 값을 행끼리 뒤섞으면 그 열과 정답 사이의 <b>연결만 끊기고</b>, 값의 분포(평균·범위)는 그대로예요. 모델이 그 열에 기대고 있었다면 점수가 뚝 떨어지고, 안 쓰고 있었다면 거의 안 변해요. 모델을 다시 학습하지 않으니 "<b>이 학습된 모델</b>이 무엇에 기대나"를 보는 진단이에요. 범주 열은 원본 열째로 섞어서 그 열의 더미 묶음 전체를 함께 평가해요.</div>
+      <div class="figs"><figure>
+        <svg viewBox="0 0 690 210" style="width:100%;height:auto;display:block" role="img" aria-label="한 열만 섞어서 점수 감소를 재는 순열 중요도 그림"><defs><marker id="d7arrP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted,#7a7191)"/></marker></defs><text x="10" y="22" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">valid 원본 → 기준 F1</text><rect x="10" y="32" width="84" height="24" style="fill:var(--accent-soft,#f2ecff)"/><text x="52" y="49" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">글자수</text><rect x="96" y="32" width="84" height="24" style="fill:var(--accent-soft,#f2ecff)"/><text x="138" y="49" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">task_type</text><rect x="182" y="32" width="84" height="24" style="fill:var(--accent-soft,#f2ecff)"/><text x="224" y="49" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">priority</text><rect x="10" y="58" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="52" y="75" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">1840</text><rect x="96" y="58" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="138" y="75" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">qa</text><rect x="182" y="58" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="224" y="75" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">high</text><rect x="10" y="84" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="52" y="101" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">520</text><rect x="96" y="84" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="138" y="101" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">summary</text><rect x="182" y="84" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="224" y="101" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">low</text><rect x="10" y="110" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="52" y="127" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">1310</text><rect x="96" y="110" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="138" y="127" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">research</text><rect x="182" y="110" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="224" y="127" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">normal</text><rect x="10" y="136" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="52" y="153" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">960</text><rect x="96" y="136" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="138" y="153" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">qa</text><rect x="182" y="136" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="224" y="153" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">low</text><text x="380" y="22" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">task_type 열만 섞기 → 다시 F1</text><rect x="380" y="32" width="84" height="24" style="fill:var(--accent-soft,#f2ecff)"/><text x="422" y="49" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">글자수</text><rect x="466" y="32" width="84" height="24" style="fill:var(--accent-soft,#f2ecff)"/><text x="508" y="49" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">task_type</text><rect x="552" y="32" width="84" height="24" style="fill:var(--accent-soft,#f2ecff)"/><text x="594" y="49" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">priority</text><rect x="380" y="58" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="422" y="75" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">1840</text><rect x="466" y="58" width="84" height="24" style="fill:var(--accent2,#ff5fa2);fill-opacity:.18;stroke:var(--line,#ece6f7)"/><text x="508" y="75" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">research</text><rect x="552" y="58" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="594" y="75" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">high</text><rect x="380" y="84" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="422" y="101" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">520</text><rect x="466" y="84" width="84" height="24" style="fill:var(--accent2,#ff5fa2);fill-opacity:.18;stroke:var(--line,#ece6f7)"/><text x="508" y="101" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">qa</text><rect x="552" y="84" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="594" y="101" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">low</text><rect x="380" y="110" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="422" y="127" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">1310</text><rect x="466" y="110" width="84" height="24" style="fill:var(--accent2,#ff5fa2);fill-opacity:.18;stroke:var(--line,#ece6f7)"/><text x="508" y="127" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">qa</text><rect x="552" y="110" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="594" y="127" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">normal</text><rect x="380" y="136" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="422" y="153" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">960</text><rect x="466" y="136" width="84" height="24" style="fill:var(--accent2,#ff5fa2);fill-opacity:.18;stroke:var(--line,#ece6f7)"/><text x="508" y="153" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">summary</text><rect x="552" y="136" width="84" height="24" style="fill:var(--surface,#fff);stroke:var(--line,#ece6f7)"/><text x="594" y="153" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px">low</text><path d="M272 110 L372 110" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrP)"/><text x="322" y="100" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">행끼리 셔플</text><text x="345" y="196" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:14px">중요도 = 기준 F1 − 섞은 F1 &nbsp;(20번 반복해 평균) · 모델은 다시 학습하지 않음</text></svg>
+        <figcaption><b>무엇을 보나:</b> 오른쪽 표에선 분홍 칸(<code>task_type</code>)만 행끼리 뒤섞였고, 글자수·priority는 그대로예요. 같은 학습된 모델로 두 표를 예측해 F1 차이를 재요. <b>🤔 왜?</b> 섞어도 그 열의 값 종류·비율은 똑같고 <b>정답과의 짝만 끊겨요</b>. 모델이 그 열에 기대고 있었다면 짝이 끊긴 순간 점수가 떨어지고, 안 쓰고 있었다면 거의 안 변하죠. 그 낙폭이 "이 모델이 그 열에 얼마나 기댔나"예요.</figcaption>
+      </figure></div>
+      <div class="callout warn">⚠️ <strong>중요도 해석에서 피할 결론</strong>
+        <ul>
+          <li><b>중요 ≠ 원인</b>. 영향의 방향(+/−)도 알려주지 않아요.</li>
+          <li>값 종류가 많은 특성은 분할 후보가 많아 MDI가 높게 보일 수 있어요.</li>
+          <li>서로 비슷한(상관된) 입력은 기여를 나눠 가질 수 있어요.</li>
+          <li>순위를 보고 평가셋에 맞춰 열을 반복 삭제하면 선택 편향이 커져요. 열 선택도 학습 fold 안에서.</li>
+          <li>valid 20행처럼 작으면 순위·부호가 불안정해요. 음수가 나와도 바로 삭제하지 않아요.</li>
+          <li>현재 Forest의 valid F1은 0.222예요. 예측을 잘 못하는 모델의 중요도를 업무 우선순위로 단정하지 않아요.</li>
+        </ul>
+      </div>
+      <div class="callout">🤔 <strong>왜 이런 함정이 생기지?</strong> — MDI는 "분할에 얼마나 쓰였나"를 세는데, 값 종류가 많은 열(글자수처럼)은 자를 수 있는 기준선 후보가 많아서 <b>우연히라도</b> 불순도를 줄이는 분할을 찾기 쉬워요. 상관된 두 열은 같은 정보를 담고 있어서 트리가 어느 쪽을 써도 되니 기여가 둘로 나뉘어 각각 작아 보여요. 그리고 중요도는 "얼마나 기댔나"의 크기만 재지, 값이 클수록 실패가 늘었는지 줄었는지(방향)나 원인 관계는 알려 주지 않아요.</div>
+
+      <h3>🔧 명령어: <code>feature_importances_</code> · <code>permutation_importance</code></h3>
+<pre><code>import pandas as pd
+from sklearn.inspection import permutation_importance
+
+names = forest["pre"].get_feature_names_out()            # 전처리 후 실제 열 이름·순서
+mdi = pd.Series(forest["model"].feature_importances_, index=names)
+print(mdi.sort_values(ascending=False))                  # input_chars .5643, allowed_tools .1670 …
+print("합:", round(mdi.sum(), 4))                         # 1.0
+
+perm = permutation_importance(forest, X_valid, y_valid,  # Pipeline 통째 + 원본 4열
+                              scoring="f1", n_repeats=20, random_state=42, n_jobs=1)
+importance = pd.DataFrame({"feature": FEATURES,
+                           "F1_drop_mean": perm.importances_mean,
+                           "repeat_std": perm.importances_std})
+print(importance)    # 기준 F1 0.222 · chars .0649 · tools .0478 · task_type .1396 · priority −.0619</code></pre>
+      <div class="callout">🤔 <strong>왜 두 방법의 순위가 다르지?</strong> — MDI는 <b>학습 자료</b>에서 "분할에 많이 쓰인" 열(input_chars 1위)을, 순열 중요도는 <b>valid 20건</b>에서 "섞었을 때 F1이 떨어진" 열(task_type 1위)을 봐요. 보는 자료도 질문도 달라서 순위가 다를 수 있어요. priority가 <b>음수</b>(−.0619)라는 건 섞었더니 오히려 F1이 올랐다는 뜻인데, 20행짜리 평가에선 우연히 그럴 수 있어요 → 바로 삭제할 근거도, 인과 효과도 아니에요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/importance_mdi_perm.png" alt="랜덤포레스트의 MDI 중요도와 순열 중요도 막대 비교"><figcaption><b>무엇을 보나:</b> 수업 데이터 Forest로 직접 계산한 두 중요도예요(위 코드 출력과 같은 값). 왼쪽 MDI는 input_chars가 압도적 1위, 오른쪽 순열 중요도는 task_type이 1위이고 priority는 <b>빨간 음수</b>예요. 회색 가로 막대는 20번 섞을 때마다의 흔들림(std)이에요. <b>🤔 왜?</b> MDI는 train에서 "분할에 많이 쓰였나"(값 종류가 많은 글자수가 유리), 순열은 valid에서 "섞으면 F1이 떨어지나"를 재요. 오른쪽 흔들림 막대가 0을 가로지를 만큼 길죠 — valid 20건이라 순위·부호가 운에 크게 좌우된다는 뜻이라, 음수라고 바로 열을 지우지 않아요.</figcaption></figure></div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>get_feature_names_out()</code></td><td>전처리 뒤 실제 열 이름·순서 (8개)</td><td>안 쓰면 중요도 숫자가 어느 열 것인지 모름 — One-hot으로 열이 늘어나 원본 4열과 순서가 달라지니까</td></tr>
+        <tr><td><code>feature_importances_</code></td><td>학습 불순도 기반 기여 (MDI)</td><td>이 숲에선 합이 1. 분기가 전혀 없는 모델이면 모두 0일 수 있음</td></tr>
+        <tr><td><code>scoring="f1"</code></td><td>실패 클래스 F1의 감소량을 봄</td><td>지표가 바뀌면 "무엇이 중요한가"의 기준이 바뀌니 중요도도 바뀜</td></tr>
+        <tr><td><code>n_repeats=20</code></td><td>20번 섞어서 평균·변동 기록</td><td>섞는 방식이 무작위라 한 번만 하면 운에 좌우됨 → 늘리면 안정적, 느려짐</td></tr>
+        <tr><td><code>importances_mean</code> / <code>_std</code></td><td>감소량 평균 / 반복 간 표준편차</td><td>std는 "섞을 때마다의 흔들림"이지 신뢰구간이 아님</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="xgb">⑤ XGBoost — 부족한 부분을 순서대로 보정</h2>
+      <div class="flow">
+        <span class="step">처음 예측<br><small>예: 정답 평균</small></span><span class="arrow">→</span>
+        <span class="step"><b>보정 트리</b><br><small>지금 틀린 방향을 학습</small></span><span class="arrow">→</span>
+        <span class="step"><b>예측 갱신</b><br><small>이전 + 학습률 × 보정</small></span><span class="arrow">→</span>
+        <span class="step">반복<br><small>순차적으로</small></span>
+      </div>
+<pre><code>y        = [100, 120, 200, 220]
+처음     = [160, 160, 160, 160]         (평균)          MSE 2600
+잔차     = [-60, -40,  40,  60]         ← 깊이1 트리가 이걸 학습
+보정 후  = 처음 + 0.5 × 보정 = [135, 135, 185, 185]      MSE 725</code></pre>
+<pre><code>X = np.array([[1], [2], [3], [4]])
+y = np.array([100., 120., 200., 220.])
+initial = np.full(4, y.mean())                       # 처음 예측: 모두 160
+residual = y - initial                               # 제곱오차에서의 보정 목표
+correction = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, residual)
+updated = initial + 0.5 * correction.predict(X)      # 학습률 0.5 = 보정량의 절반만
+print(updated.tolist())                              # [135.0, 135.0, 185.0, 185.0]
+print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0</code></pre>
+      <div class="callout">🤔 <strong>왜 MSE가 2600 → 725로 줄지?</strong> — 처음엔 모두 평균 160이라 오차가 (−60, −40, 40, 60), 제곱 평균 2600. 깊이 1 트리는 잔차를 "x ≤ 2.5 → −50, 아니면 +50"(각 쪽 잔차 평균)으로 배워요. 학습률 0.5라 그 절반(±25)만 더하니 135·135·185·185, 새 오차 (−35, −15, 15, 35)의 제곱 평균은 725. <b>틀린 방향으로 조금씩 당겨 주는</b> 게 부스팅이에요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/boosting_one_step.png" alt="부스팅 한 회차 전후의 예측과 잔차 화살표 비교"><figcaption><b>무엇을 보나:</b> 막대가 실제 y, 주황 마름모가 예측, 분홍 화살표가 잔차(실제 - 예측)예요. 왼쪽(모두 160)보다 오른쪽(보정 1회 후)에서 화살표가 <b>모두 짧아졌어요</b>. <b>🤔 왜?</b> 깊이 1 보정 트리가 "x ≤ 2.5면 -50, 아니면 +50"이라는 잔차의 방향을 배웠고, 학습률 0.5만큼(±25)만 예측을 그쪽으로 옮겼어요. 잔차가 60 → 35, 40 → 15로 줄어 제곱 평균이 2600 → 725가 돼요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 보정을 절반(학습률)만 반영하지?</strong> — 보정 트리도 작은 자료에서 배운 것이라 잡음이 섞여 있어요. 한 번에 100% 믿고 반영하면 그 잡음까지 따라가 과적합되기 쉬워요. 조금씩 여러 번 고치면 여러 트리의 의견이 쌓여 더 안정적이에요. 대신 학습률이 작으면 회차가 더 필요해요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/boosting_rounds.png" alt="부스팅 회차 1, 3, 10, 80에서의 예측 곡선 변화"><figcaption><b>무엇을 보나:</b> 합성 자료에 얕은 트리(깊이 2)를 학습률 0.3으로 계속 더해 가는 모습이에요. 1회차는 밋밋한 계단, 10회차는 패턴을 잘 따르고, 80회차는 점 하나하나를 쫓아 <b>뾰족뾰족</b>해져요. <b>🤔 왜?</b> 회차마다 "아직 남은 잔차"를 조금씩 고치니 train MSE는 계속 줄어요(0.31 → 0.00). 그런데 큰 패턴을 다 배운 뒤엔 남은 잔차가 대부분 잡음이라, 그걸 고치는 건 외우기예요. 그래서 학습률·회차·조기 종료로 "어디서 멈출지"를 조절해요.</figcaption></figure></div>
+      <div class="callout">💡 "잔차를 그대로 배운다"는 건 제곱오차일 때의 직관이에요. 분류에서는 손실의 <b>기울기 정보</b>를 써요. XGBoost는 여기에 트리 복잡도·잎 값에 대한 <b>규제</b>를 더한 구현이에요.</div>
+      <table>
+        <tr><th>관점</th><th>Random Forest (Bagging)</th><th>XGBoost (Boosting)</th></tr>
+        <tr><td>학습 관계</td><td>트리를 독립적으로</td><td>현재 예측을 보정하며 순차 추가</td></tr>
+        <tr><td>다양성·보정</td><td>표본·특성 후보의 무작위성</td><td>손실의 기울기·곡률에 따른 보정</td></tr>
+        <tr><td>결합</td><td>평균</td><td>기본 점수에 보정값 누적</td></tr>
+        <tr><td>핵심 조절</td><td>트리 수·깊이·잎 크기·특성 수</td><td>깊이·학습률·회차·표본/특성 비율·규제</td></tr>
+      </table>
+      <div class="figs"><figure>
+        <svg viewBox="0 0 690 270" style="width:100%;height:auto;display:block" role="img" aria-label="배깅과 부스팅의 학습 순서 비교"><defs><marker id="d7arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted,#7a7191)"/></marker></defs><text x="10" y="20" style="fill:var(--accent,#7c4dff);font-size:14px;font-weight:700">Random Forest (Bagging) · 동시에, 따로따로</text><rect x="10" y="60" width="90" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="55.0" y="82.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">train 60</text><text x="55.0" y="99.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">원본</text><rect x="140" y="30" width="120" height="40" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="200.0" y="47.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">표본 1</text><text x="200.0" y="64.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">중복 허용 추출</text><rect x="290" y="30" width="90" height="40" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="335.0" y="55.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">🌳 트리 1</text><path d="M100 85 L138 50" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M260 50 L288 50" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M380 50 L438 85" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><rect x="140" y="78" width="120" height="40" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="200.0" y="95.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">표본 2</text><text x="200.0" y="112.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">중복 허용 추출</text><rect x="290" y="78" width="90" height="40" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="335.0" y="103.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">🌳 트리 2</text><path d="M100 85 L138 98" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M260 98 L288 98" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M380 98 L438 85" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><rect x="140" y="126" width="120" height="40" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="200.0" y="143.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">표본 3</text><text x="200.0" y="160.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">중복 허용 추출</text><rect x="290" y="126" width="90" height="40" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="335.0" y="151.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">🌳 트리 3</text><path d="M100 85 L138 146" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M260 146 L288 146" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M380 146 L438 85" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><rect x="440" y="60" width="120" height="50" rx="9" style="fill:var(--accent-soft,#f2ecff);stroke:var(--accent,#7c4dff)"/><text x="500.0" y="82.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">평균</text><text x="500.0" y="99.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">확률·예측값</text><text x="575" y="80" style="fill:var(--muted,#7a7191);font-size:12px">각 트리는 서로를</text><text x="575" y="96" style="fill:var(--muted,#7a7191);font-size:12px">모른 채 학습</text><text x="10" y="190" style="fill:var(--accent2,#ff5fa2);font-size:14px;font-weight:700">XGBoost (Boosting) · 순서대로, 앞의 실수를 보고</text><rect x="10" y="206" width="110" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="65.0" y="228.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">처음 예측</text><text x="65.0" y="245.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">예: 평균</text><rect x="150" y="206" width="110" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="205.0" y="228.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">🌳 보정 1</text><text x="205.0" y="245.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">남은 잔차 학습</text><rect x="290" y="206" width="110" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="345.0" y="228.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">🌳 보정 2</text><text x="345.0" y="245.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">또 남은 잔차</text><rect x="430" y="206" width="110" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="485.0" y="228.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">🌳 보정 3 …</text><text x="485.0" y="245.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">회차 반복</text><path d="M120 231 L148 231" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M260 231 L288 231" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><path d="M400 231 L428 231" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/><rect x="570" y="206" width="100" height="50" rx="9" style="fill:var(--accent-soft,#f2ecff);stroke:var(--accent2,#ff5fa2)"/><text x="620.0" y="228.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">누적 합</text><text x="620.0" y="245.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">처음 + η×보정…</text><path d="M540 231 L568 231" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrA)"/></svg>
+        <figcaption><b>무엇을 보나:</b> 위(Random Forest)는 트리들이 <b>나란히</b> 서 있고 서로 화살표가 없어요. 아래(XGBoost)는 트리가 <b>한 줄로</b> 이어지고 각 트리가 앞 결과를 받아요. <b>🤔 왜?</b> 숲은 "다양한 의견의 평균"으로 흔들림을 줄이려는 것이라 트리끼리 몰라야 하고, 부스팅은 "아직 틀린 부분을 고치는 것"이라 앞 트리의 잔차를 알아야 해요. 그래서 숲의 트리는 동시에 만들 수 있지만, 부스팅은 순서대로만 만들 수 있어요.</figcaption>
+      </figure></div>
+
+      <h3>🔧 명령어: <code>XGBClassifier</code> · <code>XGBRegressor</code></h3>
+<pre><code>from xgboost import XGBClassifier, XGBRegressor
+
+xgb = XGBClassifier(n_estimators=80, learning_rate=0.05, max_depth=2,
+                    min_child_weight=1, subsample=0.8, colsample_bytree=1.0,
+                    reg_lambda=1.0, objective="binary:logistic", eval_metric="logloss",
+                    tree_method="hist", device="cpu", random_state=42, n_jobs=1)
+model = build(xgb).fit(X_train, y_train)           # sklearn Pipeline에 그대로 연결
+# valid F1 0.182 · Precision 0.200 · Recall 0.167 · FP=4 · FN=5
+
+xgr = XGBRegressor(n_estimators=80, learning_rate=0.05, max_depth=2,
+                   min_child_weight=1, subsample=0.8, colsample_bytree=1.0,
+                   reg_lambda=1.0, objective="reg:squarederror", eval_metric="rmse",
+                   tree_method="hist", device="cpu", random_state=42, n_jobs=1)
+model_r = build(xgr).fit(X_train, yr_train)        # X·분할 ID는 동일, 정답 y만 elapsed_ms로
+# valid MAE 609.34 ms · RMSE 700.02 ms · R² −0.312</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_estimators</code></td><td>보정 회차 (트리 수) · 수업 80</td><td>회차마다 train 오차를 더 줄이니, 너무 많으면 잡음까지 보정해 과적합 위험 (RF의 트리 수와 성격이 다름)</td></tr>
+        <tr><td><code>learning_rate</code></td><td>한 회차 보정을 얼마나 반영할지 · 0.05</td><td>줄이면 한 번에 조금만 고쳐 같은 회차에선 보정이 부족할 수 있음 → 회차·복잡도와 함께 비교</td></tr>
+        <tr><td><code>max_depth</code></td><td>각 보정 트리의 깊이 · 2</td><td>보정 트리는 "조금씩 고치는" 역할이라 얕게 둬요. 깊으면 한 회차가 너무 많이 외움</td></tr>
+        <tr><td><code>min_child_weight</code></td><td>자식 노드에 필요한 <b>Hessian 합</b>의 하한 · 1</td><td>min_samples_leaf(행 수)와 <b>다름</b> — 분류(logloss)에선 행마다 Hessian이 p(1−p) ≤ 0.25라, 5라는 값이 "5행"이 아니라 훨씬 많은 행을 뜻할 수 있음</td></tr>
+        <tr><td><code>subsample</code> / <code>colsample_bytree</code></td><td>회차마다 쓸 행 / 트리별 특성 비율 · 0.8 / 1.0</td><td>낮추면 회차마다 다른 일부만 보니 다양성↑·과적합↓, 너무 낮으면 정보 부족</td></tr>
+        <tr><td><code>reg_lambda</code></td><td>잎 가중치 L2 규제 · 1.0</td><td>키우면 잎 값이 작게 눌려 한 번의 보정이 보수적이 됨</td></tr>
+        <tr><td><code>objective</code></td><td><code>"binary:logistic"</code> 이진분류 / <code>"reg:squarederror"</code> 회귀</td><td>학습이 줄이는 손실 자체가 바뀜 — 문제 유형에 맞춰야 함</td></tr>
+        <tr><td><code>eval_metric</code></td><td>학습 진단용 손실 (logloss, rmse)</td><td>모델 선택 지표(F1)와 별개. logloss가 좋아져도 F1이 좋아진다는 보장은 없음</td></tr>
+        <tr><td><code>tree_method</code> / <code>device</code> / <code>n_jobs</code></td><td><code>"hist"</code> 방식 / <code>"cpu"</code> / 1</td><td>hist는 값을 구간으로 묶어 빠르게 분할 탐색. <code>"cuda"</code>는 GPU 필요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "Hessian 합"이지?</strong> — XGBoost는 손실의 기울기(gradient)와 곡률(Hessian)로 보정값을 계산해요. 제곱오차에선 행마다 Hessian이 1이라 "합 = 행 수"처럼 보이지만, logloss에선 확률이 0이나 1에 가까운(이미 확신하는) 행일수록 Hessian이 작아요. 그래서 min_child_weight는 "<b>보정할 정보가 충분히 모였나</b>"를 재는 조건이에요.</div>
+      <div class="callout">💡 <b>조기 종료(early stopping)</b> — 손실 개선이 일정 회차(예: 15회) 동안 없으면 멈추는 방법. 강의 시연에선 train 60을 inner 42 / stop 18로 나눠 최적 회차 64, 실제 학습 79회(15회 개선 없어 종료)였고, 기본 비교의 XGB80과는 별도 실험으로 기록해요. 멈출 지점을 고르는 <b>stop 자료</b>도 모델 선택에 쓰이므로 train 안에서 따로 떼어 쓰고, valid·test를 넣지 않아요. <code>XGBClassifier(early_stopping_rounds=15)</code> + <code>fit(..., eval_set=[(Z_stop, y_stop)])</code> → <code>model.best_iteration</code>(0부터 셈)으로 확인해요.</div>
+      <div class="callout">🤔 <strong>왜 조기 종료가 과적합을 막지?</strong> — 회차가 늘수록 train 손실은 계속 줄지만, 어느 순간부터는 잡음을 보정하기 시작해 안 본 자료(stop)의 손실이 더 이상 줄지 않아요. 그 지점에서 멈추면 "<b>배울 만큼만</b>" 배운 모델이 돼요. 단, stop 자료로 멈출 곳을 골랐으니 그 자료의 점수는 이미 낙관적이에요 → valid·test와 분리.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/xgb_early_stopping.png" alt="XGBoost 회차별 학습 손실과 stop 자료 손실 곡선"><figcaption><b>무엇을 보나:</b> 설명용 합성 자료로 XGBoost를 400회 돌리며 학습 자료(회색)와 따로 떼어 둔 stop 자료(보라)의 logloss를 그렸어요. 회색은 끝까지 내려가지만 보라는 60회 근처 바닥을 찍고 다시 올라가요. <b>🤔 왜?</b> 바닥 이후의 회차는 학습 자료의 잡음만 고치고 있어서 안 본 자료에선 오히려 손해예요. 조기 종료는 보라 선이 일정 회차(예: 15회) 동안 더 내려가지 않으면 멈추고 그 바닥 회차를 고르는 규칙이에요. (수업 시연의 최적 회차 64는 다른 자료라 이 그림과 숫자가 같을 필요는 없어요.)</figcaption></figure></div>
+      <table>
+        <tr><th>모델</th><th>과적합을 제어하는 것</th><th>진단할 증거</th></tr>
+        <tr><td>Decision Tree</td><td>깊이·잎 크기·가지치기</td><td>train/valid 격차 · 잎 개수</td></tr>
+        <tr><td>Random Forest</td><td>개별 트리 복잡도·특성 후보·트리 수</td><td>반복 결과 · 계산량 · fold별 편차</td></tr>
+        <tr><td>XGBoost</td><td>깊이·규제·학습률·회차·부분 표본</td><td>손실 변화 · stop 자료 · 과도한 학습량</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 이번 자료에서 XGB의 valid F1은 0.182였어요. 학습률을 낮추거나 규제를 강하게 해도 항상 좋아지지 않아요. 규제·단순화도 과소적합과의 균형을 비교로 확인해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="cv">⑥ 교차검증 — 한 번의 분할에 덜 의존하기</h2>
+      <p>valid 20건 한 번만 보면 운이 크게 작용해요. <b>train 60건</b>을 5조각(12건씩)으로 나눠, 돌아가며 1조각으로 평가하고 4조각(48건)으로 학습해요.</p>
+      <div class="callout">🤔 <strong>왜 한 번 나누기 대신 교차검증이지?</strong> — 한 번의 valid는 "어떤 20건이 우연히 뽑혔나"에 점수가 크게 좌우돼요(1건 = F1이 크게 출렁). 5번 돌리면 train의 <b>모든 행이 한 번씩 평가</b>에 쓰이고, 점수 5개의 평균과 흩어짐을 함께 볼 수 있어 운에 덜 흔들려요. 대신 계산은 5배예요. 그래도 CV 역시 후보 선택에 쓴 점수라, 평균이 높다는 것만으로 최종 성능을 확정하진 않아요.</div>
+      <table>
+        <tr><th>회차</th><th>조각1</th><th>조각2</th><th>조각3</th><th>조각4</th><th>조각5</th></tr>
+        <tr><td>1</td><td><b>평가</b></td><td>학습</td><td>학습</td><td>학습</td><td>학습</td></tr>
+        <tr><td>2</td><td>학습</td><td><b>평가</b></td><td>학습</td><td>학습</td><td>학습</td></tr>
+        <tr><td>3</td><td>학습</td><td>학습</td><td><b>평가</b></td><td>학습</td><td>학습</td></tr>
+        <tr><td>4</td><td>학습</td><td>학습</td><td>학습</td><td><b>평가</b></td><td>학습</td></tr>
+        <tr><td>5</td><td>학습</td><td>학습</td><td>학습</td><td>학습</td><td><b>평가</b></td></tr>
+      </table>
+      <div class="figs"><figure><img class="smooth" src="img/day07/kfold_blocks.png" alt="5-fold 교차검증에서 회차마다 평가 조각이 바뀌는 블록 그림"><figcaption><b>무엇을 보나:</b> 한 줄이 한 회차예요. 분홍 칸(평가 12건)이 대각선을 따라 한 칸씩 옮겨 가고, 나머지 4칸(48건)으로 학습해요. <b>🤔 왜?</b> 대각선이라는 건 <b>모든 조각이 정확히 한 번씩</b> 평가된다는 뜻이에요. 그래서 "어떤 12건이 평가에 뽑혔나"의 운이 5번에 걸쳐 평균되고, 점수 5개가 얼마나 흩어지는지도 볼 수 있어요.</figcaption></figure></div>
+      <table>
+        <tr><th>자료</th><th>오늘의 역할</th></tr>
+        <tr><td>train 60</td><td>5-fold로 후보 비교 (각 fold에서 전처리도 학습)</td></tr>
+        <tr><td>valid 20</td><td>이미 쓴 진단 자료 — 오류·기존 결과 비교</td></tr>
+        <tr><td>test 20</td><td>오늘도 보관, 최종 선택 후 확인</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>틀린 CV vs 올바른 CV</strong><br>
+        ❌ train 60 전체에 전처리 fit → 변환된 배열을 5-fold로 나눔 (평가 행의 중앙값이 이미 학습에 섞임)<br>
+        ✅ 아직 fit 안 한 <b>Pipeline 통째</b>를 <code>cross_validate</code>에 전달 → fold마다 학습 48건으로 전처리·모델 fit → 평가 12건은 transform·predict만
+      </div>
+      <div class="callout">🤔 <strong>왜 fold 안에서 전처리를 다시 학습하지?</strong> — fold의 평가 12건은 그 회차에선 "처음 보는 자료" 역할이에요. 60건 전체로 중앙값을 먼저 구해 두면 그 12건의 값이 이미 중앙값에 섞여 있어서, 평가 자료를 <b>살짝 미리 본</b> 셈이 돼요. Pipeline을 통째로 넘기면 sklearn이 회차마다 48건으로만 fit하니 이 누수가 자동으로 막혀요. train 60 안에서도 학습 48과 평가 12는 분리해야 해요.</div>
+      <div class="figs"><figure>
+        <svg viewBox="0 0 690 192" style="width:100%;height:auto;display:block" role="img" aria-label="교차검증에서 전처리를 fold 밖과 안에서 할 때의 비교"><defs><marker id="d7arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted,#7a7191)"/></marker></defs><text x="10" y="20" style="fill:var(--red,#e03131);font-size:14px;font-weight:700">❌ 틀린 순서</text><rect x="10" y="32" width="150" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--muted,#7a7191)"/><text x="85.0" y="54.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">train 60 전체로</text><text x="85.0" y="71.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">중앙값 fit</text><rect x="200" y="32" width="150" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--muted,#7a7191)"/><text x="275.0" y="54.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">변환된 배열</text><text x="275.0" y="71.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">평가 12건 값이 이미 섞임</text><rect x="390" y="32" width="150" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--muted,#7a7191)"/><text x="465.0" y="54.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">5-fold로 나눔</text><text x="465.0" y="71.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">모델만 fold별 학습</text><path d="M160 57 L198 57" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrC)"/><path d="M350 57 L388 57" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrC)"/><text x="560" y="53" style="fill:var(--muted,#7a7191);font-size:12px">평가 자료를</text><text x="560" y="69" style="fill:var(--muted,#7a7191);font-size:12px">살짝 미리 봄</text><text x="10" y="118" style="fill:var(--accent,#7c4dff);font-size:14px;font-weight:700">✅ 올바른 순서 (fold마다 반복)</text><rect x="10" y="130" width="150" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="85.0" y="152.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">fit 안 한 Pipeline</text><text x="85.0" y="169.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">cross_validate에 통째로</text><rect x="200" y="130" width="150" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="275.0" y="152.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">학습 48건으로</text><text x="275.0" y="169.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">전처리 + 모델 fit</text><rect x="390" y="130" width="150" height="50" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="465.0" y="152.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">평가 12건은</text><text x="465.0" y="169.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">transform → predict만</text><path d="M160 155 L198 155" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrC)"/><path d="M350 155 L388 155" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrC)"/><rect x="570" y="130" width="110" height="50" rx="9" style="fill:var(--accent-soft,#f2ecff);stroke:var(--accent,#7c4dff)"/><text x="625.0" y="152.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">fold 점수</text><text x="625.0" y="169.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">×5 → 평균·편차</text><path d="M540 155 L568 155" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrC)"/></svg>
+        <figcaption><b>무엇을 보나:</b> 두 줄은 같은 상자를 쓰지만 <b>"전처리 fit"이 나눔보다 앞이냐 뒤냐</b>만 달라요. <b>🤔 왜?</b> 위 줄은 60건 전체로 중앙값을 구한 뒤 나누니, 각 회차의 평가 12건 값이 이미 학습 규칙에 들어가 있어요. 아래 줄처럼 Pipeline을 통째로 넘기면 회차마다 학습 48건으로만 fit해서, 평가 12건이 정말 "처음 보는 자료"가 돼요.</figcaption>
+      </figure></div>
+
+      <h3>🔧 명령어: <code>StratifiedKFold</code> · <code>KFold</code> · <code>cross_validate</code></h3>
+<pre><code>from sklearn.model_selection import StratifiedKFold, KFold, cross_validate
+
+CLS_CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)   # 분류: 실패 비율 유지
+REG_CV = KFold(n_splits=5, shuffle=True, random_state=42)             # 회귀: 연속 y
+
+cv = cross_validate(build(rf), X_train, y_train, cv=CLS_CV, scoring="f1",
+                    return_train_score=True, return_estimator=True,
+                    n_jobs=1, error_score="raise")
+print(cv["test_score"])                 # fold별 F1  [.333 .000 .667 .400 .000]
+print(cv["test_score"].mean(), cv["test_score"].std(ddof=0))   # 평균 .280, 편차 .254
+
+print(cv["train_score"].mean())         # train 평균 — fold 점수와의 격차로 과적합 진단
+
+cvr = cross_validate(build(xgr), X_train, yr_train, cv=REG_CV,
+                     scoring="neg_root_mean_squared_error")
+rmse = -cvr["test_score"]               # 부호 되돌리기 → ms
+
+# 각 fold의 중앙값이 그 fold의 학습 48건에서 왔는지 검사 (E16)
+cv = cross_validate(build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42),
+                          scale="none"),
+                    X_train, y_train, cv=CLS_CV, scoring="f1",
+                    return_estimator=True, error_score="raise")
+for (a, b), m in zip(CLS_CV.split(X_train, y_train), cv["estimator"]):   # a=학습 행, b=평가 행
+    actual = m["pre"].named_transformers_["num"]["imputer"].statistics_
+    expected = X_train.iloc[a][NUM].median()
+    assert np.allclose(actual, expected)    # 근사 일치
+    assert not set(a) &amp; set(b)              # 학습·평가 교집합 0
+print("전 fold 중앙값·분할 검사 통과")</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_splits=5</code></td><td>몇 조각으로 나눌지</td><td>늘리면 회차마다 학습 자료↑(평가 조각은 작아져 점수가 더 출렁), 계산↑</td></tr>
+        <tr><td><code>shuffle=True</code>, <code>random_state</code></td><td>섞어서 나누기 + 재현</td><td>안 섞으면 원본 행 순서대로 잘려 한쪽에 특정 유형이 몰릴 수 있음. 모든 후보가 <b>같은 fold</b>를 써야 공정</td></tr>
+        <tr><td><code>scoring</code></td><td>fold 평가 지표</td><td>회귀는 <code>"neg_root_mean_squared_error"</code> — sklearn은 "<b>클수록 좋은</b> 점수"로 통일하기 때문에 RMSE에 −를 붙여 돌려줌 → 다시 −를 붙여 ms로</td></tr>
+        <tr><td><code>return_train_score=True</code></td><td>학습 점수도 함께</td><td>train–fold 격차로 과적합 진단</td></tr>
+        <tr><td><code>return_estimator=True</code></td><td>fold별 학습된 Pipeline 반환</td><td>fold마다 중앙값이 학습 48건에서 왔는지 검사 가능</td></tr>
+        <tr><td><code>error_score="raise"</code></td><td>fold 실패 시 바로 에러</td><td>기본값은 NaN으로 조용히 넘어가서, 실패한 fold를 모르고 평균을 낼 수 있음</td></tr>
+        <tr><td><code>std(ddof=0)</code></td><td>5개 점수의 기술적 편차</td><td>"점수가 얼마나 흩어졌나"의 기록일 뿐 95% 신뢰구간이 아님</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 분류는 StratifiedKFold지?</strong> — 실패는 소수라 그냥 무작위로 12건씩 자르면 어떤 fold엔 실패가 거의 없을 수 있어요. 그러면 그 fold의 F1은 계산 자체가 불안정해져요. Stratified는 <b>모든 fold의 실패 비율을 원본과 비슷하게</b> 맞춰 줘요. 회귀의 연속 정답은 "비율"을 맞출 클래스가 없으니 그냥 KFold를 써요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/stratified_vs_kfold.png" alt="KFold와 StratifiedKFold의 fold별 실패 건수 비교"><figcaption><b>무엇을 보나:</b> 수업 train(60건 중 실패 18건)을 두 방법으로 5조각 냈을 때, 각 평가 조각에 들어간 실패 수예요. 회색 KFold는 2~5건으로 들쭉날쭉, 보라 Stratified는 3~4건으로 기대값(3.6) 근처에 모여요. <b>🤔 왜?</b> 그냥 섞어 자르면 우연히 실패가 2건뿐인 fold가 생기고, 그 fold의 F1은 한두 건에 크게 흔들려요. Stratified는 클래스별로 나눠 담아 모든 fold의 실패 비율을 원본(30%)에 맞추니 fold끼리 비교가 공정해져요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 fold F1이 0 ~ 0.667로 크게 흔들리지?</strong> — 평가 조각이 12건, 그중 실패는 몇 건뿐이라 실패 한두 개를 맞히느냐 마느냐로 F1이 0과 0.667 사이를 오가요. 그래서 평균 하나(.280)로 가리지 말고 fold 점수·평균·편차(.254)를 함께 남겨요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day07/cv_fold_scores.png" alt="모델별 5개 fold F1 점수와 평균 및 표준편차"><figcaption><b>무엇을 보나:</b> 같은 5개 fold로 계산한 후보별 fold 점수(파란 점 5개)와 평균 ± 표준편차(보라)예요. 값은 아래 표와 같아요(XGB는 이 PC의 실행에서 fold 점수가 표와 조금 달라 그림에서 뺐어요). Forest는 점이 0부터 0.667까지 흩어져 막대가 가장 길어요. <b>🤔 왜?</b> 평가 조각마다 실패가 3~4건뿐이라 한두 건을 맞히느냐로 F1이 크게 출렁여요. 평균만 보면 Tree(0.542)와 Logistic(0.522)이 달라 보이지만, 점들의 흩어짐이 그 차이보다 훨씬 크죠 — 그래서 평균·편차·fold 점수를 함께 남겨요.</figcaption></figure></div>
+      <div class="callout warn">⚠️ <code>cross_validate</code>의 <code>test_score</code>는 "<b>fold 평가 점수</b>"라는 이름일 뿐, 보관한 test 20이 아니에요. 그리고 평균 ± 표준편차는 <b>95% 신뢰구간이 아니에요</b>.</div>
+      <table>
+        <tr><th>상황</th><th>분할 방법</th><th>주의</th></tr>
+        <tr><td>분류 · 독립 요청</td><td><code>StratifiedKFold(5, shuffle=True)</code></td><td>실패 비율 유지</td></tr>
+        <tr><td>회귀 · 독립 요청</td><td><code>KFold(5, shuffle=True)</code></td><td>연속 정답은 그대로 stratify 안 함</td></tr>
+        <tr><td>같은 요청의 여러 단계</td><td>그룹 단위 분할</td><td>같은 ID가 학습·평가를 가로지르지 않게</td></tr>
+        <tr><td>미래 요청 예측</td><td>시간 순서 분할</td><td>미래 정보가 학습에 들어가지 않게</td></tr>
+      </table>
+
+      <h3>지표로 진단하기</h3>
+      <table>
+        <tr><th>분류 모델</th><th>CV F1 평균 ± 편차</th><th>valid F1</th><th>valid FP / FN</th></tr>
+        <tr><td>Dummy</td><td>0.000 ± 0.000</td><td>0.000</td><td>0 / 6</td></tr>
+        <tr><td>Logistic</td><td>0.522 ± 0.209</td><td>0.333</td><td>4 / 4</td></tr>
+        <tr><td>KNN3</td><td>0.336 ± 0.176</td><td><b>0.545</b></td><td>2 / 3</td></tr>
+        <tr><td>Tree</td><td><b>0.542</b> ± 0.124</td><td>0.333</td><td>4 / 4</td></tr>
+        <tr><td>Forest</td><td>0.280 ± 0.254</td><td>0.222</td><td>2 / 5</td></tr>
+        <tr><td>XGB</td><td>0.500 ± 0.123</td><td>0.182</td><td>4 / 5</td></tr>
+      </table>
+      <table>
+        <tr><th>회귀 모델</th><th>CV RMSE 평균 ± 편차 (ms)</th><th>valid RMSE</th><th>valid MAE</th></tr>
+        <tr><td>Dummy</td><td>606.18 ± 100.84</td><td>658.75</td><td>541.26</td></tr>
+        <tr><td>Linear</td><td>639.83 ± 57.72</td><td><b>640.00</b></td><td>551.80</td></tr>
+        <tr><td>KNN15</td><td><b>598.85</b> ± 91.21</td><td>641.79</td><td>530.06</td></tr>
+        <tr><td>Tree</td><td>599.63 ± 96.12</td><td>719.00</td><td>632.03</td></tr>
+        <tr><td>Forest</td><td>624.01 ± 96.97</td><td>690.37</td><td>600.34</td></tr>
+        <tr><td>XGB</td><td>655.79 ± 92.17</td><td>700.02</td><td>609.34</td></tr>
+      </table>
+      <p>오늘의 잠정 기준은 <b>분류 CV 평균 F1 최대 → Tree(0.542)</b>, <b>회귀 CV 평균 RMSE 최소 → KNN15(598.85ms)</b>. 반대 증거도 함께 적어요: valid 최고는 KNN3(0.545)·Linear(640.00ms), Tree는 valid 실패 6건 중 4건을 놓침. 비교 시 전처리는 모델에 맞춘 학습 절차 전체(선형/KNN은 수치 standard, 트리 계열은 스케일링 없음)를 비교해요.</p>
+      <div class="callout">🤔 <strong>왜 CV 1등과 valid 1등이 다르지?</strong> — CV는 train 60 안의 5개 조각 평균, valid는 다른 20건 한 세트예요. 둘 다 작은 자료라 <b>어느 행이 평가에 들어갔느냐</b>에 따라 순위가 바뀔 만큼 차이가 작아요. 그래서 기준(오늘은 CV)을 미리 정해 두고, 그 기준이 Day6의 valid 기준에서 바뀌었다는 사실과 반대 증거를 모두 보고서에 남겨요.</div>
+      <table>
+        <tr><th>이렇게 나오면</th><th>의심할 것</th></tr>
+        <tr><td>train F1 = 1.000, valid·CV는 낮음</td><td>과적합 → 깊이·잎 크기·회차 제한</td></tr>
+        <tr><td>fold마다 점수가 0 ~ 0.667로 크게 흔들림</td><td>평가 자료(12건) 구성에 민감 → 평균 하나로 가리지 말 것</td></tr>
+        <tr><td>CV 1등과 valid 1등이 다름</td><td>소표본 · 순위 변동 → 유리한 점수만 골라 보고하지 않기</td></tr>
+        <tr><td>CV RMSE 차이 0.78ms (KNN15 598.85 vs Tree 599.63)</td><td>사실상 동률 → 단순한 후보 우선, 추가 검증</td></tr>
+      </table>
+      <div class="callout">💡 후보와 지표는 <b>먼저</b> 정해요. CV를 해도 같은 자료를 반복 조회하면 선택 편향은 남아요. 동점이면 더 단순한 모델을 우선해요.</div>
+      <div class="callout">🤔 <strong>왜 동점이면 단순한 쪽?</strong> — 점수가 거의 같다면, 더 복잡한 모델의 "약간의 우세"는 작은 자료의 우연일 가능성이 커요. 단순한 모델은 설명·재현·유지가 쉽고, 새 자료에서 크게 무너질 위험도 상대적으로 작아요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="checks7">⑦ 입력 검사와 저장 — 새 범주 vs 누락 열</h2>
+      <p>새 요청이 들어올 때 두 상황은 다르게 다뤄요. <b>처음 보는 범주</b>(예: <code>task_type="translation"</code>)는 학습된 규칙대로 처리해 8열을 유지하고, <b>필수 열이 빠진 입력</b>(예: <code>priority</code> 없음)은 예측 전에 명확한 오류로 막아요.</p>
+      <div class="callout">🤔 <strong>왜 다르게 다루지?</strong> — 새 범주는 실서비스에서 자연스럽게 생기는 일이라 <code>handle_unknown="ignore"</code>로 "그 범주 더미는 전부 0"이라고 처리할 수 있어요. 하지만 열 자체가 없으면 모델이 판단할 근거가 사라진 것이라, 임의 값으로 <b>자동 추측해서 채우면</b> 틀린 예측을 조용히 내보내게 돼요. 그래서 시끄럽게 멈추는 쪽이 안전해요.</div>
+      <div class="figs"><figure>
+        <svg viewBox="0 0 690 166" style="width:100%;height:auto;display:block" role="img" aria-label="새 범주 입력과 필수 열 누락 입력의 처리 흐름 비교"><defs><marker id="d7arrN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted,#7a7191)"/></marker></defs><rect x="10" y="20" width="170" height="54" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="95.0" y="44.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">task_type = "translation"</text><text x="95.0" y="61.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">학습 때 없던 새 범주</text><rect x="230" y="20" width="190" height="54" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="325.0" y="44.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">OneHotEncoder(ignore)</text><text x="325.0" y="61.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">task_type 더미를 전부 0으로</text><rect x="470" y="20" width="200" height="54" rx="9" style="fill:var(--accent-soft,#f2ecff);stroke:var(--accent,#7c4dff)"/><text x="570.0" y="44.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">(2, 8) 그대로 → 예측 ✅</text><text x="570.0" y="61.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">통계 불변 · 열 수 유지</text><path d="M180 47 L228 47" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrN)"/><path d="M420 47 L468 47" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrN)"/><rect x="10" y="100" width="170" height="54" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="95.0" y="124.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">priority 열 자체가 없음</text><text x="95.0" y="141.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">필수 입력 누락</text><rect x="230" y="100" width="190" height="54" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="325.0" y="124.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">require_features 검사</text><text x="325.0" y="141.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">예측 전에 확인</text><rect x="470" y="100" width="200" height="54" rx="9" style="fill:var(--accent-soft,#f2ecff);stroke:var(--accent2,#ff5fa2)"/><text x="570.0" y="124.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">명확한 오류로 멈춤 ⛔</text><text x="570.0" y="141.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">임의 값으로 채우지 않음</text><path d="M180 127 L228 127" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrN)"/><path d="M420 127 L468 127" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d7arrN)"/></svg>
+        <figcaption><b>무엇을 보나:</b> 위는 "값이 낯선" 입력, 아래는 "열이 사라진" 입력이에요. 위는 끝까지 흘러가 예측이 나오고, 아래는 중간에 <b>일부러 멈춰요</b>. <b>🤔 왜?</b> 새 범주는 열 구조(8열)를 지킨 채 "아는 범주 아님 = 더미 모두 0"으로 표현할 수 있지만, 열이 없으면 판단 근거 자체가 없어요. 그걸 조용히 채워 예측하면 틀린 답을 숨기게 되니 시끄럽게 멈추는 쪽이 안전해요.</figcaption>
+      </figure></div>
+      <h3>🔧 명령어: 새 범주 · 통계 불변 검사</h3>
+<pre><code>model = build(new_classifier("Forest")).fit(X_train, y_train)
+imp = model["pre"].named_transformers_["num"]["imputer"]
+before = imp.statistics_.copy()
+new = X_valid.iloc[:2].copy()
+new["task_type"], new["priority"] = "translation", "urgent"   # 학습에 없던 범주
+model.predict(require_features(new))          # require_features: 필수 열이 없으면 오류
+assert np.array_equal(before, imp.statistics_) # 예측해도 학습 통계 불변
+print(model["pre"].transform(new).shape)       # (2, 8)  ← 기존 8열 유지</code></pre>
+      <h3>🔧 명령어: 저장 · 복원 대조</h3>
+<pre><code>from pathlib import Path
+import tempfile, joblib
+with tempfile.TemporaryDirectory() as folder:
+    path = Path(folder) / "selected_pipeline.joblib"
+    joblib.dump(model, path)
+    restored = joblib.load(path)              # 자신이 방금 만든 파일만
+    same = np.array_equal(model.predict(X_valid), restored.predict(X_valid))
+    print("복원 예측 동일:", same)             # True</code></pre>
+      <table>
+        <tr><th>인자 / 함수</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>require_features(df)</code></td><td>강의 코드의 사용자 정의 함수 — 필수 4열 확인</td><td>없으면 누락 열이 imputer까지 가서 엉뚱한 오류가 나거나 조용히 잘못 처리될 수 있음</td></tr>
+        <tr><td><code>transform(new).shape</code></td><td>변환 후 열 수 확인</td><td>8이 아니면 학습 때와 다른 입력 구조라 모델이 받을 수 없음</td></tr>
+        <tr><td><code>joblib.load</code></td><td>직접 만든 신뢰하는 파일만</td><td>버전·입력 스키마도 함께 기록. 다른 환경에서의 호환은 보장 안 됨</td></tr>
+      </table>
+      <div class="callout">💡 "오류 없이 끝났다"와 "요구사항대로 동작했다"는 달라요. 정상 valid 20(20개 예측·ID 순서), 결측·미지 범주(8열·통계 불변), 필수 열 누락(명확한 오류), CV 한 fold(학습 48·평가 12·교집합 0), 저장 모델(복원 후 예측 일치)을 따로 확인해요. 저장·복원의 자세한 설명은 <a href="day06.html#checks">Day6 ⑦</a>.</div>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>20261027화_머신러닝_트리_앙상블_교차검증_Day7 (3).pdf</code> — ① 트리 9~16쪽 · ② 과적합 17~24쪽 · ③ Random Forest 25~33쪽 · ④ 특성 중요도 34~43쪽 · ⑤ XGBoost 44~55쪽 · ⑥ 교차검증 56~70쪽 · ⑦ 검사·저장 72~73, 77쪽</li>
+        <li>공식 문서: <a href="https://scikit-learn.org/stable/modules/tree.html" target="_blank">scikit-learn · Decision Trees</a> · <a href="https://scikit-learn.org/stable/modules/ensemble.html" target="_blank">Ensemble methods</a> · <a href="https://scikit-learn.org/stable/modules/permutation_importance.html" target="_blank">Permutation importance</a> · <a href="https://scikit-learn.org/stable/modules/cross_validation.html" target="_blank">Cross-validation</a> · <a href="https://xgboost.readthedocs.io/en/stable/parameter.html" target="_blank">XGBoost Parameters</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day06.html">← 이전: Day6</a>
+      <a href="day08.html">다음: Day8 →</a>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== Gini 분할 체험 =====
+  (() => {
+    const cv = document.getElementById('giniCanvas'), ctx = cv.getContext('2d');
+    const W = 480, H = 200, dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    const xs = [100, 200, 300, 700, 800, 900], ys = [0, 0, 0, 1, 1, 1];
+    const thr = document.getElementById('giniThr');
+    const px = x => 30 + (x / 1000) * 420;
+    const gini = arr => { if (!arr.length) return 0; const p = arr.filter(v => v).length / arr.length; return 1 - p * p - (1 - p) * (1 - p); };
+    function draw() {
+      const t = +thr.value; document.getElementById('giniThrV').textContent = t;
+      const acc = css('--accent') || 'blue', acc2 = css('--accent2') || 'red', mut = css('--muted') || 'gray';
+      const L = ys.filter((_, i) => xs[i] <= t), R = ys.filter((_, i) => xs[i] > t);
+      const parent = gini(ys), w = (L.length * gini(L) + R.length * gini(R)) / ys.length;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = mut; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(30, 120); ctx.lineTo(450, 120); ctx.stroke();
+      ctx.fillStyle = mut; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+      [0, 250, 500, 750, 1000].forEach(v => ctx.fillText(v, px(v), 138));
+      ctx.fillText('글자수 (input_chars)', 240, 160);
+      xs.forEach((x, i) => {
+        ctx.fillStyle = ys[i] ? acc2 : acc; ctx.beginPath();
+        if (ys[i]) ctx.rect(px(x) - 11, 85, 22, 22); else ctx.arc(px(x), 96, 11, 0, 7);
+        ctx.fill();
+      });
+      ctx.strokeStyle = acc; ctx.lineWidth = 3; ctx.setLineDash([6, 4]);
+      ctx.beginPath(); ctx.moveTo(px(t), 30); ctx.lineTo(px(t), 125); ctx.stroke(); ctx.setLineDash([]);
+      ctx.font = 'bold 13px sans-serif'; ctx.fillStyle = mut;
+      ctx.fillText('≤ ' + t + ' (참)', Math.max(70, px(t) - 60), 45);
+      ctx.fillText('> ' + t + ' (거짓)', Math.min(410, px(t) + 60), 45);
+      ctx.font = '12px sans-serif'; ctx.fillStyle = acc; ctx.fillText('● 성공(0)', 70, 190);
+      ctx.fillStyle = acc2; ctx.fillText('■ 실패(1)', 150, 190);
+      ctx.fillStyle = mut; ctx.fillText('점을 클릭하면 라벨이 바뀌어요', 340, 190);
+      ctx.textAlign = 'start';
+      const desc = a => `${a.length}건 (성공 ${a.filter(v => !v).length}·실패 ${a.filter(v => v).length}) Gini ${gini(a).toFixed(3)}`;
+      document.getElementById('giniL').textContent = desc(L);
+      document.getElementById('giniR').textContent = desc(R);
+      document.getElementById('giniW').textContent = w.toFixed(3);
+      document.getElementById('giniD').textContent = (parent - w).toFixed(3);
+      let best = 0, bestT = null;
+      for (let c = 50; c <= 950; c += 50) {
+        const l = ys.filter((_, i) => xs[i] <= c), r = ys.filter((_, i) => xs[i] > c);
+        const d = parent - (l.length * gini(l) + r.length * gini(r)) / ys.length;
+        if (d > best + 1e-9) { best = d; bestT = c; }
+      }
+      const cur = parent - w;
+      const why = (L.length === 0 || R.length === 0)
+        ? ' 지금 선은 한쪽에 모든 점을 몰아서 아무것도 나누지 못해요 → 감소 0.'
+        : (cur >= best - 1e-9 && best > 0)
+          ? ' 지금 선이 최선이에요 — 양쪽 잎이 가장 덜 섞여서(한 클래스 위주라) 예측을 자신 있게 할 수 있거든요.'
+          : ' 지금 선은 한쪽에 성공·실패가 섞여 남아서 감소가 작아요. 섞인 점이 적어지도록 선을 옮겨 보세요.';
+      document.getElementById('giniVerdict').textContent = (bestT === null
+        ? '어떤 질문도 섞인 정도를 줄이지 못해요 → 나눌 이유가 없어요.'
+        : `부모 Gini ${parent.toFixed(3)} · 가장 많이 줄이는 질문(첫 후보): 글자수 ≤ ${bestT} (감소 ${best.toFixed(3)}).`) + (bestT === null ? '' : why);
+    }
+    cv.addEventListener('click', e => {
+      const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
+      xs.forEach((v, i) => { if (Math.abs(x - px(v)) < 16 && Math.abs(y - 96) < 20) ys[i] = 1 - ys[i]; });
+      draw();
+    });
+    thr.addEventListener('input', draw);
+    draw();
+  })();
+
+  // ===== 숲의 결합 체험: 다수결 vs 확률 평균 =====
+  (() => {
+    const ids = ['rfP1', 'rfP2', 'rfP3'];
+    function upd() {
+      const p = ids.map(id => +document.getElementById(id).value);
+      ids.forEach((id, i) => { document.getElementById(id + 'v').textContent = p[i].toFixed(2); });
+      const votes = p.filter(v => v >= 0.5).length, vote = votes >= 2 ? 1 : 0;
+      const mean = (p[0] + p[1] + p[2]) / 3, avg = mean >= 0.5 ? 1 : 0;
+      const name = c => c ? '실패(1)' : '성공(0)';
+      document.getElementById('rfVote').textContent = `실패 ${votes}표 → ${name(vote)}`;
+      document.getElementById('rfMean').textContent = mean.toFixed(3);
+      document.getElementById('rfPred').textContent = name(avg);
+      document.getElementById('rfVerdict').textContent = vote === avg
+        ? `두 방식이 같은 답(${name(avg)})이에요 — 트리들의 확신이 한쪽으로 고르게 모여 있어서요.`
+        : `두 방식이 달라요! 다수결은 0.5를 넘은 트리 수만 세지만, sklearn 숲은 확률을 평균해서 "얼마나 확신했는지"까지 반영해요 → 평균 ${mean.toFixed(3)}${avg ? ' ≥' : ' <'} 0.5라 ${name(avg)}.`;
+    }
+    ids.forEach(id => document.getElementById(id).addEventListener('input', upd));
+    upd();
+  })();
+  </script>
+</body>
+</html>

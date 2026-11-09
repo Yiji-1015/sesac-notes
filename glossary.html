@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>용어 사전 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="index.html">← 목록으로</a>
+    <header class="site-header">
+      <h1>📚 용어 사전</h1>
+      <p>수업에 나온 용어를 쉬운 말로 — 처음 나온 Day 순서</p>
+    </header>
+
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="용어 검색 (예: NMS, 과적합, epoch)…" autofocus>
+    </div>
+    <p id="count" style="color:var(--muted);font-size:0.9rem"></p>
+    <div id="list"></div>
+  </main>
+
+  <script src="glossary.js"></script>
+  <script>
+    (() => {
+      const G = window.GLOSSARY || [];
+      const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const slug = t => 't-' + encodeURIComponent(t.toLowerCase());
+      const pad = n => String(n).padStart(2, '0');
+      const list = document.getElementById('list'), q = document.getElementById('q');
+
+      function render() {
+        const k = q.value.trim().toLowerCase();
+        const hit = G.filter(e => !k || [e.term, e.full, e.short, e.analogy, ...e.aliases].join(' ').toLowerCase().includes(k));
+        const days = [...new Set(hit.map(e => e.first))].sort((a, b) => a - b);
+        list.innerHTML = days.map(d => `
+          <section class="dict-day" id="day${d}">
+            <h2>Day${d}에서 처음 나온 용어</h2>
+            ${hit.filter(e => e.first === d).map(e => `
+              <div class="dict-item" id="${slug(e.term)}">
+                <span class="term-name">${esc(e.term)}</span>
+                ${e.full && e.full !== e.term ? `<span class="term-full">${esc(e.full)}</span>` : ''}
+                ${e.aliases.length ? `<div class="term-full">다른 이름: ${e.aliases.map(esc).join(', ')}</div>` : ''}
+                <p>${esc(e.short)}</p>
+                ${e.analogy ? `<p class="term-analogy">💭 ${esc(e.analogy)}</p>` : ''}
+                <div class="days">${e.days.sort((a, b) => a - b).map(x => `<a href="notes/day${pad(x)}.html">Day${x}</a>`).join('')}</div>
+              </div>`).join('')}
+          </section>`).join('');
+        document.getElementById('count').textContent = `${hit.length}개 용어` + (k ? ` (검색: "${q.value}")` : '');
+      }
+      q.addEventListener('input', render);
+      render();
+      // 다른 페이지에서 #용어 로 들어오면 그 위치로 이동 + Day 묶음(#dayNN)도 지원
+      if (location.hash) {
+        const t = document.getElementById(decodeURIComponent(location.hash.slice(1))) || document.getElementById(location.hash.slice(1));
+        if (t) setTimeout(() => t.scrollIntoView({ block: 'start' }), 50);
+      }
+    })();
+  </script>
+  <script src="note.js"></script>
+</body>
+</html>

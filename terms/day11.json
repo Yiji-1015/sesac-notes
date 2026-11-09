@@ -1,0 +1,556 @@
+[
+ {
+  "term": "CNN",
+  "aliases": [
+   "Convolutional Neural Network",
+   "합성곱 신경망"
+  ],
+  "full": "Convolutional Neural Network (합성곱 신경망)",
+  "short": "작은 창(Kernel)을 사진 위에 옮겨 가며 패턴을 찾는 신경망. 같은 창을 모든 위치에 쓰니까 파라미터가 적고, 물체가 사진 어디에 있어도 찾아요.",
+  "analogy": "돋보기 하나를 들고 사진 구석구석을 훑으며 '여기 세로선 있다'를 표시해 나가는 것.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "합성곱",
+  "aliases": [
+   "Convolution",
+   "Conv2d",
+   "Conv 블록"
+  ],
+  "full": "Convolution (합성곱)",
+  "short": "작은 창을 옮겨 가며 창 안의 값과 가중치를 곱해 더하는(가중합) 연산. 모든 위치에서 같은 가중치를 써요.",
+  "analogy": "도장을 종이 위에 한 칸씩 옮겨 찍으며, 찍힌 자리마다 '얼마나 잘 맞나' 점수를 적는 것.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "가중합",
+  "aliases": [
+   "Weighted sum"
+  ],
+  "full": "Weighted sum (가중합)",
+  "short": "값마다 가중치(중요도)를 곱한 뒤 모두 더한 것. 합성곱도, Attention의 출력도 결국 가중합이에요.",
+  "analogy": "과목마다 반영 비율을 곱해 더하는 내신 점수 계산.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Kernel",
+  "aliases": [
+   "필터",
+   "커널",
+   "Filter"
+  ],
+  "full": "Kernel / Filter (커널, 필터)",
+  "short": "합성곱 창 안의 가중치 묶음. 3×3이면 숫자 9개이고, 이 숫자는 사람이 아니라 학습으로 정해져요.",
+  "analogy": "특정 모양(세로선, 모서리 등)에만 반응하도록 만든 작은 스텐실.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "Feature Map",
+  "aliases": [
+   "특징 맵",
+   "특징 지도"
+  ],
+  "full": "Feature Map (특징 맵)",
+  "short": "Kernel 하나가 사진 전체를 훑어서 만든 결과 지도. 그 Kernel이 찾는 패턴이 어디에 얼마나 강하게 있는지를 보여 줘요.",
+  "analogy": "'세로선 탐지기'로 사진을 훑은 뒤 반응한 곳만 색칠한 지도.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "채널",
+  "aliases": [
+   "Channel",
+   "in_channels",
+   "out_channels"
+  ],
+  "full": "Channel (채널)",
+  "short": "이미지·Feature Map이 겹겹이 쌓인 '장 수'. 컬러 사진은 R·G·B 3채널이고, Conv 층의 출력 채널 수 = Kernel 개수예요.",
+  "analogy": "투명 필름 여러 장을 겹쳐 놓은 것 — 한 장이 채널 하나.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "NCHW",
+  "aliases": [
+   "[N, C, H, W]"
+  ],
+  "full": "N(장수) · C(채널) · H(높이) · W(너비)",
+  "short": "PyTorch가 이미지 묶음을 담는 축 순서. 사진 한 장도 [1, C, H, W]처럼 장수 축을 붙여 넣어요. PIL·matplotlib은 [H, W, C] 순서라 바꿔 줘야 해요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Stride",
+  "aliases": [
+   "스트라이드"
+  ],
+  "full": "Stride (보폭)",
+  "short": "창이 한 번에 건너뛰는 칸 수. 1이면 한 칸씩, 2면 두 칸씩 옮겨서 출력이 약 절반 크기가 돼요.",
+  "analogy": "징검다리를 한 칸씩 밟느냐, 하나 건너 밟느냐.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Padding",
+  "aliases": [
+   "패딩"
+  ],
+  "full": "Padding (채워 넣기)",
+  "short": "모자란 자리를 가짜 값(보통 0)으로 채우는 것. CNN에서는 사진 가장자리 바깥에 0을 덧대 크기를 유지하고, 순서 데이터에서는 짧은 순서 끝에 0을 채워 길이를 맞춰요. 채운 값은 진짜 데이터가 아니에요.",
+  "analogy": "사진 둘레에 흰 여백을 붙이거나, 짧은 줄 끝에 빈칸을 채워 표 칸을 맞추는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Pooling",
+  "aliases": [
+   "풀링",
+   "MaxPool",
+   "MaxPool2d",
+   "Max Pooling"
+  ],
+  "full": "Pooling (풀링, 다운샘플링)",
+  "short": "작은 영역을 대표값 하나로 줄이는 것. MaxPool 2×2는 4칸 중 가장 큰 값 하나만 남겨 크기를 절반으로 줄여요. 채널 수는 그대로예요.",
+  "analogy": "반 4명 중 최고점 한 명만 대표로 뽑아 보고하는 것.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "수용영역",
+  "aliases": [
+   "Receptive field"
+  ],
+  "full": "Receptive Field (수용영역)",
+  "short": "출력 한 칸이 원본 사진에서 '보고 있는' 범위. 층을 쌓고 Pooling을 거칠수록 넓어져요.",
+  "analogy": "높은 층으로 올라갈수록 창밖으로 보이는 동네가 넓어지는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "가중치 공유",
+  "aliases": [
+   "Weight sharing"
+  ],
+  "full": "Weight sharing (가중치 공유)",
+  "short": "같은 가중치(Kernel)를 모든 위치에서 돌려 쓰는 것. 그래서 파라미터 수가 사진 크기와 상관없어요. 순서 모델도 모든 시점에 같은 가중치를 써요.",
+  "analogy": "도장 하나로 종이 전체에 찍는 것 — 위치마다 도장을 새로 파지 않아요.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "등변",
+  "aliases": [
+   "Equivariance",
+   "등변성"
+  ],
+  "full": "Equivariance (등변성)",
+  "short": "입력을 옮기면 결과도 똑같이 옮겨지는 성질. 합성곱이 이래서 물체가 사진 어디에 있어도 같은 검출기로 찾아요.",
+  "analogy": "그림을 오른쪽으로 밀면 그림자도 같이 오른쪽으로 가는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "불변",
+  "aliases": [
+   "Invariance",
+   "불변성"
+  ],
+  "full": "Invariance (불변성)",
+  "short": "입력이 조금 바뀌어도 결과가 그대로인 성질. MaxPool은 2×2 안에서 최댓값 위치가 살짝 움직여도 결과가 같아서 작은 이동에 불변이에요.",
+  "analogy": "사진 속 고양이가 한 뼘 움직여도 여전히 '고양이'라고 답하는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Global Average Pooling",
+  "aliases": [
+   "Global Avg Pool",
+   "Global Pool",
+   "AdaptiveAvgPool2d",
+   "GAP"
+  ],
+  "full": "Global Average Pooling (전역 평균 풀링)",
+  "short": "채널마다 Feature Map 전체의 평균 하나만 남겨 [N, C, H, W]를 [N, C, 1, 1]로 줄여요. 사진 크기와 상관없이 Head 입력 개수가 같아져요.",
+  "analogy": "지도 전체를 보고 '이 패턴이 평균적으로 얼마나 나왔나' 숫자 하나로 요약하는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Flatten",
+  "aliases": [
+   "flatten",
+   "nn.Flatten"
+  ],
+  "full": "Flatten (펴기)",
+  "short": "여러 축의 Tensor를 한 줄 벡터로 펴는 것. CNN에서는 장수 축 N은 남기고 나머지만 펴서 [N, 32, 1, 1] → [N, 32]로 만들어요.",
+  "analogy": "접힌 종이를 쫙 펴서 한 줄로 늘어놓는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "BatchNorm",
+  "aliases": [
+   "BatchNorm2d",
+   "Batch Normalization",
+   "배치 정규화",
+   "BN"
+  ],
+  "full": "Batch Normalization (배치 정규화)",
+  "short": "채널마다 값의 평균·크기를 맞춰 주는 층. 깊은 망에서 값이 층마다 커지거나 쏠리는 걸 막아 학습이 안정돼요. 학습(train) 때는 지금 batch의 통계를, 평가(eval) 때는 저장해 둔 통계를 써요.",
+  "analogy": "반마다 점수 분포가 달라도 표준점수로 바꿔 같은 잣대로 맞추는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Backbone",
+  "aliases": [
+   "백본",
+   "특징 추출부"
+  ],
+  "full": "Backbone (백본, 특징 추출부)",
+  "short": "모델 앞부분. 사진에서 선·모서리·질감·모양 같은 특징을 뽑아내는 부분이에요. 전이학습에서는 사전학습된 Backbone을 그대로 빌려 써요.",
+  "analogy": "눈과 시각 피질 — 무엇이 보이는지 정리하는 곳.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "Head",
+  "aliases": [],
+  "full": "Head (헤드, 분류기)",
+  "short": "모델 끝부분. Backbone이 뽑은 특징을 보고 최종 답(클래스별 점수 등)을 내는 층이에요. 전이학습에서는 내 클래스 수에 맞게 이 부분만 바꿔 끼워요. (Transformer의 Multi-head의 'Head'와는 다른 뜻이에요.)",
+  "analogy": "보고 정리한 걸 바탕으로 최종 답을 말하는 입.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "logit",
+  "aliases": [
+   "Logit",
+   "로짓",
+   "logit",
+   "logits"
+  ],
+  "full": "Logit (로짓, 확률로 바꾸기 전 점수)",
+  "short": "모델 마지막 층이 내는 날것의 클래스별 점수. 음수일 수도 있고 합이 1도 아니에요. Softmax를 거쳐야 확률이 돼요.",
+  "analogy": "심사위원이 매긴 원점수 — 아직 백분율로 바꾸기 전.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "softmax",
+  "aliases": [
+   "softmax",
+   "소프트맥스"
+  ],
+  "full": "Softmax (소프트맥스)",
+  "short": "점수 여러 개를 0~1 사이 확률로 바꾸고 합이 1이 되게 만드는 함수. 점수가 클수록 더 큰 몫을 가져가요. 분류의 마지막과 Attention 비율 계산에 쓰여요.",
+  "analogy": "득표수를 '득표율(%)'로 바꾸는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "CrossEntropyLoss",
+  "aliases": [
+   "CrossEntropy",
+   "Cross-Entropy",
+   "교차 엔트로피"
+  ],
+  "full": "Cross-Entropy Loss (교차 엔트로피 손실)",
+  "short": "분류용 손실 함수. 점수(logit) → Softmax 확률 → '정답 확률의 −log'를 벌점으로 줘요. 틀렸는데 자신만만할수록 벌점이 커져요. PyTorch 것은 안에 Softmax가 이미 들어 있어요.",
+  "analogy": "정답에 낮은 확신을 걸었을수록 크게 깎이는 채점.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "ImageFolder",
+  "aliases": [],
+  "full": "torchvision.datasets.ImageFolder",
+  "short": "폴더 구조로 이미지 데이터셋을 만드는 도구. 하위 폴더 이름이 곧 라벨이고, 이름을 정렬해 0, 1, 2… 번호를 붙여요(class_to_idx로 확인).",
+  "analogy": "'cat' 서랍, 'dog' 서랍에 사진을 나눠 넣어 두면 서랍 이름표가 곧 정답이 되는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "torchvision",
+  "aliases": [],
+  "full": "torchvision (PyTorch 이미지 패키지)",
+  "short": "PyTorch용 이미지 도구 모음. 이미지 폴더 읽기(ImageFolder), 변환·증강(transforms), 사전학습 모델(ResNet18 등)이 들어 있어요. torch와 버전 짝을 맞춰 설치해야 해요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Pillow",
+  "aliases": [
+   "PIL"
+  ],
+  "full": "Pillow (파이썬 이미지 라이브러리, import 이름은 PIL)",
+  "short": "PNG·JPG 같은 이미지 파일을 열고 다루는 파이썬 라이브러리. 설치는 pillow, 코드에서는 PIL로 불러요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "transform",
+  "aliases": [
+   "transforms.Compose",
+   "Transforms",
+   "transforms"
+  ],
+  "full": "torchvision.transforms (이미지 변환)",
+  "short": "이미지를 모델에 넣기 전에 거치는 변환 단계들. 크기 맞추기(Resize), Tensor로 바꾸기(ToTensor), 정규화(Normalize), 증강 등을 Compose로 순서대로 연결해요.",
+  "analogy": "사진을 규격 액자에 맞게 자르고 보정하는 전처리 공정.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "ToTensor",
+  "aliases": [
+   "transforms.ToTensor"
+  ],
+  "full": "transforms.ToTensor()",
+  "short": "PIL 이미지 [H, W, C], 0~255 정수를 Tensor [C, H, W], 0~1 실수로 바꿔 줘요. 이게 없으면 모델이 이미지를 못 받아요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Normalize",
+  "aliases": [
+   "transforms.Normalize"
+  ],
+  "full": "transforms.Normalize(mean, std)",
+  "short": "채널마다 (값 − 평균) ÷ 표준편차로 숫자 범위를 맞춰요. 사전학습 모델을 쓸 땐 그 모델이 배울 때 쓴 평균·표준편차를 그대로 써야 해요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "증강",
+  "aliases": [
+   "Augmentation",
+   "augmentation",
+   "데이터 증강"
+  ],
+  "full": "Data Augmentation (데이터 증강)",
+  "short": "사진을 뒤집고, 살짝 돌리고, 밝기를 바꾸는 등 정답이 안 바뀌는 변형으로 학습 예시를 늘리는 기법. 과적합을 줄여요. train에만 쓰고, 정답을 바꾸는 변형(예: 6↔9 회전)은 금지예요.",
+  "analogy": "같은 문제를 숫자만 바꿔 여러 번 풀어 보는 것.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "eval 모드",
+  "aliases": [
+   "train 모드"
+  ],
+  "full": "model.train() / model.eval()",
+  "short": "모델을 학습용·평가용 동작으로 바꾸는 스위치. BatchNorm·Dropout처럼 둘 때 동작이 다른 층이 있어서, 평가·추론 전에는 꼭 model.eval()을 불러요.",
+  "analogy": "연습 모드와 실전 모드 전환 버튼.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "inference_mode",
+  "aliases": [
+   "torch.inference_mode()",
+   "torch.inference_mode"
+  ],
+  "full": "torch.inference_mode()",
+  "short": "이 블록 안에서는 기울기 기록을 끄는 설정. 평가·추론에는 역전파가 필요 없으니 메모리와 시간을 아껴요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "state_dict",
+  "aliases": [
+   "load_state_dict",
+   "state_dict()"
+  ],
+  "full": "state_dict (가중치 사전)",
+  "short": "모델의 층 이름 → 가중치 값을 담은 사전. 저장(torch.save)·불러오기(load_state_dict)에 써요. 구조가 같은 모델에만 넣을 수 있어요.",
+  "analogy": "모델의 '기억'만 따로 꺼내 담은 USB.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "혼동행렬",
+  "aliases": [
+   "혼동 행렬",
+   "Confusion Matrix"
+  ],
+  "full": "Confusion Matrix (혼동 행렬)",
+  "short": "정답 클래스(행)와 예측 클래스(열)별로 개수를 센 표. 어떤 클래스를 어느 쪽으로 잘못 맞히는지 한눈에 보여 줘요.",
+  "analogy": "'고양이를 강아지로 착각한 횟수'까지 적어 둔 오답 노트.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "전이학습",
+  "aliases": [
+   "Transfer Learning",
+   "Transfer learning"
+  ],
+  "full": "Transfer Learning (전이학습)",
+  "short": "큰 데이터로 미리 학습한 모델을 가져와, 마지막 Head만 내 문제에 맞게 바꿔 다시 배우는 방법. 데이터가 적어도 빨리, 덜 과적합되게 배워요.",
+  "analogy": "이미 공부한 사람의 뇌를 빌려 와서 새 과목 요점만 더 가르치는 것.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "사전학습",
+  "aliases": [
+   "Pretrained",
+   "pretrained",
+   "사전학습 모델"
+  ],
+  "full": "Pre-training (사전학습)",
+  "short": "다른 큰 데이터(예: ImageNet)로 미리 학습해 두는 것. 이렇게 만든 가중치를 내려받아 출발점으로 써요.",
+  "analogy": "기초 교양을 미리 다 배워 둔 상태.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "ImageNet",
+  "aliases": [
+   "IMAGENET1K_V1"
+  ],
+  "full": "ImageNet (대규모 이미지 데이터셋)",
+  "short": "사진 100만 장 이상, 1000개 클래스로 된 유명한 이미지 데이터셋. 많은 사전학습 모델이 이걸로 배웠어요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "ResNet18",
+  "aliases": [
+   "ResNet",
+   "resnet18"
+  ],
+  "full": "ResNet-18 (Residual Network, 18층)",
+  "short": "층 18개짜리 대표적인 CNN 모델. ImageNet 사전학습 가중치를 torchvision에서 바로 받아 전이학습에 써요. 마지막 Head는 model.fc예요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "동결",
+  "aliases": [
+   "얼리기",
+   "Freeze"
+  ],
+  "full": "Freeze (가중치 고정)",
+  "short": "사전학습된 층의 가중치를 학습 중에 안 바뀌게 고정하는 것. 코드로는 requires_grad = False. 새 Head가 처음에 내는 엉뚱한 기울기로부터 좋은 값을 지켜요.",
+  "analogy": "잘 지어 둔 건물 뼈대는 손대지 않고 인테리어만 바꾸는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "requires_grad",
+  "aliases": [],
+  "full": "requires_grad (기울기 계산 여부)",
+  "short": "파라미터마다 붙은 스위치. False면 그 값의 기울기를 계산하지 않아 학습해도 안 바뀌어요(Freeze).",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Fine-tuning",
+  "aliases": [
+   "미세조정",
+   "파인튜닝",
+   "Fine-tune"
+  ],
+  "full": "Fine-tuning (미세조정)",
+  "short": "사전학습된 층의 일부 또는 전체를 다시 열어 작은 학습률(lr)로 살짝만 고치며 학습하는 것. 보통 뒤쪽 층(layer4)부터 열어요.",
+  "analogy": "이미 잘 맞는 기성복을 내 몸에 맞게 살짝 수선하는 것.",
+  "day": 11,
+  "key": true
+ },
+ {
+  "term": "Head-only",
+  "aliases": [],
+  "full": "Head-only 전이학습",
+  "short": "Backbone은 전부 얼리고 새 Head만 학습하는 방식. ResNet18·2클래스면 학습할 파라미터가 1,026개뿐이라 빠르고 과적합 위험이 작아요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Partial",
+  "aliases": [
+   "부분 미세조정"
+  ],
+  "full": "Partial fine-tuning (부분 미세조정)",
+  "short": "뒤쪽 일부 층(예: layer4)과 Head만 열어 학습하는 방식. 연 층은 작은 lr(1e-4), 새 Head는 큰 lr(1e-3)로 따로 줘요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "처리량",
+  "aliases": [
+   "images/s",
+   "samples/s",
+   "Throughput"
+  ],
+  "full": "Throughput (처리량)",
+  "short": "1초에 처리한 이미지(샘플) 수. 처리한 개수 ÷ 걸린 시간(초)으로 계산해서, batch나 데이터 크기가 달라도 속도를 비교할 수 있어요.",
+  "analogy": "공장 라인의 '시간당 생산량'.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "워밍업",
+  "aliases": [
+   "Warm-up",
+   "warm-up"
+  ],
+  "full": "Warm-up (워밍업)",
+  "short": "시간을 재기 전에 몇 번 미리 돌려 두는 것. 첫 실행엔 초기화·메모리 준비 시간이 섞여 유난히 느리기 때문이에요.",
+  "analogy": "달리기 기록 재기 전에 몸 푸는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "synchronize",
+  "aliases": [
+   "torch.cuda.synchronize()",
+   "torch.cuda.synchronize"
+  ],
+  "full": "torch.cuda.synchronize() (GPU 작업 끝날 때까지 기다리기)",
+  "short": "GPU는 명령만 받아 두고 파이썬은 바로 다음 줄로 넘어가요(비동기). 이걸 시간 재기 전후에 불러야 GPU 계산이 진짜 끝난 시점까지 잴 수 있어요.",
+  "analogy": "주문만 넣고 바로 나가지 말고, 음식이 다 나올 때까지 기다렸다가 시간을 재는 것.",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "Peak VRAM",
+  "aliases": [
+   "Peak Memory",
+   "max_memory_allocated"
+  ],
+  "full": "Peak VRAM (GPU 메모리 최대 사용량)",
+  "short": "측정 구간에서 GPU 메모리(VRAM)를 가장 많이 쓴 순간의 양. 빨라도 메모리가 모자라면 못 돌리니 시간과 함께 기록해요. CPU에선 N/A로 적어요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "perf_counter",
+  "aliases": [
+   "time.perf_counter()",
+   "time.perf_counter"
+  ],
+  "full": "time.perf_counter() (정밀 시계)",
+  "short": "짧은 구간의 시간을 정밀하게 재는 파이썬 시계(초 단위). 시작·끝 값의 차이가 걸린 시간이에요.",
+  "analogy": "스톱워치.",
+  "day": 11,
+  "key": false
+ }
+]

@@ -1,0 +1,26 @@
+# SeSAC Vision·멀티모달 AI 부트캠프 학습 노트
+
+> 비전공 수강생이 매일 강의 PDF를 바탕으로 정리한 학습 노트. 머신러닝(Day6~8), 딥러닝(Day9~12, 14), 컴퓨터비전(Day13, 15, 16). 각 Day 페이지는 이론, 대응하는 PyTorch/scikit-learn/OpenCV/Ultralytics 명령어와 인자, 필요한 패키지, '왜 그런지' 설명, 직접 만든 그림을 담고 있다.
+
+AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가장 쉽다.
+
+## 전체 본문 (글만)
+- [all-notes.md](https://yiji-1015.github.io/sesac-notes/all-notes.md): 모든 Day 본문 + Day별 용어 설명을 한 파일로
+- [용어 사전](https://yiji-1015.github.io/sesac-notes/glossary.html): 수업 용어 전체 (쉬운 설명·비유)
+
+## Day별 페이지
+- [Day6 · 회귀·분류·KNN·모델 비교](https://yiji-1015.github.io/sesac-notes/notes/day06.html): 2026-10-26(월) · 선형회귀 · 로지스틱회귀 · KNN · 스케일링 · 공정한 비교
+- [Day7 · 트리·앙상블·교차검증](https://yiji-1015.github.io/sesac-notes/notes/day07.html): 2026-10-27(화) · Decision Tree · Random Forest · XGBoost · 특성 중요도 · 5-fold CV
+- [Day8 · 평가지표·특성설계·K-Means](https://yiji-1015.github.io/sesac-notes/notes/day08.html): 2026-10-28(수) · Precision/Recall/F1 · ROC-AUC · 교차검증 · Feature Engineering · K-Means · 최종 평가
+- [Day9 · GPU·Tensor·ANN](https://yiji-1015.github.io/sesac-notes/notes/day09.html): 2026-10-29(목) · GPU·CUDA · Tensor · Autograd · ANN · 학습 루프
+- [Day10 · Optimizer·Regularization (학습 안정화)](https://yiji-1015.github.io/sesac-notes/notes/day10.html): 2026-10-30(금) · Optimizer · 학습률 · Batch·Epoch · 과적합 · Dropout · BatchNorm · Early Stopping
+- [Day11 · CNN·이미지 분류·전이학습](https://yiji-1015.github.io/sesac-notes/notes/day11.html): 2026-11-02(월) · 합성곱 · Kernel · Pooling · BatchNorm · ImageFolder · 증강 · ResNet18 전이학습 · CPU/GPU 측정
+- [Day12 · 순서 모델 (RNN · LSTM · Autoencoder · Transformer)](https://yiji-1015.github.io/sesac-notes/notes/day12.html): 2026-11-02(월) · Padding/Mask · RNN · LSTM · Autoencoder · Attention · Transformer · 아키텍처 비교 · 길이·속도 측정
+- [Day13 · OpenCV 이미지·영상 전처리](https://yiji-1015.github.io/sesac-notes/notes/day13.html): 2026-11-04(수) · 이미지 배열 · 색공간 · Resize · Filter · Threshold · 형태학 · 영상 · 증강 · 검증
+- [Day14 · 전이학습과 오류 분석](https://yiji-1015.github.io/sesac-notes/notes/day14.html): 2026-11-05(목) · 데이터셋 설계 · 전이학습 · Fine-tuning · 클래스 불균형 · Macro F1 · Grad-CAM
+- [Day15 · 객체탐지와 YOLO](https://yiji-1015.github.io/sesac-notes/notes/day15.html): 2026-11-06(금) · 객체탐지 · IoU · mAP · YOLO 학습/추론 · 추적
+- [Day16 · OCR → 문서 구조화 → VLM 질의응답 → 엣지 배포](https://yiji-1015.github.io/sesac-notes/notes/day16.html): 2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · JSON 구조화 · VLM · Grounding · Hybrid · TensorRT · Jetson · DeepStream
+
+## 참고
+- 저장소(원본 HTML·그림 생성 스크립트): https://github.com/Yiji-1015/sesac-notes
+- 노트는 수강생 정리본이며 강의 원본 PDF는 포함하지 않는다.

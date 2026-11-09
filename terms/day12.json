@@ -1,0 +1,577 @@
+[
+ {
+  "term": "순서 데이터",
+  "aliases": [
+   "Sequence",
+   "시퀀스",
+   "순서 모델"
+  ],
+  "full": "Sequence data (순서 데이터)",
+  "short": "값의 순서 자체가 의미를 가지는 데이터. 센서 기록·문장·로그·오디오처럼 순서를 섞으면 뜻이 달라져요.",
+  "analogy": "'개가 사람을 물었다'와 '사람이 개를 물었다' — 같은 단어라도 순서가 뜻을 바꿔요.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "시계열",
+  "aliases": [
+   "Time series"
+  ],
+  "full": "Time series (시계열)",
+  "short": "시간 순서대로 일정 간격으로 쌓인 값. 설비 센서값, 주가, 기온 기록 같은 것이에요. 시간 순서를 유지한 채 train/valid/test를 나눠야 해요.",
+  "analogy": "매일 같은 시각에 적은 체온 기록표.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "[B, T, F]",
+  "aliases": [
+   "BTF",
+   "TBF",
+   "[T, B, F]"
+  ],
+  "full": "B(Batch, 개수) · T(Time, 시점 수) · F(Feature, 시점마다 특성 수)",
+  "short": "순서 데이터를 담는 Tensor 축 순서. 예: 과거 12개 값으로 다음 값을 맞히는 Window 32개면 [32, 12, 1]. PyTorch 순서 모델 기본값은 [T, B, F]라 batch_first=True로 맞춰요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "시점",
+  "aliases": [
+   "Time step",
+   "time step"
+  ],
+  "full": "Time step (시점)",
+  "short": "순서 안의 한 칸(한 순간). 순서 모델은 시점마다 같은 계산을 반복해요. 시점의 개수가 길이 T예요.",
+  "analogy": "만화책의 한 컷.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "Padding",
+  "aliases": [
+   "패딩"
+  ],
+  "full": "Padding (채워 넣기)",
+  "short": "모자란 자리를 가짜 값(보통 0)으로 채우는 것. CNN에서는 사진 가장자리 바깥에 0을 덧대 크기를 유지하고, 순서 데이터에서는 짧은 순서 끝에 0을 채워 길이를 맞춰요. 채운 값은 진짜 데이터가 아니에요.",
+  "analogy": "사진 둘레에 흰 여백을 붙이거나, 짧은 줄 끝에 빈칸을 채워 표 칸을 맞추는 것.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "Mask",
+  "aliases": [
+   "마스크",
+   "Padding Mask",
+   "key_padding_mask",
+   "src_key_padding_mask"
+  ],
+  "full": "Mask (마스크)",
+  "short": "어느 칸을 계산에서 뺄지 True/False로 표시한 표. Padding Mask는 '여기는 채운 가짜 칸'을 표시해 평균·Attention에서 빼게 해요. PyTorch Attention에선 True = 차단이에요.",
+  "analogy": "시험지에서 채점하지 않을 칸을 가리는 가림판.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "lengths",
+  "aliases": [
+   "실제 길이"
+  ],
+  "full": "lengths (샘플별 실제 길이)",
+  "short": "Padding을 채우기 전 각 순서의 진짜 길이 목록. 이걸 함께 들고 다녀야 평균·마지막 값을 Padding 없이 계산할 수 있어요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "pad_sequence",
+  "aliases": [
+   "pad_sequence()"
+  ],
+  "full": "torch.nn.utils.rnn.pad_sequence",
+  "short": "길이가 다른 Tensor 여러 개를 가장 긴 길이에 맞춰 0으로 채워 한 묶음 Tensor로 만들어 줘요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "pack_padded_sequence",
+  "aliases": [
+   "pack_padded_sequence()",
+   "PackedSequence",
+   "pad_packed_sequence"
+  ],
+  "full": "torch.nn.utils.rnn.pack_padded_sequence",
+  "short": "RNN·LSTM에 '샘플마다 여기까지만 진짜야'를 알려 주는 포장. Padding 칸을 아예 계산하지 않아서 마지막 상태 h_n이 진짜 마지막 시점 값이 돼요. 다시 펼 때는 pad_packed_sequence를 써요.",
+  "analogy": "빈칸은 건너뛰고 글자 있는 칸만 읽으라고 표시해 주는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Window",
+  "aliases": [
+   "Sliding Window",
+   "unfold"
+  ],
+  "full": "Sliding Window (창 자르기)",
+  "short": "긴 시계열을 일정 길이 구간으로 잘라 '과거 12개 → 다음 1개' 같은 문제 여러 개로 만드는 것. 창 개수 = 길이 − 창 크기 + 1(한 칸씩 옮길 때).",
+  "analogy": "긴 필름을 한 칸씩 밀면서 12컷씩 끊어 보는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "누수",
+  "aliases": [
+   "Data leakage",
+   "leakage"
+  ],
+  "full": "Data Leakage (데이터 누수)",
+  "short": "검증·테스트용 정보(또는 미래 값)가 학습에 섞여 들어가 점수가 실제보다 좋게 나오는 문제. 시계열은 시간으로 먼저 나눈 뒤 Window를 잘라야 막을 수 있어요.",
+  "analogy": "시험 문제를 미리 보고 공부한 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Many-to-one",
+  "aliases": [],
+  "full": "Many-to-one (여러 입력 → 출력 하나)",
+  "short": "순서 전체를 읽고 마지막에 클래스나 값 하나를 내는 구조. 예: 문장 감성 분류.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Many-to-many",
+  "aliases": [],
+  "full": "Many-to-many (여러 입력 → 시점마다 출력)",
+  "short": "시점마다 태그·상태·예측을 하나씩 내는 구조. 예: 시점별 상태 표시.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Encoder–Decoder",
+  "aliases": [
+   "Encoder-Decoder"
+  ],
+  "full": "Encoder–Decoder (인코더–디코더)",
+  "short": "입력 순서를 Encoder가 읽어 요약하고, Decoder가 그 요약으로 길이가 다른 출력 순서를 만드는 구조. 예: 번역.",
+  "analogy": "한국어 문장을 듣고 머릿속에 정리한 뒤 영어로 다시 말하는 통역사.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "RNN",
+  "aliases": [
+   "Recurrent Neural Network",
+   "순환 신경망",
+   "nn.RNN"
+  ],
+  "full": "Recurrent Neural Network (순환 신경망)",
+  "short": "순서를 한 시점씩 읽으며, 지금 입력과 직전 메모(h)를 섞어 새 메모를 만드는 모델. 모든 시점에 같은 가중치를 써서 길이가 달라도 읽어요. h_t = tanh(W_x·x_t + W_h·h_(t−1) + b).",
+  "analogy": "글을 읽으며 적는 메모 한 장 — 칸이 정해져 있어 중요한 것만 적어요.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "Hidden state",
+  "aliases": [
+   "hidden state",
+   "은닉 상태",
+   "h_n",
+   "hidden_size"
+  ],
+  "full": "Hidden state (은닉 상태, h)",
+  "short": "지금까지 읽은 입력을 정해진 크기(hidden_size)로 요약한 값. 크기가 고정이라 다 담지 못하고 예측에 필요한 것 위주로 남아요. output은 모든 시점의 h, h_n은 마지막 시점의 h예요.",
+  "analogy": "책상 위에 꺼내 둔 메모.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "tanh",
+  "aliases": [],
+  "full": "Hyperbolic tangent (쌍곡탄젠트 함수)",
+  "short": "값을 −1~1 사이로 눌러 주는 활성화 함수. RNN은 같은 계산을 수십 번 반복하니 값이 폭주하지 않게 tanh로 감싸요.",
+  "analogy": "아무리 세게 눌러도 일정 높이 이상 안 올라가는 스프링.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "batch_first",
+  "aliases": [],
+  "full": "batch_first (Batch 축을 맨 앞에 둘지)",
+  "short": "True면 입력·출력을 [B, T, F] 순서로, 기본값 False면 [T, B, F]로 다뤄요. 데이터와 설정이 다르면 오류 없이 B와 T가 뒤바뀐 채 계산될 수 있어 위험해요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "양방향",
+  "aliases": [
+   "bidirectional",
+   "Bidirectional"
+  ],
+  "full": "Bidirectional (양방향)",
+  "short": "순서를 앞에서 뒤로, 뒤에서 앞으로 두 번 읽어 합치는 방식. 출력 크기가 2배(2H)가 돼요. 미래 예측에 쓸 땐 예측 시점 이후 값이 입력에 섞이지 않았는지 확인해요.",
+  "analogy": "문장을 앞에서도 읽고 뒤에서도 읽어 뜻을 확인하는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "기울기 소실",
+  "aliases": [
+   "Vanishing gradient",
+   "기울기 폭발",
+   "Exploding gradient"
+  ],
+  "full": "Vanishing / Exploding Gradient (기울기 소실·폭발)",
+  "short": "역전파가 긴 시간축을 거꾸로 지나며 같은 가중치를 계속 곱해서, 1보다 작으면 기울기가 0에 가까워져(소실) 먼 과거를 못 배우고, 1보다 크면 폭발하는 문제. 예: 0.9⁵⁰ ≈ 0.005.",
+  "analogy": "귓속말 전달 게임 — 사람이 많을수록 처음 말이 희미해져요.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "LSTM",
+  "aliases": [
+   "Long Short-Term Memory",
+   "nn.LSTM"
+  ],
+  "full": "Long Short-Term Memory (장단기 메모리)",
+  "short": "RNN에 오래 들고 가는 기억 통로(Cell state c)와 Gate를 더한 모델. 기억을 곱하지 않고 더해서 이어 가니까 긴 순서도 RNN보다 잘 기억해요. 파라미터는 RNN의 4배예요.",
+  "analogy": "메모 한 장(RNN)에 더해, 서랍 속 노트를 따로 두고 무엇을 지우고 적을지 정하는 사람.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "Cell state",
+  "aliases": [
+   "cell state",
+   "셀 상태",
+   "c_n"
+  ],
+  "full": "Cell state (셀 상태, c)",
+  "short": "LSTM 안에서만 오래 들고 가는 기억 통로. c_t = f ⊙ c_(t−1) + i ⊙ g처럼 '남길 양 + 새로 쓸 양'을 더해 이어 가요. 밖으로 나가는 건 h예요.",
+  "analogy": "서랍 속 노트 — 책상 위 메모(h)와 달리 오래 보관해요.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Gate",
+  "aliases": [
+   "게이트",
+   "Forget gate",
+   "Input gate",
+   "Output gate",
+   "forget gate",
+   "input gate",
+   "output gate"
+  ],
+  "full": "Gate (게이트: forget · input · output)",
+  "short": "정보를 얼마나 통과시킬지 0~1 비율로 정하는 장치. Forget gate는 이전 기억을 얼마나 남길지, Input gate는 새 정보를 얼마나 쓸지, Output gate는 기억 중 얼마나 꺼낼지 정해요. 비율도 학습으로 정해져요.",
+  "analogy": "수도꼭지 — 얼마나 열지(0~1)를 조절해요.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "MSE",
+  "aliases": [
+   "MSELoss",
+   "nn.MSELoss",
+   "평균제곱오차",
+   "Mean Squared Error"
+  ],
+  "full": "Mean Squared Error (평균제곱오차)",
+  "short": "예측과 정답의 차이를 제곱해 평균 낸 값. 숫자를 맞히는 문제(예측·재구성)의 손실로 써요. reduction=\"none\"이면 샘플마다 따로 구해요.",
+  "analogy": "과녁 중심에서 벗어난 거리를 제곱해 평균 낸 점수.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Autoencoder",
+  "aliases": [
+   "오토인코더",
+   "AE"
+  ],
+  "full": "Autoencoder (오토인코더)",
+  "short": "입력을 좁은 통로(Latent)로 줄였다가 다시 원래대로 되살리는 모델. 정답이 미래 값이 아니라 입력 자신이에요. 좁은 통로 때문에 데이터의 주요 패턴을 배워요.",
+  "analogy": "긴 글을 세 줄로 요약했다가 다시 풀어 쓰는 것.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "Encoder",
+  "aliases": [
+   "인코더"
+  ],
+  "full": "Encoder (인코더)",
+  "short": "입력을 읽어 더 작은(또는 문맥이 담긴) 표현으로 바꾸는 앞부분. Autoencoder에서는 x를 Latent z로 압축하고, Transformer Encoder는 문맥이 섞인 표현을 만들어요.",
+  "analogy": "긴 글을 요약하는 사람.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Decoder",
+  "aliases": [
+   "디코더"
+  ],
+  "full": "Decoder (디코더)",
+  "short": "Encoder가 만든 요약 표현을 받아 원하는 출력으로 풀어내는 뒷부분. Autoencoder에서는 z를 다시 x̂(재구성)로 되돌려요.",
+  "analogy": "요약본을 보고 원래 글을 다시 써 내는 사람.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Latent",
+  "aliases": [
+   "Latent z",
+   "잠재 표현",
+   "Latent space",
+   "잠재 공간"
+  ],
+  "full": "Latent representation (잠재 표현, z)",
+  "short": "Encoder가 입력을 압축해 만든 가운데의 작은 표현. 너무 넓으면 그대로 베끼기만 하고, 너무 좁으면 중요한 정보까지 잃어요. 칸마다 무슨 뜻인지는 따로 분석해야 해요.",
+  "analogy": "긴 글의 세 줄 요약본.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "재구성 오차",
+  "aliases": [
+   "Reconstruction error",
+   "재구성"
+  ],
+  "full": "Reconstruction error (재구성 오차)",
+  "short": "Autoencoder가 되살린 x̂와 원래 입력 x의 차이(보통 MSE). 작을수록 잘 되살린 거예요. 예측 MSE와는 정답·단위가 달라 같은 표에서 비교하지 않아요.",
+  "analogy": "요약본으로 다시 쓴 글이 원문과 얼마나 다른지 세는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "이상 후보",
+  "aliases": [
+   "이상 탐지",
+   "Anomaly detection"
+  ],
+  "full": "Anomaly candidate (이상 후보)",
+  "short": "정상 데이터로만 배운 Autoencoder가 잘 못 되살려 재구성 오차가 기준값보다 큰 샘플. 전처리 실수나 낯선 정상 데이터일 수도 있어 '이상'으로 확정하지 않고 점검 후보로만 표시해요.",
+  "analogy": "평소와 다른 소리가 나는 기계에 '점검 필요' 딱지를 붙이는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "임계값",
+  "aliases": [
+   "threshold",
+   "Threshold"
+  ],
+  "full": "Threshold (임계값, 기준값)",
+  "short": "이 값보다 크면 '후보'로 표시하는 기준선. valid 데이터의 오차 분포로 정하고(예: 상위 1%), test로 고르면 안 돼요.",
+  "analogy": "체온 37.5도 이상이면 발열로 보는 기준선.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Denoising",
+  "aliases": [
+   "Denoising Autoencoder"
+  ],
+  "full": "Denoising Autoencoder (잡음 제거 오토인코더)",
+  "short": "입력에만 노이즈를 섞어 넣고, 정답은 깨끗한 원본으로 두어 학습하는 Autoencoder. 노이즈를 걷어 내고 본래 모습을 되살리는 법을 배워요.",
+  "analogy": "얼룩진 사진을 보고 깨끗한 원본을 다시 그려 내는 연습.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Attention",
+  "aliases": [
+   "어텐션",
+   "Attention weight"
+  ],
+  "full": "Attention (어텐션, 주의 집중)",
+  "short": "순서대로 전달하는 대신, 모든 위치끼리의 관련도를 한 번에 계산해 필요한 위치를 비율대로 섞는 방법. weight = softmax(Q·Kᵀ/√d), 출력 = weight·V.",
+  "analogy": "회의에서 내 질문과 관련 있는 사람 말에 더 귀 기울이는 것.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "Query·Key·Value",
+  "aliases": [
+   "Query",
+   "Q·K·V",
+   "QKV"
+  ],
+  "full": "Query · Key · Value (질의 · 열쇠 · 값)",
+  "short": "Attention의 세 재료. Query(찾을 정보)와 Key(비교할 위치)를 비교해 얼마나 볼지 비율을 정하고, 그 비율대로 Value(합산할 내용)를 섞어요.",
+  "analogy": "회의에서 내 질문(Query)과 관련 있는 사람(Key)일수록 그 사람 말(Value)에 더 귀 기울이는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Self-Attention",
+  "aliases": [
+   "셀프 어텐션"
+  ],
+  "full": "Self-Attention (자기 어텐션)",
+  "short": "Query·Key·Value를 모두 같은 입력에서 만들어, 한 순서 안의 위치끼리 서로를 보게 하는 Attention. 코드로는 attn(x, x, x).",
+  "analogy": "한 문장 안의 단어들이 서로를 보며 '누가 누구와 관련 있나' 확인하는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Multi-head",
+  "aliases": [
+   "Multi-head Attention",
+   "MultiheadAttention",
+   "num_heads",
+   "nhead"
+  ],
+  "full": "Multi-head Attention (다중 헤드 어텐션)",
+  "short": "Q·K·V를 여러 갈래(head)로 나눠 Attention을 동시에 여러 번 하는 것. head마다 가까운 위치, 같은 종류 등 다른 관계를 따로 봐요. 차원 E가 head 수로 나누어떨어져야 해요.",
+  "analogy": "한 문서를 문법 담당, 내용 담당 등 여러 사람이 각자 관점으로 동시에 읽는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Transformer",
+  "aliases": [
+   "트랜스포머"
+  ],
+  "full": "Transformer (트랜스포머)",
+  "short": "Self-Attention을 중심으로 쌓은 모델. 모든 위치를 한 번에 직접 보니 병렬로 빠르게 계산하고 먼 위치도 바로 연결하지만, 길이 T면 비교가 T²번이라 길수록 무거워져요.",
+  "analogy": "책을 한 줄씩 읽는 대신 펼쳐 놓고 필요한 곳을 바로바로 짚어 보는 것.",
+  "day": 12,
+  "key": true
+ },
+ {
+  "term": "TransformerEncoderLayer",
+  "aliases": [
+   "Encoder Layer",
+   "TransformerEncoder",
+   "Transformer Encoder"
+  ],
+  "full": "nn.TransformerEncoderLayer / nn.TransformerEncoder",
+  "short": "Transformer Encoder 한 층 = Self-Attention + Feedforward, 각각 뒤에 Residual과 LayerNorm. 입력·출력 크기 [B, T, E]가 같아서 TransformerEncoder로 여러 층을 쌓아요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "임베딩",
+  "aliases": [
+   "nn.Embedding",
+   "Embedding"
+  ],
+  "full": "Embedding (임베딩)",
+  "short": "번호(단어 번호, 위치 번호 등)를 학습되는 숫자 벡터로 바꾸는 표. nn.Embedding(개수, 차원)은 번호 하나를 길이 '차원'짜리 벡터로 바꿔 줘요.",
+  "analogy": "사람 이름 대신 '키·나이·취미' 숫자 카드로 소개하는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Position Embedding",
+  "aliases": [
+   "Positional encoding",
+   "Positional Encoding",
+   "Position Encoding",
+   "위치 정보"
+  ],
+  "full": "Position Embedding / Encoding (위치 정보)",
+  "short": "Attention은 순서를 모르니까, 위치마다 다른 값을 입력에 더해 '몇 번째 자리인지' 알려 주는 것. 학습되는 Embedding이면 입력 길이가 max_len을 넘으면 안 돼요.",
+  "analogy": "카드마다 순서 번호 스티커를 붙여 두는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Causal Mask",
+  "aliases": [
+   "attn_mask"
+  ],
+  "full": "Causal Mask (인과 마스크)",
+  "short": "다음 토큰을 예측할 때 미래 위치를 못 보게 가리는 Mask. 미래를 보면 정답을 미리 보는 셈이라서요.",
+  "analogy": "시험 볼 때 다음 장을 넘겨 보지 못하게 하는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "토큰",
+  "aliases": [
+   "Token"
+  ],
+  "full": "Token (토큰)",
+  "short": "문장 등 순서를 모델이 다루기 위해 자른 한 단위(단어·글자 조각 등). Transformer 입력의 한 위치가 보통 토큰 하나예요.",
+  "analogy": "문장을 자른 레고 블록 한 개.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Residual",
+  "aliases": [
+   "잔차 연결",
+   "Residual connection"
+  ],
+  "full": "Residual connection (잔차 연결)",
+  "short": "층의 입력을 변환 결과에 그대로 더해 주는 지름길(입력 + 변환 결과). 기울기가 이 길로 층을 건너 흘러서 여러 층을 쌓아도 학습이 돼요.",
+  "analogy": "계단 옆에 놓인 엘리베이터 — 바로 오르내릴 길이 하나 더 있는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "LayerNorm",
+  "aliases": [
+   "Layer Normalization",
+   "layer_norm_eps"
+  ],
+  "full": "Layer Normalization (층 정규화)",
+  "short": "위치 하나 안의 Feature 값들끼리 평균·크기를 맞추는 정규화. 다른 샘플과 묶지 않아서 길이·Padding이 제각각인 순서 데이터에 잘 맞아요(BatchNorm은 여러 샘플을 묶어 정규화).",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Feedforward",
+  "aliases": [
+   "FFN",
+   "Feed-forward",
+   "dim_feedforward"
+  ],
+  "full": "Feedforward Network (피드포워드 층)",
+  "short": "Transformer 층 안에서 위치마다 따로 적용하는 작은 Linear–활성화–Linear 망. Attention이 위치끼리 섞었다면, FFN은 각 위치 안을 변환해요. dim_feedforward는 중간 크기(기본 2048)예요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "d_model",
+  "aliases": [
+   "embed_dim"
+  ],
+  "full": "d_model / embed_dim (임베딩 차원 E)",
+  "short": "Transformer에서 위치 하나를 나타내는 벡터의 길이 E. head 수(nhead)로 나누어떨어져야 해요(예: 16 ÷ 4 = head당 4).",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "O(T²)",
+  "aliases": [
+   "O(T)"
+  ],
+  "full": "Big-O 표기 (길이에 따른 계산량)",
+  "short": "길이 T가 늘 때 계산량이 어떻게 늘어나는지 나타낸 표기. RNN·LSTM은 O(T)(길이 2배 → 2배), Attention은 모든 위치 쌍을 비교해서 O(T²)(길이 2배 → 4배)예요.",
+  "analogy": "반 학생이 2배가 되면 출석 부르기는 2배, 서로 악수하기는 약 4배.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "AUC",
+  "aliases": [
+   "ROC AUC"
+  ],
+  "full": "Area Under the ROC Curve (ROC 곡선 아래 넓이)",
+  "short": "분류 모델이 양성과 음성을 얼마나 잘 구분하는지 0.5~1로 나타낸 지표. 1에 가까울수록 좋고, 0.5면 동전 던지기 수준이에요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ }
+]

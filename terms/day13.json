@@ -1,0 +1,448 @@
+[
+ {
+  "term": "픽셀",
+  "aliases": [
+   "Pixel"
+  ],
+  "full": "Pixel (화소)",
+  "short": "사진을 이루는 가장 작은 칸 하나. 위치 (y, x)마다 숫자가 들어 있고, 컬러면 칸 하나에 숫자 3개(B, G, R)가 있어요.",
+  "analogy": "모자이크 그림의 타일 한 조각.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "채널",
+  "aliases": [
+   "Channel"
+  ],
+  "full": "Channel (색 채널)",
+  "short": "픽셀 하나에 담긴 숫자의 개수이자 그 각각의 층. 컬러는 B·G·R 3채널, Gray는 1채널이에요. shape의 C가 채널 수예요.",
+  "analogy": "빨강·초록·파랑 셀로판지 세 장을 겹쳐 하나의 색을 만드는 것.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "BGR",
+  "aliases": [],
+  "full": "Blue, Green, Red (색 순서)",
+  "short": "OpenCV(imread)가 색을 저장하는 순서. 보통 쓰는 RGB와 순서가 반대라서, Matplotlib 등으로 넘길 땐 cvtColor로 RGB로 바꿔야 빨강↔파랑이 안 뒤바뀌어요.",
+  "analogy": "같은 주소를 '시·구·동'으로 쓰느냐 '동·구·시'로 쓰느냐의 차이.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "RGB",
+  "aliases": [],
+  "full": "Red, Green, Blue (색 순서)",
+  "short": "빨강·초록·파랑 순서로 색을 적는 방식. Matplotlib·PIL·사전학습 모델은 RGB를 기대해요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "shape",
+  "aliases": [
+   "img.shape"
+  ],
+  "full": "Array shape (배열 모양)",
+  "short": "배열의 크기를 (세로 H, 가로 W, 채널 C) 순서로 알려 주는 값. 예: (240, 320, 3). Gray는 (H, W)예요.",
+  "analogy": "상자에 적힌 '세로×가로×층수' 표시.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "uint8",
+  "aliases": [],
+  "full": "unsigned 8-bit integer (부호 없는 8비트 정수)",
+  "short": "0~255만 담을 수 있는 숫자 자료형. 이미지 기본 형식이라, 그냥 더하면 255를 넘쳐 0 쪽으로 되돌아갈 수 있어요(250+30 → 24).",
+  "analogy": "255까지만 있는 계량기 — 넘으면 다시 0부터 돈다.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "Gray",
+  "aliases": [
+   "Grayscale",
+   "회색조"
+  ],
+  "full": "Grayscale (회색조)",
+  "short": "색 3개를 섞어 밝기 하나로 만든 1채널 이미지. 경계·이진화는 밝기만 있으면 되어서 보통 Gray로 바꾼 뒤 처리해요.",
+  "analogy": "컬러 사진을 흑백 복사기로 복사한 것.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "색공간",
+  "aliases": [
+   "Color space"
+  ],
+  "full": "Color space",
+  "short": "색을 숫자로 나타내는 방식(BGR, RGB, Gray, HSV 등). 정답이 있는 게 아니라 목적에 맞게 골라요.",
+  "analogy": "같은 장소를 주소로도, 위도·경도로도 적을 수 있는 것.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "HSV",
+  "aliases": [],
+  "full": "Hue, Saturation, Value (색상·채도·명도)",
+  "short": "색을 색 종류(H)·진하기(S)·밝기(V)로 나눠 적는 방식. 조명이 바뀌어도 H는 비교적 그대로라 특정 색을 골라낼 때 좋아요. OpenCV에선 H가 0~179.",
+  "analogy": "'무슨 색인지'와 '얼마나 밝은지'를 따로 적은 물감 이름표.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Resize",
+  "aliases": [
+   "resize"
+  ],
+  "full": "Resize (크기 바꾸기)",
+  "short": "이미지 크기를 바꾸는 것. cv2.resize의 크기는 (W, H) 순서라 shape (H, W)와 반대예요. 비율이 다르면 찌그러져요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "보간법",
+  "aliases": [
+   "보간",
+   "Interpolation"
+  ],
+  "full": "Interpolation (보간법)",
+  "short": "크기를 바꿀 때 새 픽셀 값을 주변 값으로 정하는 방법. 줄일 땐 여러 칸을 요약하고, 키울 땐 없던 칸 값을 추정해요.",
+  "analogy": "띄엄띄엄 찍힌 점 사이를 자연스럽게 이어 그리는 것.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "INTER_AREA",
+  "aliases": [],
+  "full": "Area interpolation (면적 평균 보간)",
+  "short": "줄어드는 칸이 덮는 면적의 평균으로 값을 정하는 보간법. 축소할 때 잔무늬·깨짐이 적어 자주 써요. (기본값은 INTER_LINEAR)",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "INTER_NEAREST",
+  "aliases": [],
+  "full": "Nearest-neighbor interpolation (최근접 보간)",
+  "short": "가장 가까운 픽셀 값을 그대로 복사하는 보간법. 중간값이 안 생겨서 0/255 Mask 크기를 바꿀 때 적합하지만, 계단 현상이 생겨요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Kernel",
+  "aliases": [
+   "필터",
+   "Filter"
+  ],
+  "full": "Image filter (필터)",
+  "short": "Kernel을 이미지 위로 옮기며 주변 픽셀 값을 섞어 새 값을 만드는 처리. 흐리게(Blur)·선명하게·경계 찾기 등에 써요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Kernel",
+  "aliases": [
+   "커널",
+   "Filter"
+  ],
+  "full": "Kernel (작은 창, 필터 가중치)",
+  "short": "필터·형태학 연산에서 이미지 위를 옮겨 다니는 작은 숫자 창(예: 3×3). 창 안 값끼리 곱해 더하는 계산은 CNN의 합성곱과 같아요.",
+  "analogy": "사진 위를 한 칸씩 미끄러지는 돋보기.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "Blur",
+  "aliases": [
+   "블러"
+  ],
+  "full": "Blur (흐리게 하기, Smoothing)",
+  "short": "주변 픽셀 값을 섞어 이미지를 부드럽게 흐리는 것. 잡음은 줄지만 세부·경계도 함께 흐려져요.",
+  "analogy": "젖은 붓으로 그림을 살살 문질러 번지게 하는 것.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "GaussianBlur",
+  "aliases": [
+   "Gaussian Blur",
+   "가우시안 블러"
+  ],
+  "full": "Gaussian Blur",
+  "short": "가운데 칸에 더 큰 가중치를 준 평균으로 흐리는 필터. 평균 필터보다 자연스럽게 흐려지고, Canny·Otsu 전에 잡음을 줄일 때 많이 써요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "medianBlur",
+  "aliases": [
+   "Median Blur",
+   "Median 필터"
+  ],
+  "full": "Median Blur (중앙값 필터)",
+  "short": "이웃 값을 줄 세운 뒤 가운데 값을 고르는 필터. 튀는 점(소금·후추 잡음)이 아예 뽑히지 않아 점 잡음 제거에 강해요. ksize는 1보다 큰 홀수.",
+  "analogy": "반 키를 줄 세워 딱 가운데 학생 키를 대표로 고르는 것 — 엄청 큰 한 명에 휘둘리지 않음.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "bilateralFilter",
+  "aliases": [
+   "Bilateral",
+   "Bilateral Filter"
+  ],
+  "full": "Bilateral Filter (양방향 필터)",
+  "short": "거리뿐 아니라 밝기 차이까지 보고 섞는 필터. 경계 건너편은 거의 안 섞어서 경계를 지키며 흐리지만, 비교적 느려요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "소금·후추 잡음",
+  "aliases": [
+   "점 잡음",
+   "salt-and-pepper"
+  ],
+  "full": "Salt-and-pepper noise",
+  "short": "주변과 동떨어진 흰 점(255)·검은 점(0)이 여기저기 박힌 잡음. 평균 필터로는 흐린 점이 남고, Median 필터로 잘 지워져요.",
+  "analogy": "사진 위에 소금과 후추를 뿌려 놓은 모양.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Edge",
+  "aliases": [],
+  "full": "Edge (경계, 윤곽)",
+  "short": "밝기가 갑자기 바뀌는 곳. 물체의 윤곽선이 보통 여기에 있어요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Canny",
+  "aliases": [
+   "Canny Edge"
+  ],
+  "full": "Canny Edge Detector",
+  "short": "경계만 흰색(255)으로 남기는 방법. 기준값 2개를 써서 강한 경계는 남기고, 약한 경계는 강한 경계에 이어진 것만 남겨요. 잡음 때문에 보통 Blur 후 사용.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "임계값",
+  "aliases": [
+   "이진화",
+   "Thresholding",
+   "Threshold"
+  ],
+  "full": "Thresholding (이진화)",
+  "short": "기준값 T로 칸마다 0(배경)/255(물체)를 정하는 것. 밝기 > T면 255, 아니면 0. '얼마나 밝은가'를 '여기가 물체인가?'로 바꿔 줘요.",
+  "analogy": "시험 점수를 합격선 기준으로 '합격/불합격' 두 가지로만 나누는 것.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "히스토그램",
+  "aliases": [
+   "Histogram"
+  ],
+  "full": "Histogram (밝기 분포 막대그래프)",
+  "short": "밝기 값(0~255)마다 픽셀이 몇 개인지 센 막대그래프. 물체·배경 밝기가 두 봉우리로 갈리는지 볼 수 있어요.",
+  "analogy": "반 학생들 키를 구간별로 세어 그린 막대그래프.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Otsu",
+  "aliases": [
+   "THRESH_OTSU",
+   "오츠"
+  ],
+  "full": "Otsu's method (오츠 자동 이진화)",
+  "short": "밝기 히스토그램을 보고 어두운 무리와 밝은 무리가 가장 잘 갈리는 기준값 T를 자동으로 찾는 이진화. 사진마다 T를 손으로 정하지 않아도 돼요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Adaptive Threshold",
+  "aliases": [
+   "Adaptive",
+   "adaptiveThreshold"
+  ],
+  "full": "Adaptive Thresholding (적응형 이진화)",
+  "short": "칸마다 주변 영역(blockSize)의 평균에서 C를 뺀 값을 그 칸만의 기준으로 쓰는 이진화. 조명이 고르지 않은 사진에 강해요.",
+  "analogy": "교실 전체 평균이 아니라 내 주변 자리 평균과 비교해 판정하는 것.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Mask",
+  "aliases": [
+   "마스크"
+  ],
+  "full": "Mask (마스크, 0/255 영역 표시)",
+  "short": "관심 있는 영역은 255(흰색), 나머지는 0(검정)으로 표시한 1채널 이미지. 중간값이 생기면 뜻이 흐려져서 손실 없는 png로 저장해요.",
+  "analogy": "필요한 부분만 구멍 뚫린 종이 덮개.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "전경",
+  "aliases": [
+   "Foreground"
+  ],
+  "full": "Foreground (전경, 물체 영역)",
+  "short": "이진 이미지에서 물체로 본 영역. 관례상 흰색(255)이 전경이에요. 물체가 어두우면 THRESH_BINARY_INV로 뒤집어서 맞춰요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "형태학 연산",
+  "aliases": [
+   "형태학",
+   "Morphology"
+  ],
+  "full": "Morphological operations (형태학 연산)",
+  "short": "이진화 결과의 흰 영역을 Kernel로 깎거나(침식) 부풀려(팽창) 먼지·구멍을 정리하고 모양을 다듬는 처리.",
+  "analogy": "찰흙 덩어리 가장자리를 깎거나 덧붙여 모양을 다듬는 것.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "Erosion",
+  "aliases": [
+   "침식",
+   "Erode"
+  ],
+  "full": "Erosion (침식)",
+  "short": "Kernel 안이 모두 흰색일 때만 흰색을 남겨, 흰 영역을 깎아 줄이는 연산. 작은 흰 점은 사라지고 붙은 물체가 떨어져요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Dilation",
+  "aliases": [
+   "팽창",
+   "Dilate"
+  ],
+  "full": "Dilation (팽창)",
+  "short": "Kernel 안에 흰색이 하나라도 있으면 흰색으로 만들어, 흰 영역을 부풀리는 연산. 끊긴 부분이 이어져요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Opening",
+  "aliases": [
+   "MORPH_OPEN",
+   "열기 연산"
+  ],
+  "full": "Opening (열기: 침식 → 팽창)",
+  "short": "먼저 깎고 다시 부풀리는 연산. Kernel보다 작은 흰 먼지는 사라지고, 큰 물체는 원래 크기로 돌아와요. 단, 작은 진짜 결함도 지울 수 있어요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Closing",
+  "aliases": [
+   "MORPH_CLOSE",
+   "닫기 연산"
+  ],
+  "full": "Closing (닫기: 팽창 → 침식)",
+  "short": "먼저 부풀리고 다시 깎는 연산. 물체 안의 작은 검은 구멍이나 끊긴 글자를 메워요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Frame",
+  "aliases": [
+   "프레임"
+  ],
+  "full": "Frame (영상의 한 장)",
+  "short": "영상에서 꺼낸 사진 한 장. 영상은 시간 순서로 이어진 Frame 묶음이라, 영상 처리 = 같은 처리를 Frame마다 반복하는 것이에요.",
+  "analogy": "플립북(움직이는 그림책)의 한 페이지.",
+  "day": 13,
+  "key": true
+ },
+ {
+  "term": "FPS",
+  "aliases": [
+   "Frames Per Second"
+  ],
+  "full": "Frames Per Second (초당 프레임 수)",
+  "short": "1초에 몇 장의 Frame인지. 영상 파일에선 재생 속도(재생시간 = Frame 수 ÷ FPS), 모델에선 1초에 처리한 장 수를 뜻해요. 클수록 빠름.",
+  "analogy": "플립북을 1초에 몇 장 넘기느냐.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "VideoCapture",
+  "aliases": [
+   "VideoWriter"
+  ],
+  "full": "cv2.VideoCapture / cv2.VideoWriter",
+  "short": "VideoCapture는 영상 파일·카메라에서 Frame을 한 장씩 읽고, VideoWriter는 Frame을 모아 영상 파일로 저장해요. 다 쓰면 release()로 닫아요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Codec",
+  "aliases": [
+   "코덱",
+   "fourcc"
+  ],
+  "full": "Codec (영상 압축·저장 방식)",
+  "short": "영상을 압축해 파일로 저장하는 방식. OpenCV에선 fourcc 코드(예: MJPG, mp4v)로 고르고, 확장자·설치된 코덱과 맞아야 저장돼요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "증강",
+  "aliases": [
+   "Augmentation",
+   "데이터 증강"
+  ],
+  "full": "Data Augmentation",
+  "short": "사진을 뒤집고, 자르고, 밝기를 바꾸는 등 일부러 변형해서 더 다양한 예시로 학습시키는 기법. 라벨 뜻이 안 바뀌는 변형만, train에만 써요.",
+  "analogy": "같은 문제를 숫자만 바꿔 여러 번 풀어 보는 것.",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "Crop",
+  "aliases": [
+   "크롭"
+  ],
+  "full": "Crop (잘라내기)",
+  "short": "이미지의 일부만 잘라내는 것. NumPy로 img[y1:y2, x1:x2] — 세로(y)가 먼저예요. 너무 많이 자르면 물체가 잘려 라벨 뜻이 바뀔 수 있어요.",
+  "analogy": "",
+  "day": 13,
+  "key": false
+ },
+ {
+  "term": "seed",
+  "aliases": [
+   "seed",
+   "random_state"
+  ],
+  "full": "Random seed (난수 시작값)",
+  "short": "무작위 계산의 출발점이 되는 숫자. 같은 seed면 같은 '무작위' 결과가 다시 나와서 실험을 재현할 수 있어요.",
+  "analogy": "셔플 기계에 넣는 같은 비밀번호 — 같은 번호면 같은 순서로 섞인다.",
+  "day": 13,
+  "key": false
+ }
+]

@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day15 · 객체탐지와 YOLO | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag cv">컴퓨터비전</span>
+      <h1>Day15 · 객체탐지와 YOLO</h1>
+      <div class="meta">2026-11-06(금) · 객체탐지 · IoU · mAP · YOLO 학습/추론 · 추적</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>객체탐지 = 사진 속 물체가 <b>무엇</b>인지 + <b>어디</b>(박스)에 있는지 찾는 것.</li>
+          <li>맞았는지는 <b>IoU</b>(박스 겹침 비율)로 채점하고, 그걸 모아 <b>mAP</b> 점수를 만든다.</li>
+          <li>YOLO는 <code>train → val → predict → track</code> 네 명령으로 학습부터 영상 추적까지 한다.</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install ultralytics lap opencv-python</code></td></tr>
+        <tr><td><a href="#box">① 박스 좌표</a></td><td><code>cv2.rectangle()</code>, <code>cv2.putText()</code></td></tr>
+        <tr><td><a href="#metrics">② IoU · 평가 지표</a></td><td><code>model.val()</code> → <code>metrics.box.map50</code></td></tr>
+        <tr><td><a href="#yolo">③ YOLO 모델 · 학습</a></td><td><code>YOLO()</code>, <code>model.train()</code></td></tr>
+        <tr><td><a href="#nms">④ confidence · NMS · 추론</a></td><td><code>model.predict(conf=, iou=)</code>, <code>result.boxes</code></td></tr>
+        <tr><td><a href="#track">⑤ 추적</a></td><td><code>model.track(persist=, tracker=)</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>ultralytics</code></td><td>YOLO 학습·검증·추론·추적을 한 번에</td><td><code>from ultralytics import YOLO</code></td></tr>
+        <tr><td><code>opencv-python</code></td><td>이미지·영상 읽기/쓰기, 박스 그리기</td><td><code>import cv2</code></td></tr>
+        <tr><td><code>lap</code></td><td>추적할 때 프레임 사이 박스 짝짓기 계산</td><td>직접 import 안 함 (<code>track()</code>이 내부에서 씀)</td></tr>
+        <tr><td><code>PyYAML</code></td><td><code>dataset.yaml</code> 읽고 쓰기</td><td><code>import yaml</code></td></tr>
+        <tr><td><code>numpy</code>, <code>pandas</code></td><td>좌표 배열 계산, 결과를 표(CSV)로 저장</td><td><code>import numpy as np</code>, <code>import pandas as pd</code></td></tr>
+        <tr><td><code>torch</code>, <code>torchvision</code></td><td>YOLO가 내부에서 쓰는 딥러닝 엔진 + 박스 계산 도구(<code>box_convert</code>, <code>box_iou</code>) (Day9부터 설치됨)</td><td><code>import torch</code>, <code>from torchvision.ops import box_iou</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python -m pip install ultralytics lap opencv-python PyYAML pandas
+python -c "import ultralytics, cv2, torch; print(ultralytics.__version__, cv2.__version__, torch.__version__)"
+python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능</code></pre>
+      <div class="callout warn">⚠️ <code>torch</code>는 다시 깔지 말 것. 이미 맞춰 둔 CUDA 버전이 꼬일 수 있어요. 수업 기준 버전은 <code>requirements.txt</code>(ultralytics 8.4.21, lap 0.5.12)를 따르세요.</div>
+      <div class="callout">💡 pip 이름과 import 이름이 다른 경우가 있어요: <code>opencv-python</code> → <code>cv2</code>, <code>PyYAML</code> → <code>yaml</code>, <code>scikit-learn</code> → <code>sklearn</code>, <code>Pillow</code> → <code>PIL</code>.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>Day14까지는 <b>"이 사진은 고양이다"</b>처럼 사진 전체에 이름표 하나를 붙였어요(분류). 객체탐지는 <b>"고양이는 여기, 강아지는 저기"</b>처럼 물체마다 위치까지 찾아요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🅿️</div><strong>주차장 CCTV</strong><span>차 박스를 세서 빈자리 안내</span></div>
+        <div class="usecase"><div class="emoji">⛑️</div><strong>공사 현장</strong><span>안전모 안 쓴 사람 찾기</span></div>
+        <div class="usecase"><div class="emoji">🏭</div><strong>공장 검사</strong><span>부품 위 불량 위치 표시</span></div>
+        <div class="usecase"><div class="emoji">🚗</div><strong>자율주행</strong><span>보행자·차를 매 프레임 탐지</span></div>
+      </div>
+      <table>
+        <tr><th>작업</th><th>출력</th><th>한마디로</th></tr>
+        <tr><td>분류</td><td>사진 전체의 클래스 1개</td><td>"뭐야?"</td></tr>
+        <tr><td><b>탐지</b></td><td>물체마다 클래스 + 박스 + 점수</td><td>"뭐가 어디 있어?"</td></tr>
+        <tr><td>분할</td><td>픽셀 단위 마스크</td><td>"정확히 어느 픽셀까지야?"</td></tr>
+        <tr><td><b>추적</b></td><td>탐지 + 프레임 간 같은 ID</td><td>"아까 걔가 지금 어디 갔어?"</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 분류로는 안 돼?</strong> — 사진 한 장에 물체가 <b>여러 개</b> 있고, 같은 사람이라도 위치·크기가 제각각이에요. 분류는 사진 전체에 답 하나만 내니까 "안전모 안 쓴 사람이 <b>어디</b> 있는지", "차가 <b>몇 대</b>인지"를 말할 수 없어요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="box">① 박스 좌표 — 같은 박스, 세 가지 표현</h2>
+      <div class="figs">
+        <figure><img src="img/day15/input.png" alt="도형 3개가 있는 이미지"><figcaption>원본 이미지</figcaption></figure>
+        <figure><img src="img/day15/labeled.png" alt="도형마다 박스가 그려진 이미지"><figcaption>라벨 txt를 읽어 박스로 그린 모습</figcaption></figure>
+      </div>
+      <table>
+        <tr><th>표현</th><th>숫자 4개</th><th>어디서 쓰나</th></tr>
+        <tr><td><b>xyxy</b></td><td>왼쪽위 (x1,y1), 오른쪽아래 (x2,y2)</td><td>그리기, IoU 계산, <code>boxes.xyxy</code></td></tr>
+        <tr><td><b>xywh</b> (중심)</td><td>중심 (cx,cy), 너비 w, 높이 h</td><td><code>boxes.xywh</code></td></tr>
+        <tr><td><b>정규화</b></td><td>위 값을 사진 폭·높이로 나눈 0~1</td><td>YOLO 라벨 txt, <code>boxes.xywhn</code></td></tr>
+      </table>
+      <figure id="fig-box-formats"><img class="smooth" src="img/day15/box_formats.png" alt="빨간 사각형 하나에 모서리 두 점, 중심, 너비·높이를 표시하고 xyxy, cxcywh, 정규화 세 가지 숫자를 나란히 적은 그림"><figcaption><b>무엇을 보나:</b> 왼쪽 그림의 <b>같은 박스 하나</b>가 오른쪽에서 세 줄의 서로 다른 숫자가 돼요. 보라 점 두 개 → xyxy, 분홍 중심 + 초록 화살표(w, h) → cxcywh, 그걸 160·128로 나누면 → 정규화. <b>🤔 왜?</b> 박스는 그대로인데 "어떻게 적느냐"만 달라요. 그래서 숫자만 보고는 형식을 알 수 없고, 형식을 착각하면 박스가 엉뚱한 곳에 그려져요.</figcaption></figure>
+      <p><b>YOLO 라벨 txt</b>는 물체 하나당 한 줄: <code>클래스 cx cy w h</code> (전부 0~1)</p>
+<pre><code>0 0.796875 0.339844 0.193750 0.242188   ← 0번 클래스(square)
+1 0.187500 0.250000 0.162500 0.203125   ← 1번 클래스(circle)
+2 0.481250 0.640625 0.212500 0.265625   ← 2번 클래스(triangle)</code></pre>
+      <p><b>변환 공식</b> (W·H = 사진의 폭·높이)</p>
+<pre><code>cx = (x1 + x2) / 2 / W        w = (x2 - x1) / W
+cy = (y1 + y2) / 2 / H        h = (y2 - y1) / H</code></pre>
+      <div class="callout">🤔 <strong>왜 0~1로 나눠?</strong> — 학습할 때 사진은 <code>imgsz</code>에 맞게 늘었다 줄었다 해요. 픽셀 값으로 적어 두면 크기가 바뀔 때마다 라벨을 다시 계산해야 하지만, 비율(0~1)로 적으면 몇 px이 되든 그대로 써요. 대신 픽셀로 되돌릴 땐 꼭 <b>그 사진의</b> W·H를 곱해야 해요.</div>
+      <div class="callout">🤔 <strong>왜 표현이 세 가지나 있어?</strong> — 쓰는 곳마다 편한 형태가 달라서예요. 그리기·겹침 계산은 모서리(xyxy)가 편하고, 모델은 "중심이 어디고 얼마나 큰지(xywh)"로 예측하는 게 자연스럽고, 저장은 크기와 무관한 정규화가 편해요. 그래서 <b>지금 이 숫자가 어떤 형식인지</b> 늘 확인해야 해요.</div>
+      <div class="callout warn">⚠️ x는 <b>폭 W</b>로, y는 <b>높이 H</b>로 나눠요. W·H를 바꿔 넣으면 박스 위치와 크기가 엉뚱하게 틀어져요.</div>
+
+      <h3>🔧 명령어: 박스 그리기</h3>
+<pre><code>img = cv2.imread("scene.jpg")
+cv2.rectangle(img, (x1, y1), (x2, y2), color=(255, 0, 0), thickness=2)
+cv2.putText(img, "dog 0.87", (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+cv2.imwrite("detected.jpg", img)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th></tr>
+        <tr><td><code>(x1, y1), (x2, y2)</code></td><td>xyxy 좌표 (정수 픽셀)</td></tr>
+        <tr><td><code>color</code></td><td><b>BGR</b> 순서! (255,0,0)은 빨강이 아니라 <b>파랑</b></td></tr>
+        <tr><td><code>thickness</code></td><td>선 두께 (생략하면 1)</td></tr>
+      </table>
+      <div class="callout warn">⚠️ OpenCV 색은 BGR, matplotlib은 RGB. 섞어 쓰면 색이 뒤바뀐다.</div>
+      <div class="callout">🤔 <strong>왜 BGR?</strong> — OpenCV가 처음 만들어질 때 카메라·윈도우 쪽에서 BGR 순서가 흔했고, 호환성 때문에 지금까지 그대로예요. 그래서 OpenCV 안에서는 BGR, 다른 라이브러리로 넘길 땐 RGB로 바꿔 줘요.</div>
+
+      <h3>🔧 명령어: 박스 형식 바꾸기 <code>box_convert</code></h3>
+<pre><code>import torch
+from torchvision.ops import box_convert
+
+boxes = torch.tensor([[12, 18, 52, 58]], dtype=torch.float32)       # x1, y1, x2, y2
+cxcywh = box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
+labels = cxcywh / torch.tensor([160, 128, 160, 128])                # x는 W, y는 H로</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th></tr>
+        <tr><td><code>in_fmt</code> / <code>out_fmt</code></td><td><code>"xyxy"</code>, <code>"xywh"</code>(왼쪽위+크기), <code>"cxcywh"</code>(중심+크기) 중에서</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="metrics">② IoU와 평가 지표</h2>
+      <p><b>IoU</b> = 겹친 넓이 ÷ 두 박스를 합친 넓이. 0이면 안 겹침, 1이면 완전히 같음. 파란 박스를 끌어 보세요(오른쪽 아래 모서리는 크기 조절).</p>
+      <div class="lab">
+        <canvas id="iou" width="480" height="300"></canvas>
+        <div class="readout">
+          <div>겹친 넓이 <b id="inter">0</b></div>
+          <div>합친 넓이 <b id="union">0</b></div>
+          <div>IoU = <span class="big" id="iouv">0.00</span></div>
+        </div>
+        <div class="readout">
+          <div>중심 거리 <b id="cdist">0</b>px</div>
+          <div>크기 비율(예측/정답) <b id="sratio">1.00</b>배</div>
+        </div>
+        <div class="readout">
+          <label>정답 인정 기준 <input type="range" id="thr" min="0.1" max="0.95" step="0.05" value="0.5"> <b id="thrv">0.50</b></label>
+        </div>
+        <div class="verdict" id="verdict"></div>
+        <p class="verdict" id="whyiou" style="font-weight:400"></p>
+      </div>
+<pre><code>합친 넓이 = 박스A 넓이 + 박스B 넓이 - 겹친 넓이   ← 겹친 부분을 두 번 세지 않게
+IoU = 겹친 넓이 / 합친 넓이</code></pre>
+      <figure id="fig-iou-examples"><img class="smooth" src="img/day15/iou_examples.png" alt="정답 박스와 예측 박스가 IoU 0.80, 0.50, 0.20, 0.25로 겹친 네 가지 예시"><figcaption><b>무엇을 보나:</b> 초록 점선 = 정답, 파랑 = 예측, 노랑 = 겹친 부분. 왼쪽 세 칸은 크기는 같고 옆으로 4px → 13px → 27px 밀렸을 뿐인데 IoU가 0.80 → 0.50 → 0.20으로 뚝뚝 떨어져요. 맨 오른쪽은 <b>중심이 완전히 같은데도</b> 0.25예요. <b>🤔 왜?</b> 밀리면 노란 부분(분자)이 줄고, 크기가 커지면 전체 땅(분모)이 커지기 때문이에요. 40px 박스에서 13px만 밀려도 벌써 0.5 경계라서, 작은 물체일수록 몇 픽셀 차이로 TP/FP가 갈려요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 "중심이 얼마나 가까운가"가 아니라 IoU야?</strong> — 위 체험에서 파란 박스를 정답과 <b>중심은 같게</b> 두고 크기만 2배로 키워 보세요. 중심 거리는 0인데 IoU는 뚝 떨어져요. IoU는 <b>위치와 크기가 둘 다 맞아야</b> 높아져요. 또 비율이라 큰 박스든 작은 박스든 같은 잣대(0~1)로 잴 수 있어요.</div>
+      <div class="callout">🤔 <strong>왜 합친 넓이에서 겹친 넓이를 빼?</strong> — 두 넓이를 그냥 더하면 겹친 부분이 두 번 들어가요. 한 번 빼야 "두 박스가 덮는 전체 땅"이 돼요.</div>
+      <div class="callout warn">⚠️ IoU는 <b>위치만</b> 봐요. 클래스가 맞는지는 따로 확인해요. 사람 박스와 위치가 딱 맞아도 "개"라고 했으면 틀린 거예요.</div>
+
+      <h3>🔧 명령어: IoU 계산 <code>box_iou</code></h3>
+<pre><code>from torchvision.ops import box_iou
+iou = box_iou(pred_boxes, gt_boxes)   # [예측 수, 정답 수] 겹침 표 (xyxy 형식)
+matched = iou &gt;= 0.5                   # 같은 클래스 + 0.5 이상 → TP 후보</code></pre>
+
+      <h3>TP · FP · FN</h3>
+      <table>
+        <tr><th></th><th>뜻</th><th>예</th></tr>
+        <tr><td><b>TP</b> 맞춤</td><td>같은 클래스 정답과 IoU 기준 이상으로 1:1 짝지어진 예측</td><td>사람을 사람으로, 위치도 맞게</td></tr>
+        <tr><td><b>FP</b> 헛탐지</td><td>짝이 없는 예측 (없는 걸 찾음, 클래스 틀림, 중복 박스)</td><td>나뭇가지를 사람으로</td></tr>
+        <tr><td><b>FN</b> 놓침</td><td>아무 예측과도 짝지어지지 않은 정답</td><td>작은 사람을 못 찾음</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 한 물체에 박스 3개가 겹쳐 나오면 TP는 <b>1개</b>, 나머지 2개는 FP.</div>
+      <figure id="fig-tp-fp-fn"><img class="smooth" src="img/day15/tp_fp_fn.png" alt="도형 세 개 사진 위에 정답 점선과 예측 박스를 그리고 TP, FP, FN을 색으로 구분한 두 장면"><figcaption><b>무엇을 보나:</b> 같은 사진, 같은 예측(연습용으로 손으로 정한 값)을 두 번 채점했어요. 왼쪽은 사각형에 박스가 2개(0.95, 0.85) → 하나만 TP, 0.85는 <b>"중복" FP</b>. 위쪽 빈 곳의 triangle 0.40은 <b>"엉뚱한 곳" FP</b>, 진짜 삼각형은 아무도 못 짚어서 <b>FN</b>(빨간 점선). 오른쪽은 중복을 정리한 뒤라 FP가 1개로 줄어 Precision이 0.50 → 0.67로 올라요. <b>🤔 왜?</b> 정답 하나엔 예측 하나만 짝지어 주니까 중복은 무조건 FP가 되고, Recall(놓친 삼각형)은 중복 정리와 상관없이 그대로예요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 하나만 인정해?</strong> — 중복 박스를 다 맞았다고 쳐 주면, 한 물체에 박스를 잔뜩 그리는 모델이 점수를 거저 먹어요. 그래서 <b>점수 높은 예측부터</b> 정답 하나에 하나씩만 짝지어요.</div>
+
+      <h3>Precision · Recall · mAP</h3>
+      <table>
+        <tr><th>지표</th><th>공식</th><th>질문</th></tr>
+        <tr><td><b>Precision</b></td><td>TP / (TP+FP)</td><td>찾은 것 중 몇 %가 진짜?</td></tr>
+        <tr><td><b>Recall</b></td><td>TP / (TP+FN)</td><td>진짜 중 몇 %를 찾았나?</td></tr>
+        <tr><td><b>AP</b></td><td>한 클래스의 Precision–Recall 곡선 아래 넓이</td><td>그 클래스를 전반적으로 잘 찾나?</td></tr>
+        <tr><td><b>mAP50</b></td><td>IoU 기준 0.5로 잰 AP를 클래스별로 평균</td><td>대충이라도 찾나?</td></tr>
+        <tr><td><b>mAP50-95</b></td><td>IoU 기준 0.50, 0.55 … 0.95 (10개)로 잰 평균</td><td>박스 위치까지 정확한가?</td></tr>
+      </table>
+      <p>예: TP 8, FP 2, FN 4 → Precision = 8/10 = <b>0.80</b>, Recall = 8/12 = <b>0.67</b></p>
+      <figure id="fig-pr-curve"><img class="smooth" src="img/day15/pr_curve_ap.png" alt="예측 12개를 점수순으로 줄 세워 Precision-Recall 점을 찍고 계단 곡선 아래 넓이를 AP로 칠한 그래프"><figcaption><b>무엇을 보나:</b> 오른쪽 표처럼 예측을 점수 높은 순으로 세운 뒤, 위에서부터 하나씩 "여기까지 인정"하며 P와 R을 다시 계산해 점을 찍어요(예시 숫자). 점들을 위쪽으로 감싼 보라 계단 아래 <b>칠해진 넓이 = AP(0.62)</b>. <b>🤔 왜?</b> conf 기준을 낮출수록 예측이 하나씩 추가돼 Recall은 오른쪽으로만 가고, FP가 섞일 때마다 Precision은 아래로 꺾여요. 기준 하나만 고르지 않고 이 전체 모양을 넓이 하나로 요약하니까 "특정 conf에 좌우되지 않는 점수"가 돼요. 오른쪽 끝이 0.75에서 끊긴 건 정답 8개 중 6개만 찾았기 때문이에요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 Precision과 Recall을 둘 다 봐?</strong> — 하나만 보면 속기 쉬워요. 확실한 것 1개만 내면 Precision은 1.0이지만 거의 다 놓치고, 박스를 마구 그리면 Recall은 높지만 헛탐지투성이예요. 두 개가 같이 좋아야 좋은 모델이에요.</div>
+      <div class="callout">🤔 <strong>왜 그냥 정확도(accuracy)가 아니라 mAP야?</strong> — 탐지에는 "배경을 배경이라고 맞힌 개수"를 셀 수가 없어요(배경 박스는 무한히 그릴 수 있으니까). 그래서 <b>점수 기준(conf)을 높였다 낮췄다</b> 하면서 Precision–Recall이 어떻게 변하는지 곡선으로 그리고, 그 넓이(AP)를 클래스별로 평균 내요. 특정 conf 하나에 좌우되지 않는 점수예요.</div>
+      <div class="callout">🤔 <strong>왜 mAP50-95가 항상 더 낮아?</strong> — 0.95처럼 엄격한 기준에서는 박스가 거의 완벽하게 겹쳐야 TP예요. 같은 예측이라도 기준이 빡빡해질수록 TP가 FP로 바뀌니 평균이 내려가요. 그래서 mAP50은 높은데 mAP50-95가 낮으면 "찾긴 하는데 박스가 엉성하다"는 뜻이에요.</div>
+      <figure id="fig-map-thr"><img class="smooth" src="img/day15/map50_vs_map50_95.png" alt="예측 10개의 IoU 막대와, 평가 기준 0.50부터 0.95까지 올릴 때 TP 수가 10개에서 0개로 줄어드는 막대그래프"><figcaption><b>무엇을 보나:</b> 왼쪽은 클래스는 다 맞은 예측 10개가 각자 정답과 얼마나 겹쳤는지(예시 숫자). 오른쪽은 <b>그 똑같은 10개</b>를 기준만 0.50, 0.55 … 0.95로 바꿔 채점한 결과예요. 0.50에선 TP 10개(초록), 0.95에선 0개(빨강). 분홍 점선이 10개 기준의 평균이에요. <b>🤔 왜?</b> 왼쪽 막대가 세로 점선 기준을 넘지 못하면 TP가 FP로 바뀌어요. mAP50은 첫 막대 하나만, mAP50-95는 10개 막대 평균이니까 박스가 조금만 엉성해도 크게 깎여요(실제 mAP는 각 기준에서 AP를 계산하지만, 줄어드는 원리는 같아요).</figcaption></figure>
+
+      <h3>지표로 문제 진단하기</h3>
+      <table>
+        <tr><th>이렇게 나오면</th><th>의심할 것</th></tr>
+        <tr><td>P 높고 R 낮음</td><td>놓치는 게 많음 → 작은 물체, 라벨 누락, conf가 너무 높음</td></tr>
+        <tr><td>R 높고 P 낮음</td><td>헛탐지가 많음 → 배경만 있는 사진 부족, conf가 너무 낮음</td></tr>
+        <tr><td>mAP50 ≫ mAP50-95</td><td>찾긴 하는데 박스 위치가 부정확</td></tr>
+        <tr><td>train은 좋아지는데 val은 정체</td><td>과적합</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 검증 <code>model.val()</code></h3>
+<pre><code>model = YOLO("runs/detect/train/weights/best.pt")
+metrics = model.val(data="dataset.yaml", split="val", imgsz=640, conf=0.001, iou=0.7)
+print(metrics.box.map50)   # mAP50
+print(metrics.box.map)     # mAP50-95</code></pre>
+      <table>
+        <tr><th>인자 / 결과</th><th>뜻</th></tr>
+        <tr><td><code>data</code></td><td>데이터 안내서(yaml) 경로</td></tr>
+        <tr><td><code>split</code></td><td>어느 데이터로 채점할지 (<code>"val"</code> / <code>"test"</code>)</td></tr>
+        <tr><td><code>conf=0.001</code></td><td>검증 땐 점수 낮은 후보까지 거의 다 남김 → <b>왜?</b> PR 곡선을 끝까지(Recall이 높은 쪽까지) 그려야 AP를 제대로 잴 수 있어서</td></tr>
+        <tr><td><code>iou</code></td><td>여기서도 <b>NMS</b> 기준이에요. mAP50의 "50"(평가 IoU)과는 다른 값</td></tr>
+        <tr><td><code>metrics.box.map50</code> / <code>.map</code></td><td>mAP50 / mAP50-95</td></tr>
+        <tr><td><code>metrics.box.mp</code> / <code>.mr</code></td><td>평균 Precision / 평균 Recall</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 test가 아니라 val로 골라?</strong> — conf나 checkpoint를 test 점수 보면서 고르면, 그 test에 <b>맞춰진</b> 선택이 돼서 처음 보는 데이터 성능을 부풀려 말하게 돼요. 그래서 고르는 건 val, test는 마지막에 딱 한 번 확인용으로 남겨요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="yolo">③ YOLO 모델과 학습</h2>
+      <p>YOLO(You Only Look Once)는 사진을 <b>한 번</b> 통과시켜 모든 위치·크기의 물체 후보를 동시에 예측해요. 그래서 빠르고, 영상에 많이 써요.</p>
+      <p>구체적으로는 사진을 <b>격자(칸)</b>로 나누고 <b>칸마다</b> 박스 숫자 4개 + 클래스별 점수를 내요. 160×128 사진이면 이렇게 돼요:</p>
+      <table>
+        <tr><th>격자</th><th>한 칸 크기</th><th>후보 수</th><th>맡는 물체</th></tr>
+        <tr><td>20 × 16</td><td>8px</td><td>320개</td><td>작은 물체</td></tr>
+        <tr><td>10 × 8</td><td>16px</td><td>80개</td><td>중간 물체</td></tr>
+        <tr><td>5 × 4</td><td>32px</td><td>20개</td><td>큰 물체</td></tr>
+        <tr><td colspan="2"><b>합계</b></td><td><b>420개</b></td><td>물체가 3개여도 후보는 420개!</td></tr>
+      </table>
+      <figure id="fig-grid"><img class="smooth" src="img/day15/yolo_grid_scales.png" alt="같은 160x128 사진에 20x16, 10x8, 5x4 격자를 겹치고 칸마다 점수를 보라색 진하기로 칠한 세 장면"><figcaption><b>무엇을 보나:</b> 같은 사진을 세 가지 촘촘함으로 나눈 모습이에요. 흰 선으로 나뉜 <b>칸 하나 = 후보 하나</b>(320 + 80 + 20 = 420). × 는 물체 중심, 노란 칸은 그 중심이 떨어진 칸이에요. 보라색 진하기는 작은 데모 모델이 실제로 낸 점수예요. <b>🤔 왜?</b> 8px 칸은 사각형 하나에 칸이 20개 넘게 들어가 위치를 아주 잘게 짚을 수 있고(작은 물체용), 32px 칸은 칸 하나가 물체 전체를 덮어서 큰 모양을 한 번에 봐요(큰 물체용). 그리고 물체가 없는 칸도 <b>전부</b> 후보를 내기 때문에 나중에 걸러야 해요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 격자를 세 가지 크기로 써?</strong> — 촘촘한 격자는 위치 정보가 자세해서 <b>작은 물체</b>에 유리하고, 성긴 격자는 넓은 범위를 한 번에 봐서 <b>큰 물체</b>의 전체 모양을 잘 잡아요. Neck이 서로 다른 크기의 특징을 섞어 주는 이유가 이거예요.</div>
+      <div class="flow">
+        <span class="step">사진</span><span class="arrow">→</span>
+        <span class="step"><b>Backbone</b><br><small>특징 뽑기</small></span><span class="arrow">→</span>
+        <span class="step"><b>Neck</b><br><small>큰·작은 크기 정보 합치기</small></span><span class="arrow">→</span>
+        <span class="step"><b>Head</b><br><small>클래스·박스·점수 예측</small></span><span class="arrow">→</span>
+        <span class="step">후보 정리<br><small>conf·NMS</small></span>
+      </div>
+      <figure id="fig-arch">
+        <svg viewBox="0 0 760 330" style="width:100%;height:auto" role="img" aria-label="Backbone이 사진을 점점 작고 깊은 특징 지도로 줄이고, Neck이 세 크기를 위아래로 섞고, Head가 크기별로 후보 320, 80, 20개를 내는 구조도">
+          <defs><marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <!-- 영역 -->
+          <rect x="120" y="10" width="210" height="300" rx="14" fill="var(--accent)" fill-opacity="0.07" stroke="var(--accent)" stroke-dasharray="5 4"/>
+          <rect x="350" y="10" width="170" height="300" rx="14" fill="var(--accent2)" fill-opacity="0.07" stroke="var(--accent2)" stroke-dasharray="5 4"/>
+          <rect x="540" y="10" width="210" height="300" rx="14" fill="var(--line)" fill-opacity="0.35" stroke="var(--muted)" stroke-dasharray="5 4"/>
+          <text x="225" y="34" text-anchor="middle" font-size="16" font-weight="700" fill="var(--accent)">Backbone</text>
+          <text x="225" y="52" text-anchor="middle" font-size="12" fill="var(--muted)">점점 작게, 점점 깊게</text>
+          <text x="435" y="34" text-anchor="middle" font-size="16" font-weight="700" fill="var(--accent2)">Neck</text>
+          <text x="435" y="52" text-anchor="middle" font-size="12" fill="var(--muted)">세 크기 정보 섞기</text>
+          <text x="645" y="34" text-anchor="middle" font-size="16" font-weight="700" fill="var(--text)">Head</text>
+          <text x="645" y="52" text-anchor="middle" font-size="12" fill="var(--muted)">칸마다 박스 4 + 점수 3</text>
+          <!-- 입력 -->
+          <rect x="14" y="120" width="90" height="72" rx="6" fill="var(--surface)" stroke="var(--text)" stroke-width="1.5"/>
+          <rect x="24" y="132" width="20" height="20" fill="#e03131"/><circle cx="82" cy="148" r="11" fill="#2fbf3a"/><path d="M52,182L62,162L72,182z" fill="#3b5bdb"/>
+          <text x="59" y="210" text-anchor="middle" font-size="12" fill="var(--text)">사진 160×128</text>
+          <line x1="106" y1="156" x2="140" y2="156" stroke="var(--muted)" stroke-width="2" marker-end="url(#arA)"/>
+          <!-- Backbone 특징 지도 (점점 작아짐) -->
+          <rect x="146" y="76" width="64" height="52" rx="4" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)"/>
+          <text x="178" y="106" text-anchor="middle" font-size="12" fill="var(--text)">20×16</text>
+          <rect x="226" y="148" width="44" height="36" rx="4" fill="var(--accent)" fill-opacity="0.45" stroke="var(--accent)"/>
+          <text x="248" y="170" text-anchor="middle" font-size="12" fill="var(--text)">10×8</text>
+          <rect x="282" y="218" width="30" height="26" rx="4" fill="var(--accent)" fill-opacity="0.7" stroke="var(--accent)"/>
+          <text x="297" y="235" text-anchor="middle" font-size="11" fill="#fff">5×4</text>
+          <path d="M178,128 Q190,150 224,162" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#arA)"/>
+          <path d="M248,184 Q255,210 280,228" fill="none" stroke="var(--muted)" stroke-width="1.6" marker-end="url(#arA)"/>
+          <text x="225" y="280" text-anchor="middle" font-size="11.5" fill="var(--muted)">위: 자세한 위치 · 아래: 넓은 범위의 의미</text>
+          <!-- Neck: 세 줄 + 위아래 섞기 -->
+          <g stroke-width="2" fill="none">
+            <line x1="212" y1="102" x2="380" y2="102" stroke="var(--accent)" stroke-opacity="0.5"/>
+            <line x1="272" y1="166" x2="380" y2="166" stroke="var(--accent)" stroke-opacity="0.5"/>
+            <line x1="314" y1="231" x2="380" y2="231" stroke="var(--accent)" stroke-opacity="0.5"/>
+          </g>
+          <circle cx="395" cy="102" r="13" fill="var(--accent2)" fill-opacity="0.85"/>
+          <circle cx="395" cy="166" r="13" fill="var(--accent2)" fill-opacity="0.85"/>
+          <circle cx="395" cy="231" r="13" fill="var(--accent2)" fill-opacity="0.85"/>
+          <path d="M420,225 L420,175" stroke="var(--accent2)" stroke-width="2" marker-end="url(#arA)"/>
+          <path d="M420,160 L420,110" stroke="var(--accent2)" stroke-width="2" marker-end="url(#arA)"/>
+          <path d="M470,108 L470,158" stroke="var(--accent2)" stroke-width="2" marker-end="url(#arA)"/>
+          <path d="M470,172 L470,222" stroke="var(--accent2)" stroke-width="2" marker-end="url(#arA)"/>
+          <text x="435" y="276" text-anchor="middle" font-size="11" fill="var(--muted)">↑ 의미를 위로, ↓ 위치를 아래로</text>
+          <g stroke="var(--muted)" stroke-width="1.6"><line x1="408" y1="102" x2="560" y2="102" marker-end="url(#arA)"/><line x1="408" y1="166" x2="560" y2="166" marker-end="url(#arA)"/><line x1="408" y1="231" x2="560" y2="231" marker-end="url(#arA)"/></g>
+          <!-- Head 출력 -->
+          <rect x="566" y="84" width="170" height="36" rx="8" fill="var(--surface)" stroke="var(--text)"/>
+          <text x="651" y="107" text-anchor="middle" font-size="13" fill="var(--text)">20×16 → 후보 <tspan font-weight="700">320</tspan> (작은)</text>
+          <rect x="566" y="148" width="170" height="36" rx="8" fill="var(--surface)" stroke="var(--text)"/>
+          <text x="651" y="171" text-anchor="middle" font-size="13" fill="var(--text)">10×8 → 후보 <tspan font-weight="700">80</tspan> (중간)</text>
+          <rect x="566" y="213" width="170" height="36" rx="8" fill="var(--surface)" stroke="var(--text)"/>
+          <text x="651" y="236" text-anchor="middle" font-size="13" fill="var(--text)">5×4 → 후보 <tspan font-weight="700">20</tspan> (큰)</text>
+          <text x="651" y="284" text-anchor="middle" font-size="14" font-weight="700" fill="var(--accent)">= 420개 → conf · NMS</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 왼쪽에서 오른쪽으로 사진이 흘러가요. <b>Backbone</b>은 사진을 20×16 → 10×8 → 5×4로 점점 작게 줄이면서(네모가 작아지고 색이 진해짐) 더 "뜻"에 가까운 특징을 뽑아요. <b>Neck</b>은 세 줄을 위아래로 오가며 섞고, <b>Head</b>는 세 크기에서 각각 후보를 내 합계 420개가 돼요. <b>🤔 왜?</b> 큰 지도(20×16)는 위치는 자세하지만 "이게 뭔지"는 잘 몰라요. 작은 지도(5×4)는 반대예요. Neck이 둘을 섞어 줘야 "작은 물체도 뭔지 알고, 큰 물체도 어디인지 아는" 예측이 돼요. (그림은 원리를 보여 주는 단순화예요.)</figcaption>
+      </figure>
+      <table>
+        <tr><th></th><th><code>yolo26n.yaml</code></th><th><code>yolo26n.pt</code></th></tr>
+        <tr><td>들어 있는 것</td><td>모델 <b>설계도</b>만</td><td>설계도 + <b>학습된 가중치</b></td></tr>
+        <tr><td>비유</td><td>빈 뇌</td><td>이미 공부한 뇌</td></tr>
+        <tr><td>언제</td><td>처음부터 학습</td><td>보통 이걸로 시작 (전이학습)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 보통 .pt로 시작해?</strong> — <code>.yaml</code>(빈 뇌)은 선·모서리 같은 기초부터 배워야 해서 데이터도 많고 시간도 오래 걸려요. <code>.pt</code>는 이미 수많은 사진으로 기초를 익힌 상태라, 내 데이터로는 "내 물체" 구분만 더 배우면 돼요. Day14 전이학습과 같은 원리예요.</div>
+      <p>학습 데이터 폴더 구조와 안내서(<code>dataset.yaml</code>):</p>
+<pre><code>dataset/
+├─ images/train, images/val    ← 사진
+└─ labels/train, labels/val    ← 사진과 같은 이름의 txt
+
+# dataset.yaml
+path: C:/ai_course/dataset
+train: images/train
+val: images/val
+names:
+  0: helmet
+  1: no_helmet
+  2: person</code></pre>
+      <div class="figs">
+        <figure><img class="smooth" src="img/day15/train_batch.jpg" alt="mosaic 증강 학습 이미지"><figcaption>학습 중 모델이 실제로 보는 사진 — 4장을 이어 붙이고(mosaic) 크기·위치를 흔드는 <b>증강</b>. 박스도 같이 변환돼요.</figcaption></figure>
+      </div>
+      <div class="callout">🤔 <strong>왜 사진을 일부러 섞고 흔들어?</strong> — 같은 사진만 계속 보면 "그 사진"을 외워 버려요(과적합). 위치·크기·밝기를 조금씩 바꿔 보여주면 실제 현장의 다양한 모습에 강해져요. 단, 사진을 움직이면 <b>박스도 똑같이</b> 움직여야 라벨이 맞아요.</div>
+      <div class="callout warn">⚠️ 같은 원본에서 나온 사진(증강본, 연속 프레임)이 train과 val에 나눠 들어가면 안 돼요. 거의 같은 사진으로 채점하는 셈이라 점수가 실제보다 좋게 나와요(누수).</div>
+
+      <h3>🔧 명령어: 모델 만들기 <code>YOLO()</code> · 학습 <code>model.train()</code></h3>
+<pre><code>from ultralytics import YOLO
+
+if __name__ == "__main__":          # Windows: 보조 프로세스가 이 파일을 다시 실행해도 학습이 또 시작되지 않게
+    model = YOLO("yolo26n.pt")       # 학습된 뇌 불러오기 (.yaml이면 빈 뇌)
+    model.train(data="dataset.yaml", epochs=30, imgsz=640,
+                batch=16, device=0, workers=0)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>data</code> <small>(필수)</small></td><td>dataset.yaml 경로</td><td>모델이 사진·라벨·클래스 이름을 여기서 찾아요</td></tr>
+        <tr><td><code>epochs</code></td><td>데이터 전체를 몇 바퀴 볼지</td><td>적으면 덜 배움. 많으면 train 사진을 외워서 val 점수가 멈추거나 떨어짐(과적합)</td></tr>
+        <tr><td><code>imgsz</code></td><td>사진을 몇 px로 맞춰 넣을지</td><td>크면 작은 물체가 픽셀 몇 개로 뭉개지지 않아 잘 보임. 대신 계산량이 크기²에 비례해 느려지고 메모리↑</td></tr>
+        <tr><td><code>batch</code></td><td>한 번에 넣는 사진 수</td><td>크면 한 번에 더 많이 봐서 학습이 안정적이지만 GPU 메모리를 더 씀 (부족하면 줄이기)</td></tr>
+        <tr><td><code>device</code></td><td><code>0</code> = GPU, <code>"cpu"</code> = CPU</td><td>GPU는 행렬 계산을 동시에 많이 해서 훨씬 빠름</td></tr>
+        <tr><td><code>workers</code></td><td>데이터 읽는 보조 프로세스 수</td><td>많으면 사진 읽기가 빨라짐. Windows에선 보조 프로세스가 파일을 다시 실행하며 오류가 날 수 있어 0 추천</td></tr>
+        <tr><td><code>seed</code></td><td>무작위 순서 고정</td><td>같은 seed면 다시 돌려도 결과가 비슷 → 비교 실험할 때 필요</td></tr>
+      </table>
+      <p><b>학습이 끝나면 생기는 것</b> (<code>runs/detect/train/</code>)</p>
+      <table>
+        <tr><td><code>weights/best.pt</code></td><td>검증 점수가 <b>가장 좋았던</b> epoch의 모델 → 보통 이걸 씀 (마지막 epoch가 꼭 제일 좋은 건 아니라서)</td></tr>
+        <tr><td><code>weights/last.pt</code></td><td><b>마지막</b> epoch의 모델 → 학습 이어하기(resume)용</td></tr>
+        <tr><td><code>results.csv</code> / <code>results.png</code></td><td>epoch별 loss·mAP 기록과 그래프</td></tr>
+        <tr><td><code>confusion_matrix.png</code></td><td>어떤 클래스를 어떤 클래스로 헷갈렸나</td></tr>
+      </table>
+      <figure id="fig-train-curves"><img class="smooth" src="img/day15/train_curves.png" alt="epoch별 train/val box loss 곡선과 mAP50, mAP50-95 곡선"><figcaption><b>무엇을 보나:</b> <code>results.csv</code>를 직접 그린 예예요(합성 도형으로 100 epoch 학습한 작은 데모 모델 — 수업 결과가 아니에요). 왼쪽은 loss가 들쭉날쭉하면서도 전체적으로 내려가고, 오른쪽은 한동안 0이다가 50 epoch쯤부터 점수가 생겨요. 초록(mAP50)은 늘 분홍(mAP50-95)보다 위에 있고, 그 <b>간격</b>이 박스가 엉성한 정도예요. 분홍 점은 mAP50-95가 가장 높았던 epoch예요. <b>🤔 왜?</b> 마지막 epoch가 꼭 최고가 아니기 때문에 이렇게 val 점수를 매 epoch 기록해 두고 가장 좋았던 순간을 <code>best.pt</code>로 저장해요(ultralytics 8.4는 val mAP50-95가 가장 높은 epoch를 고르니, 분홍 점이 바로 그 순간이에요).</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="nms">④ confidence · NMS · 추론</h2>
+      <p>모델은 처음에 후보 박스를 아주 많이 뱉어요. 이걸 두 단계로 걸러요.</p>
+      <div class="flow">
+        <span class="step">후보 수백 개</span><span class="arrow">→</span>
+        <span class="step"><b>conf 필터</b><br><small>점수 낮은 것 버림</small></span><span class="arrow">→</span>
+        <span class="step"><b>NMS</b><br><small>겹치는 중복 박스 정리</small></span><span class="arrow">→</span>
+        <span class="step">최종 결과</span>
+      </div>
+      <p><b>실제 예 (사진 1장, 정답 3개)</b>: 후보 <b>420개</b> → conf 0.25로 거르면 <b>11개</b> → NMS(iou 0.7)로 중복 지우면 <b>4개</b> → 정답과 채점하니 TP 3 · FP 1 (남은 중복 박스 하나가 FP).</p>
+      <figure id="fig-pipeline-sim"><img class="smooth" src="img/day15/candidate_pipeline_sim.png" alt="420개 후보 점, conf 0.25 통과 박스 11개, NMS 후 4개를 TP 3개 FP 1개로 채점한 세 단계 그림"><figcaption><b>무엇을 보나:</b> 위 "실제 예"의 숫자 흐름(420 → 11 → 4, TP 3 · FP 1)을 그대로 그려 본 <b>모의 그림</b>이에요(점수는 손으로 정한 값). ① 보라 점이 사진 전체에 깔려 있고 물체 위에서만 커요. ② 0.25를 넘은 11개는 물체마다 3~4개씩 겹쳐 있어요. ③ NMS 후 4개 — 그런데 원 위의 0.37 박스는 1등 박스와 덜 겹쳐서(IoU &lt; 0.7) 살아남았고, 정답과도 덜 겹쳐(IoU &lt; 0.5) FP가 됐어요. <b>🤔 왜?</b> NMS는 "많이 겹치는 것"만 지워요. 기준(0.7)보다 덜 겹친 중복은 다른 물체일 수도 있으니 남겨 두는데, 그게 진짜 중복이었다면 채점에서 FP로 잡혀요.</figcaption></figure>
+      <figure id="fig-pipeline-real"><img class="smooth" src="img/day15/candidate_pipeline.png" alt="작은 데모 모델의 실제 출력 420개 후보, conf 0.02 통과 9개, NMS 후 5개"><figcaption><b>무엇을 보나:</b> 이번엔 <b>진짜 모델 출력</b>이에요(합성 도형으로 짧게 학습한 작은 데모 모델). ①의 점 420개는 정말로 모델이 낸 후보 수이고, 점수가 낮은 모델이라 conf를 0.02까지 낮춰서 ② 9개 → ③ NMS 후 5개가 됐어요. 원은 아예 못 찾았고(FN), 사각형·삼각형 주변엔 덜 겹친 박스가 남았어요. <b>🤔 왜?</b> 모델이 약해도 후보 수(420)는 똑같아요 — 후보 수는 격자 칸 수로 정해지고, 모델 실력은 "그중 누가 높은 점수를 받느냐"에서 드러나요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 후보가 이렇게 많이 나와?</strong> — 칸마다 무조건 예측을 하니까요. 물체 근처의 여러 칸이 "여기 원 있어!"라고 동시에 외쳐서 <b>한 물체에 박스가 여러 개</b> 겹쳐 나와요. 그래서 걸러내는 단계가 꼭 필요해요.</div>
+      <p><b>NMS 순서</b>: 점수 제일 높은 박스를 남김 → 그 박스와 많이 겹치는(IoU 큰) 같은 클래스 박스를 지움 → 남은 것 중 다음으로 높은 박스로 반복.</p>
+      <figure id="fig-nms-steps"><img class="smooth" src="img/day15/nms_steps.png" alt="후보 4개를 점수순으로 세우고, 1등을 남기고 겹치는 같은 클래스 후보를 지우고, 다음 1등을 남기는 NMS 단계 그림"><figcaption><b>무엇을 보나:</b> 0) 후보 4개(연습용 값)를 점수순으로 줄 세워요. 1) 1등 square 0.95를 남기고, 같은 square인 0.85와 IoU를 재면 0.90 ≥ 0.7 → 빨간 X로 삭제. 2) 남은 것 중 1등 circle 0.80을 남겨요 — 같은 circle 후보가 없어 지울 게 없어요. 3) triangle 0.40도 남기고 끝. 4개 → 3개. <b>🤔 왜?</b> 1등과 거의 같은 자리를 가리키는 후보는 "같은 물체를 또 외친 것"이라 버려요. 하지만 NMS는 정답을 모르니까, 엉뚱한 곳의 0.40처럼 <b>틀린 박스도 겹치는 게 없으면 그대로 남아요</b> — 그건 conf나 모델 실력의 몫이에요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 "같은 클래스"끼리만 지워?</strong> — 사람 위에 안전모 박스가 크게 겹치는 건 정상이에요. 클래스가 다르면 다른 물체니까 지우면 안 돼요.</div>
+      <div class="callout warn">⚠️ <strong>"0.5"가 세 군데 나와서 헷갈림 주의</strong>
+        <table>
+          <tr><th>이름</th><th>무엇끼리 비교?</th><th>어디서?</th></tr>
+          <tr><td>confidence</td><td>후보 하나의 점수</td><td>predict의 <code>conf=</code></td></tr>
+          <tr><td>NMS IoU</td><td>예측 ↔ 예측</td><td>predict의 <code>iou=</code></td></tr>
+          <tr><td>평가 IoU</td><td>예측 ↔ 정답</td><td>mAP<b>50</b>의 50</td></tr>
+        </table>
+      </div>
+      <table>
+        <tr><th></th><th>낮추면</th><th>높이면</th></tr>
+        <tr><td><code>conf</code></td><td>후보 많아짐 → Recall↑, 헛탐지↑</td><td>확실한 것만 → Precision↑, 놓침↑</td></tr>
+        <tr><td>NMS <code>iou</code></td><td>조금만 겹쳐도 지움 → 중복↓, 붙어 있는 물체 놓칠 수 있음</td><td>많이 겹쳐도 남김 → 붙은 물체 분리↑, 중복 박스 남을 수 있음</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 conf를 바꾸면 P와 R이 반대로 움직여?</strong> — 기준을 낮추면 애매한 후보까지 통과해서 진짜도 더 잡히지만(Recall↑) 가짜도 같이 들어와요(Precision↓). 기준을 높이면 그 반대예요. 그래서 "놓치면 큰일"인 일(안전 감시)은 conf를 낮게, "헛알림이 피곤한" 일은 높게 잡아요.</div>
+      <figure id="fig-conf-compare"><img class="smooth" src="img/day15/conf_compare.png" alt="같은 사진에 conf 0.05, 0.25, 0.5를 적용해 박스가 3개, 1개, 0개로 줄어드는 비교"><figcaption><b>무엇을 보나:</b> 같은 사진·같은 모델(작은 데모 모델)에서 <code>conf</code>만 0.05 → 0.25 → 0.5로 올렸어요. 박스가 3개 → 1개 → 0개로 줄고, 아래 줄의 R(Recall)은 2/3 → 1/3 → 0/3으로 떨어지지만 FP(주황)는 사라져 P는 2/3 → 1/1로 올라요. <b>🤔 왜?</b> conf는 "이 점수 미만은 안 보여 줌"이라는 커트라인이라, 올릴수록 애매한 후보(맞는 것도, 틀린 것도)가 함께 잘려 나가요. 모델은 그대로이고 <b>어디서 자르느냐</b>만 바뀐 거예요.</figcaption></figure>
+
+      <h3>🔧 명령어: 추론 <code>model.predict()</code></h3>
+<pre><code>model = YOLO("best.pt")
+results = model.predict(source="samples/", conf=0.25, iou=0.7, imgsz=640, save=True)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th></tr>
+        <tr><td><code>source</code> <small>(필수)</small></td><td>사진 경로, 폴더, 영상, URL, 웹캠 번호(<code>0</code>), OpenCV 배열</td></tr>
+        <tr><td><code>conf</code></td><td>이 점수 미만 후보는 버림 (기본 0.25)</td></tr>
+        <tr><td><code>iou</code></td><td>NMS 겹침 기준 (기본 0.7)</td></tr>
+        <tr><td><code>save=True</code></td><td>박스 그린 이미지를 저장</td></tr>
+        <tr><td><code>stream=True</code></td><td>긴 영상은 이걸로 → 한 프레임씩 처리해 메모리 절약. <b>왜?</b> False면 모든 프레임 결과를 리스트에 다 쌓아 두고 한꺼번에 돌려줘서 메모리가 터질 수 있어요</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 결과 꺼내기 <code>result.boxes</code></h3>
+<pre><code>for result in results:                       # 사진 1장 = result 1개
+    for box, score, cls in zip(result.boxes.xyxy.cpu().numpy(),
+                               result.boxes.conf.cpu().numpy(),
+                               result.boxes.cls.cpu().numpy().astype(int)):
+        print(result.names[cls], round(float(score), 2), box)
+    cv2.imwrite("out.jpg", result.plot())    # 박스 그린 그림</code></pre>
+      <table>
+        <tr><th>속성</th><th>내용</th></tr>
+        <tr><td><code>boxes.xyxy</code></td><td>픽셀 좌표 [N, 4]</td></tr>
+        <tr><td><code>boxes.xywhn</code></td><td>정규화 중심 좌표 (라벨 형식)</td></tr>
+        <tr><td><code>boxes.conf</code> / <code>boxes.cls</code></td><td>점수 / 클래스 번호</td></tr>
+        <tr><td><code>result.names</code></td><td>번호 → 이름 사전 (<code>{0: 'helmet', ...}</code>)</td></tr>
+        <tr><td><code>result.plot()</code></td><td>박스 그린 이미지 (BGR 배열)</td></tr>
+      </table>
+      <div class="callout warn">⚠️ GPU 텐서는 <code>.cpu()</code> 후에 <code>.numpy()</code>. <b>왜?</b> numpy는 GPU 메모리를 직접 못 읽어서 먼저 CPU로 옮겨 와야 해요. 그리고 탐지가 없으면 boxes 길이가 0이니 에러가 아니라 정상.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="track">⑤ 추적 (Tracking)</h2>
+      <p>탐지는 프레임마다 따로 "사람 2명"이라고만 말해요. 추적은 프레임 사이를 연결해서 <b>"7번 사람이 오른쪽으로 이동 중"</b>처럼 같은 물체에 같은 <b>Track ID</b>를 붙여요. 이게 있어야 사람 수 세기, 이동 경로, 머문 시간 같은 걸 할 수 있어요.</p>
+      <table>
+        <tr><th></th><th>Detect</th><th>Track</th></tr>
+        <tr><td>출력</td><td>box · class · conf</td><td>+ <b>track_id</b></td></tr>
+        <tr><td>이전 프레임 기억</td><td>❌</td><td>✅</td></tr>
+        <tr><td>대표 실패</td><td>놓침, 헛탐지</td><td><b>ID switch</b> (가려졌다 나오면 번호가 바뀜)</td></tr>
+      </table>
+      <figure id="fig-track-frames"><img class="smooth" src="img/day15/track_frames.png" alt="영상 0, 15, 29번 프레임에 ID 1, 2, 3 박스와 지나온 경로 선을 그리고, 마지막 칸에 30프레임 경로를 겹쳐 그린 그림"><figcaption><b>무엇을 보나:</b> 짧은 도형 영상의 프레임 0 · 15 · 29예요(박스는 영상의 정답 좌표로 그렸어요). 사각형은 계속 <b>ID 1·보라</b>, 원은 <b>ID 2·주황</b>, 삼각형은 <b>ID 3·청록</b>을 유지하고, 박스 안의 선이 지금까지 지나온 길이에요. 마지막 칸은 30프레임 경로를 한 장에 겹친 것 — 사각형은 오른쪽, 삼각형은 왼쪽으로 움직였어요. <b>🤔 왜?</b> 탐지만 하면 매 프레임 "square 1개"라는 말만 남지만, ID로 이어 붙여야 이런 <b>경로</b>가 생기고, 그래야 "몇 명이 지나갔나", "얼마나 머물렀나"를 셀 수 있어요.</figcaption></figure>
+      <div class="callout">💡 Class ID(종류: 0=사람)와 Track ID(개체: 7번 사람)는 다른 것.</div>
+      <div class="callout">🤔 <strong>왜 ID가 바뀌기도 해(ID switch)?</strong> — 추적기는 "이전 프레임 박스와 지금 박스가 많이 겹치고 움직임이 자연스러우면 같은 애"라고 추측해요. 그런데 물체가 가려졌다 나오거나, 비슷한 물체끼리 엇갈리거나, 프레임을 건너뛰어 많이 움직이면 그 추측이 틀려서 새 번호를 붙여요.</div>
+      <figure id="fig-id-switch">
+        <svg viewBox="0 0 760 250" style="width:100%;height:auto" role="img" aria-label="두 사람이 엇갈리며 한 명이 가려진 뒤 다시 나타날 때 ID 7이 9로 바뀌는 ID switch 설명 그림">
+          <defs><marker id="arB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <g font-size="14" font-weight="700" fill="var(--text)" text-anchor="middle">
+            <text x="125" y="24">frame t</text><text x="380" y="24">frame t+1 (가려짐)</text><text x="635" y="24">frame t+2</text>
+          </g>
+          <g fill="var(--surface)" stroke="var(--line)" stroke-width="1.5">
+            <rect x="10" y="36" width="230" height="160" rx="10"/><rect x="265" y="36" width="230" height="160" rx="10"/><rect x="520" y="36" width="230" height="160" rx="10"/>
+          </g>
+          <line x1="242" y1="116" x2="262" y2="116" stroke="var(--muted)" stroke-width="2" marker-end="url(#arB)"/>
+          <line x1="497" y1="116" x2="517" y2="116" stroke="var(--muted)" stroke-width="2" marker-end="url(#arB)"/>
+          <!-- frame t: 7 왼쪽, 8 오른쪽 -->
+          <rect x="40" y="70" width="44" height="100" rx="6" fill="var(--accent)" fill-opacity="0.25" stroke="var(--accent)" stroke-width="3"/>
+          <text x="62" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">ID 7</text>
+          <rect x="170" y="70" width="44" height="100" rx="6" fill="var(--accent2)" fill-opacity="0.25" stroke="var(--accent2)" stroke-width="3"/>
+          <text x="192" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent2)">ID 8</text>
+          <path d="M88,120 L120,120" stroke="var(--accent)" stroke-width="2" marker-end="url(#arB)"/>
+          <path d="M166,120 L134,120" stroke="var(--accent2)" stroke-width="2" marker-end="url(#arB)"/>
+          <!-- frame t+1: 8이 7을 가림 -->
+          <rect x="350" y="70" width="44" height="100" rx="6" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="5 4"/>
+          <rect x="366" y="70" width="44" height="100" rx="6" fill="var(--accent2)" fill-opacity="0.35" stroke="var(--accent2)" stroke-width="3"/>
+          <text x="388" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent2)">ID 8</text>
+          <text x="380" y="188" text-anchor="middle" font-size="12" fill="var(--muted)">7은 뒤에 숨어 탐지 안 됨</text>
+          <!-- frame t+2: 다시 나타났는데 새 번호 -->
+          <rect x="680" y="70" width="44" height="100" rx="6" fill="var(--accent)" fill-opacity="0.25" stroke="#e03131" stroke-width="3"/>
+          <text x="702" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="#e03131">ID 9 ?!</text>
+          <rect x="550" y="70" width="44" height="100" rx="6" fill="var(--accent2)" fill-opacity="0.25" stroke="var(--accent2)" stroke-width="3"/>
+          <text x="572" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent2)">ID 8</text>
+          <text x="655" y="188" text-anchor="middle" font-size="12" fill="var(--muted)">같은 사람인데 번호가 바뀜</text>
+          <text x="380" y="230" text-anchor="middle" font-size="14" font-weight="700" fill="#e03131">ID switch: "7번" 기억이 끊겨서 새 번호 9를 붙임 → 사람 수가 3명으로 잘못 세어짐</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 보라(ID 7)와 주황(ID 8)이 서로를 향해 걸어와 엇갈려요. 가운데 프레임에서 7이 8 뒤에 가려져(점선) 탐지가 안 되고, 오른쪽에서 다시 나타났을 땐 <b>ID 9</b>라는 새 번호를 받았어요. <b>🤔 왜?</b> 추적기는 "직전 박스와 많이 겹치는 박스 = 같은 애"로 이어 붙이는데, 가려진 프레임엔 이을 박스가 없고, 다시 나타난 위치는 예상보다 멀어서 같은 애라고 확신하지 못하거든요. 그래서 2명이 지나갔는데 3명으로 세는 일이 생겨요(그림은 원리 설명용).</figcaption>
+      </figure>
+
+      <h3>🔧 명령어: 추적 <code>model.track()</code></h3>
+<pre><code>model = YOLO("best.pt")
+for result in model.track(source="traffic.mp4", persist=True,
+                          tracker="botsort.yaml", stream=True):
+    if result.boxes.id is not None:
+        print(result.boxes.id.int().tolist())   # 프레임별 Track ID</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th></tr>
+        <tr><td><code>source</code></td><td>영상, 카메라, 연속 프레임</td></tr>
+        <tr><td><code>persist=True</code></td><td>이전 프레임 기억을 이어감 (같은 영상 안에서만!). <b>왜?</b> 이 기억이 있어야 "아까 7번"과 지금 박스를 이을 수 있어요. 다른 영상에 이어 쓰면 엉뚱한 영상의 기억이 섞여요</td></tr>
+        <tr><td><code>tracker</code></td><td><code>"botsort.yaml"</code>(기본) 또는 <code>"bytetrack.yaml"</code></td></tr>
+        <tr><td><code>result.boxes.id</code></td><td>Track ID (없으면 <code>None</code>)</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 다른 영상으로 넘어갈 땐 <b>새 YOLO 객체</b>를 만들어 기억을 초기화.</div>
+      <div class="callout">🤔 <strong>왜 추적기만 바꿔서는 안 좋아져?</strong> — 추적은 탐지 결과를 <b>이어 붙이는</b> 단계라서, 탐지가 물체를 놓치면 이을 박스 자체가 없어요. 탐지 성능이 추적 품질의 천장이에요.</div>
+      <div class="callout warn">⚠️ 속도를 잴 땐 범위를 같이 적어요. "모델 추론 5ms"를 보고 200 FPS라고 하면 안 돼요. 영상 읽기·전처리·후처리·추적·저장 시간까지 더해야 실제 처리 속도예요.</div>
+      <figure id="fig-speed"><img class="smooth" src="img/day15/speed_breakdown.png" alt="사진 1장 처리 시간을 읽기, 전처리, 모델 추론, 후처리로 나눈 가로 막대와 추론만 본 막대 비교"><figcaption><b>무엇을 보나:</b> 작은 데모 모델로 CPU에서 160px 사진을 처리할 때 걸린 시간을 쪼갠 막대예요(<code>result.speed</code>의 preprocess · inference · postprocess + 직접 잰 imread, 여러 장의 중앙값). 위 막대가 실제 전체, 아래 빗금 막대는 "모델 추론"만 잘라 본 것 — 같은 실행인데 FPS 숫자가 달라져요. <b>🤔 왜?</b> 한 장이 결과가 되려면 읽기 → 전처리 → 추론 → 후처리를 <b>모두</b> 거쳐야 하니까 시간은 더해져요. 여기선 추론이 대부분이라 차이가 작지만, 큰 사진·영상 디코딩·추적·저장이 붙으면 추론 밖의 시간이 훨씬 커져요. 그래서 FPS를 말할 땐 "어디부터 어디까지 쟀는지"를 같이 적어요(숫자는 이 PC 기준이라 장비마다 달라요).</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2>🔧 같은 걸 터미널(CLI)로</h2>
+<pre><code>yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
+yolo detect val     model=best.pt data=dataset.yaml
+yolo detect predict model=best.pt source=samples/ conf=0.25
+yolo detect track   model=best.pt source=traffic.mp4</code></pre>
+      <div class="callout warn">⚠️ CLI는 <code>epochs=30</code> 형식. <code>--epochs 30</code> 아님!</div>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>Day15_20261106.pdf</code> · 요약: <code>Day15_oneday요약.pdf</code></li>
+        <li>공식 문서: <a href="https://docs.ultralytics.com/ko/modes/" target="_blank">Ultralytics Modes (train · val · predict · track)</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day14.html">← 이전: Day14</a>
+      <a href="day16.html">다음: Day16 →</a>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== IoU 체험 =====
+  (() => {
+    const cv = document.getElementById('iou'), ctx = cv.getContext('2d');
+    const W = 480, H = 300, dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+    const gt = { x: 150, y: 70, w: 160, h: 150 };
+    const pr = { x: 200, y: 110, w: 160, h: 140 };
+    const thr = document.getElementById('thr');
+    let drag = null;
+
+    function inter(a, b) {
+      const w = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const h = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      return { w, h, x: Math.max(a.x, b.x), y: Math.max(a.y, b.y) };
+    }
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      const i = inter(gt, pr), ia = i.w * i.h, ua = gt.w * gt.h + pr.w * pr.h - ia, iou = ua ? ia / ua : 0;
+      ctx.fillStyle = 'rgba(64,192,87,0.18)'; ctx.fillRect(gt.x, gt.y, gt.w, gt.h);
+      ctx.fillStyle = 'rgba(59,91,219,0.18)'; ctx.fillRect(pr.x, pr.y, pr.w, pr.h);
+      if (ia) { ctx.fillStyle = 'rgba(250,176,5,0.55)'; ctx.fillRect(i.x, i.y, i.w, i.h); }
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#2b8a3e'; ctx.strokeRect(gt.x, gt.y, gt.w, gt.h);
+      ctx.strokeStyle = '#3b5bdb'; ctx.strokeRect(pr.x, pr.y, pr.w, pr.h);
+      ctx.fillStyle = '#3b5bdb'; ctx.fillRect(pr.x + pr.w - 8, pr.y + pr.h - 8, 16, 16);
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillStyle = '#2b8a3e'; ctx.fillText('정답 (GT)', gt.x + 4, gt.y - 6);
+      ctx.fillStyle = '#3b5bdb'; ctx.fillText('예측 (끌어보세요)', pr.x + 4, pr.y + pr.h + 18);
+      document.getElementById('inter').textContent = Math.round(ia).toLocaleString();
+      document.getElementById('union').textContent = Math.round(ua).toLocaleString();
+      document.getElementById('iouv').textContent = iou.toFixed(2);
+      const t = +thr.value; document.getElementById('thrv').textContent = t.toFixed(2);
+      const dx = (pr.x + pr.w / 2) - (gt.x + gt.w / 2), dy = (pr.y + pr.h / 2) - (gt.y + gt.h / 2);
+      const dist = Math.hypot(dx, dy), ratio = (pr.w * pr.h) / (gt.w * gt.h);
+      document.getElementById('cdist').textContent = Math.round(dist);
+      document.getElementById('sratio').textContent = ratio.toFixed(2);
+      let why;
+      if (ia === 0) why = '🤔 하나도 안 겹쳐서 IoU = 0 — 위치가 완전히 빗나갔어요.';
+      else if (iou >= 0.9) why = '🤔 위치도 크기도 거의 같아서 IoU가 1에 가까워요.';
+      else if (dist < 15 && (ratio > 1.4 || ratio < 0.7)) why = '🤔 중심은 거의 같은데 크기가 달라서 IoU가 낮아요 — 합친 넓이가 커지기 때문이에요.';
+      else if (dist >= 15 && ratio <= 1.4 && ratio >= 0.7) why = '🤔 크기는 비슷한데 위치가 밀려서 IoU가 낮아요 — 겹친 넓이가 줄어들기 때문이에요.';
+      else why = '🤔 위치와 크기가 둘 다 조금씩 달라서 겹친 넓이는 줄고 합친 넓이는 커졌어요.';
+      document.getElementById('whyiou').textContent = why;
+      document.getElementById('verdict').textContent = iou >= t
+        ? `✅ IoU ${iou.toFixed(2)} ≥ ${t.toFixed(2)} → 맞춘 것(TP)으로 인정`
+        : `❌ IoU ${iou.toFixed(2)} < ${t.toFixed(2)} → 틀린 것(FP)으로 처리`;
+    }
+    function pos(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; }
+    cv.addEventListener('pointerdown', e => {
+      const p = pos(e);
+      if (Math.abs(p.x - (pr.x + pr.w)) < 14 && Math.abs(p.y - (pr.y + pr.h)) < 14) drag = { mode: 'resize' };
+      else if (p.x > pr.x && p.x < pr.x + pr.w && p.y > pr.y && p.y < pr.y + pr.h) drag = { mode: 'move', dx: p.x - pr.x, dy: p.y - pr.y };
+      if (drag) { cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; }
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!drag) return; const p = pos(e);
+      if (drag.mode === 'move') { pr.x = Math.min(W - pr.w, Math.max(0, p.x - drag.dx)); pr.y = Math.min(H - pr.h, Math.max(0, p.y - drag.dy)); }
+      else { pr.w = Math.max(20, Math.min(W - pr.x, p.x - pr.x)); pr.h = Math.max(20, Math.min(H - pr.y, p.y - pr.y)); }
+      draw();
+    });
+    cv.addEventListener('pointerup', () => { drag = null; cv.style.cursor = 'grab'; });
+    thr.addEventListener('input', draw);
+    draw();
+  })();
+  </script>
+</body>
+</html>

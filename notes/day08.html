@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day8 · 평가지표·특성설계·K-Means | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag ml">머신러닝</span>
+      <h1>Day8 · 평가지표·특성설계·K-Means</h1>
+      <div class="meta">2026-10-28(수) · Precision/Recall/F1 · ROC-AUC · 교차검증 · Feature Engineering · K-Means · 최종 평가</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>지표는 <b>분모</b>가 다르다: Precision = 경고 중 진짜, Recall = 진짜 중 찾은 것. AUC는 <b>순위</b> 평가, 임계값은 <b>운영</b> 규칙.</li>
+          <li>새 특성(log, 비율)과 K-Means도 <b>Pipeline 안에서, 학습 자료로만</b> fit해야 누수가 없다.</li>
+          <li>선택은 train CV로 → 설정을 <b>잠그고</b> → 개발 80건으로 재학습 → test 20건은 <b>딱 한 번</b> 평가.</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install numpy pandas scikit-learn</code></td></tr>
+        <tr><td><a href="#clsmetrics">① 분류 지표</a></td><td><code>confusion_matrix(labels=)</code>, <code>precision_score</code>, <code>recall_score</code>, <code>f1_score(zero_division=)</code></td></tr>
+        <tr><td><a href="#roc">② ROC-AUC · 임계값</a></td><td><code>predict_proba</code>, <code>roc_curve</code>, <code>roc_auc_score</code>, <code>(p &gt; t).astype(int)</code></td></tr>
+        <tr><td><a href="#cvagg">③ RMSE · CV 점수 집계</a></td><td><code>root_mean_squared_error</code>, <code>cross_validate(scoring={...})</code></td></tr>
+        <tr><td><a href="#features">④ 특성 설계</a></td><td><code>np.log1p</code>, <code>FunctionTransformer(validate=False)</code>, <code>pipe[:-1]</code></td></tr>
+        <tr><td><a href="#kmeans">⑤ K-Means</a></td><td><code>KMeans(n_clusters=, n_init=)</code>, <code>inertia_</code>, <code>silhouette_score</code>, <code>predict</code></td></tr>
+        <tr><td><a href="#final">⑥ 최종 평가 흐름</a></td><td><code>clone()</code>, <code>pd.concat</code>, <code>json.dumps</code>, <code>joblib.dump/load</code>, 입력 검사(<code>ValueError</code>)</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>scikit-learn</code></td><td>지표·ROC·교차검증·FunctionTransformer·KMeans</td><td><code>from sklearn.metrics import roc_auc_score</code> 등</td></tr>
+        <tr><td><code>numpy</code></td><td><code>log1p</code> 같은 행별 계산, 배열 비교</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>pandas</code></td><td>DataFrame에 새 특성 열 추가, 결과 CSV</td><td><code>import pandas as pd</code></td></tr>
+        <tr><td><code>xgboost</code> <small>(Day7에서 설치)</small></td><td>후보 모델 중 하나로 계속 비교</td><td><code>from xgboost import XGBClassifier</code></td></tr>
+        <tr><td><code>matplotlib</code> <small>(선택)</small></td><td>ROC 곡선·군집 그림 그리기</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+        <tr><td>표준 라이브러리</td><td>설정 파일 저장, 경로</td><td><code>import json</code>, <code>from pathlib import Path</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python --version
+python -m pip show scikit-learn xgboost
+python -m pip show numpy pandas matplotlib
+python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .venv인지 확인</code></pre>
+      <div class="callout warn">⚠️ 전날 환경(.venv) 그대로. 설치가 필요한 경우에만 강사 검증 버전(Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0 · XGBoost 3.1.3 · Matplotlib 3.10.8)에 맞춰요. 오늘은 GPU가 필요 없고, CUDA·PyTorch를 임의로 업데이트하지 않아요. 최종 제출에는 <b>실제 설치 버전</b>을 기록해요.</div>
+      <div class="callout">🤔 <strong>왜 <code>sys.executable</code>을 확인하지?</strong> — 컴퓨터에 파이썬이 여러 개 있으면, 패키지를 깔은 파이썬과 코드를 돌리는 파이썬이 다를 수 있어요. 지금 실행 중인 파이썬의 경로가 프로젝트 <code>.venv</code> 안인지 보면 "설치했는데 import가 안 돼요" 문제를 바로 잡을 수 있어요.</div>
+      <div class="callout">💡 오늘의 평가 계획: <b>train 60</b>은 5-fold로 후보 비교(전처리도 fold 안에서) · <b>valid 20</b>은 개발 중 진단(최종 독립 점수 아님) · 설정 확정 후 새 Pipeline을 <b>개발 80건</b>으로 재학습 · <b>test 20</b>은 고정 버전으로 한 번 평가. 기본 경로는 실패 클래스 F1로 선택, 임계값은 처음부터 0.5로 고정해요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>"좋은 모델"의 기준은 업무마다 달라요. 실패를 <b>놓치면</b> 큰일인지, <b>괜한 경고</b>가 비싼지에 따라 볼 지표가 바뀌어요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🏥</div><strong>놓치면 큰일</strong><span>질병·장애 탐지 → Recall 우선</span></div>
+        <div class="usecase"><div class="emoji">📨</div><strong>경고가 비쌈</strong><span>사람이 확인해야 하는 알림 → Precision</span></div>
+        <div class="usecase"><div class="emoji">🧩</div><strong>정답 없이 묶기</strong><span>비슷한 요청·고객끼리 그룹 (K-Means)</span></div>
+        <div class="usecase"><div class="emoji">🔒</div><strong>최종 보고</strong><span>선택을 잠그고 test로 한 번 확인</span></div>
+      </div>
+      <table>
+        <tr><th>상황</th><th>우선 검토</th><th>같이 확인할 것</th></tr>
+        <tr><td>실패를 놓치면 손실이 크다</td><td>Recall</td><td>오탐 수 · 처리 인력 · Precision</td></tr>
+        <tr><td>경고마다 사람의 확인 비용이 든다</td><td>Precision</td><td>놓친 실제 실패 수 · Recall</td></tr>
+        <tr><td>두 오류를 함께 줄이고 싶다</td><td>F1</td><td>FP · FN 건수와 실제 비용</td></tr>
+        <tr><td>실행 시간(숫자)을 예측한다</td><td>MAE · RMSE</td><td>단위(ms) · 큰 잔차 · 자료 범위</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 지표를 먼저 정하지?</strong> — 실패를 놓치는 것(FN)과 괜한 경고(FP)는 <b>서로 다른 비용</b>이에요. 어떤 실수가 더 아픈지 정하지 않고 결과부터 보면, 점수가 좋게 나온 지표를 골라 "잘했다"고 말하게 돼요. 지표 선택은 정답 하나를 찾는 게 아니라 실패의 비용과 운영 조건을 적는 일이에요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="clsmetrics">① 분류 지표 — 분모가 다르다</h2>
+      <p>양성 = <b>실패(1)</b>. 행 = 실제, 열 = 예측. (설명용 20건)</p>
+      <table>
+        <tr><th></th><th>예측 0 · 성공</th><th>예측 1 · 실패</th></tr>
+        <tr><th>실제 0 · 성공</th><td><b>TN</b> 10 · 정상 통과</td><td><b>FP</b> 4 · 오탐</td></tr>
+        <tr><th>실제 1 · 실패</th><td><b>FN</b> 4 · 놓침</td><td><b>TP</b> 2 · 실패 발견</td></tr>
+      </table>
+      <table>
+        <tr><th>지표</th><th>공식</th><th>질문</th><th>예시</th></tr>
+        <tr><td><b>Accuracy</b></td><td>(TP + TN) / 전체</td><td>전체 중 몇 개 맞혔나?</td><td>12/20 = 0.600</td></tr>
+        <tr><td><b>Precision</b></td><td>TP / (TP + FP)</td><td>"실패"라고 경고한 것 중 진짜는? (오탐↑ → 낮아짐)</td><td>2/6 = 0.333</td></tr>
+        <tr><td><b>Recall</b></td><td>TP / (TP + FN)</td><td>진짜 실패 중 몇 개 찾았나? (놓침↑ → 낮아짐)</td><td>2/6 = 0.333</td></tr>
+        <tr><td><b>F1</b></td><td>2·P·R / (P + R) = 2TP / (2TP + FP + FN)</td><td>둘의 균형 (조화평균)</td><td>4/12 = 0.333</td></tr>
+      </table>
+      <div class="callout">💡 Precision과 Recall이 둘 다 0.333이어도 <b>의미가 달라요</b>. "경고 6건"과 "실제 실패 6건"은 서로 다른 집합이에요. F1은 조화평균이라 한쪽이 낮으면 같이 낮아지고, TN은 반영하지 않아요.</div>
+      <div class="callout warn">⚠️ <b>정확도 함정</b> — 실제 성공 14 · 실패 6인데 전부 "성공"으로 찍으면 Accuracy = <b>0.70</b>, Recall = 0, F1 = 0. "60% 정확도"와 "실패 60% 발견"은 전혀 다른 말이에요.</div>
+      <div class="callout">🤔 <strong>왜 분모가 중요하지?</strong> — Precision의 분모는 "<b>내가 실패라고 말한 것</b>"(TP+FP)이라 헛경고가 늘면 떨어지고, Recall의 분모는 "<b>실제로 실패였던 것</b>"(TP+FN)이라 놓침이 늘면 떨어져요. 같은 TP 2건이라도 어느 집합으로 나누느냐에 따라 질문 자체가 달라요. Accuracy는 분모가 전체(20)라, 많은 쪽(성공 14)만 맞혀도 점수가 올라가서 드문 실패를 찾는 문제에선 속기 쉬워요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/precision_recall_denominator.png" alt="혼동행렬에서 Precision은 예측 1 열, Recall은 실제 1 행을 분모로 쓰는 그림"><figcaption><b>무엇을 보나:</b> 같은 혼동행렬을 두 번 그리고, 각 지표가 쓰는 칸만 색칠했어요. Precision은 <b>세로 열</b>(예측 1 = 경고한 것: FP+TP), Recall은 <b>가로 행</b>(실제 1 = 진짜 실패: FN+TP)이에요. <b>🤔 왜?</b> 둘 다 분자는 TP 2로 같지만, 나누는 집합이 "내가 경고한 6건"이냐 "실제 실패 6건"이냐로 달라요. 그래서 FP가 늘면 왼쪽만, FN이 늘면 오른쪽만 나빠져요. 회색 TN은 어느 쪽에도 안 들어가요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 F1은 산술평균이 아니라 조화평균이지?</strong> — Precision 1.0, Recall 0.01인 모델(경고 1번만 해서 맞힘)을 산술평균하면 0.505로 그럴듯해 보여요. 조화평균은 2×1×0.01/(1+0.01) ≈ <b>0.02</b>예요. <b>한쪽이 낮으면 같이 낮아지게</b> 만들어서, 한 지표만 극단적으로 올리는 꼼수를 막아요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/harmonic_mean.png" alt="Precision을 1로 고정했을 때 Recall에 따른 산술평균과 F1 비교"><figcaption><b>무엇을 보나:</b> Precision을 1.0에 고정하고 Recall만 바꿨을 때의 두 평균이에요. 회색 점선(산술평균)은 Recall이 0이어도 0.5에서 시작하지만, 보라 F1은 <b>0에서 시작</b>해요. <b>🤔 왜?</b> 조화평균은 작은 값에 강하게 끌려가요. 한쪽 지표가 0에 가까우면 다른 쪽이 아무리 높아도 F1이 바닥이라, "경고 한 번만 해서 Precision 1.0 만들기" 같은 꼼수가 안 통해요. 둘이 같아질수록(오른쪽 끝) 두 선이 만나요.</figcaption></figure></div>
+
+      <h3>🔧 명령어: 혼동행렬과 네 지표</h3>
+<pre><code>from sklearn.metrics import (confusion_matrix, accuracy_score,
+                             precision_score, recall_score, f1_score)
+
+cm = confusion_matrix(y, pred, labels=[0, 1])
+tn, fp, fn, tp = cm.ravel()                         # 이 순서로 풀림!
+print(accuracy_score(y, pred))
+print(precision_score(y, pred, zero_division=0))
+print(recall_score(y, pred, zero_division=0))
+print(f1_score(y, pred, zero_division=0))       # [[10 4] [4 2]] · Acc 0.600 · P/R/F1 0.333
+
+# 전부 "성공"으로 찍는 경우 (E02)
+y = np.array([0]*14 + [1]*6)
+pred = np.zeros(20, dtype=int)
+print(accuracy_score(y, pred), recall_score(y, pred, zero_division=0),
+      f1_score(y, pred, zero_division=0))       # 0.70 0.0 0.0  → 실패 발견 0/6</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>labels=[0, 1]</code></td><td>행·열 순서 고정</td><td>안 주면 데이터에 나온 값으로 정해져서, 한 클래스만 있는 자료에선 1×1이 되어 <code>ravel()</code> 풀기가 깨짐 → 지정하면 2×2 유지</td></tr>
+        <tr><td><code>.ravel()</code></td><td>2×2를 TN, FP, FN, TP 순서로 펼침</td><td>행=실제·열=예측 순서라 이 순서. 이름을 바꿔 받으면 지표가 통째로 틀려짐</td></tr>
+        <tr><td><code>zero_division=0</code></td><td>분모가 0(양성 예측 0건 등)이면 0으로 기록</td><td>안 주면 경고와 함께 0. "계산 불가"를 0으로 기록하는 규칙이니 "양성 예측 0건"이라는 상황도 함께 적기</td></tr>
+        <tr><td><code>pos_label</code> (기본 1)</td><td>어느 클래스를 양성으로 볼지</td><td>실패=1이 아니면 직접 지정. 바꾸면 Precision·Recall·F1이 "성공"을 기준으로 다시 계산됨</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="roc">② ROC-AUC와 임계값</h2>
+      <table>
+        <tr><th>모델이 낸 값</th><th>운영에서 내릴 판단</th></tr>
+        <tr><td><code>predict_proba</code> → 클래스별 추정 확률. 실패(1) 열은 <code>classes_</code>로 확인</td><td>확률이 임계값을 넘으면 실패. 기본 정책: <b>p &gt; 0.5</b>이면 1, p = 0.5이면 0</td></tr>
+        <tr><td>ROC-AUC에는 이 <b>연속 점수</b>를 넣음</td><td>임계값은 모델·자료와 함께 평가 <b>전에</b> 고정할 설정</td></tr>
+      </table>
+      <p><b>ROC 곡선</b>: 임계값을 1 → 0으로 내리면서 찍은 점들.</p>
+<pre><code>가로축 FPR = FP / (FP + TN)   성공 요청 중 잘못 경고한 비율
+세로축 TPR = TP / (TP + FN)   실제 실패 중 찾아낸 비율 (= Recall)
+AUC   = 곡선 아래 넓이 = "실패 1건 · 성공 1건을 뽑았을 때 실패 점수가 더 높을 확률"</code></pre>
+      <table>
+        <tr><th>실제</th><th>점수</th><th>비교</th></tr>
+        <tr><td>성공 0</td><td>0.10</td><td>실패 0.35, 0.80보다 낮음 ✅✅</td></tr>
+        <tr><td>성공 0</td><td>0.40</td><td>실패 0.35보다 높음 ❌, 0.80보다 낮음 ✅</td></tr>
+        <tr><td>실패 1</td><td>0.35</td><td rowspan="2">양성·음성 2×2 = 4쌍 중 3쌍에서 양성 점수가 높음 → <b>AUC = 0.75</b></td></tr>
+        <tr><td>실패 1</td><td>0.80</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 AUC는 "순위" 평가지?</strong> — AUC는 실패·성공을 한 쌍씩 짝지어 "실패 쪽 점수가 더 높은가"만 세요(동률 없음 기준). 점수의 <b>크기</b>가 아니라 <b>순서</b>만 보니까, 임계값을 어디에 두든 순서는 그대로라 AUC도 그대로예요. 그래서 0/1 클래스를 넣으면 순서 정보가 사라져 의미가 없고, <b>연속 점수</b>(predict_proba의 실패 열)를 넣어야 해요. 또 짝을 지으려면 두 클래스가 모두 있어야 하니, 한 클래스뿐인 자료에선 계산할 수 없어요(0으로 위장하지 말고 None + 실제 양성 수 기록).</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/roc_auc.png" alt="코드 예시 4건과 슬라이더 20건의 ROC 곡선과 AUC 면적"><figcaption><b>무엇을 보나:</b> 왼쪽은 아래 코드의 4건, 오른쪽은 아래 슬라이더의 20건으로 그린 ROC 곡선이에요. 칠해진 넓이가 AUC(0.75, 0.821)이고, 점선 대각선은 무작위 순서(0.5)예요. 오른쪽 점 두 개는 임계값 0.5·0.3이 곡선 위 <b>어디에 서 있는지</b> 보여 줘요. <b>🤔 왜?</b> 곡선은 임계값을 1에서 0으로 내리며 "실패 하나 잡을 때마다 위로, 성공 하나 잘못 경고할 때마다 오른쪽으로" 한 칸씩 걸은 발자국이에요. 점수 순서만으로 걸음이 정해지니, 임계값은 곡선 위의 한 점을 고르는 것일 뿐 곡선(AUC)을 바꾸지 않아요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 확률 0.8 ≠ "80% 실패"지?</strong> — 모델이 낸 확률은 "추정치"라서, 실제로 0.8짜리 요청들 중 80%가 실패하는지는 따로 검증(확률 보정)해야 알아요. 기본 정책은 <b>p &gt; 0.5</b>면 실패, 정확히 0.5면 성공으로 미리 적어 두어 경계에서 헷갈리지 않게 해요.</div>
+      <p>아래 슬라이더로 임계값을 바꿔 보세요. <b>AUC는 그대로</b>인데 FP·FN·F1·비용은 바뀌어요. (설명용 가상 점수 20건 · 실패 6건 · 비용 = FP + 5×FN은 가정)</p>
+      <div class="lab">
+        <canvas id="thrCanvas" width="480" height="200"></canvas>
+        <div class="readout">
+          <label>임계값 t (p &gt; t → 실패) <input type="range" id="thrSlider" min="0.05" max="0.95" step="0.05" value="0.5"> <b id="thrVal">0.50</b></label>
+        </div>
+        <div class="readout">
+          <div>TN <b id="cmTN">-</b></div><div>FP <b id="cmFP">-</b></div>
+          <div>FN <b id="cmFN">-</b></div><div>TP <b id="cmTP">-</b></div>
+        </div>
+        <div class="readout">
+          <div>Precision <b id="mP">-</b></div><div>Recall <b id="mR">-</b></div>
+          <div>F1 = <span class="big" id="mF1">-</span></div>
+          <div>비용 <b id="mCost">-</b></div><div>AUC <b id="mAUC">-</b></div>
+        </div>
+        <div class="verdict" id="thrVerdict"></div>
+      </div>
+
+      <h3>🔧 명령어: <code>roc_curve</code> · <code>roc_auc_score</code> · 임계값</h3>
+<pre><code>from sklearn.metrics import roc_curve, roc_auc_score
+
+y = np.array([0, 0, 1, 1])
+p = np.array([0.10, 0.40, 0.35, 0.80])          # 실패(1)의 확률 = predict_proba(X)[:, 실패열]
+fpr, tpr, thresholds = roc_curve(y, p)          # FPR [0 0 .5 .5 1], TPR [0 .5 .5 1 1]
+print(roc_auc_score(y, p))                      # 0.75
+
+for t in [0.5, 0.3]:
+    pred = (p &gt; t).astype(int)                   # 같은 점수, 다른 판단 기준
+    tn, fp, fn, tp = confusion_matrix(y, pred, labels=[0, 1]).ravel()
+    print(t, fp, fn, fp + 5 * fn)               # t=0.5: FP0 FN1 비용5 (F1 .667) / t=0.3: FP1 FN0 비용1 (F1 .800)
+# 비용 5:1은 설명용 가정이지 실제 업무 근거가 아님 · AUC는 계속 0.75</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>주의 / 바꾸면?</th></tr>
+        <tr><td><code>roc_curve(y, score)</code></td><td>FPR · TPR · 임계값 배열</td><td>score는 0/1 클래스가 아니라 <b>연속 점수</b> — 클래스를 넣으면 곡선 점이 몇 개뿐이 됨</td></tr>
+        <tr><td><code>roc_auc_score(y, score)</code></td><td>양성 점수의 순위 평가</td><td>y에 두 클래스가 모두 있어야 계산 가능 (0으로 위장 금지)</td></tr>
+        <tr><td><code>(p &gt; t)</code></td><td>임계값 규칙</td><td>t를 낮추면 경고↑ → FN↓·FP↑. 임계값 탐색은 <b>test에서 금지</b> — test로 고르면 그 test는 더 이상 독립 평가가 아님</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 t=0.3에서 비용이 줄었지?</strong> — 실패 0.35가 0.5 선에선 "성공"(FN)이었는데 0.3 선에선 "실패"로 잡혀요. 대신 성공 0.40도 넘어와 FP가 1 생겨요. 가정한 비용이 FN 1건 = 5, FP 1건 = 1이라, <b>비싼 놓침 하나를 싼 헛경고 하나와 바꾼</b> 셈이라 5 → 1이 됐어요. 비용 가정이 바뀌면 답도 바뀌어요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/threshold_sweep.png" alt="임계값에 따른 FP, FN, 비용, F1과 변하지 않는 AUC"><figcaption><b>무엇을 보나:</b> 슬라이더와 같은 20건으로 임계값을 0.05씩 옮긴 결과예요. 왼쪽: 선을 올리면 주황 FP는 내려가고 빨간 FN은 올라가며, 가정한 비용(FP + 5×FN)은 t=0.25에서 가장 작아요. 오른쪽: F1은 t마다 오르내리지만 분홍 AUC는 <b>수평선</b>이에요. <b>🤔 왜?</b> FN 한 건을 FP 다섯 건과 같은 값으로 쳤으니, 비용 곡선은 FN이 생기기 시작하는 지점 바로 앞에서 바닥을 쳐요. 비용 비율을 바꾸면 그 바닥 위치도 옮겨 가요. 임계값은 이렇게 <b>오류 비용</b>으로 정하는 운영 규칙이고, valid에서만 골라요.</figcaption></figure></div>
+      <div class="callout warn">⚠️ <strong>AUC만 보고 끝내지 않기</strong>
+        <ul>
+          <li>AUC 0.786은 "실패 78.6% 발견"이 아니에요. 발견 비율은 <b>Recall</b>.</li>
+          <li>AUC는 특정 임계값의 F1이나 확률이 얼마나 잘 맞는지(보정)와 별개예요.</li>
+          <li>불균형 자료에서는 실제 양성 수, PR 관점도 함께 봐요.</li>
+          <li>임계값만 바꾸면 점수 순위는 같으니 AUC는 그대로, FP·FN·F1이 바뀌어요.</li>
+        </ul>
+      </div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/pr_curve.png" alt="같은 20건 점수의 Precision-Recall 곡선과 임계값 0.5, 0.3의 위치"><figcaption><b>무엇을 보나:</b> 같은 20건을 Recall(가로)-Precision(세로)로 다시 그린 PR 곡선이에요. 오른쪽으로 갈수록 경고를 많이 해서 실패를 더 찾지만 Precision이 내려가요. 점선 0.30은 아무렇게나 경고할 때의 Precision(실패 비율)이에요. <b>🤔 왜?</b> ROC의 가로축(FPR)은 흔한 성공 14건으로 나누니 오탐이 몇 건 늘어도 티가 덜 나요. PR은 "경고한 것 중 진짜"를 직접 보여 줘서, 실패가 드문 불균형 자료에서 경고의 질을 더 솔직하게 드러내요. t=0.3은 실패를 5/6 찾는 대신 경고의 62%가 오탐이에요.</figcaption></figure></div>
+
+      <!-- ============================================================ -->
+      <h2 id="cvagg">③ RMSE와 교차검증 점수 집계</h2>
+<pre><code>RMSE = √ mean((y − ŷ)²)      오차 → 제곱 → 평균 → 제곱근 · 단위는 정답과 같음(ms)</code></pre>
+      <table>
+        <tr><th>모델</th><th>예측 (실제 100, 200, 300, 400)</th><th>MAE</th><th>RMSE</th></tr>
+        <tr><td>A</td><td>100, 200, 300, <b>480</b> (한 번 크게)</td><td><b>20 ms</b></td><td>40 ms</td></tr>
+        <tr><td>B</td><td>130, 230, 330, 430 (고르게)</td><td>30 ms</td><td><b>30 ms</b></td></tr>
+      </table>
+      <div class="callout">💡 MAE는 평균적인 절대 오차, RMSE는 큰 오차에 더 민감해요. 평균만 보지 말고 큰 잔차의 실제값·예측값·ID를 확인해요. 회귀 점수와 분류 F1은 합쳐서 평균 내지 않아요.</div>
+<pre><code>from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+y = [100, 200, 300, 400]
+a = [100, 200, 300, 480]
+b = [130, 230, 330, 430]
+for name, pred in [("A", a), ("B", b)]:
+    print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))
+# A 20.0 40.0  /  B 30.0 30.0</code></pre>
+      <div class="callout">🤔 <strong>왜 A는 MAE로 이기고 RMSE로 지지?</strong> — A의 오차는 (0, 0, 0, 80): MAE = 80/4 = 20, RMSE = √(80²/4) = √1600 = 40. B는 (30, 30, 30, 30): 둘 다 30. 제곱하면 큰 오차 80이 6400으로 커져 혼자 평균을 끌어올리니, "한 번 크게 틀리는" A가 RMSE에서 불리해요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/mae_rmse_ab.png" alt="모델 A와 B의 요청별 오차와 MAE, RMSE 비교"><figcaption><b>무엇을 보나:</b> 왼쪽은 실제값별 오차예요. A는 마지막 요청에서만 80 틀렸고, B는 매번 30씩 틀렸어요. 오른쪽에서 MAE는 A(20) &lt; B(30), RMSE는 A(40) &gt; B(30)로 <b>순위가 뒤집혀요</b>. <b>🤔 왜?</b> RMSE는 제곱 평균이라 80이 6400으로 부풀어 혼자 평균을 끌어올려요. "가끔 크게 틀리는" 모델과 "늘 조금씩 틀리는" 모델 중 무엇이 더 나쁜지는 업무가 정할 일이라, 주 지표를 미리 고르고 큰 잔차의 행을 따로 확인해요.</figcaption></figure></div>
+      <table>
+        <tr><th>집계 방법</th><th>뜻</th><th>주의</th></tr>
+        <tr><td>fold 점수 평균 ± 표준편차</td><td>예: F1 0.522 ± 0.209 → 분할에 따라 흔들렸다는 진단 근거</td><td>95% 신뢰구간이 아님</td></tr>
+        <tr><td>OOF 예측을 합쳐 한 번 계산</td><td>각 행을 그 행을 학습하지 않은 모델로 예측해 모음</td><td>fold 평균과 다를 수 있음 (RMSE 2·10 → 평균 6, 합친 값 약 7.21)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 평균 6인데 합치면 7.21이지?</strong> — RMSE는 "제곱 평균 → 루트"라 직선이 아니에요(비선형). 같은 크기 두 fold의 제곱오차 평균은 2²=4, 10²=100이라, 합치면 √((4+100)/2) = √52 ≈ <b>7.21</b>. 반면 루트를 씌운 뒤 평균 내면 (2+10)/2 = 6. F1도 분모가 fold마다 달라서 마찬가지예요. 그래서 <b>무엇을 어떻게 평균 냈는지</b> 적고, 서로 다른 계산의 숫자를 같은 열에 섞지 않아요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/fold_mean_vs_pooled.png" alt="fold RMSE 2와 10의 평균 6과 합쳐 계산한 7.21 비교 막대"><figcaption><b>무엇을 보나:</b> 같은 두 fold(RMSE 2, 10)를 두 방식으로 요약했어요. 각 fold의 RMSE를 평균하면 6.00, 두 fold의 제곱오차를 먼저 합친 뒤 한 번에 RMSE를 내면 7.21이에요. <b>🤔 왜?</b> 루트(√)는 큰 값을 덜 키우는 곡선이라 "루트 먼저 → 평균"과 "평균 먼저 → 루트"의 결과가 달라요. 둘 다 틀린 계산이 아니라 <b>질문이 다른</b> 계산이니, 보고서에 어떤 방식인지 적고 한 열에 섞지 않아요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 "평균 ± 표준편차"가 신뢰구간이 아니지?</strong> — 5개 fold는 같은 60건에서 학습 자료를 서로 많이 나눠 쓰기 때문에 독립적인 5번의 실험이 아니에요. 표준편차는 "분할에 따라 이만큼 흔들렸다"는 <b>진단 기록</b>이지, 진짜 성능이 그 범위 안에 있을 확률을 말해 주지 않아요.</div>
+      <table>
+        <tr><th>자료 구조</th><th>검토할 분할</th><th>추가 검사</th></tr>
+        <tr><td>독립 요청 · 분류</td><td><code>StratifiedKFold</code></td><td>fold별 양성 수 · ID 교집합</td></tr>
+        <tr><td>같은 고객·요청의 반복 행</td><td><code>GroupKFold</code> 등</td><td>같은 그룹이 학습/평가 양쪽에 없는가</td></tr>
+        <tr><td>시간 순서 · 미래 예측</td><td><code>TimeSeriesSplit</code> 등</td><td>미래 자료가 과거 학습에 들어오지 않는가</td></tr>
+        <tr><td>고른 최고 점수의 낙관성</td><td>별도 최종 test / 필요하면 nested CV</td><td>선택용 자료와 최종 평가의 역할 구분</td></tr>
+      </table>
+      <div class="callout">💡 분할 방법은 점수가 잘 나오는 걸로 고르지 않고, <b>실제로 예측할 상황</b>에 맞춰 정해요.</div>
+      <div class="callout">🤔 <strong>왜 상황마다 분할이 다르지?</strong> — 평가는 "실전과 같은 조건의 시험"이어야 해요. 같은 고객의 행이 학습·평가에 나뉘어 들어가면, 모델이 그 고객을 이미 "외운" 상태로 시험을 보게 돼요(그룹 분할 필요). 미래를 예측하는데 미래 자료로 학습하면 실전에선 불가능한 정보를 쓰는 셈이에요(시간 분할 필요).</div>
+
+      <h3>🔧 명령어: <code>cross_validate</code>로 여러 지표 · 음수 RMSE</h3>
+<pre><code>from sklearn.model_selection import cross_validate
+
+scores = cross_validate(pipe, X_train, y_train, cv=CLS_FOLDS,
+                        scoring={"f1": "f1", "auc": "roc_auc"},   # 한 번에 두 지표
+                        return_train_score=True, error_score="raise", n_jobs=1)
+print(scores["test_f1"], scores["test_f1"].mean())   # fold F1 [.286 .667 .857 .400 .400], 평균 .522 (편차 .209)
+print(scores["test_auc"].mean())                     # 평균 AUC .805
+
+reg = cross_validate(build(LinearRegression()), X_train, yr_train, cv=REG_FOLDS,
+                     scoring="neg_root_mean_squared_error", n_jobs=1, error_score="raise")
+rmse = -reg["test_score"]                            # 부호 되돌리기 → 평균 639.83 ms (KNN15는 598.85 ms)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>scoring={"f1": ..., "auc": ...}</code></td><td>같은 fold에서 여러 지표</td><td>결과 키가 <code>test_f1</code>, <code>test_auc</code>로 생김. 따로 돌리면 학습을 두 번 해서 느리고, fold가 같은지도 따로 챙겨야 함</td></tr>
+        <tr><td><code>"neg_root_mean_squared_error"</code></td><td>"클수록 좋다" 관례 때문에 음수</td><td>−500이 −700보다 좋음 (RMSE 500 &lt; 700). sklearn이 모든 점수를 "최대화"로 통일해서 생긴 규칙 → 보고할 땐 부호를 되돌림</td></tr>
+        <tr><td><code>return_train_score=True</code></td><td>train 점수도 함께</td><td>train과 fold 평가의 격차로 과적합 진단</td></tr>
+        <tr><td><code>error_score="raise"</code></td><td>실패를 조용히 숨기지 않음</td><td>기본값이면 실패 fold가 NaN으로 들어가 평균이 이상해져도 모를 수 있음</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>test_f1</code>의 "test"는 <b>fold 평가 12건</b>이지 보관한 test 20이 아니에요. CV 평균이 조금 높다고 통계적으로 우수하다고 단정하지 않아요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="features">④ 특성 설계 (Feature Engineering)</h2>
+      <p>원본 입력을 의미 있게 <b>변환·조합</b>해서, 모델이 쓰기 좋은 표현을 새로 만들어 줘요.</p>
+      <div class="flow">
+        <span class="step">가설</span><span class="arrow">→</span>
+        <span class="step">변환 정의</span><span class="arrow">→</span>
+        <span class="step">입력/출력 검사</span><span class="arrow">→</span>
+        <span class="step">고정 조건 비교<br><small>같은 모델 · 같은 CV</small></span><span class="arrow">→</span>
+        <span class="step">해석의 한계</span>
+      </div>
+      <table>
+        <tr><th>특성</th><th>정의</th><th>주의</th></tr>
+        <tr><td><code>log_input_chars</code></td><td>log(1 + 글자수)</td><td>0이면 0 · 음수 금지 · NaN은 NaN 유지 (큰 값 차이를 완만하게)</td></tr>
+        <tr><td><code>chars_per_slot</code></td><td>글자수 / (1 + 허용 도구수)</td><td>+1은 분모 0 방지용 설계 선택 · "도구당 실행시간"이 아님</td></tr>
+        <tr><td>원본 4열</td><td>수치 2 + 범주 2 그대로</td><td>추가만 하고 삭제하지 않음</td></tr>
+        <tr><td>❌ 금지</td><td>실행시간/글자수, retry_count 등</td><td>실행 <b>후</b> 정보로 만들면 시점 누수</td></tr>
+      </table>
+      <table>
+        <tr><th>글자수 / 도구수</th><th>log_input_chars</th><th>chars_per_slot</th></tr>
+        <tr><td>0 / 0</td><td>0</td><td>0</td></tr>
+        <tr><td>99 / 2</td><td>4.605</td><td>33</td></tr>
+        <tr><td>999 / 4</td><td>6.908</td><td>199.8</td></tr>
+        <tr><td>NaN</td><td>NaN 유지</td><td>NaN 유지</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 log를 씌우지?</strong> — 글자수는 수백~수천처럼 범위가 넓고 큰 값 쪽으로 길게 늘어져요. log를 씌우면 99 → 4.605, 999 → 6.908처럼 <b>10배 차이가 약 2.3 차이로 완만해져서</b>, 몇 개의 아주 긴 요청이 계수·거리를 휘두르지 않게 돼요. <code>log1p</code>(= log(1+x))를 쓰는 이유는 글자수 0에서도 log(1)=0으로 안전하기 때문이에요(그냥 log(0)은 −∞).</div>
+      <div class="figs">
+        <figure><img class="smooth" src="img/day08/log1p_curve.png" alt="log1p 함수 곡선과 0, 9, 99, 999의 변환값"><figcaption><b>무엇을 보나:</b> log1p 곡선 위에 0·9·99·999를 찍었어요. 99에서 999까지 가로로 900을 가도 세로로는 4.61 → 6.91, <b>겨우 2.3</b>만 올라가요. <b>🤔 왜?</b> 로그는 "몇 배인가"를 "몇 칸인가"로 바꿔요. 10배씩 커질 때마다 약 2.3씩 같은 간격으로 올라가니, 큰 값끼리의 차이는 눌리고 작은 값 쪽 차이는 살아나요. x=0에서도 log(1)=0이라 안전하고요.</figcaption></figure>
+        <figure><img class="smooth" src="img/day08/log1p_hist.png" alt="오른쪽 꼬리가 긴 분포가 log1p 후 가운데로 모이는 히스토그램"><figcaption><b>무엇을 보나:</b> 오른쪽 꼬리가 긴 설명용 합성 글자수 400건(왼쪽)이 log1p 후(오른쪽) 가운데로 모인 종 모양에 가까워졌어요. <b>🤔 왜?</b> 아주 긴 몇 개 요청(왼쪽 그림 오른쪽 끝)이 log 눈금에선 다른 값들과 가까워져서, 계수·거리를 혼자 휘두르지 못해요. 참고로 수업 자료의 글자수는 203~2381로 이렇게 심하게 치우치진 않아서 log 효과가 크지 않을 수 있어요 — 그래서 같은 조건 비교로 확인해요.</figcaption></figure>
+      </div>
+      <div class="callout">🤔 <strong>왜 비율 특성을 만들지? 왜 +1?</strong> — "글자수가 많은데 쓸 수 있는 도구는 적다" 같은 <b>두 입력의 관계</b>는 원본 열 하나씩만 봐서는 선형 모델이 잘 못 잡아요. 비율로 만들어 주면 그 관계를 한 열로 직접 보여 줄 수 있어요. 분모에 1을 더한 건 도구 수가 0일 때 0으로 나누는 오류(무한대)를 막기 위한 <b>명시적 설계 선택</b>이에요. 성능이 좋아질지는 같은 조건 비교로 따로 확인해요.</div>
+      <table>
+        <tr><th>행별로 계산 가능한 규칙</th><th>자료에서 추정하는 변환</th></tr>
+        <tr><td>log1p(글자수), 글자수 / (1 + 도구수) — 한 행의 사전 입력만 사용</td><td>중앙값·평균·표준편차, 범주 목록, 특성 선택, PCA, K-Means</td></tr>
+        <tr><td>그래도 Pipeline에 넣어 학습·추론 규칙을 일치시킴</td><td>반드시 <b>학습 자료(fold 학습 부분)</b>에서만 fit</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 정답을 쓰지 않는 비지도 변환이라도 평가 자료로 fit하면 누수예요. 수치 결측을 "전체 자료 중앙값"으로 먼저 채우는 것도 안 돼요. 정답을 이용하는 인코딩·특성 선택은 더 엄격한 누수 방지 절차가 필요해요.</div>
+      <div class="callout">🤔 <strong>왜 행별 규칙도 Pipeline에 넣지?</strong> — log1p나 비율은 한 행만 보고 계산하니 누수는 없어요. 그래도 Pipeline 밖에서 손으로 만들면, 나중에 새 요청을 예측할 때 똑같이 만드는 걸 잊거나 식이 조금 달라질 수 있어요. Pipeline 안에 두면 <b>학습 때와 추론 때 같은 규칙</b>이 자동으로 적용돼요. 반대로 중앙값·표준편차·범주 목록·K-Means 중심처럼 <b>자료에서 배우는 값</b>은 반드시 학습 부분에서만 fit해야 해요.</div>
+      <div class="figs"><figure>
+        <svg viewBox="0 0 690 196" style="width:100%;height:auto;display:block" role="img" aria-label="특성 생성 단계가 포함된 Pipeline 구조"><defs><marker id="d8arrF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted,#7a7191)"/></marker></defs><rect x="4" y="4" width="682" height="132" rx="14" style="fill:none;stroke:var(--accent,#7c4dff);stroke-width:2;stroke-dasharray:6 4"/><text x="16" y="24" style="fill:var(--accent,#7c4dff);font-size:13px;font-weight:700">Pipeline — fit(X_train) 한 번으로 아래 단계가 순서대로</text><rect x="16" y="46" width="110" height="62" rx="9" style="fill:var(--surface,#fff);stroke:var(--text,#2a2340)"/><text x="71.0" y="74.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">입력 X</text><text x="71.0" y="91.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">원본 4열</text><rect x="156" y="40" width="170" height="74" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent2,#ff5fa2)"/><text x="241.0" y="74.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">features</text><text x="241.0" y="91.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">FunctionTransformer</text><text x="241" y="104" text-anchor="middle" style="fill:var(--accent2,#ff5fa2);font-size:11px">행별 규칙 · 배울 값 없음 → 6열</text><rect x="356" y="40" width="170" height="74" rx="9" style="fill:var(--surface,#fff);stroke:var(--accent,#7c4dff)"/><text x="441.0" y="74.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">pre</text><text x="441.0" y="91.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">결측 대체 · 표준화 · One-hot</text><text x="441" y="104" text-anchor="middle" style="fill:var(--accent,#7c4dff);font-size:11px">train으로 통계 fit → 10열</text><rect x="556" y="46" width="120" height="62" rx="9" style="fill:var(--accent-soft,#f2ecff);stroke:var(--accent,#7c4dff)"/><text x="616.0" y="74.0" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">model</text><text x="616.0" y="91.0" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:11px">Logistic C=1</text><path d="M126 77 L154 77" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d8arrF)"/><path d="M326 77 L354 77" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d8arrF)"/><path d="M526 77 L554 77" style="stroke:var(--muted,#7a7191);stroke-width:1.6;fill:none" marker-end="url(#d8arrF)"/><text x="345" y="162" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:13px">log_input_chars = log1p(글자수) · chars_per_slot = 글자수 / (1 + 도구수)</text><text x="345" y="184" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:12px">pipe[:-1].transform(X) → (행 수, 10) = 수치 4 (원본 2 + 파생 2) + 원핫 6</text></svg>
+        <figcaption><b>무엇을 보나:</b> 새 특성을 만드는 분홍 상자가 Pipeline <b>맨 앞 단계</b>로 들어가 있어요. 4열 → 6열 → 10열로 늘어나며 모델까지 한 줄로 흘러가요. <b>🤔 왜?</b> 분홍 상자는 한 행만 보고 계산하니 누수 걱정은 없지만, Pipeline 안에 있어야 새 요청을 예측할 때도 <b>똑같은 식</b>이 자동으로 붙어요. 보라 상자(중앙값·평균·표준편차)는 자료에서 배우는 값이라, fold마다 학습 부분으로만 fit되는 것도 이 구조 덕분이에요.</figcaption>
+      </figure></div>
+
+      <h3>🔧 명령어: <code>np.log1p</code> · <code>FunctionTransformer</code></h3>
+<pre><code>import numpy as np
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.pipeline import Pipeline
+
+def add_features(X):
+    out = X.copy()                                              # 원본은 건드리지 않음
+    out["log_input_chars"] = np.log1p(out["input_chars"])
+    out["chars_per_slot"] = out["input_chars"] / (1.0 + out["allowed_tools"])
+    return out
+
+pipe = Pipeline([
+    ("features", FunctionTransformer(add_features, validate=False)),
+    ("pre", make_pre(engineered=True)),         # 결측 대체·표준화·One-hot (수치 4열로 늘어남)
+    ("model", LogisticRegression(C=1, max_iter=1000))])
+pipe.fit(X_train, y_train)
+print(pipe[:-1].transform(X_train).shape)       # (60, 10) = 수치 4 + 원핫 6
+print(pipe[:-1].transform(X_valid).shape)       # (20, 10)  NaN·inf 없음
+
+# 파생 특성의 효과만 분리해서 비교 (같은 Logistic C=1 · 같은 5-fold · 같은 전처리)
+for name in ["Logistic", "Logistic_FE"]:
+    pipe = candidates()[name]
+    cv = cross_validate(pipe, X_train, y_train, cv=CLS_FOLDS, scoring="f1", n_jobs=1)
+    pipe.fit(X_train, y_train)
+    print(name, cv["test_score"].mean(), f1_score(y_valid, pipe.predict(X_valid)))
+
+# 각 fold의 중앙값이 그 fold 학습 48건(파생 특성 포함)에서 왔는지 검사
+cv = cross_validate(pipe, X_train, y_train, cv=CLS_FOLDS, scoring="f1", return_estimator=True)
+for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
+    expected = add_features(X_train.iloc[fit_idx])[NUM + DERIVED].median()
+    actual = fitted["pre"].named_transformers_["num"]["imputer"].statistics_
+    assert np.allclose(expected.to_numpy(), actual)   # 글자수 중앙값 1309 / 1303 / 1315 / 1315 / 1338</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>np.log1p(x)</code></td><td>log(1 + x) — x=0이어도 안전</td><td><code>np.log</code>는 0에서 −inf. NaN은 NaN으로 남겨 뒤의 imputer가 학습 규칙대로 채우게 함</td></tr>
+        <tr><td><code>X.copy()</code></td><td>원본 DataFrame 보호</td><td>빼면 넘겨받은 원본에 열이 추가돼, 다음 실험·fold에서 이미 열이 있는 자료를 쓰게 됨</td></tr>
+        <tr><td><code>FunctionTransformer(func)</code></td><td>직접 만든 함수를 Pipeline 단계로</td><td>함수는 모듈에 <b>이름 있는 함수</b>로 (저장·복원용)</td></tr>
+        <tr><td><code>validate=False</code></td><td>DataFrame 입력을 그대로 유지</td><td>True면 배열로 바뀌어 <code>out["input_chars"]</code> 같은 열 이름 사용 불가</td></tr>
+        <tr><td><code>pipe[:-1]</code></td><td>마지막(모델) 전까지만 실행</td><td>변환 결과 shape 확인용</td></tr>
+        <tr><td><code>make_pre(engineered=True)</code></td><td>강의 코드의 사용자 정의 함수 — 수치 4열(원본 2 + 파생 2) 경로</td><td>False면 원본 수치 2열만 → (60, 8)</td></tr>
+      </table>
+      <table>
+        <tr><th>Logistic C=1</th><th>기존</th><th>파생 2개 추가</th></tr>
+        <tr><td>CV F1</td><td>0.522</td><td>0.551</td></tr>
+        <tr><td>CV 표준편차</td><td>0.209</td><td>0.190</td></tr>
+        <tr><td>valid F1</td><td>0.333</td><td><b>0.182</b></td></tr>
+      </table>
+      <div class="callout">💡 CV는 0.029 올랐지만 변동이 크고 valid는 떨어졌어요. 특성을 추가했다고 항상 좋아지지 않으니, 결과와 한계를 <b>모두</b> 보고해요.</div>
+      <div class="callout">🤔 <strong>왜 CV는 오르고 valid는 떨어질 수 있지?</strong> — CV 0.029 상승은 fold 표준편차(약 0.19)에 비하면 아주 작은 차이라 우연일 수 있어요. valid는 실패 6건뿐이라 한 건만 달라져도 F1이 크게 움직여요. 둘 다 작은 자료의 "흔들림" 범위 안이라, 어느 쪽 숫자만 골라 "개선"이나 "악화"로 확정하지 않아요. 그래서 비교할 땐 <b>모델·fold·전처리는 고정하고 파생 특성만</b> 바꿔요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="kmeans">⑤ K-Means — 정답 없이 비슷한 것끼리 묶기</h2>
+      <table>
+        <tr><th></th><th>KNN (Day6)</th><th>K-Means</th></tr>
+        <tr><td>종류</td><td>지도학습 (정답 있음)</td><td><b>비지도학습</b> (정답 없음)</td></tr>
+        <tr><td>K의 뜻</td><td>참고할 이웃 수</td><td>만들 <b>군집 개수</b></td></tr>
+        <tr><td>하는 일</td><td>가까운 학습 사례의 라벨로 예측</td><td>군집 중심을 학습, 새 입력은 가까운 중심에 할당</td></tr>
+      </table>
+      <div class="flow">
+        <span class="step"><b>초기화</b><br><small>K개 중심 선택 (k-means++)</small></span><span class="arrow">→</span>
+        <span class="step"><b>할당</b><br><small>각 점 → 가장 가까운 중심</small></span><span class="arrow">→</span>
+        <span class="step"><b>갱신</b><br><small>중심 = 소속 점들의 평균</small></span><span class="arrow">→</span>
+        <span class="step">반복<br><small>안정되면 종료</small></span>
+      </div>
+      <p>목표는 각 점에서 소속 중심까지 <b>제곱거리의 합(inertia)</b>을 줄이는 것. 초기값에 따라 결과가 달라질 수 있어서 여러 번 시도(<code>n_init</code>)해요.</p>
+      <div class="callout">🤔 <strong>왜 "할당 → 평균으로 이동"을 반복하면 되지?</strong> — 중심이 정해져 있으면 각 점을 가장 가까운 중심에 붙이는 게 제곱거리를 가장 줄이는 방법이고, 묶음이 정해져 있으면 그 묶음의 <b>평균</b>이 제곱거리 합을 가장 작게 만드는 중심이에요. 두 단계 모두 inertia를 줄이거나 그대로 두니 언젠가 멈춰요. 다만 처음 중심을 어디 두었느냐에 따라 "그럭저럭 괜찮은 곳"에서 멈출 수 있어서, 여러 번 시작해 보고 가장 좋은 걸 고르는 거예요(<code>n_init</code>).</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_steps.png" alt="K-Means가 반복하며 중심이 군집 가운데로 이동하는 네 단계"><figcaption><b>무엇을 보나:</b> 합성 자료에서 일부러 나쁜 곳에 중심 3개(X)를 놓고 시작했어요. 점 색은 "지금 가장 가까운 중심"이고, 화살표는 중심이 소속 점들의 <b>평균 위치로 옮겨 간</b> 길이에요. 위쪽 숫자 inertia가 1950 → 348로 줄어요. <b>🤔 왜?</b> 할당 단계에선 각 점이 더 가까운 중심으로 갈아타고, 갱신 단계에선 중심이 자기 점들의 한가운데로 옮겨요. 두 단계 모두 제곱거리 합을 줄이기만 하니, 몇 번 만에 더 움직일 곳이 없어 멈춰요. 시작점이 나쁘면 엉뚱한 곳에서 멈출 수도 있어 <code>n_init</code>으로 여러 번 시작해요.</figcaption></figure></div>
+      <div class="callout warn">⚠️ 군집 0·1·2는 순서나 성공/실패 의미가 <b>없는 이름표</b>예요. 0과 1을 바꿔도 같은 묶음. "군집 2가 더 위험하다" 같은 해석은 금지.</div>
+      <div class="callout">🤔 <strong>왜 번호에 의미가 없지?</strong> — K-Means는 정답 y를 전혀 보지 않고 "가까운 것끼리"만 묶어요. 번호는 계산 순서상 붙은 이름표라 0과 1을 바꿔도 묶음은 똑같아요. 성공/실패나 위험도는 학습에 들어간 적이 없으니, 번호에서 그런 의미를 읽을 수 없어요.</div>
+      <table>
+        <tr><th>평가</th><th>뜻</th><th>주의</th></tr>
+        <tr><td><b>inertia</b></td><td>군집 안의 거리 (작을수록 촘촘)</td><td>K를 늘리면 거의 항상 작아짐 → 최솟값만으로 K 결정 금지</td></tr>
+        <tr><td><b>silhouette</b></td><td>같은 군집과의 거리 vs 다른 군집과의 거리 (−1 ~ 1, 높을수록 분리 좋음)</td><td>군집 2개 이상 · 표본 수 미만 필요. 높아도 업무적 의미는 별도</td></tr>
+      </table>
+      <table>
+        <tr><th>K</th><th>inertia</th><th>silhouette</th></tr>
+        <tr><td>2</td><td>69.864</td><td>0.392</td></tr>
+        <tr><td>3</td><td>40.430</td><td><b>0.453</b></td></tr>
+        <tr><td>4</td><td><b>30.374</b></td><td>0.445</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 inertia만으로 K를 고르면 안 되지?</strong> — 군집을 늘리면 각 점이 더 가까운 중심을 갖게 되니 inertia는 거의 항상 줄어요(K = 점 개수면 0). 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "<b>내 군집과는 가깝고 옆 군집과는 먼가</b>"를 같이 보니, 쓸데없이 쪼갠 군집은 옆 군집과도 가까워져 점수가 떨어져요. 이 자료에선 K=4가 inertia는 작지만 silhouette는 K=3(0.453)이 가장 높아서 K=3으로 설명해요. 이건 이 train 60·이 전처리의 교육용 결과이지, 새 자료에서도 K=3이 최선이라는 뜻은 아니에요.</div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_k_choice.png" alt="K별 inertia 감소 곡선과 silhouette 점수"><figcaption><b>무엇을 보나:</b> 수업 train 60건(결측 대체 + 표준화)으로 K=2~6을 직접 계산했어요. K=2·3·4 값은 위 표와 같아요. 왼쪽 inertia는 K를 늘릴수록 계속 내려가고, 오른쪽 silhouette는 K=3(0.453)에서 꼭대기를 찍은 뒤 0.44대에 머물러요. <b>🤔 왜?</b> 중심이 많을수록 모든 점이 더 가까운 중심을 가지니 inertia는 당연히 줄어요 — 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "내 군집과 가깝고 옆 군집과 먼가"를 보니, 한 덩어리를 억지로 쪼개면 옆 군집과도 가까워져 더 오르지 않아요.</figcaption></figure></div>
+      <p>K=3 결과: 군집별 개수 24 / 19 / 17, inertia 40.430. 중심(원래 단위로 읽기): 군집0 약 1542자·도구 4.12 / 군집1 약 1430자·도구 1.37 / 군집2 약 445자·도구 2.71. 도구 수가 소수인 건 <b>군집 내부 평균</b>이라서예요. 중심은 결측 대체 후 좌표의 평균이라 "실제 사용한 도구 수"나 "성공률"로 해석하지 않아요.</p>
+      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_real.png" alt="수업 train을 표준화 공간에서 K=3으로 묶은 산점도와 새 요청 두 개의 할당"><figcaption><b>무엇을 보나:</b> 표준화된 글자수(가로)·도구수(세로) 공간의 train 60건이에요. 색은 군집, 큰 X는 중심, 주황 별은 새 요청 2개(200자·도구1, 2200자·도구5)예요. 각각 가장 가까운 중심인 군집 2와 0에 할당돼요. <b>🤔 왜?</b> 도구수는 1~5 정수라 점들이 <b>가로줄</b>로 늘어서요. 군집은 대략 "짧은 글"(초록), "길고 도구 적음"(분홍), "길고 도구 많음"(보라)으로 나뉘었는데, 이건 거리로만 묶은 결과라 성공/실패 의미는 없어요. 새 요청은 <code>predict</code>로 기존 중심에만 붙이고 중심은 그대로예요.</figcaption></figure></div>
+
+      <h3>🔧 명령어: <code>KMeans</code> · <code>silhouette_score</code></h3>
+<pre><code>from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+X = np.array([[1, 1], [1, 2], [2, 1], [8, 8], [8, 9], [9, 8]], dtype=float)
+km = KMeans(n_clusters=2, n_init=10, random_state=42)
+labels = km.fit_predict(X)              # y를 넣지 않는다!  → [0 0 0 1 1 1]
+print(km.cluster_centers_, km.inertia_) # (1.333,1.333) (8.333,8.333) · 2.667
+
+cluster_pipe = Pipeline([                # 실제 자료: 거리 계산 전에 결측 대체 + 표준화
+    ("imputer", SimpleImputer(strategy="median")),
+    ("scaler", StandardScaler()),
+    ("cluster", KMeans(n_clusters=3, n_init=10, random_state=42))])
+cluster_pipe.fit(X_train[NUM])           # train 수치 2열만
+print(np.bincount(cluster_pipe["cluster"].labels_))      # [24 19 17]
+
+Z = cluster_pipe[:-1].transform(X_train[NUM])            # 같은 표준화 공간에서
+print(silhouette_score(Z, cluster_pipe["cluster"].labels_))   # K=3: 0.453
+
+new = pd.DataFrame({"input_chars": [200., 2200.], "allowed_tools": [1., 5.]})
+before = cluster_pipe["cluster"].cluster_centers_.copy()
+print(cluster_pipe.predict(new))         # [2 0]  새 요청 → 기존 중심에 할당 (fit_predict 금지)
+print(np.array_equal(before, cluster_pipe["cluster"].cluster_centers_))   # True  중심 불변</code></pre>
+      <table>
+        <tr><th>인자 / 속성</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_clusters</code></td><td>군집 개수 K</td><td>늘리면 inertia는 거의 항상 감소 → 후보(2·3·4)를 미리 제한하고 silhouette·해석과 함께 비교</td></tr>
+        <tr><td><code>n_init=10</code></td><td>초기화를 10번 시도해 inertia가 가장 작은 것</td><td>줄이면 빠르지만 운 나쁜 시작점의 해에 갇힐 수 있음</td></tr>
+        <tr><td><code>random_state</code></td><td>초기화(k-means++) 재현</td><td>안 고정하면 실행마다 군집 번호·결과가 바뀔 수 있음</td></tr>
+        <tr><td><code>labels_</code> / <code>cluster_centers_</code> / <code>inertia_</code></td><td>학습 자료의 군집 번호 / 중심 / 제곱거리 합</td><td>중심은 표준화 공간 좌표 → 원래 단위로 읽으려면 되돌려 해석</td></tr>
+        <tr><td><code>silhouette_score(Z, labels)</code></td><td>Z 공간에서 분리도 (−1 ~ 1)</td><td>클러스터링한 것과 <b>같은 표준화 공간</b>의 Z를 넣어야 함 — 원래 단위를 넣으면 다른 거리로 채점하게 됨</td></tr>
+        <tr><td><code>predict(new)</code></td><td>새 입력을 기존 중심에 할당</td><td><code>fit_predict(new)</code>는 새 자료로 중심을 다시 학습해 버려 기존 군집과 번호·의미가 달라짐</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 1~9짜리 예제는 표준화 없이 되는데 실제 자료는 필요하지?</strong> — 원리 예제는 두 축 단위가 같아요. 실제 요청은 글자수(수백~수천)와 도구 수(1~5)라, 표준화 없이 거리를 재면 KNN 때처럼 글자수만 보고 묶어요. 그래서 거리 계산 전에 train 중앙값으로 결측을 채우고 train 기준으로 표준화해요. 정답 y는 쓰지 않아요.</div>
+      <div class="callout warn">⚠️ K-Means는 거리 기반이라 <b>표준화가 필요</b>해요(글자수 vs 도구수 단위 차이). 정답을 안 쓴다고 전체 100건으로 fit해도 되는 게 아니에요 — 예측 모델 평가와 연결된다면 train만 써요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="final">⑥ 최종 평가 흐름 — 잠그고, 재학습하고, 한 번 평가</h2>
+      <div class="flow">
+        <span class="step"><b>선택</b><br><small>train60 CV · valid는 진단</small></span><span class="arrow">→</span>
+        <span class="step"><b>동결</b><br><small>모델·특성·임계값 0.5 기록</small></span><span class="arrow">→</span>
+        <span class="step"><b>재학습</b><br><small>새 Pipeline을 개발 80건으로</small></span><span class="arrow">→</span>
+        <span class="step"><b>최종 보고</b><br><small>test20 transform · predict</small></span>
+      </div>
+      <table>
+        <tr><th>후보 (사전 선언 7개)</th><th>CV F1</th><th>fold 표준편차</th><th>valid F1</th></tr>
+        <tr><td>Dummy</td><td>0.000</td><td>0.000</td><td>0.000</td></tr>
+        <tr><td>Logistic</td><td>0.522</td><td>0.209</td><td>0.333</td></tr>
+        <tr><td>KNN3</td><td>0.336</td><td>0.176</td><td>0.545</td></tr>
+        <tr><td>Tree</td><td>0.542</td><td>0.124</td><td>0.333</td></tr>
+        <tr><td>Forest</td><td>0.280</td><td>0.254</td><td>0.222</td></tr>
+        <tr><td>XGBoost</td><td>0.500</td><td>0.123</td><td>0.182</td></tr>
+        <tr><td><b>Logistic + 파생 2개</b></td><td><b>0.551</b></td><td>0.190</td><td>0.182</td></tr>
+      </table>
+      <div class="figs"><figure><img class="smooth" src="img/day08/candidates_cv.png" alt="7개 후보의 CV F1 평균과 표준편차 막대, valid F1 점"><figcaption><b>무엇을 보나:</b> 위 표를 그림으로 옮겼어요. 막대가 CV F1 평균(선택 기준), 회색 수염이 fold 표준편차, 주황 마름모가 valid F1(진단용)이에요. 진한 보라 막대가 규칙대로 선택된 Logistic+파생2예요. <b>🤔 왜?</b> 1등 막대(0.551)와 2등 Tree(0.542)의 차이는 수염 길이(약 0.12~0.19)보다 훨씬 작아요. 그리고 주황 마름모가 막대와 제각각 위치해 있죠 — 작은 자료라 평가 세트마다 순위가 바뀐다는 뜻이에요. 그래서 "규칙에 따른 선택"이지 "확실히 우월"이라고 쓰지 않아요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 test를 열기 전에 잠그지?</strong> — test 점수를 본 뒤에 모델·특성·임계값을 바꾸면, test는 "고르는 데 쓴 자료"가 되어 버려요. 그럼 그 점수는 valid처럼 낙관적인 값이 되고, 진짜 처음 보는 자료에서의 성능을 알 방법이 사라져요. 그래서 <b>무엇(후보·특성) · 어떻게(CV F1 최대, 동점 규칙) · 판단(임계값 0.5)</b>을 먼저 파일로 남기고 test는 딱 한 번만 써요. valid도 이미 개발에 쓴 자료라 최종 독립 평가처럼 포장하지 않아요.</div>
+      <div class="figs"><figure>
+        <svg viewBox="0 0 690 222" style="width:100%;height:auto;display:block" role="img" aria-label="선택, 동결, 재학습, 최종 보고 단계별 자료 사용"><text x="10" y="20" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">자료 100건이 단계마다 하는 일</text><text x="10" y="58" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">1 선택</text><rect x="96.0" y="34" width="344.0" height="36" rx="8" style="fill:var(--accent,#7c4dff);fill-opacity:1"/><text x="268.0" y="57" text-anchor="middle" style="fill:var(--surface,#fff);font-size:12px;font-weight:700">train 60 · 5-fold CV로 후보 비교</text><rect x="444.0" y="34" width="112.0" height="36" rx="8" style="fill:var(--accent2,#ff5fa2);fill-opacity:0.55"/><text x="500.0" y="57" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px;font-weight:700">valid 20 · 진단만</text><rect x="560.0" y="34" width="112.0" height="36" rx="8" style="fill:var(--muted,#7a7191);fill-opacity:0.35"/><text x="616.0" y="57" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px;font-weight:700">test 20 🔒</text><text x="10" y="104" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">2 동결</text><rect x="96.0" y="80" width="576.0" height="36" rx="8" style="fill:var(--text,#2a2340);fill-opacity:0.12"/><text x="384.0" y="103" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px;font-weight:700">evaluation_lock.json — 모델·특성·임계값 0.5를 먼저 기록</text><text x="10" y="150" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">3 재학습</text><rect x="96.0" y="126" width="460.0" height="36" rx="8" style="fill:var(--accent,#7c4dff);fill-opacity:1"/><text x="326.0" y="149" text-anchor="middle" style="fill:var(--surface,#fff);font-size:12px;font-weight:700">개발 80 = train + valid · clone()으로 새 Pipeline fit</text><rect x="560.0" y="126" width="112.0" height="36" rx="8" style="fill:var(--muted,#7a7191);fill-opacity:0.35"/><text x="616.0" y="149" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px;font-weight:700">test 20 🔒</text><text x="10" y="196" style="fill:var(--text,#2a2340);font-size:13px;font-weight:700">4 최종 보고</text><rect x="96.0" y="172" width="460.0" height="36" rx="8" style="fill:var(--muted,#7a7191);fill-opacity:0.15"/><text x="326.0" y="195" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:12px;font-weight:700">(더 이상 바꾸지 않음)</text><rect x="560.0" y="172" width="112.0" height="36" rx="8" style="fill:var(--accent2,#ff5fa2);fill-opacity:1"/><text x="616.0" y="195" text-anchor="middle" style="fill:var(--surface,#fff);font-size:12px;font-weight:700">test 20 · 단 1번</text></svg>
+        <figcaption><b>무엇을 보나:</b> 가로 막대 한 줄이 한 단계이고, 칸 너비가 자료 건수예요. 회색 🔒 test 20은 1~3단계 내내 <b>잠겨 있다가</b> 4단계에서만 진하게 열려요. <b>🤔 왜?</b> 고르는 데 쓴 자료의 점수는 낙관적이라, 한 번도 안 쓴 자료가 하나는 남아 있어야 정직한 마지막 점수를 얻어요. 2단계에서 설정을 파일로 먼저 잠그는 건, test를 본 뒤 "조금만 바꿔 보자"는 유혹을 막는 장치예요.</figcaption>
+      </figure></div>
+      <p>CV F1 최대 규칙으로 <b>Logistic_FE</b> 선택(Tree와의 약 0.009 차이를 확실한 우월성이라 주장하지 않음) → test 20건 결과: Acc 0.750 · Precision 0.600 · Recall 0.500 · F1 0.545 · AUC 0.786 (TN12 FP2 FN3 TP3, 실패 3/6 발견).</p>
+      <div class="figs"><figure><img class="smooth" src="img/day08/final_test_confusion.png" alt="최종 test 20건 혼동행렬 TN 12, FP 2, FN 3, TP 3"><figcaption><b>무엇을 보나:</b> 잠근 설정(Logistic_FE, 임계값 0.5)으로 test 20건을 한 번 예측한 결과예요. 실제 실패 6건(아래 줄) 중 3건만 찾고(TP 3), 3건은 놓쳤어요(FN 3). <b>🤔 왜?</b> AUC 0.786은 순위가 꽤 괜찮다는 뜻이지만, 놓친 3건은 확률이 0.5를 넘지 못했어요. 이 표가 이 모델의 <b>최종 정직한 성적표</b>라서, 마음에 안 든다고 임계값·모델을 바꿔 다시 재면 안 돼요 — 그 순간 test는 "고른 자료"가 돼요.</figcaption></figure></div>
+      <div class="callout">🤔 <strong>왜 마지막에 80건으로 다시 학습하지?</strong> — 선택이 끝나면 valid 20건은 더 이상 "고르는 데" 쓸 일이 없어요. 그 정보를 버리기 아까우니 train+valid 80건으로 <b>같은 설정의 새 Pipeline</b>을 학습해 최종 모델로 써요. 이때 <code>clone</code>으로 학습 상태 없는 새 객체를 만드는 이유는, 기존에 60건으로 학습된 상태(중앙값 등)가 섞이지 않게 하려는 거예요. 재학습 뒤 수치 중앙값이 1278 / 3, log 7.154, ratio 309.8로 바뀌는 건 정상이고, 80건 재학습 후의 과거 valid 성능은 더 이상 독립 검증 점수가 아니에요.</div>
+
+      <h3>🔧 명령어: 설정 저장 · <code>clone</code> 재학습 · 저장/복원</h3>
+<pre><code>import json, joblib
+import pandas as pd
+from pathlib import Path
+from sklearn.base import clone
+
+Path("evaluation_lock.json").write_text(                 # 선택 내용을 먼저 잠근다
+    json.dumps(protocol, ensure_ascii=False, indent=2), encoding="utf-8")
+
+X_dev = pd.concat([X_train, X_valid])                    # 개발 80건
+y_dev = pd.concat([y_train, y_valid])
+final = clone(candidates()[selected]).fit(X_dev, y_dev)  # 학습 상태 없는 새 Pipeline
+
+p = final.predict_proba(X_test)[:, list(final.classes_).index(1)]
+pred = (p &gt; protocol["threshold"]).astype(int)          # 임계값 0.5 고정
+# test 결과를 본 뒤 모델·특성·임계값을 바꾸지 않는다
+
+joblib.dump(final, "final_pipeline.joblib")
+restored = joblib.load("final_pipeline.joblib")         # 본인이 만든 파일만
+assert np.allclose(final.predict_proba(X_check), restored.predict_proba(X_check))</code></pre>
+      <table>
+        <tr><th>명령</th><th>뜻</th><th>주의</th></tr>
+        <tr><td><code>json.dumps(..., ensure_ascii=False, indent=2)</code></td><td>설정을 사람이 읽기 좋은 JSON으로</td><td>한글이 <code>\uXXXX</code>로 깨지지 않게</td></tr>
+        <tr><td><code>clone(estimator)</code></td><td>설정만 같고 학습은 안 된 새 객체</td><td>이미 학습된 객체를 재사용하지 않음</td></tr>
+        <tr><td><code>pd.concat([A, B])</code></td><td>train + valid를 고정 순서로 결합</td><td>설정 확정 <b>뒤에만</b></td></tr>
+        <tr><td><code>joblib.dump / load</code></td><td>변환 함수 포함 Pipeline 저장·복원</td><td><code>add_features</code>는 모듈(<code>feature_ops.py</code>)에 정의해 import해야 복원됨. 본인이 만든 파일만 load</td></tr>
+        <tr><td><code>failure_scores(model, X)</code></td><td>강의 코드의 사용자 정의 함수 — <code>classes_</code>에서 실패(1) 열을 골라 확률 반환</td><td>열 번호를 1로 박아 두면 클래스 순서가 다를 때 성공 확률을 쓰게 됨</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 함수를 모듈에 이름 붙여 둬야 하지?</strong> — joblib은 Pipeline을 저장할 때 <code>add_features</code>의 코드 자체가 아니라 "<b>어느 모듈의 어떤 이름의 함수</b>"라는 주소만 적어 둬요. 노트북 셀이나 lambda로 만든 함수는 새 프로세스에서 그 주소를 찾을 수 없어서 복원이 실패해요. 그래서 <code>feature_ops.py</code>에 정의하고 import해서 쓰고, 코드·버전·임계값도 함께 보관해요.</div>
+      <h3>🔧 명령어: 새 입력 검사 (새 범주 vs 필수 열 누락)</h3>
+<pre><code>checked = check_input(new_requests)          # 강의 코드의 사용자 정의 검사 함수
+num = fitted["pre"].named_transformers_["num"]
+before = num["imputer"].statistics_.copy()
+p = failure_scores(fitted, checked)          # 새 범주가 있어도 (2, 10)으로 변환 · 확률은 유한값
+assert np.array_equal(before, num["imputer"].statistics_)   # 통계 불변
+check_input(new_requests.drop(columns="priority"))         # ← ValueError가 나야 정상 (실패 시험)</code></pre>
+      <table>
+        <tr><th>상황</th><th>기대 결과</th><th>판정 근거</th></tr>
+        <tr><td>정상 입력 20건</td><td>확률·예측 각각 20개</td><td>ID·행 순서 유지, 지표 재계산 일치</td></tr>
+        <tr><td>수치 결측 · 새 범주</td><td>원래 경로로 변환·예측</td><td>10열 유지 · NaN/inf 없음 · 통계 불변</td></tr>
+        <tr><td><code>priority</code> 필수 열 누락</td><td>예측 전에 <code>ValueError</code></td><td>임의 값으로 조용히 보완하지 않음</td></tr>
+        <tr><td>한 클래스뿐인 평가</td><td>AUC 계산 불가 표시</td><td>None/null + 실제 양성 수 기록</td></tr>
+        <tr><td>동결 뒤 설정 변경</td><td>새 버전 또는 평가 중단</td><td>기존 최종 성능과 구분해 기록</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "실패해야 정상"인 시험도 만들지?</strong> — 코드가 멈추지 않았다는 것과 정한 정책대로 동작했다는 건 달라요. 필수 열이 빠졌는데도 조용히 예측을 내놓는다면, 그건 "잘 돌아간 것"이 아니라 <b>틀린 답을 숨긴 것</b>이에요. 그래서 기대 결과(오류가 나야 함)를 먼저 적고 그대로 되는지 확인해요.</div>
+      <div class="callout warn">⚠️ <strong>최종 평가의 경계</strong>
+        <ul>
+          <li>test F1이 낮다고 KNN으로 바꿔 다시 평가하면 test를 <b>선택에 쓴 것</b>. 기존 점수는 남기고 새 독립 평가 자료가 필요해요.</li>
+          <li>80건 재학습 후 중앙값이 바뀌는 건 정상 (허용한 자료로 새로 fit했으니까).</li>
+          <li>같은 모델·같은 입력으로 결과 파일만 다시 만드는 건 누수가 아니라 <b>재현 확인</b>.</li>
+          <li>test 20건 · 실패 6건의 소표본, 합성 데이터라는 한계를 같이 적어요. 실패 6건 중 3건을 놓쳤고, 이 결과만으로 실서비스 배포 가능성을 보장하지 않아요.</li>
+          <li>CV 점수와 최종 test 점수를 같은 성능이라고 합치지 않아요.</li>
+        </ul>
+      </div>
+      <div class="callout">🤔 <strong>왜 AUC 0.786인데 실패는 절반만 찾았지?</strong> — AUC는 "실패·성공 쌍에서 실패 점수가 더 높은 비율"이라 순위가 꽤 괜찮다는 뜻이에요. 하지만 실제로 경고를 낼지는 <b>임계값 0.5</b>가 정해요. 순위상 위쪽에 있어도 확률이 0.5를 못 넘은 실패는 놓쳐요(Recall 0.5). 좋은 순위와 좋은 운영 기준은 따로 점검해야 하는 이유예요.</div>
+
+      <h3>지표로 진단하기</h3>
+      <table>
+        <tr><th>이렇게 나오면</th><th>의심할 것</th></tr>
+        <tr><td>Accuracy 높은데 Recall 0</td><td>다수 클래스만 찍는 모델 → 실제 양성 수 확인</td></tr>
+        <tr><td>AUC는 좋은데 F1 낮음</td><td>순위는 괜찮지만 임계값이 운영에 안 맞음</td></tr>
+        <tr><td>CV는 오르고 valid는 떨어짐 (0.522→0.551 / 0.333→0.182)</td><td>소표본 변동 → 개선 확정 금지</td></tr>
+        <tr><td>K를 늘릴수록 inertia만 계속 감소</td><td>당연한 현상 → silhouette·해석과 함께</td></tr>
+        <tr><td>새 범주 입력 / 필수 열 누락</td><td>새 범주는 <code>handle_unknown="ignore"</code>로 열 수 유지, 열 누락은 예측 전에 <code>ValueError</code>로 막기</td></tr>
+      </table>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>20261028수_머신러닝_평가지표_특성설계_KMeans_최종평가_Day8 (2).pdf</code> — ① 분류 지표 9~19쪽 · ② ROC-AUC·임계값 20~29쪽 · ③ RMSE·CV 집계 30~38쪽 · ④ 특성 설계 39~47쪽 · ⑤ K-Means 48~60쪽 · ⑥ 최종 평가 61~69, 73~77쪽</li>
+        <li>공식 문서: <a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank">scikit-learn · Metrics and scoring</a> · <a href="https://scikit-learn.org/stable/modules/classification_threshold.html" target="_blank">Decision threshold</a> · <a href="https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html" target="_blank">FunctionTransformer</a> · <a href="https://scikit-learn.org/stable/modules/clustering.html#k-means" target="_blank">Clustering · K-Means</a> · <a href="https://scikit-learn.org/stable/model_persistence.html" target="_blank">Model persistence</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day07.html">← 이전: Day7</a>
+      <a href="day09.html">다음: Day9 →</a>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== 임계값 체험: AUC는 그대로, 운영 결과는 바뀐다 =====
+  (() => {
+    const cv = document.getElementById('thrCanvas'), ctx = cv.getContext('2d');
+    const W = 480, H = 200, dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+    const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    // 설명용 가상 점수: 실패(1) 6건, 성공(0) 14건
+    const pos = [0.28, 0.46, 0.58, 0.67, 0.81, 0.92];
+    const neg = [0.04, 0.09, 0.13, 0.18, 0.22, 0.26, 0.31, 0.36, 0.41, 0.44, 0.52, 0.55, 0.63, 0.74];
+    let auc = 0; pos.forEach(a => neg.forEach(b => { auc += a > b ? 1 : a === b ? 0.5 : 0; })); auc /= pos.length * neg.length;
+    const sl = document.getElementById('thrSlider');
+    const X0 = 30, X1 = 450, px = v => X0 + v * (X1 - X0);
+    const set = (id, v) => { document.getElementById(id).textContent = v; };
+    function draw() {
+      const t = +sl.value; set('thrVal', t.toFixed(2));
+      const acc = css('--accent') || 'blue', acc2 = css('--accent2') || 'red', mut = css('--muted') || 'gray';
+      const tp = pos.filter(v => v > t).length, fn = pos.length - tp, fp = neg.filter(v => v > t).length, tn = neg.length - fp;
+      const P = tp + fp ? tp / (tp + fp) : 0, R = tp / (tp + fn), F = 2 * tp + fp + fn ? 2 * tp / (2 * tp + fp + fn) : 0;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = mut; ctx.globalAlpha = 0.12; ctx.fillRect(px(t), 15, X1 - px(t), 150); ctx.globalAlpha = 1;
+      ctx.strokeStyle = mut; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X0, 90); ctx.lineTo(X1, 90); ctx.stroke();
+      ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = mut;
+      [0, 0.25, 0.5, 0.75, 1].forEach(v => ctx.fillText(v, px(v), 182));
+      ctx.fillText('모델이 낸 실패 확률 p →', 240, 198);
+      pos.forEach(v => { ctx.fillStyle = acc2; ctx.globalAlpha = v > t ? 1 : 0.5; ctx.fillRect(px(v) - 8, 40, 16, 16); });
+      neg.forEach((v, i) => { ctx.fillStyle = acc; ctx.globalAlpha = v > t ? 1 : 0.5; ctx.beginPath(); ctx.arc(px(v), 125 + (i % 2) * 18, 8, 0, 7); ctx.fill(); });
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = acc; ctx.lineWidth = 3; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(px(t), 10); ctx.lineTo(px(t), 170); ctx.stroke(); ctx.setLineDash([]);
+      ctx.textAlign = 'start'; ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = acc2; ctx.fillText('■ 실제 실패(1)', X0, 30);
+      ctx.fillStyle = acc; ctx.fillText('● 실제 성공(0)', X0, 80);
+      ctx.fillStyle = mut; ctx.textAlign = 'end'; ctx.fillText('여기 = "실패"로 경고', X1, 30); ctx.textAlign = 'start';
+      set('cmTN', tn); set('cmFP', fp); set('cmFN', fn); set('cmTP', tp);
+      set('mP', P.toFixed(3)); set('mR', R.toFixed(3)); set('mF1', F.toFixed(3));
+      set('mCost', fp + 5 * fn); set('mAUC', auc.toFixed(3));
+      const why = t <= 0.3
+        ? '선이 낮아서 거의 다 "실패"로 경고 → 놓침(FN)은 줄지만 성공 요청까지 넘어와 오탐(FP)이 늘어요.'
+        : t >= 0.8
+          ? '선이 높아서 확신이 아주 큰 것만 경고 → 오탐은 적지만 놓침이 많아 FN 비용(×5)이 커져요.'
+          : '선을 옮기면 그 사이에 있던 점들의 판정만 바뀌어요 — 올리면 FP↓·FN↑, 내리면 FP↑·FN↓.';
+      set('thrVerdict', `t=${t.toFixed(2)}: 실패 ${pos.length}건 중 ${tp}건 발견, 경고 ${tp + fp}건 중 ${fp}건은 오탐. ${why} AUC는 점수의 순서만 보니 임계값과 무관하게 ${auc.toFixed(3)}.`);
+    }
+    sl.addEventListener('input', draw);
+    draw();
+  })();
+  </script>
+</body>
+</html>

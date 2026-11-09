@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day16 · OCR → 문서 구조화 → VLM 질의응답 → 엣지 배포 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag cv">컴퓨터비전</span>
+      <h1>Day16 · OCR → 문서 구조화 → VLM 질의응답 → 엣지 배포</h1>
+      <div class="meta">2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · JSON 구조화 · VLM · Grounding · Hybrid · TensorRT · Jetson · DeepStream</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li><b>OCR</b> = 문서 사진을 반듯·선명하게 다듬고(전처리) 글자를 <b>Text + Box(위치) + Confidence(점수)</b>로 읽는 것. 품질은 <b>CER</b>·필드 정확도로 따로 잰다.</li>
+          <li>읽은 글자는 정규식·규칙으로 <b>raw(원문) + value(정규화 값) + bbox(근거 위치)</b>를 함께 담은 JSON으로 바꾸고, 업무 규칙으로 검증해 <b>passed · warning · failed</b>를 남긴다.</li>
+          <li><b>VLM</b>은 이미지+질문을 함께 보고 답하지만 그럴듯한 오답이 있어 <b>원문 근거와 대조</b>해야 하고, 배포는 지원 모델을 <b>ONNX → TensorRT Engine</b>으로 바꿔 Jetson·DeepStream에서 돌린다.</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install opencv-python numpy pandas pytesseract</code> + <b>Tesseract 프로그램</b> (VLM은 <code>transformers</code>)</td></tr>
+        <tr><td><a href="#prep">① 문서 전처리</a></td><td><code>cv2.imread()</code>, <code>cv2.cvtColor()</code>, <code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getPerspectiveTransform()</code>, <code>cv2.warpPerspective()</code></td></tr>
+        <tr><td><a href="#ocr">② OCR 실행 · Box · Confidence</a></td><td><code>pytesseract.image_to_data(lang=, config="--oem 3 --psm 6", output_type=Output.DATAFRAME)</code></td></tr>
+        <tr><td><a href="#eval">③ OCR 품질 평가</a></td><td><code>levenshtein()</code> → <code>cer()</code>, 필드 정확도</td></tr>
+        <tr><td><a href="#struct">④ 구조화 · JSON · 검증</a></td><td><code>re.search()</code>, <code>re.sub()</code>, <code>json.dump()</code>, <code>validate_invoice()</code></td></tr>
+        <tr><td><a href="#vlm">⑤ VLM 이미지 질의응답</a></td><td><code>pipeline("image-text-to-text")</code>, <code>processor.apply_chat_template()</code>, <code>model.generate()</code></td></tr>
+        <tr><td><a href="#ground">⑥ 근거 검증 · Hybrid · 보안</a></td><td><code>json.loads()</code> + 필수 key·bbox 검사</td></tr>
+        <tr><td><a href="#deploy">⑦ 엣지 배포 (TensorRT · Jetson · DeepStream)</a></td><td><code>trtexec --onnx= --saveEngine=</code>, <code>--loadEngine=</code>, <code>--minShapes/--optShapes/--maxShapes</code></td></tr>
+        <tr><td><a href="#app">⑧ OCR·VLM 미니 애플리케이션 설계</a></td><td><code>@dataclass OCRResult</code>, <code>VLMResult</code>, 폴더별 역할</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>opencv-python</code></td><td>문서 이미지 읽기, Gray·이진화·원근 보정</td><td><code>import cv2</code></td></tr>
+        <tr><td><code>numpy</code></td><td>모서리 좌표 배열(<code>np.float32</code>), 픽셀 계산</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>pandas</code></td><td>OCR 단어 결과를 표(DataFrame)로 다루기, 평가표 저장</td><td><code>import pandas as pd</code></td></tr>
+        <tr><td><code>pytesseract</code></td><td>Python에서 <b>Tesseract</b> OCR 엔진을 불러 쓰는 연결 고리</td><td><code>import pytesseract</code>, <code>from pytesseract import Output</code></td></tr>
+        <tr><td>(표준 라이브러리) <code>re</code>, <code>json</code>, <code>datetime</code>, <code>dataclasses</code></td><td>정규식으로 날짜·금액 찾기, JSON 저장, 날짜 검증, 결과 구조 정의</td><td><code>import re, json</code> (설치 불필요)</td></tr>
+        <tr><td colspan="3"><b>VLM을 실제로 돌릴 때 (준비된 모델이 있을 때만)</b></td></tr>
+        <tr><td><code>transformers</code></td><td>VLM 모델·Processor 불러오기, <code>pipeline</code>, 답 생성</td><td><code>from transformers import pipeline, AutoProcessor, AutoModelForImageTextToText</code></td></tr>
+        <tr><td><code>torch</code></td><td>모델이 내부에서 쓰는 계산 엔진 (Day9부터 설치됨)</td><td><code>import torch</code></td></tr>
+        <tr><td colspan="3"><b>배포 (pip 아님)</b> — <b>TensorRT</b>(<code>trtexec</code> 명령 포함)·<b>JetPack</b>·<b>DeepStream</b>은 NVIDIA가 장치·버전별로 따로 배포하는 소프트웨어예요. 수업 기준은 PC의 TensorRT 11.3, Jetson은 그 JetPack이 지원하는 조합.</td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python -m pip install opencv-python numpy pandas pytesseract
+python -c "import cv2, pytesseract; print(cv2.__version__, pytesseract.get_tesseract_version())"
+tesseract --version          # 진짜 OCR 엔진 프로그램이 깔려 있나?
+tesseract --list-langs       # kor, eng 언어 데이터가 있나?
+
+# (선택) VLM
+python -m pip install transformers
+# (선택) 배포 — NVIDIA GPU + TensorRT가 설치된 환경에서
+trtexec --help</code></pre>
+      <div class="callout warn">⚠️ <strong><code>pip install pytesseract</code>만으로는 글자를 못 읽어요!</strong> pip는 Python 쪽 연결 고리만 깔아요. 실제로 글자를 읽는 <b>Tesseract 실행 파일</b>과 <b>kor·eng 언어 데이터</b>를 따로 설치해야 해요. PATH에 없으면 실행 파일 위치를 직접 알려 줘요.
+<pre><code>pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"</code></pre>
+      </div>
+      <div class="callout">🤔 <strong>왜 엔진이 따로야?</strong> — Tesseract는 C++로 만든 독립 프로그램이에요. pytesseract는 그 프로그램에 이미지를 넘기고, 나온 글자를 Python 값으로 받아 주는 "통역사"일 뿐이에요. 그래서 통역사만 있고 엔진이 없으면 <code>TesseractNotFoundError</code>가 나요.</div>
+      <div class="callout warn">⚠️ <code>torch</code>는 다시 깔지 마세요(맞춰 둔 CUDA 버전이 꼬일 수 있어요). 그리고 <b>환경 기록</b>이 중요해요: Python·패키지·모델·<b>언어 데이터</b> 버전과 장치를 적어 두지 않으면 같은 코드라도 다른 글자가 나올 수 있어요.</div>
+      <div class="callout">💡 pip 이름 ≠ import 이름: <code>opencv-python</code> → <code>cv2</code>. 그리고 pip 패키지 <code>pytesseract</code> ≠ 프로그램 <code>tesseract</code>. <code>pipeline(device_map="auto")</code>를 쓰려면 보통 <code>accelerate</code> 패키지도 필요해요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>Day13~15는 사진의 <b>픽셀·물체</b>를 다뤘어요(OpenCV, 분류, YOLO). Day16은 사진 속 <b>글자</b>를 읽고, 문서에 <b>질문</b>하고, 그 결과를 <b>근거와 함께</b> 업무 데이터로 남기는 "문서 AI"예요. 마지막엔 이런 모델을 현장 장비에서 돌리는 배포 구조까지 봐요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🧾</div><strong>청구서 · 영수증</strong><span>공급자·발행일·합계를 JSON으로 자동 추출</span></div>
+        <div class="usecase"><div class="emoji">🔎</div><strong>검색 가능한 PDF</strong><span>스캔 이미지 위에 보이지 않는 글자 층을 깔기</span></div>
+        <div class="usecase"><div class="emoji">💬</div><strong>문서 질의응답</strong><span>"합계 금액과 근거 위치를 알려줘"</span></div>
+        <div class="usecase"><div class="emoji">📷</div><strong>현장 영상 분석</strong><span>Jetson + DeepStream으로 카메라 옆에서 추론</span></div>
+      </div>
+      <p>오늘 만드는 문서 AI의 전체 모양이에요. 핵심은 <b>"값만 남기지 않는다"</b> — 값이 어디서 왔는지(원문·위치), 믿어도 되는지(검증 상태)를 같이 남겨요.</p>
+      <figure id="fig-overview">
+        <svg viewBox="0 0 760 300" style="width:100%;height:auto" role="img" aria-label="문서 이미지와 질문이 OCR 경로와 VLM 경로로 나뉘었다가 구조화·검증에서 합쳐져 필드 JSON과 검토 목록이 되는 전체 구조도">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <defs><marker id="arOv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <!-- 입력 -->
+          <rect x="10" y="105" width="110" height="90" rx="10" fill="var(--surface)" stroke="var(--text)" stroke-width="1.5"/>
+          <text x="65" y="135" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">문서 이미지</text>
+          <text x="65" y="155" text-anchor="middle" font-size="13" fill="var(--text)">+ 질문</text>
+          <text x="65" y="180" text-anchor="middle" font-size="11" fill="var(--muted)">invoice.png</text>
+          <!-- OCR 경로 -->
+          <rect x="150" y="30" width="120" height="56" rx="10" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)"/>
+          <text x="210" y="54" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">OCR용 전처리</text>
+          <text x="210" y="72" text-anchor="middle" font-size="11" fill="var(--muted)">Gray · 이진화 · 보정</text>
+          <rect x="295" y="30" width="120" height="56" rx="10" fill="var(--accent)" fill-opacity="0.22" stroke="var(--accent)"/>
+          <text x="355" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">OCR</text>
+          <text x="355" y="72" text-anchor="middle" font-size="11" fill="var(--muted)">글자 · 위치 · 점수</text>
+          <!-- VLM 경로 -->
+          <rect x="150" y="214" width="120" height="56" rx="10" fill="var(--accent2)" fill-opacity="0.10" stroke="var(--accent2)"/>
+          <text x="210" y="238" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--text)">원본 · Crop</text>
+          <text x="210" y="256" text-anchor="middle" font-size="11" fill="var(--muted)">+ 질문</text>
+          <rect x="295" y="214" width="120" height="56" rx="10" fill="var(--accent2)" fill-opacity="0.22" stroke="var(--accent2)"/>
+          <text x="355" y="238" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">VLM</text>
+          <text x="355" y="256" text-anchor="middle" font-size="11" fill="var(--muted)">답변 · 근거 후보</text>
+          <g stroke="var(--muted)" stroke-width="2" fill="none">
+            <path d="M120,130 Q135,58 146,58" marker-end="url(#arOv)"/>
+            <path d="M120,170 Q135,242 146,242" marker-end="url(#arOv)"/>
+            <line x1="272" y1="58" x2="291" y2="58" marker-end="url(#arOv)"/>
+            <line x1="272" y1="242" x2="291" y2="242" marker-end="url(#arOv)"/>
+            <path d="M417,58 Q455,58 462,120" marker-end="url(#arOv)"/>
+            <path d="M417,242 Q455,242 462,182" marker-end="url(#arOv)"/>
+          </g>
+          <text x="355" y="150" text-anchor="middle" font-size="11.5" fill="var(--muted)">두 경로는 골라 쓰거나</text>
+          <text x="355" y="166" text-anchor="middle" font-size="11.5" fill="var(--muted)">함께 써요</text>
+          <!-- 구조화·검증 -->
+          <rect x="440" y="110" width="140" height="80" rx="12" fill="var(--surface)" stroke="var(--text)" stroke-width="2"/>
+          <text x="510" y="138" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">구조화 · 검증</text>
+          <text x="510" y="158" text-anchor="middle" font-size="11" fill="var(--muted)">원문 · 형식 ·</text>
+          <text x="510" y="174" text-anchor="middle" font-size="11" fill="var(--muted)">업무 규칙과 대조</text>
+          <line x1="582" y1="150" x2="604" y2="150" stroke="var(--muted)" stroke-width="2" marker-end="url(#arOv)"/>
+          <!-- 출력 -->
+          <rect x="608" y="40" width="144" height="220" rx="12" fill="var(--accent)" fill-opacity="0.07" stroke="var(--accent)" stroke-dasharray="5 4"/>
+          <text x="680" y="64" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">업무에 넘길 기록</text>
+          <g font-size="12" fill="var(--text)" text-anchor="middle">
+            <rect x="620" y="78" width="120" height="40" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="680" y="96">필드 값</text><text x="680" y="111" font-size="10.5" fill="var(--muted)">+ 원문 위치(bbox)</text>
+            <rect x="620" y="128" width="120" height="40" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="680" y="146">검토 목록</text><text x="680" y="161" font-size="10.5" fill="var(--muted)">검토가 필요한 이유</text>
+            <rect x="620" y="178" width="120" height="40" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="680" y="196">실행 기록</text><text x="680" y="211" font-size="10.5" fill="var(--muted)">질문·답변·평가표</text>
+          </g>
+          <text x="680" y="246" text-anchor="middle" font-size="11.5" fill="var(--muted)">→ 다음 수업: FastAPI</text>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 왼쪽 문서가 위쪽 <b>OCR 길</b>(전처리 → 글자·위치·점수)과 아래쪽 <b>VLM 길</b>(원본이나 잘라 낸 부분 + 질문 → 답변·근거 후보)로 갈라졌다가, 가운데 <b>구조화·검증</b>에서 다시 만나요. 오른쪽 점선 상자가 최종 산출물이에요. <b>🤔 왜?</b> OCR은 "정확히 무슨 글자가 어디 있나"에 강하고, VLM은 "이게 무슨 뜻인가"에 강해요. 둘 다 틀릴 수 있으니 마지막에 원문·규칙과 <b>대조하는 단계</b>가 꼭 있어야 하고, 대조 결과(검토 이유)까지 남겨야 사람이 다시 확인할 수 있어요.</figcaption>
+      </figure>
+      <div class="callout warn">⚠️ <strong>처음부터 지킬 원칙 4가지</strong> — ① <b>개인정보·기밀</b>: 외부 OCR·VLM 서비스에 올리기 전 허용 범위 확인. ② <b>원본 보존</b>: 원본·전처리본·OCR 결과·최종 JSON을 따로 저장. ③ <b>사실성</b>: 자연스러운 답보다 원문 문자열·좌표가 우선. ④ <b>평가</b>: 샘플 몇 개 성공이 아니라 문서 유형·해상도·언어·표 구조별 오류를 기록.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="prep">① 문서 전처리 — 읽기 좋은 사진으로 다듬기</h2>
+      <p><b>OCR</b>(Optical Character Recognition)은 이미지에서 글자를 읽는 <b>전체 과정</b>이에요: 입력 획득(스캔·사진·PDF·캡처) → <b>전처리</b> → 문자 인식(글자·단어·줄 + 신뢰도·위치) → 후처리(읽기 순서·띄어쓰기·단위·날짜·금액 정리) → 정보 추출(JSON·표·검색). 그중 첫 단추가 전처리예요.</p>
+      <table>
+        <tr><th>문서 이미지가 어려운 이유</th><th>예</th></tr>
+        <tr><td><b>촬영·스캔 문제</b></td><td>회전·원근으로 글줄이 기울어짐 · 그림자·반사광으로 같은 배경도 밝기가 다름 · 압축·흔들림·저해상도로 글자 획이 사라짐 · 배경 무늬·도장·서명이 글자와 겹침</td></tr>
+        <tr><td><b>문서 구조 문제</b></td><td>다단·표·머리글·각주·세로쓰기 등 <b>읽기 순서</b> · <code>0/O</code>, <code>1/l/I</code>처럼 닮은 글자 · 혼합 언어·특수기호·통화 · 글자가 아닌 체크박스·선·바코드</td></tr>
+      </table>
+      <div class="flow">
+        <span class="step">사진 문서<br><small>기울기·그림자·노이즈</small></span><span class="arrow">→</span>
+        <span class="step"><b>Gray</b><br><small>색 → 밝기 1채널</small></span><span class="arrow">→</span>
+        <span class="step"><b>Threshold</b><br><small>글자 0 / 배경 255</small></span><span class="arrow">→</span>
+        <span class="step"><b>Perspective</b><br><small>정면으로 펴기</small></span><span class="arrow">→</span>
+        <span class="step">OCR</span>
+      </div>
+      <figure id="fig-preprocess-steps"><img class="smooth" src="img/day16/preprocess_steps.png" alt="기울어지고 그림자 진 가상 청구서 사진을 Gray, Otsu, Adaptive, Perspective 보정 순서로 바꾼 다섯 장면"><figcaption><b>무엇을 보나:</b> 가상 청구서를 일부러 기울이고 왼쪽 위에 그림자를 넣은 "촬영본"(①)이에요. ② Gray는 채널 축이 사라져 shape가 <code>(1130, 920)</code>이 돼요. ③ Otsu는 사진 <b>전체에 기준 하나(T=146)</b>를 써서 빨간 점선 안 그림자 쪽이 통째로 검게 먹혔어요. ④ Adaptive는 같은 자리 글자가 살아 있어요. ⑤ 노란 1→2→3→4 모서리를 <code>(700, 1000)</code> 크기로 펴니 반듯한 문서가 됐어요. <b>🤔 왜?</b> OCR 엔진은 "반듯하고, 글자와 배경이 확실히 갈리는" 입력을 전제로 줄을 나누고 글자를 읽어요. 그림자는 대비를, 기울기는 줄 나누기를 망가뜨리니 읽기 전에 그 전제에 맞춰 주는 거예요.</figcaption></figure>
+
+      <h3>🔧 명령어: 읽기 · Gray 변환 <code>cv2.imread()</code> · <code>cv2.cvtColor()</code></h3>
+<pre><code>import cv2
+
+image = cv2.imread("invoice.png", cv2.IMREAD_COLOR)
+if image is None:
+    raise FileNotFoundError("invoice.png")
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+print("BGR shape:", image.shape)     # (H, W, 3)
+print("Gray shape:", gray.shape)     # (H, W)
+if not cv2.imwrite("gray.png", gray):
+    raise OSError("gray.png 저장 실패")</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>filename</code> <small>(필수)</small></td><td>읽을 이미지 경로 (Path는 <code>str()</code>로)</td><td>경로가 틀려도 에러 없이 <code>None</code>을 돌려줘요 → 그래서 바로 <code>is None</code> 검사</td></tr>
+        <tr><td><code>flags</code></td><td><code>IMREAD_COLOR</code>(기본, BGR 3채널) · <code>IMREAD_GRAYSCALE</code> · <code>IMREAD_UNCHANGED</code></td><td>GRAYSCALE면 처음부터 1채널로 읽어 cvtColor가 필요 없어요. UNCHANGED면 투명도(알파) 채널까지 4채널로 와요</td></tr>
+        <tr><td><code>code</code> <small>(필수)</small></td><td>변환 방향 상수. <code>COLOR_BGR2GRAY</code>, <code>COLOR_BGR2RGB</code> …</td><td>imread 결과는 <b>BGR</b>이라 <code>RGB2GRAY</code>를 쓰면 빨강·파랑 가중치가 바뀌어 밝기가 미묘하게 달라져요</td></tr>
+        <tr><td><code>dstCn</code></td><td>출력 채널 수 (보통 0 = 자동)</td><td>건드릴 일이 거의 없어요</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 원본 파일은 <b>덮어쓰지 않고</b> 다른 경로에 저장해요. <code>cv2.imwrite</code>도 실패하면 예외 대신 <code>False</code>를 돌려주니 반환값을 확인해요.</div>
+
+      <h3>이진화 — 전역 Otsu vs 적응형 Adaptive</h3>
+      <p><b>이진화(Threshold)</b>는 밝기 0~255인 Gray를 기준선으로 갈라 <b>글자 0 / 배경 255</b> 두 값만 남기는 거예요(Day13 ④에서 자세히 봤어요). 문서에서는 <b>그림자</b> 때문에 "기준선 하나"가 자주 실패해요.</p>
+      <figure id="fig-threshold-profile"><img class="smooth" src="img/day16/threshold_profile.png" alt="그림자 진 문서의 가로 한 줄 밝기 그래프에 Otsu 전역 기준선과 Adaptive 지역 기준선을 겹쳐 그린 그림"><figcaption><b>무엇을 보나:</b> 왼쪽 분홍 줄(y=225)의 밝기를 오른쪽에 그렸어요. 회색 선이 실제 밝기 — 왼쪽으로 갈수록 그림자 때문에 종이도 어두워지고, 뾰족하게 꺼진 곳이 글자 획이에요. 빨간 점선(Otsu, 146)은 어디서나 같은 높이라 <b>빨간 구간의 종이까지</b> 선 아래로 떨어져 검게 칠해져요. 초록 선(Adaptive)은 <b>배경 밝기를 따라 오르내리며</b> 늘 배경보다 조금 아래에 있어서 글자 획만 그 아래로 내려가요. <b>🤔 왜?</b> Adaptive는 "전체에서 어두운가?"가 아니라 "<b>내 주변보다</b> 어두운가?"를 물어요. 그림자는 글자와 주변 종이를 <b>같이</b> 어둡게 만드니, 주변과 비교하면 그림자 효과가 상쇄돼요.</figcaption></figure>
+      <h3>🔧 명령어: <code>cv2.threshold()</code> + Otsu · <code>cv2.adaptiveThreshold()</code></h3>
+<pre><code>otsu_t, binary = cv2.threshold(
+    gray, 0, 255,
+    cv2.THRESH_BINARY | cv2.THRESH_OTSU
+)
+print("Otsu threshold:", otsu_t)        # Otsu가 고른 기준값
+
+adaptive = cv2.adaptiveThreshold(
+    gray, 255,
+    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    cv2.THRESH_BINARY,
+    31, 11                              # blockSize, C
+)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>thresh=0</code> + <code>THRESH_OTSU</code></td><td>기준값을 Otsu가 히스토그램으로 자동 추정 (0은 자리 채우기)</td><td>OTSU를 빼면 0이 진짜 기준이 돼서 거의 전부 흰색이 돼요. 반환값 <code>otsu_t</code>에 실제 고른 기준이 들어와요</td></tr>
+        <tr><td><code>maxValue</code> (255)</td><td>조건을 만족한 픽셀에 넣을 값</td><td>1로 하면 0/1 이미지 — 눈으로는 거의 검게 보여요</td></tr>
+        <tr><td><code>adaptiveMethod</code></td><td><code>MEAN_C</code>(주변 단순 평균) · <code>GAUSSIAN_C</code>(가운데에 더 무게를 둔 평균)</td><td>GAUSSIAN이 가까운 픽셀을 더 믿어서 경계가 조금 더 매끄러워요</td></tr>
+        <tr><td><code>thresholdType</code></td><td><code>BINARY</code>(밝으면 흰색) · <code>BINARY_INV</code>(반대)</td><td>INV면 글자가 흰색, 배경이 검정 — 이후 처리(윤곽 찾기 등)가 "흰색 = 물체"를 기대할 때 써요</td></tr>
+        <tr><td><code>blockSize</code> (31)</td><td>주변 영역 한 변 크기. <b>3 이상 홀수</b></td><td><b>작으면</b> 글자 획 안쪽까지 "주변"으로 잡혀 굵은 글자 속이 비거나 종이 결이 점으로 남아요. <b>크면</b> 그림자 변화를 못 따라가 Otsu처럼 돼요. 홀수인 이유: 가운데 픽셀이 딱 하나 있어야 해서</td></tr>
+        <tr><td><code>C</code> (11)</td><td>주변 평균에서 빼는 상수</td><td><b>클수록</b> 기준이 더 낮아져 "확실히 어두운 것"만 검게 → 잡점↓, 흐린 글자는 사라질 수 있어요. 작거나 음수면 종이 결까지 검게 찍혀요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 눈으로 보기 좋은 결과를 고르면 안 돼?</strong> — 사람에게 깨끗해 보이는 이미지와 <b>OCR 오류율이 낮은</b> 이미지는 항상 같지 않아요. 그래서 설정은 <b>개발·검증 문서의 CER</b>(③)로 고르고, 최종 평가 문서는 그 선택 과정에서 빼 둬요. 최종 문서를 보며 고르면 그 문서에 맞춘 선택이 돼서 점수가 부풀어요.</div>
+
+      <h3>원근 보정 — 비스듬한 문서를 정면으로</h3>
+      <p>문서를 비스듬히 찍으면 사각형이 사다리꼴이 돼요. 실제 문서의 <b>네 모서리(src)</b>와 펼친 뒤 <b>네 모서리(dst)</b>를 짝지으면, 둘을 잇는 3×3 <b>변환 행렬 M</b>이 하나 정해져요. 아래 왼쪽 사진의 번호 점 4개를 끌어 보세요. 오른쪽이 그 점들로 편 결과예요.</p>
+      <div class="lab">
+        <canvas id="warp" width="480" height="300"></canvas>
+        <div class="readout">
+          <button type="button" id="warp-swap">2번 ↔ 4번 순서 바꾸기</button>
+          <button type="button" id="warp-reset">처음으로</button>
+        </div>
+        <div class="readout">
+          <div>모서리 순서 <b id="warp-order">-</b></div>
+          <div>문서 귀퉁이에서 가장 많이 벗어난 점 <b id="warp-off">0</b>px</div>
+        </div>
+        <div class="readout"><div>M (사진 좌표 → 700×1000) = <code id="warp-m">-</code></div></div>
+        <div class="verdict" id="warp-verdict"></div>
+        <p class="verdict" id="warp-why" style="font-weight:400"></p>
+      </div>
+      <h3>🔧 명령어: <code>cv2.getPerspectiveTransform()</code> · <code>cv2.warpPerspective()</code></h3>
+<pre><code>import numpy as np
+import cv2
+
+src = np.float32([[92, 40], [820, 75], [860, 1080], [55, 1050]])   # 왼위 → 오위 → 오아래 → 왼아래
+dst = np.float32([[0, 0], [699, 0], [699, 999], [0, 999]])         # 같은 순서!
+M = cv2.getPerspectiveTransform(src, dst)                           # 3×3 행렬
+warped = cv2.warpPerspective(
+    image, M, (700, 1000),             # (width, height)
+    flags=cv2.INTER_LINEAR,
+    borderMode=cv2.BORDER_CONSTANT,
+    borderValue=(255, 255, 255)
+)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>src</code> / <code>dst</code></td><td>실제 문서 네 모서리 / 펼친 뒤 네 모서리 (<code>float32</code>, 4×2)</td><td><b>순서가 어긋나면</b> 문서가 뒤집히거나 꼬여요. 모서리를 문서 밖에 찍으면 배경이 딸려 오고, 안쪽에 찍으면 가장자리 글자가 잘려요</td></tr>
+        <tr><td><code>dsize</code> <code>(700, 1000)</code></td><td>출력 크기 <b>(width, height)</b></td><td>배열 shape는 (H, W)인데 여기는 <b>(W, H)</b>! 바꿔 넣으면 가로로 납작한 문서가 돼요. dst 좌표(699, 999)와도 맞춰야 해요</td></tr>
+        <tr><td><code>flags</code></td><td>새 픽셀 값을 주변에서 어떻게 계산할지 (<code>INTER_LINEAR</code> = 주변 4칸 가중 평균)</td><td><code>INTER_NEAREST</code>는 빠르지만 글자 가장자리가 계단처럼 깨져요</td></tr>
+        <tr><td><code>borderMode</code> / <code>borderValue</code></td><td>원본 밖을 가리키는 픽셀을 채우는 방법 / 그 색</td><td>흰색(255)이 아니면 가장자리에 검은 띠가 생겨 OCR이 글자로 오해할 수 있어요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 점이 꼭 4개야?</strong> — 원근 변환 행렬 M에는 정해야 할 숫자가 8개 있어요(9칸 중 마지막은 1로 고정). 점 하나가 x·y 식 두 개를 주니까, 4쌍이면 딱 8개 식이 생겨 M이 하나로 정해져요. 3개면 모자라고, 5개 이상이면 "가장 잘 맞는" M을 따로 구해야 해요.</div>
+      <div class="callout warn">⚠️ <strong>좌표계 주의</strong> — 보정본에서 나온 OCR Box는 <b>보정본 좌표</b>예요. 원본 사진 위에 그리려면 M의 <b>역변환</b>으로 되돌려야 해요. 그래서 JSON에 어떤 이미지 기준 좌표인지(<code>coordinate_space</code>)와 이미지 크기를 같이 적어요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="ocr">② OCR 실행 — Text · Box · Confidence</h2>
+      <p>OCR 엔진 안을 확대해 보면 네 단계가 보여요. 엔진 하나가 다 하기도 하고, 단계별로 다른 부품을 쓰기도 해요.</p>
+      <figure id="fig-ocr-inside">
+        <svg viewBox="0 0 760 250" style="width:100%;height:auto" role="img" aria-label="OCR 내부 네 단계: 이미지 준비, 영역·줄 분할, 문자 인식, 순서·구조 정리와 각 단계의 예시 그림">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <defs><marker id="arOi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <g font-size="13.5" font-weight="700" text-anchor="middle" fill="var(--text)">
+            <rect x="10" y="14" width="160" height="50" rx="10" fill="var(--accent)" fill-opacity="0.10" stroke="var(--accent)"/><text x="90" y="36">① 이미지 준비</text>
+            <rect x="200" y="14" width="160" height="50" rx="10" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)"/><text x="280" y="36">② 영역 · 줄 분할</text>
+            <rect x="390" y="14" width="160" height="50" rx="10" fill="var(--accent2)" fill-opacity="0.14" stroke="var(--accent2)"/><text x="470" y="36">③ 문자 인식</text>
+            <rect x="580" y="14" width="170" height="50" rx="10" fill="var(--accent2)" fill-opacity="0.24" stroke="var(--accent2)"/><text x="665" y="36">④ 순서 · 구조 정리</text>
+          </g>
+          <g font-size="11" text-anchor="middle" fill="var(--muted)">
+            <text x="90" y="54">회전 · 대비 점검</text><text x="280" y="54">어디를 읽을지 결정</text><text x="470" y="54">영역 → 문자열</text><text x="665" y="54">줄 · 표 · 필드 관계</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="2"><line x1="172" y1="39" x2="196" y2="39" marker-end="url(#arOi)"/><line x1="362" y1="39" x2="386" y2="39" marker-end="url(#arOi)"/><line x1="552" y1="39" x2="576" y2="39" marker-end="url(#arOi)"/></g>
+          <!-- ① 기울어진 문서 -->
+          <g transform="rotate(-6 90 150)"><rect x="45" y="90" width="90" height="120" rx="4" fill="var(--surface)" stroke="var(--text)"/>
+            <g fill="var(--muted)" fill-opacity="0.6"><rect x="55" y="102" width="50" height="8"/><rect x="55" y="120" width="65" height="5"/><rect x="55" y="132" width="40" height="5"/><rect x="55" y="160" width="70" height="5"/><rect x="55" y="172" width="70" height="5"/><rect x="55" y="192" width="60" height="7"/></g></g>
+          <text x="90" y="236" text-anchor="middle" font-size="11.5" fill="var(--text)">전체 문서 · 페이지 구조</text>
+          <!-- ② 분할 -->
+          <rect x="235" y="90" width="90" height="120" rx="4" fill="var(--surface)" stroke="var(--text)"/>
+          <g fill="var(--muted)" fill-opacity="0.6"><rect x="245" y="102" width="50" height="8"/><rect x="245" y="120" width="65" height="5"/><rect x="245" y="132" width="40" height="5"/><rect x="245" y="160" width="70" height="5"/><rect x="245" y="172" width="70" height="5"/><rect x="245" y="192" width="60" height="7"/></g>
+          <g fill="none" stroke="var(--accent)" stroke-width="1.6"><rect x="241" y="98" width="58" height="16"/><rect x="241" y="116" width="73" height="24"/><rect x="241" y="155" width="78" height="27" stroke-dasharray="3 2"/><rect x="241" y="188" width="68" height="15"/></g>
+          <text x="280" y="236" text-anchor="middle" font-size="11.5" fill="var(--text)">블록 · 줄 · 표 영역</text>
+          <!-- ③ 인식 -->
+          <rect x="400" y="110" width="140" height="28" rx="4" fill="var(--accent2)" fill-opacity="0.1" stroke="var(--accent2)"/>
+          <text x="470" y="129" text-anchor="middle" font-size="13" fill="var(--text)">합계 1,234,500원</text>
+          <text x="470" y="160" text-anchor="middle" font-size="11.5" fill="var(--muted)">한 줄 Crop → 문자열</text>
+          <text x="470" y="180" text-anchor="middle" font-size="11.5" fill="var(--accent2)">+ conf 88.6 + bbox</text>
+          <text x="470" y="236" text-anchor="middle" font-size="11.5" fill="var(--text)">줄 단위 인식</text>
+          <!-- ④ 순서 -->
+          <g font-size="12" fill="var(--text)">
+            <text x="600" y="106">1 제목</text><text x="600" y="130">2 발행일 · 공급자</text><text x="600" y="154">3 표 (행·열)</text><text x="600" y="178">4 합계</text>
+          </g>
+          <path d="M588,98 L588,176" stroke="var(--accent2)" stroke-width="2" marker-end="url(#arOi)"/>
+          <text x="665" y="236" text-anchor="middle" font-size="11.5" fill="var(--text)">읽기 순서 · 표 관계</text>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 위 네 칸이 단계, 아래가 각 단계에서 다루는 모습이에요. ① 기울어진 전체 문서를 점검하고, ② 보라 상자처럼 글자 덩어리·줄·표(점선) 영역을 나누고, ③ 한 줄씩 잘라 문자열 + 점수 + 위치로 바꾸고, ④ 제목 → 본문 → 표 → 합계 순서로 정리해요. <b>🤔 왜?</b> 단계가 나뉘어 있어서 실패도 단계별로 따져야 해요. ②에서 영역을 못 찾으면 ③은 손도 못 대고(놓침), ④가 틀리면 글자는 다 맞아도 "합계"와 "1,234,500원"이 엉뚱한 짝이 돼요.</figcaption>
+      </figure>
+      <table>
+        <tr><th>OCR 결과 형식</th><th>들어 있는 것</th></tr>
+        <tr><td><b>Plain text</b></td><td>전체 문자열 — 빠르게 확인용 (<code>image_to_string</code>)</td></tr>
+        <tr><td><b>TSV / DataFrame</b></td><td>단어별 <code>text · conf · left · top · width · height</code> (<code>image_to_data</code>)</td></tr>
+        <tr><td><b>hOCR / ALTO XML</b></td><td>페이지 · 문단 · 줄 · 단어 구조와 위치</td></tr>
+        <tr><td><b>Searchable PDF</b></td><td>이미지 위에 보이지 않는 텍스트 층 → 검색·복사 가능</td></tr>
+        <tr><td><b>Custom detector + recognizer</b></td><td>영역 탐지 모델과 문자 인식 모델을 따로 쓰는 구조</td></tr>
+      </table>
+
+      <h3>PSM — "페이지가 이렇게 생겼다"는 가정</h3>
+      <p><b>PSM</b>(Page Segmentation Mode)은 Tesseract에게 "이 이미지는 이런 모양이야"라고 미리 알려 주는 설정이에요. 가정이 틀리면 같은 글자도 엉뚱하게 나눠 읽어요.</p>
+      <figure id="fig-psm">
+        <svg viewBox="0 0 760 210" style="width:100%;height:auto" role="img" aria-label="PSM 3 완전 자동 페이지, PSM 6 균일한 블록 하나, PSM 7 한 줄, PSM 8 한 단어 가정을 그림으로 비교">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <g font-size="14" font-weight="700" text-anchor="middle" fill="var(--text)">
+            <text x="95" y="22">PSM 3</text><text x="285" y="22">PSM 6</text><text x="475" y="22">PSM 7</text><text x="665" y="22">PSM 8</text>
+          </g>
+          <g font-size="11.5" text-anchor="middle" fill="var(--muted)">
+            <text x="95" y="40">완전 자동 페이지 분할 (기본)</text><text x="285" y="40">균일한 텍스트 블록 하나</text><text x="475" y="40">텍스트 한 줄</text><text x="665" y="40">단어 하나</text>
+          </g>
+          <!-- PSM3 -->
+          <rect x="30" y="52" width="130" height="120" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <g fill="var(--muted)" fill-opacity="0.55"><rect x="40" y="62" width="60" height="9"/><rect x="40" y="80" width="50" height="5"/><rect x="40" y="90" width="50" height="5"/><rect x="100" y="80" width="50" height="5"/><rect x="100" y="90" width="50" height="5"/><rect x="40" y="115" width="110" height="28" fill-opacity="0.25"/><rect x="40" y="152" width="70" height="7"/></g>
+          <g fill="none" stroke="var(--accent)" stroke-width="1.6"><rect x="37" y="59" width="66" height="15"/><rect x="37" y="77" width="56" height="21"/><rect x="97" y="77" width="56" height="21"/><rect x="37" y="112" width="116" height="34" stroke-dasharray="3 2"/><rect x="37" y="149" width="76" height="13"/></g>
+          <text x="95" y="194" text-anchor="middle" font-size="11.5" fill="var(--text)">다단·표도 알아서 나눔</text>
+          <!-- PSM6 -->
+          <rect x="220" y="52" width="130" height="120" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <g fill="var(--muted)" fill-opacity="0.55"><rect x="232" y="66" width="106" height="6"/><rect x="232" y="82" width="100" height="6"/><rect x="232" y="98" width="106" height="6"/><rect x="232" y="114" width="90" height="6"/><rect x="232" y="130" width="106" height="6"/><rect x="232" y="146" width="70" height="6"/></g>
+          <rect x="227" y="59" width="116" height="100" fill="none" stroke="var(--accent)" stroke-width="1.8"/>
+          <text x="285" y="194" text-anchor="middle" font-size="11.5" fill="var(--text)">위→아래로 줄줄이</text>
+          <!-- PSM7 -->
+          <rect x="400" y="96" width="150" height="34" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="475" y="118" text-anchor="middle" font-size="13" fill="var(--text)">합계 1,234,500원</text>
+          <rect x="405" y="101" width="140" height="24" fill="none" stroke="var(--accent2)" stroke-width="1.8"/>
+          <text x="475" y="194" text-anchor="middle" font-size="11.5" fill="var(--text)">잘라 낸 한 줄에 딱</text>
+          <!-- PSM8 -->
+          <rect x="615" y="96" width="100" height="34" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <text x="665" y="118" text-anchor="middle" font-size="13" fill="var(--text)">INV-001</text>
+          <rect x="621" y="101" width="88" height="24" fill="none" stroke="var(--accent2)" stroke-width="1.8"/>
+          <text x="665" y="194" text-anchor="middle" font-size="11.5" fill="var(--text)">문서번호 칸 하나</text>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 각 PSM이 "이미지 안에 무엇이 있다고 가정하는지"예요. 3은 제목·2단·표(점선)를 스스로 나누고, 6은 통째로 한 블록, 7은 한 줄, 8은 한 단어로 봐요. <b>🤔 왜?</b> 이미 한 줄만 잘라서 넣었는데 PSM 3으로 "페이지 분할"을 시키면, 엔진이 없는 단·블록을 찾다가 줄을 쪼개거나 빈칸을 글자로 오해할 수 있어요. <b>입력이 단순할수록 가정도 단순하게</b> 주는 게 유리해요(항상 그런 건 아니니 검증 문서로 비교해요).</figcaption>
+      </figure>
+
+      <h3>🔧 명령어: 단어별 결과 받기 <code>pytesseract.image_to_data()</code></h3>
+<pre><code>import pytesseract
+from pytesseract import Output
+
+ocr = pytesseract.image_to_data(
+    binary, lang="kor+eng", config="--oem 3 --psm 6",
+    output_type=Output.DATAFRAME,
+    pandas_config={"keep_default_na": False,
+                   "dtype": {"text": str}},
+)
+words = ocr[
+    ocr.level.eq(5) &amp; ocr.text.str.strip().ne("")     # 단어 행 + 빈 글자 제외
+].copy()
+review = words[words.conf.lt(50)]                       # 점수 낮은 단어 = 검토 목록
+columns = ["text", "conf", "left", "top", "width", "height"]
+print(words[columns])</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>image</code> <small>(필수)</small></td><td>PIL Image · RGB/Gray 배열 · 파일 경로</td><td>OpenCV 컬러 배열(BGR)을 그대로 주면 색 순서가 달라요 → Gray·이진화본이나 <code>COLOR_BGR2RGB</code>로 바꿔서</td></tr>
+        <tr><td><code>lang</code></td><td>언어 데이터 조합 <code>"kor"</code>, <code>"eng"</code>, <code>"kor+eng"</code></td><td>설치 안 된 언어면 에러. <code>eng</code>만 주면 한글을 영어 글자로 억지로 읽어 엉망이 돼요. 언어를 많이 붙일수록 후보가 늘어 느려지고 헷갈릴 수 있어요</td></tr>
+        <tr><td><code>config="--oem 3"</code></td><td>인식 엔진 모드 (3 = 사용 가능한 기본 엔진)</td><td>보통 3 그대로</td></tr>
+        <tr><td><code>config="--psm 6"</code></td><td>페이지 모양 가정 (위 그림)</td><td>한 줄 Crop이면 7, 단어 하나면 8이 더 맞을 수 있어요</td></tr>
+        <tr><td><code>output_type</code></td><td><code>STRING</code>(기본, TSV 글자) · <code>DICT</code> · <code>DATAFRAME</code></td><td>DATAFRAME이면 pandas로 바로 거르고 저장. DICT면 리스트 묶음</td></tr>
+        <tr><td><code>timeout</code></td><td>초 단위 제한 (0 = 무제한)</td><td>설정하면 큰 이미지에서 멈춘 듯 오래 걸리는 걸 끊을 수 있어요</td></tr>
+        <tr><td><code>pandas_config</code></td><td>DataFrame 만들 때 넘기는 <code>read_csv</code> 옵션</td><td>아래 🤔 참고 — 빼면 일부 글자가 사라지거나 바뀌어요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>keep_default_na=False</code>, <code>dtype={"text": str}</code>?</strong> — pandas는 표를 읽을 때 <code>"NA"</code>, <code>"null"</code> 같은 글자를 "값 없음(NaN)"으로, <code>"0012"</code>를 숫자 12로 <b>알아서 바꿔요</b>. 문서에 진짜로 "NA"라고 적혀 있거나 문서번호가 0으로 시작하면 원문이 망가지죠. 이 두 옵션으로 OCR이 읽은 글자를 <b>글자 그대로</b> 보존해요.</div>
+      <div class="callout">🤔 <strong>왜 <code>level == 5</code>?</strong> — <code>image_to_data</code>는 페이지(1) · 블록(2) · 문단(3) · 줄(4) · <b>단어(5)</b> 행을 한 표에 섞어서 줘요. 위쪽 단계 행은 글자 칸이 비어 있고 위치만 있어요. 단어만 쓰려면 5번 행만 골라야 해요.</div>
+      <figure id="fig-ocr-boxes"><img class="smooth" src="img/day16/ocr_boxes.png" alt="가상 청구서의 단어마다 confidence 색으로 박스를 그리고 text, conf, left, top, width, height 표로 정리한 설명용 그림"><figcaption><b>무엇을 보나:</b> (설명용 그림 — 박스는 글자를 그린 위치, conf는 가상 값이에요) 왼쪽 단어 박스 하나 = 오른쪽 표 한 줄. 박스 색이 conf예요(초록 ≥ 80, 주황 50~80, 빨강 &lt; 50). 합계 금액은 강의 예시와 같은 <code>bbox [530,820,790,865]</code>, conf 88.6. 표의 <code>left·top·width·height</code>를 <code>[left, top, left+width, top+height]</code>로 바꾸면 xyxy가 돼요. <b>🤔 왜?</b> 수량 <code>1</code>, <code>3</code>처럼 <b>짧은 숫자</b>는 엔진이 비교할 앞뒤 글자가 없어서 맞게 읽어도 점수가 낮게 나오기 쉬워요. 그래서 낮은 점수를 "삭제"가 아니라 "사람이 볼 목록(review)"에 넣는 거예요.</figcaption></figure>
+      <table>
+        <tr><th>Confidence로 할 수 있는 것</th><th>주의할 것</th></tr>
+        <tr><td>낮은 점수 단어를 검토 목록에 넣기</td><td>엔진마다 점수의 크기·의미가 달라요</td></tr>
+        <tr><td>같은 필드 후보 중 상대적으로 높은 것 고르기</td><td>짧은 숫자·기호는 낮아도 맞을 수 있어요</td></tr>
+        <tr><td>문서 유형별 점수 분포 지켜보기</td><td>높은 점수가 <b>문맥상 맞다</b>는 보장은 없어요</td></tr>
+        <tr><td>box와 원본 crop을 같이 저장해 사람이 검토</td><td>기준 하나로 모든 문서를 <b>자동 삭제</b>하지 않기</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>conf 90 ≠ "90% 확률로 맞음"</strong> — 엔진 내부의 신뢰 점수일 뿐, 문맥상 정답률과 같지 않아요. 그리고 50은 설명용 기준이에요. 원본 OCR 결과는 지우지 말고 보관해요.</div>
+      <div class="callout">💡 객체탐지의 box와 OCR의 word box는 둘 다 "위치"예요. 차이는 OCR box에는 <b>문자열·줄·블록 정보</b>가 함께 붙는다는 것.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="eval">③ OCR 품질 평가 — 글자 · 단어 · 필드를 따로</h2>
+      <table>
+        <tr><th>지표</th><th>계산</th><th>질문</th></tr>
+        <tr><td><b>CER</b></td><td>(치환 + 삭제 + 삽입) / <b>정답 글자 수</b></td><td>글자 단위로 얼마나 틀렸나? (낮을수록 좋음)</td></tr>
+        <tr><td><b>WER</b></td><td>(치환 + 삭제 + 삽입) / 정답 <b>단어</b> 수</td><td>단어 단위로 얼마나 틀렸나?</td></tr>
+        <tr><td><b>Field accuracy</b></td><td>날짜·금액·문서번호 등 필수 항목이 정확한 비율</td><td>업무에 쓸 값이 맞았나?</td></tr>
+        <tr><td><b>구조 평가</b></td><td>읽기 순서·표 셀·Box별 기준과 분모를 정해서</td><td>순서·칸 관계가 맞았나?</td></tr>
+        <tr><td><b>Latency</b></td><td>페이지당 전처리 · OCR · 후처리 시간을 <b>각각</b></td><td>어디서 느린가?</td></tr>
+      </table>
+      <p><b>편집 거리</b>(Levenshtein distance)는 "정답을 OCR 결과로 바꾸려면 글자를 최소 몇 번 고쳐야 하나"예요. 고치는 방법은 세 가지: <b>S</b> 다른 글자로 바꾸기, <b>D</b> 지우기(OCR이 빠뜨림), <b>I</b> 끼워 넣기(OCR이 없는 걸 추가).</p>
+      <figure id="fig-cer-align"><img class="smooth" src="img/day16/cer_alignment.png" alt="정답과 OCR 결과를 한 글자씩 맞춰 놓고 치환 S, 삭제 D, 삽입 I를 색칠한 두 가지 정렬 예"><figcaption><b>무엇을 보나:</b> 위는 강의 예시 — 정답 <code>1234500</code>을 <code>12345O0</code>로 읽었어요. 숫자 0을 영문 O로 바꾼 <b>S 1번</b> → CER = 1/7 ≈ <b>14.3%</b>. 아래는 날짜 예시로 S·D·I가 모두 나와요: <code>:</code>를 끼워 넣고(I), 0→O·1→l로 바꾸고(S), <code>0</code>을 빠뜨렸어요(D). <b>🤔 왜?</b> 줄을 이렇게 맞춰 봐야 "어떤 실수를 했는지"가 보여요. 그리고 7글자 중 1글자(14%)만 틀려도 그게 <b>금액</b>이면 필드 값은 통째로 틀린 거라, CER과 필드 정확도를 따로 봐요.</figcaption></figure>
+      <p>직접 해 보세요. 금액·날짜를 바꿔 넣으면 CER, S·D·I, 그리고 "숫자만 뽑았을 때 필드 값이 같은지"가 함께 바뀌어요.</p>
+      <div class="lab">
+        <div class="readout"><label>정답 <input type="text" id="cer-ref" value="1,234,500원" size="24"></label></div>
+        <div class="readout"><label>OCR 결과 <input type="text" id="cer-hyp" value="1,234,5O0원" size="24"></label></div>
+        <div class="readout"><label><input type="checkbox" id="cer-nospace"> 비교 전에 공백 지우기 (정규화 규칙)</label></div>
+        <div class="readout" id="cer-align" style="font-family:var(--font-code);font-size:1.05rem"></div>
+        <div class="readout">
+          <div>S <b id="cer-s">0</b> · D <b id="cer-d">0</b> · I <b id="cer-i">0</b></div>
+          <div>편집 거리 <b id="cer-dist">0</b> ÷ 정답 <b id="cer-n">0</b>글자</div>
+          <div>CER = <span class="big" id="cer-val">0.000</span></div>
+        </div>
+        <div class="verdict" id="cer-verdict"></div>
+        <p class="verdict" id="cer-why" style="font-weight:400"></p>
+      </div>
+
+      <h3>🔧 명령어: CER 계산 함수</h3>
+<pre><code>def levenshtein(a: str, b: str) -&gt; int:
+    dp = list(range(len(b) + 1))           # 빈 문자열 → b의 앞 j글자: j번 삽입
+    for i, ca in enumerate(a, start=1):
+        prev, dp[0] = dp[0], i
+        for j, cb in enumerate(b, start=1):
+            old = dp[j]
+            dp[j] = min(
+                dp[j] + 1,                 # 삭제 (D)
+                dp[j - 1] + 1,             # 삽입 (I)
+                prev + (ca != cb),         # 치환 (S) — 같으면 +0
+            )
+            prev = old
+    return dp[-1]
+
+def cer(reference: str, prediction: str) -&gt; float:
+    if not reference:
+        raise ValueError("빈 정답 문서는 별도 평가합니다")
+    errors = levenshtein(reference, prediction)
+    return errors / len(reference)</code></pre>
+      <table>
+        <tr><th>코드 · 규칙</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>dp</code> 한 줄</td><td>표 전체 대신 직전 줄만 기억하며 최소 횟수를 채움</td><td>결과는 같고 메모리만 아껴요</td></tr>
+        <tr><td><code>prev + (ca != cb)</code></td><td>두 글자가 같으면 비용 0, 다르면 1(치환)</td><td>치환 비용을 2로 하면 "지우고 넣기"와 같아져 다른 지표가 돼요</td></tr>
+        <tr><td><code>len(reference)</code></td><td>분모 = <b>정답</b> 글자 수</td><td>OCR 결과 길이로 나누면, 글자를 잔뜩 빠뜨린 결과가 오히려 점수가 좋아 보여요</td></tr>
+        <tr><td>빈 정답 → <code>ValueError</code></td><td>0으로 나누기 방지 + 따로 집계</td><td>조용히 0점 처리하면 "글자 없는 페이지에 글자를 지어낸" 오류가 숨어요</td></tr>
+        <tr><td>정규화 규칙</td><td>공백·대소문자·기호를 비교 전에 어떻게 다룰지 <b>먼저 고정</b></td><td>규칙이 바뀌면 같은 결과도 CER이 달라져요(위 체험의 체크박스)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 문서별 평균과 micro CER을 구분해?</strong> — 문서별 CER을 평균 내면 10글자짜리 영수증과 2,000글자짜리 계약서가 <b>같은 무게</b>예요. micro CER은 전체 오류 수 ÷ 전체 정답 글자 수라서 <b>글자 하나하나가 같은 무게</b>예요. 짧은 문서 몇 장이 크게 틀리면 두 값이 크게 달라지니, 어떤 걸 보고했는지 적어요.</div>
+      <figure id="fig-eval-units"><img class="smooth" src="img/day16/eval_units.png" alt="같은 문서를 금액 CER 14.3%, 필드 정확도 66.7%, JSON 문법 100%, 원문 근거 불일치 검토로 따로 채점한 네 칸 그림"><figcaption><b>무엇을 보나:</b> 강의의 가상 수치예요. <b>같은 문서 한 장</b>인데 금액 CER은 14.3%(1/7 글자), 필드 정확도는 66.7%(3개 중 2개), JSON 문법은 100%(파싱 성공), 원문 근거는 "금액 불일치 → 검토"예요. <b>🤔 왜?</b> 잣대마다 <b>보는 단위와 분모</b>가 달라서예요. JSON이 완벽해도 값이 틀릴 수 있고, CER이 낮아도 그 한 글자가 금액이면 업무상 실패예요. 그래서 하나로 합치지 않고 같은 문서·정답·정규화 규칙에서 따로 비교해요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="struct">④ 구조화 — 글자를 업무 데이터(JSON)로</h2>
+      <p>OCR 문자열은 그냥 긴 글이에요. 프로그램이 쓰려면 "발행일은 2026-11-09, 합계는 정수 1234500" 같은 <b>필드</b>로 바꿔야 해요. 이걸 <b>후처리</b>라고 하고 다섯 단계로 해요.</p>
+      <div class="flow">
+        <span class="step"><b>정규화</b><br><small>공백·통화·날짜·숫자 형식 통일</small></span><span class="arrow">→</span>
+        <span class="step"><b>영역화</b><br><small>제목·표·합계·서명 블록</small></span><span class="arrow">→</span>
+        <span class="step"><b>필드 추출</b><br><small>번호·날짜·공급자·합계</small></span><span class="arrow">→</span>
+        <span class="step"><b>검증</b><br><small>합계 = 공급가 + 세금</small></span><span class="arrow">→</span>
+        <span class="step"><b>출력</b><br><small>원문·값·box·conf·상태</small></span>
+      </div>
+
+      <h3>🔧 명령어: 정규식으로 날짜 · 금액 찾기 <code>re.search()</code></h3>
+<pre><code>import re
+from datetime import date
+
+text = "발행일 2026-11-09   합계 1,234,500원"
+date_pat = r"(20\d{2})[-./](\d{1,2})[-./](\d{1,2})"
+money_pat = (r"합계\s*"
+             r"([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*원")
+
+dm = re.search(date_pat, text)
+am = re.search(money_pat, text)
+issued_at, total = None, None
+if dm:
+    try:
+        issued_at = date(*map(int, dm.groups())).isoformat()   # 진짜 있는 날짜인지 검사
+    except ValueError:
+        pass                                                   # 2026-13-45 같은 건 None으로
+if am:
+    total = int(am.group(1).replace(",", ""))
+print(issued_at, total)        # 2026-11-09 1234500</code></pre>
+      <table>
+        <tr><th>패턴 조각</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>r"..."</code></td><td>raw string — <code>\d</code>의 역슬래시를 Python이 먼저 건드리지 않게</td><td>r을 빼면 <code>\b</code> 같은 건 다른 뜻(백스페이스)이 돼 버려요</td></tr>
+        <tr><td><code>(20\d{2})</code></td><td>20으로 시작하는 4자리 연도 — 괄호는 "이 부분 따로 꺼내기(그룹)"</td><td><code>\d{4}</code>로 넓히면 전화번호 앞자리도 연도로 잡힐 수 있어요</td></tr>
+        <tr><td><code>[-./]</code></td><td>구분자로 <code>-</code>, <code>.</code>, <code>/</code> 중 하나</td><td>문서마다 표기가 달라서 여러 개를 허용해요. <code>2026. 11. 9</code>처럼 공백이 끼면 <code>\s*</code>도 필요</td></tr>
+        <tr><td><code>[0-9]{1,3}(?:,[0-9]{3})+</code></td><td>쉼표 세 자리 묶음 숫자 (<code>(?:...)</code>는 꺼내지 않는 묶음)</td><td><code>|[0-9]+</code>가 쉼표 없는 숫자도 받아요</td></tr>
+        <tr><td><code>합계\s*</code> … <code>\s*원</code></td><td>"합계" 라벨 뒤의 금액만</td><td>라벨을 빼면 공급가액·세액 숫자까지 후보가 돼요</td></tr>
+      </table>
+      <table>
+        <tr><th>함수 · 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>re.search(pattern, string, flags=0)</code></td><td>패턴의 <b>첫 후보</b>를 찾아 Match 객체, 없으면 <code>None</code></td><td>모든 후보가 필요하면 <code>re.findall</code>/<code>finditer</code>. None 검사를 빼면 <code>.group()</code>에서 에러</td></tr>
+        <tr><td><code>re.sub(pattern, repl, string, count=0, flags=0)</code></td><td>패턴에 맞는 부분을 바꾼 <b>새 문자열</b> (예: <code>re.sub(r"[^0-9]", "", "1,234,500원")</code> → <code>"1234500"</code>)</td><td><code>count=1</code>이면 첫 번째만 바꿔요. 원래 문자열은 안 바뀌어요</td></tr>
+        <tr><td><code>flags</code></td><td><code>re.IGNORECASE</code>(대소문자 무시), <code>re.MULTILINE</code>(줄마다 <code>^ $</code>)</td><td>"Total"/"TOTAL"을 한 패턴으로 잡을 때 IGNORECASE</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 패턴으로 찾고 <code>date()</code>로 또 검사해?</strong> — 정규식은 "모양"만 봐요. <code>2026-13-45</code>도 모양은 날짜예요. <code>date(2026, 13, 45)</code>는 <code>ValueError</code>를 내니까, 패턴은 <b>후보 찾기</b>, date는 <b>진짜인지 확인</b>으로 역할을 나눠요. 그리고 실패하면 아무 값이나 넣지 말고 <code>None</code>으로 남겨요.</div>
+
+      <h3>Key-value — "라벨 · 값 · 근거"를 한 묶음으로</h3>
+      <figure id="fig-kv"><img class="smooth" src="img/day16/kv_extract.png" alt="청구서에서 발행일, 공급자, 합계 라벨 박스와 오른쪽 값 박스를 화살표로 잇고 total_amount의 raw, value, currency, confidence, bbox와 검증 결과를 정리한 그림"><figcaption><b>무엇을 보나:</b> 왼쪽은 라벨(점선) 오른쪽에 있는 값(실선)을 짝지은 모습이에요. 오른쪽은 그중 합계 한 칸에 담는 정보 — 원문 <code>raw "1,234,500원"</code>, 정수 <code>value 1234500</code>, 통화, 점수, 위치 — 와 그 아래 검증(공급가액 1,122,273 + 세액 112,227 = 합계 1,234,500 → <b>passed</b>)이에요. <b>🤔 왜?</b> value만 남기면 나중에 "1234500은 어디서 왔지?"를 확인할 길이 없어요. raw와 bbox가 있으면 원본 이미지의 그 자리를 잘라 보며 OCR이 틀렸는지, 정규화가 틀렸는지를 바로 가를 수 있어요.</figcaption></figure>
+      <h3>🔧 명령어: 필드와 근거를 JSON으로 <code>json.dump()</code></h3>
+<pre><code>import json
+
+record = {
+    "document_id": "invoice_001", "page": 1,
+    "image_size": [1000, 1200],
+    "coordinate_space": "processed_px_xyxy",
+    "fields": {
+        "issued_at": {
+            "value": "2026-11-09", "raw": "2026. 11. 9",
+            "confidence": 92.4, "bbox": [118, 205, 310, 244]},
+        "supplier": {
+            "value": "AI Lab", "raw": "AI Lab",
+            "confidence": 93.1, "bbox": [118, 260, 310, 299]},
+        "total_amount": {
+            "value": 1234500, "raw": "1,234,500원",
+            "confidence": 88.6, "bbox": [530, 820, 790, 865]},
+    },
+}
+with open("invoice_001.json", "w", encoding="utf-8") as f:
+    json.dump(record, f, ensure_ascii=False, indent=2)</code></pre>
+      <table>
+        <tr><th>키 · 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>value</code> / <code>raw</code></td><td>정규화 값 / OCR 원문</td><td>raw를 빼면 오류 추적 불가 (아래 🤔)</td></tr>
+        <tr><td><code>coordinate_space</code>, <code>image_size</code></td><td>bbox가 <b>어떤 이미지</b>(여기선 1000×1200 처리 이미지)의 xyxy 픽셀인지</td><td>안 적으면 700×1000 보정본 좌표인지 원본 좌표인지 몰라 엉뚱한 곳을 그려요</td></tr>
+        <tr><td><code>encoding="utf-8"</code></td><td>파일을 UTF-8로 저장</td><td>Windows 기본 인코딩으로 저장되면 다른 PC·서버에서 한글이 깨질 수 있어요</td></tr>
+        <tr><td><code>ensure_ascii=False</code></td><td>한글을 그대로 저장</td><td>True(기본)면 <code>"\uc6d0"</code>처럼 저장돼 사람이 못 읽어요(값은 같음)</td></tr>
+        <tr><td><code>indent=2</code></td><td>들여쓰기로 보기 좋게</td><td>빼면 한 줄로 붙어 파일은 작지만 읽기 힘들어요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 정규화한 값만 저장하면 문제야?</strong> — 오류가 났을 때 "원래 뭐라고 적혀 있었는지, 어디 있었는지"를 확인할 수 없어요. 실제 기록에는 이미지 경로·적용한 변환·<b>schema version</b>(이 JSON 모양의 버전)도 같이 남겨요.</div>
+
+      <h3>표 추출 — 글자보다 "셀 구조"가 어렵다</h3>
+      <table>
+        <tr><th>단순 OCR로 되는 경우</th><th>추가 모델·규칙이 필요한 경우</th></tr>
+        <tr><td>선이 분명하고 병합 셀이 거의 없음</td><td>선 없는 표 · 여러 줄 헤더 · 병합 셀</td></tr>
+        <tr><td>열 수와 위치가 문서마다 일정</td><td>문서마다 열 위치·폭이 크게 다름</td></tr>
+        <tr><td>각 셀을 crop해 한 줄 OCR(PSM 7)로 읽을 수 있음</td><td>읽기 순서와 "이 글자가 어느 셀 소속인지"를 따로 예측해야 함</td></tr>
+        <tr><td>합계·수량·단가 관계로 오류를 검증할 수 있음</td><td>문자 인식보다 <b>구조 복원</b>이 더 어려움</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 표 OCR ≠ 표 구조 인식?</strong> — "900,000"이라는 글자를 정확히 읽어도, 그게 "GPU 서버 임대" 행의 "금액" 열인지 모르면 쓸 수가 없어요. 글자 읽기와 행·열 관계 복원은 다른 문제라 따로 평가해요.</div>
+
+      <h3>🔧 명령어: 업무 규칙으로 검증 <code>validate_invoice()</code></h3>
+      <table>
+        <tr><th>규칙</th><th>예</th></tr>
+        <tr><td><b>필수 필드</b></td><td>document_id · issued_at · supplier · total_amount</td></tr>
+        <tr><td><b>형식</b></td><td>날짜는 ISO 8601(<code>2026-11-09</code>), 금액은 정수, 통화는 별도 필드</td></tr>
+        <tr><td><b>관계</b></td><td>공급가액 + 세액 = 합계, 수량 × 단가 ≈ 금액</td></tr>
+        <tr><td><b>범위</b></td><td>날짜·금액·수량이 허용 범위 안인지</td></tr>
+        <tr><td><b>상태</b></td><td><code>passed</code> · <code>warning</code> · <code>failed</code> + 사람이 확인할 이유</td></tr>
+      </table>
+<pre><code>def validate_invoice(doc: dict) -&gt; list[str]:
+    if not isinstance(doc, dict):
+        return ["입력은 객체여야 합니다"]
+    errors = []
+    if not doc.get("document_id"):
+        errors.append("document_id 누락")
+    fields = doc.get("fields", {})
+    if not isinstance(fields, dict):
+        return errors + ["fields는 객체여야 합니다"]
+    for name in ["issued_at", "supplier", "total_amount"]:
+        item = fields.get(name)
+        value = item.get("value") if isinstance(item, dict) else None
+        if value is None or value == "":
+            errors.append(f"필수 필드 누락: {name}")
+        elif name == "total_amount":
+            if type(value) is not int or value &lt; 0:
+                errors.append("합계는 0 이상의 정수여야 합니다")
+    return errors</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>isinstance(doc, dict)</code> 먼저</td><td>모양을 확인한 뒤에 필드에 접근</td><td>빼면 리스트·None이 들어올 때 <code>.get</code>에서 프로그램이 죽어요</td></tr>
+        <tr><td><code>value is None or value == ""</code></td><td>"없음"만 누락으로 봄</td><td><code>if not value:</code>로 쓰면 <b>금액 0</b>도 누락으로 처리돼요 (0은 거짓으로 취급되니까)</td></tr>
+        <tr><td><code>type(value) is not int</code></td><td>정확히 int만 금액으로 인정</td><td><code>isinstance(value, int)</code>로 쓰면 <code>True</code>도 통과해요 — Python에서 bool은 int의 한 종류(True == 1)라서</td></tr>
+        <tr><td>오류 <b>목록</b> 반환</td><td>문제를 전부 모아서 돌려줌</td><td>첫 오류에서 멈추면 사람이 여러 번 고쳐야 해요</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 검증에 실패했다고 <b>0이나 빈 문자열로 자동 치환하면 안 돼요.</b> 진짜 0원과 "못 읽음"이 구분되지 않아요. <code>warning</code>·<code>failed</code> 상태와 이유를 남기고 사람이 보게 해요. 날짜·문자열·좌표까지 전부 검사하려면 이 함수를 Schema(데이터 모양 규칙)로 확장해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="vlm">⑤ VLM — 이미지를 보고 질문에 답하는 모델</h2>
+      <p><b>VLM</b>(Vision-Language Model)은 이미지와 글(질문)을 <b>함께</b> 입력받아 글로 답하는 모델이에요. OCR과 잘하는 일이 달라요.</p>
+      <table>
+        <tr><th></th><th>OCR</th><th>VLM</th></tr>
+        <tr><td>강점</td><td>문자·단어·줄을 그대로 받아 적고 위치를 연결 · 규칙 후처리와 결합하기 쉬움 · 숫자·문서번호 · 유형별 품질·비용을 직접 비교</td><td>이미지와 질문을 함께 보고 문맥을 설명 · 표·도식·화면 구성의 의미를 종합 · 문서 유형이 다양해도 유연하게 질의응답</td></tr>
+        <tr><td>약점</td><td>구조·의미 이해는 따로 만들어야 함</td><td><b>자연스러운 오답</b>과 근거 없는 추론 가능성</td></tr>
+      </table>
+      <figure id="fig-vlm-arch">
+        <svg viewBox="0 0 760 300" style="width:100%;height:auto" role="img" aria-label="messages가 Processor를 거쳐 이미지는 Vision Encoder와 Projector로, 질문은 토큰으로 바뀌어 언어 모델에 함께 들어가 답변 후보를 만드는 구조도">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <defs><marker id="arV" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <!-- messages -->
+          <rect x="10" y="40" width="150" height="190" rx="10" fill="var(--surface)" stroke="var(--text)" stroke-width="1.5"/>
+          <text x="85" y="62" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">messages[0]</text>
+          <text x="22" y="84" font-size="11.5" fill="var(--muted)">role: "user"</text>
+          <text x="22" y="102" font-size="11.5" fill="var(--muted)">content: [</text>
+          <rect x="28" y="110" width="120" height="44" rx="6" fill="var(--accent)" fill-opacity="0.12" stroke="var(--accent)"/>
+          <text x="88" y="128" text-anchor="middle" font-size="11.5" fill="var(--text)">type: "image"</text>
+          <text x="88" y="145" text-anchor="middle" font-size="11" fill="var(--muted)">invoice.png</text>
+          <rect x="28" y="162" width="120" height="44" rx="6" fill="var(--accent2)" fill-opacity="0.12" stroke="var(--accent2)"/>
+          <text x="88" y="180" text-anchor="middle" font-size="11.5" fill="var(--text)">type: "text"</text>
+          <text x="88" y="197" text-anchor="middle" font-size="11" fill="var(--muted)">"합계 금액은?"</text>
+          <text x="22" y="222" font-size="11.5" fill="var(--muted)">]</text>
+          <!-- Processor -->
+          <rect x="190" y="40" width="130" height="190" rx="10" fill="var(--line)" fill-opacity="0.45" stroke="var(--muted)" stroke-dasharray="5 4"/>
+          <text x="255" y="62" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">Processor</text>
+          <rect x="202" y="110" width="106" height="44" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="255" y="128" text-anchor="middle" font-size="11" fill="var(--text)">이미지 전처리</text><text x="255" y="144" text-anchor="middle" font-size="10.5" fill="var(--muted)">→ pixel_values</text>
+          <rect x="202" y="162" width="106" height="44" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="255" y="180" text-anchor="middle" font-size="10.5" fill="var(--text)">Chat template·토큰화</text><text x="255" y="196" text-anchor="middle" font-size="10.5" fill="var(--muted)">→ input_ids</text>
+          <g stroke="var(--muted)" stroke-width="1.8"><line x1="150" y1="132" x2="198" y2="132" marker-end="url(#arV)"/><line x1="150" y1="184" x2="198" y2="184" marker-end="url(#arV)"/></g>
+          <!-- 모델 -->
+          <rect x="345" y="20" width="405" height="230" rx="14" fill="var(--accent)" fill-opacity="0.05" stroke="var(--accent)" stroke-dasharray="5 4"/>
+          <text x="547" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="var(--accent)">생성형 VLM · 대표 구조</text>
+          <rect x="360" y="100" width="110" height="64" rx="10" fill="var(--accent)" fill-opacity="0.2" stroke="var(--accent)"/>
+          <text x="415" y="126" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">Vision</text><text x="415" y="143" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">Encoder</text>
+          <text x="415" y="182" text-anchor="middle" font-size="11" fill="var(--muted)">픽셀 → 시각 특징</text>
+          <rect x="490" y="100" width="100" height="64" rx="10" fill="var(--accent)" fill-opacity="0.32" stroke="var(--accent)"/>
+          <text x="540" y="128" text-anchor="middle" font-size="13" font-weight="700" fill="var(--text)">Projector</text><text x="540" y="146" text-anchor="middle" font-size="10.5" fill="var(--text)">연결 모듈</text>
+          <text x="540" y="182" text-anchor="middle" font-size="11" fill="var(--muted)">시각 특징 → 언어 공간</text>
+          <rect x="612" y="80" width="126" height="104" rx="10" fill="var(--accent2)" fill-opacity="0.2" stroke="var(--accent2)"/>
+          <text x="675" y="116" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">언어 모델</text><text x="675" y="134" text-anchor="middle" font-size="12" fill="var(--text)">(LLM)</text>
+          <text x="675" y="160" text-anchor="middle" font-size="11" fill="var(--muted)">한 토큰씩 답 생성</text>
+          <g stroke="var(--muted)" stroke-width="1.8" fill="none">
+            <line x1="310" y1="132" x2="356" y2="132" marker-end="url(#arV)"/>
+            <line x1="472" y1="132" x2="486" y2="132" marker-end="url(#arV)"/>
+            <line x1="592" y1="132" x2="608" y2="132" marker-end="url(#arV)"/>
+            <path d="M310,184 L330,184 L330,226 L675,226 L675,188" marker-end="url(#arV)"/>
+          </g>
+          <text x="500" y="220" text-anchor="middle" font-size="11" fill="var(--muted)">질문 토큰도 같은 언어 모델로</text>
+          <rect x="612" y="258" width="126" height="34" rx="8" fill="var(--surface)" stroke="var(--text)"/>
+          <text x="675" y="280" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--text)">답변 후보</text>
+          <path d="M738,132 Q756,200 740,272" fill="none" stroke="var(--muted)" stroke-width="1.8" marker-end="url(#arV)"/>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 왼쪽 <code>messages</code>의 이미지 항목과 질문 항목이 <b>Processor</b>를 지나 각각 <code>pixel_values</code>(숫자 이미지)와 <code>input_ids</code>(토큰 번호)가 돼요. 이미지는 <b>Vision Encoder</b>가 특징으로 바꾸고 <b>Projector</b>가 그 특징을 "언어 모델이 알아듣는 공간"으로 옮긴 뒤, 질문 토큰과 함께 <b>언어 모델</b>에 들어가 답을 한 토큰씩 만들어요. <b>🤔 왜?</b> 언어 모델은 원래 글자 토큰만 이해해요. 이미지 특징을 토큰과 같은 모양으로 맞춰 주는 연결 모듈이 있어야 "그림 + 질문"을 한 문장처럼 읽을 수 있어요. 모델마다 입력 키와 연결 방식은 조금씩 달라요.</figcaption>
+      </figure>
+      <table>
+        <tr><th>입력 요소</th><th>뜻</th></tr>
+        <tr><td><code>role</code></td><td>대화 역할: <code>system</code> · <code>user</code> · <code>assistant</code></td></tr>
+        <tr><td><code>content</code></td><td>문자열 하나가 아니라 <b>image · text 항목의 목록</b></td></tr>
+        <tr><td><b>Processor</b></td><td>이미지 전처리 · 특수 토큰 · <b>Chat template</b> · 토큰화를 한꺼번에</td></tr>
+        <tr><td><code>model.generate</code></td><td>준비된 <code>input_ids · attention_mask · pixel_values</code>로 글 생성</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 모델마다 입력 형식 · 지원 이미지 수 · 해상도 · <b>VRAM</b>(GPU 메모리) 요구량이 달라요. 쓰기 전에 그 모델의 설명서를 확인해요.</div>
+
+      <h3>🔧 명령어: 간단 버전 <code>pipeline("image-text-to-text")</code></h3>
+<pre><code>from transformers import pipeline
+
+MODEL_ID = "YOUR_VLM_MODEL_ID"        # 준비된 모델 ID나 로컬 경로로 교체
+pipe = pipeline(
+    "image-text-to-text", model=MODEL_ID,
+    device_map="auto", dtype="auto",
+)
+messages = [{
+    "role": "user",
+    "content": [
+        {"type": "image", "path": "invoice.png"},
+        {"type": "text", "text": "합계 금액과 근거를 말해줘."},
+    ],
+}]
+result = pipe(
+    text=messages, max_new_tokens=128,
+    do_sample=False, return_full_text=False,
+)
+print(result[0]["generated_text"])</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>task</code> <small>(필수)</small></td><td>할 일 이름 <code>"image-text-to-text"</code></td><td>다른 task면 다른 전처리·후처리가 붙어 이미지+대화 입력을 못 받아요</td></tr>
+        <tr><td><code>model</code></td><td>모델 ID · 로컬 경로 · 이미 불러온 모델 객체</td><td>지원하지 않는 모델이면 불러오기 단계에서 실패</td></tr>
+        <tr><td><code>device_map="auto"</code></td><td>GPU·CPU에 모델을 알아서 나눠 올림</td><td>단일 장치를 직접 고르려면 <code>device=0</code>(GPU 0번) 등. 메모리가 모자라면 일부가 CPU로 가 느려져요</td></tr>
+        <tr><td><code>dtype="auto"</code></td><td>모델 숫자 형식 (<code>float16</code>, <code>bfloat16</code> …)</td><td>16비트는 메모리가 절반이지만 장치가 지원해야 해요</td></tr>
+        <tr><td><code>processor</code></td><td>멀티모달 입력 전처리 객체</td><td>보통 모델에서 자동으로 불러와서 안 줘도 돼요</td></tr>
+        <tr><td><code>max_new_tokens</code></td><td>새로 만들 답의 최대 길이(토큰)</td><td>너무 작으면 JSON이 중간에 잘려 파싱 실패. 크면 느려지고 쓸데없는 말이 붙을 수 있어요</td></tr>
+        <tr><td><code>return_full_text=False</code></td><td>새 답 부분만 돌려받기</td><td>True면 질문(입력)까지 붙어 나와서 답만 따로 잘라야 해요</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 직접 버전 <code>AutoProcessor</code> · <code>apply_chat_template()</code> · <code>generate()</code></h3>
+<pre><code>from transformers import AutoProcessor, AutoModelForImageTextToText
+
+processor = AutoProcessor.from_pretrained(MODEL_ID)
+model = AutoModelForImageTextToText.from_pretrained(
+    MODEL_ID, device_map="auto", dtype="auto",
+)
+inputs = processor.apply_chat_template(
+    messages, add_generation_prompt=True, tokenize=True,
+    return_dict=True, return_tensors="pt",
+).to(model.device)
+outputs = model.generate(
+    **inputs, max_new_tokens=128, do_sample=False,
+)
+ids = outputs[0]
+if not model.config.is_encoder_decoder:
+    ids = ids[inputs["input_ids"].shape[1]:]       # 입력 길이만큼 앞부분 잘라 내기
+answer = processor.decode(ids, skip_special_tokens=True)
+print(answer)</code></pre>
+      <table>
+        <tr><th><code>apply_chat_template</code> 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>messages</code> <small>(필수)</small></td><td>role과 content 목록으로 된 대화</td><td>content를 문자열 하나로 주면 이미지가 빠져요</td></tr>
+        <tr><td><code>add_generation_prompt=True</code></td><td>"이제 assistant가 답할 차례" 표시를 끝에 붙임</td><td>False면 모델이 사용자 질문을 이어 쓰는 등 엉뚱하게 시작할 수 있어요</td></tr>
+        <tr><td><code>tokenize</code></td><td>False = 포맷된 <b>문자열</b>만 · True = 토큰화까지</td><td>False면 결과를 다시 processor에 넣어야 해요</td></tr>
+        <tr><td><code>return_dict=True</code></td><td><code>input_ids · pixel_values</code> 등을 dict로</td><td>그래야 <code>**inputs</code>로 generate에 바로 넘길 수 있어요</td></tr>
+        <tr><td><code>return_tensors="pt"</code></td><td>PyTorch Tensor로</td><td>빼면 파이썬 리스트라 모델에 바로 못 넣어요</td></tr>
+        <tr><td><code>num_frames</code></td><td>(비디오 지원 모델) 샘플링할 프레임 수</td><td>⑥의 비디오 VLM 참고</td></tr>
+      </table>
+      <table>
+        <tr><th><code>generate</code> 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>**inputs</code> <small>(필수)</small></td><td>Processor가 만든 입력 묶음</td><td></td></tr>
+        <tr><td><code>max_new_tokens</code></td><td>새로 생성할 최대 토큰 수</td><td>위 pipeline과 같음</td></tr>
+        <tr><td><code>do_sample=False</code></td><td>매번 가장 그럴듯한 다음 토큰을 고름(결정적)</td><td>True면 확률대로 뽑아 같은 질문에도 답이 달라질 수 있어요 → 문서 추출에선 재현성이 떨어져요</td></tr>
+        <tr><td><code>temperature</code></td><td>샘플링 분포를 평평하게/뾰족하게</td><td><code>do_sample=True</code>일 때만 의미가 있어요. 높을수록 엉뚱한 토큰도 뽑힘</td></tr>
+        <tr><td><code>num_beams</code></td><td>Beam search 폭 — 후보 문장 여러 개를 동시에 키워 봄</td><td>늘리면 더 좋은 문장을 찾을 수도 있지만 계산이 그만큼 늘어요</td></tr>
+        <tr><td><code>use_cache=True</code></td><td>앞에서 계산한 Key/Value를 재사용(KV cache)</td><td>끄면 토큰마다 처음부터 다시 계산해 훨씬 느려요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 입력 길이만큼 잘라 내?</strong> — 언어 모델만 있는(Decoder-only) 모델의 <code>generate</code>는 <b>질문 토큰 + 새 답 토큰</b>을 이어 붙여 돌려줘요. 앞의 <code>input_ids</code> 길이만큼 잘라야 답만 남아요. 인코더-디코더 구조는 처음부터 답만 돌려줘서 자를 필요가 없어요(<code>is_encoder_decoder</code>로 구분).</div>
+      <div class="callout">🤔 <strong>왜 Chat template은 Tokenizer가 아니라 Processor에?</strong> — 멀티모달 대화에는 "여기에 이미지가 들어간다"는 특수 토큰과 이미지 전처리가 함께 필요해요. 글자만 다루는 Tokenizer로는 이미지 자리를 만들 수 없어서, 둘을 다 가진 Processor가 맡아요.</div>
+      <div class="callout warn">⚠️ 모델 구조 · 전처리 · 생성 조건(<code>max_new_tokens</code>, <code>do_sample</code> 등)과 모델 ID를 <b>실행 기록에 남겨요</b>. 같은 질문이라도 조건이 바뀌면 답이 달라져요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="ground">⑥ 근거 검증 · OCR+VLM Hybrid · 보안</h2>
+      <p>VLM 답이 자연스럽다고 사실은 아니에요. 그래서 "보고 말한 것"과 "추측한 것"을 구분해요.</p>
+      <table>
+        <tr><th>용어</th><th>뜻</th><th>예</th></tr>
+        <tr><td><b>관찰</b></td><td>이미지에 실제로 보이는 글자·색·표·물체를 설명</td><td>"합계 칸에 1,234,500원이 있어요"</td></tr>
+        <tr><td><b>추론</b></td><td>문서 목적·의도·원인·법적 의미를 추정</td><td>"이 회사는 GPU를 많이 쓰는 것 같아요"</td></tr>
+        <tr><td><b>Hallucination</b></td><td>보이지 않는 값·표·근거를 자연스럽게 지어냄</td><td>문서에 없는 "부가세 포함" 문구를 인용</td></tr>
+        <tr><td><b>Grounding</b></td><td>답과 함께 원문 문자열·페이지·Box·Crop을 제시</td><td><code>evidence "1,234,500원", page 1, bbox [...]</code></td></tr>
+        <tr><td><b>Fallback</b></td><td>근거가 부족하면 "확인할 수 없음" + 검토 필요 상태</td><td><code>answer: null, status: review</code></td></tr>
+      </table>
+      <table>
+        <tr><th>프롬프트 입력 계약</th><th>프롬프트 출력 계약</th></tr>
+        <tr><td>문서 유형 · 페이지 범위 · 질문을 명시</td><td>JSON key와 자료형을 고정</td></tr>
+        <tr><td>허용 정보는 <b>이미지에 보이는 내용만</b></td><td><code>answer · evidence · page · bbox</code>를 분리</td></tr>
+        <tr><td>모르면 <code>null</code> 또는 "확인 불가"로</td><td>지원하지 않는 좌표·근거는 <code>null</code></td></tr>
+        <tr><td>금액·날짜·문서번호는 원문 문자열도 함께</td><td>스키마·원문 검증 실패 → 재시도 또는 사람 검토</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "모르면 null"을 미리 약속해?</strong> — 생성 모델은 빈칸을 그럴듯한 말로 채우는 게 기본 동작이에요. "모르면 null"이라는 출구를 정해 주지 않으면 지어낸 값과 진짜 값이 같은 모양으로 나와서 구분할 수 없어요.</div>
+
+      <h3>🔧 명령어: VLM 응답 JSON 최소 검사 <code>json.loads()</code></h3>
+<pre><code>import json
+
+raw = ('{"answer":"1,234,500원",'
+       '"evidence":"1,234,500원",'
+       '"page":1,"bbox":[530,820,790,865]}')
+try:
+    data = json.loads(raw)
+except json.JSONDecodeError:
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+missing = {"answer", "evidence", "page", "bbox"} - data.keys()
+box = data.get("bbox")
+valid_box = isinstance(box, list) and len(box) == 4
+if valid_box:
+    valid_box = all(type(v) in (int, float) for v in box)
+if valid_box:
+    x1, y1, x2, y2 = box
+    valid_box = 0 &lt;= x1 &lt; x2 &lt;= 1000 and 0 &lt;= y1 &lt; y2 &lt;= 1200
+print("누락:", sorted(missing))
+print("설명용 이미지의 Box 범위:", valid_box)</code></pre>
+      <table>
+        <tr><th>검사</th><th>잡아내는 것</th><th>빼면?</th></tr>
+        <tr><td><code>try / except JSONDecodeError</code></td><td>JSON 문법이 깨진 답 (말을 덧붙였거나 잘림)</td><td>프로그램이 그 자리에서 멈춰요</td></tr>
+        <tr><td><code>isinstance(data, dict)</code></td><td><code>[1,2]</code>처럼 문법은 맞지만 객체가 아닌 답</td><td><code>.keys()</code>에서 에러</td></tr>
+        <tr><td>집합 빼기 <code>{...} - data.keys()</code></td><td>필수 key 누락 목록</td><td>나중에 <code>data["bbox"]</code>에서 KeyError</td></tr>
+        <tr><td>bbox 길이·자료형·<code>x1 &lt; x2</code>·이미지 범위</td><td>좌표 4개가 아니거나, 글자("530")이거나, 뒤집혔거나, 1000×1200 밖</td><td>엉뚱한 곳을 잘라 "근거"로 보여 줄 수 있어요</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>JSON 파싱 성공 ≠ 내용이 사실.</strong> 이 코드는 <b>구조</b>만 봐요. answer·evidence·page가 맞는지는 OCR 원문과 그 bbox를 잘라 낸 이미지(crop)에 <b>대조한 뒤</b> 확인완료·검토필요·실패를 정해요.</div>
+
+      <h3>OCR + VLM을 합치는 세 가지 방식</h3>
+      <figure id="fig-hybrid">
+        <svg viewBox="0 0 760 270" style="width:100%;height:auto" role="img" aria-label="정형 문서는 OCR과 규칙, 다양한 문서는 VLM과 근거 검증, Hybrid는 OCR과 Crop을 VLM이 판단하는 세 가지 결합 방식">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <defs><marker id="arH" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <g font-size="12.5" text-anchor="middle" fill="var(--text)">
+            <!-- 1 -->
+            <text x="12" y="52" text-anchor="start" font-size="13" font-weight="700" fill="var(--accent)">A</text>
+            <rect x="35" y="30" width="100" height="36" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="85" y="53">이미지</text>
+            <rect x="170" y="30" width="140" height="36" rx="8" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)"/><text x="240" y="53">OCR Text · Box</text>
+            <rect x="345" y="30" width="140" height="36" rx="8" fill="var(--surface)" stroke="var(--text)"/><text x="415" y="53">규칙 · Schema</text>
+            <rect x="520" y="30" width="230" height="36" rx="8" fill="var(--line)" fill-opacity="0.5" stroke="none"/><text x="635" y="53" font-weight="700">정형 문서 (고정 양식)</text>
+            <!-- 2 -->
+            <text x="12" y="137" text-anchor="start" font-size="13" font-weight="700" fill="var(--accent2)">B</text>
+            <rect x="35" y="115" width="100" height="36" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="85" y="138">이미지</text>
+            <rect x="170" y="115" width="140" height="36" rx="8" fill="var(--accent2)" fill-opacity="0.15" stroke="var(--accent2)"/><text x="240" y="138">VLM</text>
+            <rect x="345" y="115" width="140" height="36" rx="8" fill="var(--surface)" stroke="var(--text)"/><text x="415" y="138">근거 검증</text>
+            <rect x="520" y="115" width="230" height="36" rx="8" fill="var(--line)" fill-opacity="0.5" stroke="none"/><text x="635" y="138" font-weight="700">다양한 문서 질의응답</text>
+            <!-- 3 -->
+            <text x="12" y="222" text-anchor="start" font-size="13" font-weight="700" fill="var(--text)">C</text>
+            <rect x="35" y="200" width="100" height="36" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="85" y="223">이미지</text>
+            <rect x="170" y="200" width="140" height="36" rx="8" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)"/><text x="240" y="223">OCR + Crop</text>
+            <rect x="345" y="200" width="140" height="36" rx="8" fill="var(--accent2)" fill-opacity="0.15" stroke="var(--accent2)"/><text x="415" y="223">VLM 판단</text>
+            <rect x="520" y="200" width="230" height="36" rx="8" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)"/><text x="635" y="223" font-weight="700">Hybrid: 역할 분리 + 서로 검증</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="2">
+            <line x1="137" y1="48" x2="166" y2="48" marker-end="url(#arH)"/><line x1="312" y1="48" x2="341" y2="48" marker-end="url(#arH)"/><line x1="487" y1="48" x2="516" y2="48" marker-end="url(#arH)"/>
+            <line x1="137" y1="133" x2="166" y2="133" marker-end="url(#arH)"/><line x1="312" y1="133" x2="341" y2="133" marker-end="url(#arH)"/><line x1="487" y1="133" x2="516" y2="133" marker-end="url(#arH)"/>
+            <line x1="137" y1="218" x2="166" y2="218" marker-end="url(#arH)"/><line x1="312" y1="218" x2="341" y2="218" marker-end="url(#arH)"/><line x1="487" y1="218" x2="516" y2="218" marker-end="url(#arH)"/>
+          </g>
+          <g font-size="11" fill="var(--muted)" text-anchor="middle">
+            <text x="415" y="86">빠르고 근거가 분명, 양식이 바뀌면 규칙 수정</text>
+            <text x="415" y="171">유연하지만 그럴듯한 오답을 꼭 걸러야 함</text>
+            <text x="415" y="256">OCR은 글자·위치 후보, VLM은 문맥 판단 — 서로의 실패를 확인</text>
+          </g>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 세 줄이 세 가지 조립 방법이에요. A는 OCR 결과에 규칙만 씌우고, B는 VLM에 바로 묻고 근거를 검증하고, C(Hybrid)는 OCR이 찾은 글자·위치와 잘라 낸 이미지를 VLM에 주고 판단을 맡겨요. <b>🤔 왜?</b> Hybrid는 두 점수를 평균 내는 게 아니라 <b>역할을 나누는</b> 거예요. OCR의 정확한 전사·좌표가 VLM 답의 근거(grounding)가 되고, VLM의 문맥 이해가 OCR이 놓친 관계(어느 숫자가 합계인지)를 메워 줘요.</figcaption>
+      </figure>
+      <table>
+        <tr><th>문제</th><th>OCR</th><th>VLM</th><th>권장</th></tr>
+        <tr><td>정확한 문서번호 받아 적기</td><td>강점</td><td>오인 가능</td><td>OCR 우선 · VLM 검증</td></tr>
+        <tr><td>표·도식의 의미 설명</td><td>구조 복원 필요</td><td>강점</td><td>OCR 원문을 함께 제공</td></tr>
+        <tr><td>고정 양식 Key-value</td><td>규칙화 쉬움</td><td>과도한 비용 가능</td><td>예외 문서만 VLM</td></tr>
+        <tr><td>다양한 문서 질의응답</td><td>템플릿 관리 증가</td><td>유연함</td><td>OCR evidence로 grounding</td></tr>
+        <tr><td>엣지 실시간 처리</td><td>경량화 가능</td><td>모델 규모 부담</td><td>단계별 라우팅</td></tr>
+      </table>
+      <p>VLM 질문은 보통 다섯 유형이에요: <b>읽기</b>("상단 제목은?") · <b>탐색</b>("합계는 어느 영역?") · <b>비교</b>("두 표에서 증가한 항목?") · <b>설명</b>("흐름도의 단계 요약") · <b>검증</b>("OCR 날짜와 이미지의 날짜가 같은가?").</p>
+
+      <h3>같은 데이터에서 비교하기</h3>
+      <table>
+        <tr><th>관점</th><th>무엇을 재나</th></tr>
+        <tr><td><b>공통</b></td><td>동일 문서·질문·정답으로 필드 정확도 · 근거 일치 · 총 시간</td></tr>
+        <tr><td><b>방법별</b></td><td>OCR은 CER · Box IoU, VLM은 답변 · JSON 유효성 · 근거 없는 답</td></tr>
+        <tr><td><b>Hybrid</b></td><td>필드 정확도 · 검토율 · 실패 복구율 · 총비용</td></tr>
+        <tr><td><b>Slice</b></td><td>영수증·계약서·표·손글씨·저해상도·다국어 문서별로 쪼개서</td></tr>
+        <tr><td><b>운영</b></td><td>처리량 · VRAM · 모델 로딩 시간 · 개인정보 처리 위치</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Slice로 쪼개 봐?</strong> — 전체 평균 95%여도 손글씨 문서만 모으면 40%일 수 있어요. 평균은 많은 쪽(깨끗한 스캔)에 끌려가서 약한 부분을 숨겨요.</div>
+
+      <h3>입력 크기와 메모리 — 다 넣지 말고 필요한 곳만</h3>
+      <figure id="fig-crop"><img class="smooth" src="img/day16/crop_vs_resize.png" alt="문서 전체를 작게 줄였을 때 글자가 뭉개지는 모습과 같은 영역만 잘랐을 때 또렷한 모습, 그리고 해상도에 따라 이미지 조각 수가 제곱으로 늘어나는 그래프"><figcaption><b>무엇을 보나:</b> 왼쪽은 1000×1200 페이지를 187×224로 통째로 줄인 모습 — 28px 글자가 약 5px가 돼요. 가운데 A는 그 축소본의 빨간 영역을 확대한 것(뭉개짐), B는 원본에서 <b>같은 영역만 잘라</b> 폭 336px로 만든 것(또렷함). 오른쪽은 14px 조각(패치)으로 나눈다고 가정한 예시 계산이에요. <b>🤔 왜?</b> VLM은 이미지를 작은 조각으로 나눠 토큰처럼 다뤄요. 한 변을 2배로 키우면 조각은 <b>4배</b>(가로×세로)라 계산·메모리가 함께 커져요. 그래서 전체를 크게 넣기보다 <b>필요한 영역을 crop</b>하면 더 적은 조각으로 더 또렷하게 볼 수 있어요(B는 72조각, 축소 전체는 208조각).</figcaption></figure>
+      <ul>
+        <li>여러 페이지를 한 번에 넣기보다 질문에 필요한 페이지를 <b>검색·선택</b>해요.</li>
+        <li>메모리는 <b>모델 로딩</b>(가중치)과 <b>추론 중</b>(Activation · KV cache)을 구분해서 봐요.</li>
+        <li>GPU 측정은 <b>워밍업 후</b> Latency · 처리량 · Peak VRAM을 같은 조건에서 비교해요. (첫 실행은 준비 작업 때문에 유난히 느려서)</li>
+        <li><b>비디오 VLM</b>은 프레임 선택이 먼저예요: 고정 간격·장면 변화·이벤트 중심으로 샘플링하고, <code>num_frames</code>는 모델 지원 길이와 하드웨어를 보고 정해요. frame index·timestamp를 같이 저장해 시간 순서를 잃지 않게 하고, 영상 전체의 결론과 특정 프레임의 관찰을 구분해요.</li>
+      </ul>
+
+      <h3>보안 · 개인정보 점검표</h3>
+      <table>
+        <tr><th>항목</th><th>질문</th></tr>
+        <tr><td><b>전송</b></td><td>외부 API로 보내는 이미지에 개인정보·계약 정보가 있는가?</td></tr>
+        <tr><td><b>저장</b></td><td>원본 이미지 · OCR 원문 · 프롬프트 · 응답 · 로그의 보존 기간은?</td></tr>
+        <tr><td><b>권한</b></td><td>프로젝트 폴더 · Object Storage · 모델 캐시 접근 권한은?</td></tr>
+        <tr><td><b>마스킹</b></td><td>주민번호 · 계좌번호 · 전화번호 등 민감 영역을 먼저 가릴 것인가?</td></tr>
+        <tr><td><b>검토</b></td><td>자동 추출 결과가 결제·계약·의료 판단에 직접 쓰이는가?</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 결과가 돈·계약·건강에 바로 쓰인다면 자동 결과를 그대로 흘려보내지 말고 <b>사람 검토 단계</b>를 꼭 둬요. 틀렸을 때의 비용이 크니까요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="deploy">⑦ 엣지 배포 — TensorRT · Jetson · DeepStream</h2>
+      <p>배포에서는 <b>모델 형식</b>(ONNX·Engine), <b>실행 소프트웨어</b>(TensorRT·DeepStream), <b>장치</b>(GPU 서버·Jetson)를 구분해서 골라요. 엣지는 서버 대신 카메라 옆 작은 장비에서 바로 추론하는 것을 말해요.</p>
+      <table>
+        <tr><th>이름</th><th>역할</th><th>확인할 조건</th></tr>
+        <tr><td><b>TensorRT</b></td><td>지원 모델의 Engine 빌드 · 추론 (NVIDIA GPU용)</td><td>연산자 · 정밀도 · 버전 · GPU</td></tr>
+        <tr><td><b>Jetson</b></td><td>현장에 설치하는 실행 장치</td><td>장치별 <b>JetPack</b> 지원 조합</td></tr>
+        <tr><td><b>DeepStream</b></td><td>영상 입력부터 결과까지 파이프라인으로 연결</td><td>버전 · 장치 · 플러그인 지원</td></tr>
+      </table>
+      <figure id="fig-deploy">
+        <svg viewBox="0 0 760 330" style="width:100%;height:auto" role="img" aria-label="PyTorch 모델에서 ONNX, TensorRT Engine을 거쳐 Jetson이나 GPU Runtime의 앱으로 가는 배포 흐름과 Build·Runtime 단계 구분, DeepStream 영상 파이프라인">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <defs><marker id="arD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <!-- Build / Runtime 영역 -->
+          <rect x="150" y="8" width="330" height="150" rx="12" fill="var(--accent)" fill-opacity="0.06" stroke="var(--accent)" stroke-dasharray="5 4"/>
+          <text x="315" y="26" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--accent)">Build Phase (대상 환경에서 한 번)</text>
+          <rect x="490" y="8" width="262" height="150" rx="12" fill="var(--accent2)" fill-opacity="0.06" stroke="var(--accent2)" stroke-dasharray="5 4"/>
+          <text x="621" y="26" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--accent2)">Runtime Phase (매번 추론)</text>
+          <g font-size="12.5" text-anchor="middle">
+            <rect x="10" y="50" width="110" height="56" rx="10" fill="var(--surface)" stroke="var(--text)"/><text x="65" y="74" font-weight="700" fill="var(--text)">PyTorch</text><text x="65" y="92" font-size="11" fill="var(--muted)">학습한 모델</text>
+            <rect x="165" y="50" width="110" height="56" rx="10" fill="var(--surface)" stroke="var(--text)"/><text x="220" y="74" font-weight="700" fill="var(--text)">ONNX</text><text x="220" y="92" font-size="11" fill="var(--muted)">교환용 계산 그래프</text>
+            <rect x="320" y="50" width="145" height="56" rx="10" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)"/><text x="392" y="74" font-weight="700" fill="var(--text)">TensorRT Engine</text><text x="392" y="92" font-size="11" fill="var(--muted)">Builder + Config</text>
+            <rect x="505" y="50" width="120" height="56" rx="10" fill="var(--accent2)" fill-opacity="0.15" stroke="var(--accent2)"/><text x="565" y="74" font-weight="700" fill="var(--text)">Runtime</text><text x="565" y="92" font-size="11" fill="var(--muted)">Jetson / GPU</text>
+            <rect x="660" y="50" width="85" height="56" rx="10" fill="var(--surface)" stroke="var(--text)"/><text x="702" y="83" font-weight="700" fill="var(--text)">앱</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="2"><line x1="122" y1="78" x2="161" y2="78" marker-end="url(#arD)"/><line x1="277" y1="78" x2="316" y2="78" marker-end="url(#arD)"/><line x1="467" y1="78" x2="501" y2="78" marker-end="url(#arD)"/><line x1="627" y1="78" x2="656" y2="78" marker-end="url(#arD)"/></g>
+          <g font-size="10.5" fill="var(--muted)" text-anchor="middle"><text x="141" y="70">export</text><text x="296" y="70">build</text><text x="484" y="70">.engine</text></g>
+          <g font-size="11" fill="var(--text)">
+            <text x="165" y="128">· 지원 연산자 · 입력/출력 이름·shape 확인</text>
+            <text x="165" y="146">· 커널 후보 측정 · 연산 결합 · 상수 접기</text>
+            <text x="505" y="128">· deserialize → ExecutionContext</text>
+            <text x="505" y="146">· Buffer·Shape 설정 → 비동기 실행</text>
+          </g>
+          <!-- DeepStream -->
+          <text x="10" y="196" font-size="13" font-weight="700" fill="var(--text)">DeepStream 영상 파이프라인 (GStreamer 플러그인 연결)</text>
+          <g font-size="11.5" text-anchor="middle">
+            <rect x="10" y="210" width="88" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="54" y="230" font-weight="700" fill="var(--text)">Source</text><text x="54" y="247" font-size="10" fill="var(--muted)">RTSP · File</text>
+            <rect x="116" y="210" width="88" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="160" y="238" font-weight="700" fill="var(--text)">Decode</text>
+            <rect x="222" y="210" width="110" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="277" y="230" font-weight="700" fill="var(--text)">nvstreammux</text><text x="277" y="247" font-size="10" fill="var(--muted)">Batch 묶기</text>
+            <rect x="350" y="210" width="100" height="48" rx="8" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)"/><text x="400" y="230" font-weight="700" fill="var(--text)">nvinfer</text><text x="400" y="247" font-size="10" fill="var(--muted)">TensorRT 추론</text>
+            <rect x="468" y="210" width="100" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="518" y="230" font-weight="700" fill="var(--text)">nvtracker</text><text x="518" y="247" font-size="10" fill="var(--muted)">Track ID</text>
+            <rect x="586" y="210" width="72" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="622" y="230" font-weight="700" fill="var(--text)">OSD</text><text x="622" y="247" font-size="10" fill="var(--muted)">박스 그리기</text>
+            <rect x="676" y="210" width="74" height="48" rx="8" fill="var(--surface)" stroke="var(--line)"/><text x="713" y="238" font-weight="700" fill="var(--text)">Sink</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="1.8"><line x1="100" y1="234" x2="112" y2="234" marker-end="url(#arD)"/><line x1="206" y1="234" x2="218" y2="234" marker-end="url(#arD)"/><line x1="334" y1="234" x2="346" y2="234" marker-end="url(#arD)"/><line x1="452" y1="234" x2="464" y2="234" marker-end="url(#arD)"/><line x1="570" y1="234" x2="582" y2="234" marker-end="url(#arD)"/><line x1="660" y1="234" x2="672" y2="234" marker-end="url(#arD)"/></g>
+          <path d="M392,106 Q392,180 400,206" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="4 3" marker-end="url(#arD)"/>
+          <rect x="10" y="276" width="740" height="40" rx="8" fill="var(--line)" fill-opacity="0.4" stroke="none"/>
+          <text x="380" y="301" text-anchor="middle" font-size="12" fill="var(--text)">Metadata가 함께 흘러감: Frame · Object · Box · Class · Confidence · Track ID</text>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 위 줄은 모델이 배포되는 길이에요. 보라 영역(<b>Build</b>)에서 ONNX를 받아 그 GPU에 맞춘 Engine을 만들고, 분홍 영역(<b>Runtime</b>)에서 Engine을 불러와 매번 추론해요. 아래 줄은 DeepStream이 영상을 처리하는 순서 — 보라 점선처럼 <code>nvinfer</code> 안에서 바로 그 TensorRT Engine이 돌아요. <b>🤔 왜?</b> TensorRT는 빌드할 때 "이 GPU에서 어떤 계산 방법이 가장 빠른지"를 직접 재 보고 연산을 합쳐 두기 때문에 빠른 대신, 그 결과가 그 GPU·버전에 묶여요. 그래서 빌드는 <b>실제로 돌릴 환경에서</b> 하고, 옮겨 다니는 건 ONNX예요.</figcaption>
+      </figure>
+      <table>
+        <tr><th>ONNX</th><th>TensorRT</th></tr>
+        <tr><td>프레임워크 사이 교환을 위한 <b>계산 그래프</b> 형식</td><td>NVIDIA GPU용 추론 <b>Engine</b>을 빌드</td></tr>
+        <tr><td>입력·출력 이름 · shape · 연산자 집합을 명시</td><td>연산 결합 · 상수 접기 · 커널 선택으로 최적화</td></tr>
+        <tr><td>Export 후 ONNX Runtime 등으로 <b>원본과 수치 대조</b></td><td>11.x에서는 정밀도를 모델의 <b>Tensor 자료형</b>에 반영</td></tr>
+        <tr><td>동적 shape와 지원 연산자 확인</td><td>Engine·Context와 GPU·버전·연산자 호환성 확인</td></tr>
+      </table>
+      <table>
+        <tr><th>TensorRT 핵심 객체</th><th>단계</th><th>하는 일</th></tr>
+        <tr><td><b>Builder</b></td><td>빌드</td><td>Network와 BuilderConfig로 Engine을 만듦</td></tr>
+        <tr><td><b>BuilderConfig</b></td><td>빌드</td><td>메모리 · 타이밍 · 최적화 프로파일(동적 shape 범위) 설정</td></tr>
+        <tr><td><b>Runtime</b></td><td>실행</td><td>저장된(Serialized) Engine을 역직렬화(deserialize)해 다시 객체로</td></tr>
+        <tr><td><b>Engine</b></td><td>실행</td><td>최적화된 입력·출력·연산 정보 보유</td></tr>
+        <tr><td><b>ExecutionContext</b></td><td>실행</td><td>동적 shape · Tensor 주소 · 추론 상태 관리 (실제 호출 단위)</td></tr>
+        <tr><td><b>CUDA Stream</b></td><td>실행</td><td>비동기 실행과 "다 끝났는지" 확인 시점 제어</td></tr>
+      </table>
+
+      <h3>🔧 명령어: <code>trtexec</code>로 빌드 · 추론 확인</h3>
+<pre><code># Linux Bash 예시: 준비된 ONNX와 NVIDIA GPU 필요
+trtexec --onnx=model.onnx --saveEngine=model.engine
+
+# 11.3: FP16 ONNX는 미리 준비하고 수치 검증
+trtexec --onnx=model_fp16.onnx --saveEngine=fp16.engine
+
+# 저장한 정적 shape Engine의 추론 확인
+trtexec --loadEngine=model.engine
+
+# 동적 입력 예시: 실제 입력 이름·shape로 교체
+trtexec --onnx=model.onnx \
+  --minShapes=input:1x3x224x224 \
+  --optShapes=input:4x3x224x224 \
+  --maxShapes=input:8x3x224x224 \
+  --saveEngine=model_dynamic.engine</code></pre>
+      <table>
+        <tr><th>옵션</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>--onnx=</code></td><td>입력 ONNX 경로</td><td>지원 안 되는 연산자가 있으면 여기서 빌드 실패</td></tr>
+        <tr><td><code>--saveEngine=</code></td><td>만든 Engine 저장 경로</td><td>빼면 빌드·측정만 하고 파일이 안 남아요</td></tr>
+        <tr><td><code>--loadEngine=</code></td><td>저장한 Engine을 불러와 추론만 확인</td><td>빌드를 다시 안 해서 빨라요</td></tr>
+        <tr><td><code>--minShapes / --optShapes / --maxShapes</code></td><td>동적 입력의 최소·<b>가장 자주 쓸</b>·최대 shape (<code>이름:배치x채널x높이x너비</code>)</td><td>범위 밖 입력(예: 배치 16)은 실행이 거부돼요. opt에 맞춰 커널을 고르니 실제 많이 쓰는 크기로 둬야 빨라요. 범위가 넓을수록 메모리를 더 잡아요</td></tr>
+        <tr><td><code>--fp16</code></td><td>(10.x 시절) 16비트로 빌드</td><td><b>11.x에서는 제거됨</b> → 정밀도는 ONNX의 자료형으로 미리 정해서 넣어요</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>"실행 성공" ≠ "원본과 같은 결과".</strong> Engine이 돌아가도 숫자가 원본 PyTorch·ONNX와 일치하는지는 따로 대조해요. Jetson에서는 그 JetPack에 맞는 버전의 명령·옵션을 확인해요.</div>
+      <figure id="fig-precision"><img class="smooth" src="img/day16/precision_size.png" alt="같은 모델을 FP32, FP16, INT8로 저장할 때 10MB, 5MB, 2.5MB로 줄어드는 막대 그래프 (예시 계산)"><figcaption><b>무엇을 보나:</b> 가중치 250만 개짜리 모델을 가정한 <b>예시 계산</b>이에요(실측 아님). 숫자 하나를 32 → 16 → 8비트로 적으면 10MB → 5MB → 2.5MB로 반씩 줄어요. <b>🤔 왜?</b> 크기 = 숫자 개수 × 숫자 하나의 비트 수라서요. 작은 숫자는 메모리를 덜 쓰고 GPU가 한 번에 더 많이 계산해 보통 빨라지지만, 표현할 수 있는 값이 거칠어져 정확도가 떨어질 수 있어요. 그래서 엣지 지표에 <b>FP32·FP16·INT8별 품질 차이</b>가 들어가요.</figcaption></figure>
+
+      <h3>호환성 · Jetson · 측정 지표</h3>
+      <ul>
+        <li>Engine은 기본적으로 <b>OS · 플랫폼 · TensorRT 버전 · GPU</b> 조건을 맞춰야 해요. 버전 호환·하드웨어 호환 옵션은 편하지만 성능을 일부 내줘요(trade-off).</li>
+        <li>같은 아키텍처라도 VRAM · 공유 메모리 · 커널 선택에 따라 실행 가능 여부가 달라질 수 있어요.</li>
+        <li>모델 · ONNX · Engine · 환경 · 입력 shape의 버전을 <b>manifest</b>(목록 파일)에 기록해요.</li>
+        <li><b>Jetson</b>: 카메라 → Decode·전처리(CPU/GPU) → TensorRT(JetPack 호환) → 앱. 전력 · 온도 · 공유 메모리 · 카메라 · FPS를 같이 봐요.</li>
+      </ul>
+      <div class="callout warn">⚠️ <strong>Engine 파일은 "실행 가능한 산출물"이에요.</strong> 신뢰할 수 없는 출처의 Engine을 deserialize(불러오기)하지 않아요. 프로그램 파일을 아무 데서나 받아 실행하지 않는 것과 같은 이유예요.</div>
+      <table>
+        <tr><th>성능 지표</th><th>자원 · 품질 지표</th></tr>
+        <tr><td><b>End-to-end Latency</b>: 입력부터 결과까지</td><td>GPU · 시스템 메모리와 장치별 측정 기준</td></tr>
+        <tr><td><b>Model Latency</b>: 전처리·후처리를 뺀 추론만</td><td>전력 · 온도 · <b>Throttling</b>(과열로 속도를 낮추는 현상) 여부</td></tr>
+        <tr><td><b>Throughput</b>: 초당 처리 이미지·프레임</td><td>FP32 · FP16 · INT8별 품질 차이</td></tr>
+        <tr><td>Queue delay · Dropped frames · Batch wait time</td><td>입력 해상도 · Batch · Stream 수와 정확도</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 온도까지 재?</strong> — Jetson 같은 작은 장비는 오래 돌리면 뜨거워져서 스스로 속도를 낮춰요(Throttling). 처음 1분은 30 FPS였는데 10분 뒤엔 18 FPS가 될 수 있어서, 짧은 측정만으로 "현장에서 30 FPS"라고 말하면 안 돼요.</div>
+      <div class="callout warn">⚠️ 모든 OCR·VLM 애플리케이션이 Engine 하나로 바뀌는 건 아니에요. TensorRT는 <b>지원되는 신경망 모델</b>용이고, 기본은 "어떻게 배포할지 설계"하는 것까지예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="app">⑧ OCR·VLM 미니 애플리케이션 설계</h2>
+      <p>지금까지 배운 조각을 <b>한 문서의 처리 기록</b>으로 이어 붙여요. 모듈마다 책임을 나누고, 중간 산출물을 전부 남기는 게 핵심이에요.</p>
+      <figure id="fig-app">
+        <svg viewBox="0 0 760 330" style="width:100%;height:auto" role="img" aria-label="입력 문서와 질문이 OCR 모듈과 VLM 모듈을 거쳐 Fusion·Validation에서 합쳐져 결과 JSON이 되고, 옆에 프로젝트 폴더 구조와 역할을 정리한 그림">
+          <!-- <a>로 감싸서 용어 밑줄 스크립트가 SVG 글자를 건드리지 않게 -->
+          <a class="svg-noterm" style="color:inherit;font-weight:inherit;text-decoration:none;cursor:default">
+          <defs><marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+          <g font-size="12.5" text-anchor="middle">
+            <rect x="10" y="95" width="90" height="60" rx="10" fill="var(--surface)" stroke="var(--text)"/><text x="55" y="120" font-weight="700" fill="var(--text)">입력</text><text x="55" y="138" font-size="11" fill="var(--muted)">문서 · 질문</text>
+            <rect x="135" y="30" width="125" height="60" rx="10" fill="var(--accent)" fill-opacity="0.15" stroke="var(--accent)"/><text x="197" y="55" font-weight="700" fill="var(--text)">OCR Module</text><text x="197" y="73" font-size="11" fill="var(--muted)">Text · Box · Conf</text>
+            <rect x="135" y="160" width="125" height="60" rx="10" fill="var(--accent2)" fill-opacity="0.15" stroke="var(--accent2)"/><text x="197" y="185" font-weight="700" fill="var(--text)">VLM Module</text><text x="197" y="203" font-size="11" fill="var(--muted)">Answer · Evidence</text>
+            <rect x="295" y="95" width="130" height="60" rx="10" fill="var(--surface)" stroke="var(--text)" stroke-width="2"/><text x="360" y="120" font-weight="700" fill="var(--text)">Fusion · Validation</text><text x="360" y="138" font-size="11" fill="var(--muted)">Schema · Rule</text>
+            <rect x="295" y="190" width="130" height="44" rx="10" fill="var(--accent)" fill-opacity="0.22" stroke="var(--accent)"/><text x="360" y="217" font-weight="700" fill="var(--text)">결과 JSON</text>
+          </g>
+          <g stroke="var(--muted)" stroke-width="2" fill="none">
+            <path d="M100,115 Q118,60 131,60" marker-end="url(#arP)"/><path d="M100,135 Q118,190 131,190" marker-end="url(#arP)"/>
+            <path d="M262,60 Q285,60 300,92" marker-end="url(#arP)"/><path d="M262,190 Q285,190 300,158" marker-end="url(#arP)"/>
+            <line x1="360" y1="157" x2="360" y2="186" marker-end="url(#arP)"/>
+          </g>
+          <rect x="10" y="262" width="415" height="56" rx="8" fill="var(--line)" fill-opacity="0.4" stroke="none"/>
+          <text x="217" y="284" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text)">Artifacts (중간 산출물 전부 저장)</text>
+          <text x="217" y="304" text-anchor="middle" font-size="11.5" fill="var(--muted)">원본 · 전처리본 · OCR JSON · VLM JSON · Report · Log</text>
+          <!-- 폴더 -->
+          <rect x="450" y="10" width="300" height="308" rx="10" fill="var(--surface)" stroke="var(--line)" stroke-width="1.5"/>
+          <g font-family="Consolas, monospace" font-size="12" fill="var(--text)">
+            <text x="464" y="34" font-weight="700">day16_document_ai/</text>
+            <text x="476" y="56">main.py</text><text x="476" y="76">preprocess.py</text><text x="476" y="96">ocr.py</text>
+            <text x="476" y="116">extract.py</text><text x="476" y="136">vlm.py</text><text x="476" y="156">validate.py</text>
+            <text x="476" y="180">data/  documents/ questions.json</text>
+            <text x="476" y="202">outputs/  images/ ocr/ vlm/ final/</text>
+            <text x="476" y="224">reports/  evaluation.csv</text>
+            <text x="550" y="244">final_report.md</text>
+            <text x="476" y="266">requirements.txt</text>
+          </g>
+          <g font-size="11" fill="var(--muted)">
+            <text x="600" y="56">입력·실행 순서·출력 경로</text><text x="600" y="76">Gray·Threshold·Perspective</text><text x="600" y="96">Text·Box·Confidence</text>
+            <text x="600" y="116">Key-value·Table·JSON</text><text x="600" y="136">이미지 질문 응답</text><text x="600" y="156">Schema·근거·업무 규칙</text>
+          </g>
+          <text x="600" y="300" text-anchor="middle" font-size="11.5" fill="var(--accent)">파일 하나 = 책임 하나</text>
+        </a>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 왼쪽은 데이터가 흐르는 길(입력 → OCR/VLM 모듈 → Fusion·Validation → 결과 JSON), 아래 회색 띠는 흐르는 동안 남기는 산출물, 오른쪽은 강의의 폴더 구조와 파일별 역할이에요. <b>🤔 왜?</b> 기능별로 파일을 나누면 OCR 엔진을 바꿔도 <code>ocr.py</code>만 고치면 되고, 결과가 이상할 때 어느 단계 산출물부터 틀렸는지 거슬러 올라갈 수 있어요.</figcaption>
+      </figure>
+      <h3>한 문서의 처리 기록 — 6단계</h3>
+      <ol>
+        <li><code>document_id</code>와 원본 <b>hash</b>(파일 내용으로 만든 지문)를 생성해요. → 나중에 "같은 파일이었나?"를 확인</li>
+        <li>전처리 설정과 출력 이미지 경로를 기록해요.</li>
+        <li>OCR text · box · confidence와 <b>기준 이미지 · 크기</b>를 저장해요.</li>
+        <li>질문과 VLM answer · evidence를 저장해요.</li>
+        <li>Schema · 업무 규칙 · 근거 대조 결과를 저장해요.</li>
+        <li>최종 JSON과 사람이 확인할 <b>review 목록</b>을 만들어요.</li>
+      </ol>
+      <h3>🔧 명령어: 모듈 인터페이스 <code>@dataclass</code></h3>
+<pre><code>from dataclasses import dataclass
+
+@dataclass
+class OCRWord:
+    text: str
+    confidence: float
+    bbox: tuple[int, int, int, int]   # xyxy
+
+@dataclass
+class OCRResult:
+    full_text: str
+    words: list[OCRWord]
+    engine: str
+
+@dataclass
+class VLMResult:
+    answer: str | None
+    evidence: str | None
+    raw_text: str
+    model_id: str
+
+def run_ocr(image) -&gt; OCRResult:
+    raise NotImplementedError("OCR 어댑터를 연결하세요")      # 엔진별 어댑터 구현은 별도
+
+def ask_document(image_path, question, pipe) -&gt; VLMResult:
+    messages = [{"role": "user", "content": [
+        {"type": "image", "path": str(image_path)},
+        {"type": "text", "text": question},
+    ]}]
+    raise NotImplementedError("VLM 어댑터를 연결하세요")      # 호출·파싱은 별도</code></pre>
+      <table>
+        <tr><th>설계</th><th>뜻</th><th>안 하면?</th></tr>
+        <tr><td><code>@dataclass</code></td><td>필드 이름·자료형만 적으면 생성자·출력 등을 자동으로 만들어 주는 "결과 상자"</td><td>dict로 주고받으면 키 이름 오타를 실행해 봐야 알아요</td></tr>
+        <tr><td><code>OCRResult</code>로 공통 구조</td><td>Tesseract든 다른 엔진이든 같은 모양으로 변환(어댑터)</td><td>엔진을 바꿀 때마다 뒤쪽 코드를 전부 고쳐야 해요</td></tr>
+        <tr><td><code>answer: str | None</code></td><td>"없음"을 허용 — 근거가 없으면 None + 검토 대상</td><td>빈 문자열·"모름" 같은 글자가 진짜 답과 섞여요</td></tr>
+        <tr><td><code>raw_text</code> 별도</td><td>모델이 실제로 낸 원문 그대로</td><td>파싱이 실패했을 때 무엇이 왔는지 알 수 없어요</td></tr>
+        <tr><td><code>model_id</code> · <code>engine</code></td><td>어떤 모델·엔진이 만든 결과인지</td><td>결과가 바뀌었을 때 원인을 못 찾아요</td></tr>
+      </table>
+      <h3>OCR · VLM 결과를 합치는 규칙</h3>
+      <table>
+        <tr><th>상황</th><th>상태</th></tr>
+        <tr><td>값이 같고 원문 · 구조 · 업무 규칙 검증도 통과</td><td><b>passed</b> + 근거 기록</td></tr>
+        <tr><td>값이 다름</td><td>원문 · crop · 업무 규칙 대조 → <b>warning</b> · 검토 필요</td></tr>
+        <tr><td>VLM의 근거 후보</td><td>OCR 위치와 실제 이미지에 대조한 뒤 검토</td></tr>
+        <tr><td>두 결과 모두 없거나 근거 불일치</td><td><b>failed</b> · human review</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 최종 선택 규칙이 문서마다 달라?</strong> — 오류 비용이 달라서예요. 사내 메모 요약이 조금 틀리는 것과 송금 금액이 틀리는 건 무게가 완전히 달라요. 비싼 실수일수록 warning 기준을 엄격하게, 사람 검토를 넓게 잡아요.</div>
+      <table>
+        <tr><th>최종 산출물</th><th>필수 내용</th><th>검증</th></tr>
+        <tr><td><code>document.json</code></td><td>필드 값 · 원문 · bbox · confidence · 상태</td><td>Schema · 필수 필드</td></tr>
+        <tr><td><code>ocr_words.csv</code></td><td>단어 · 위치 · confidence · 페이지</td><td>원본 crop 대조</td></tr>
+        <tr><td><code>vlm_answers.json</code></td><td>질문 · 응답 · 근거 검토</td><td>근거 일치 · JSON 유효성</td></tr>
+        <tr><td><code>evaluation.csv</code></td><td>필드 정확도 · CER · 시간 · 측정 출처</td><td>동일 문서 · 동일 기준</td></tr>
+        <tr><td><code>final_report.md</code></td><td>오류 · 근거 검토 · 한계 · 배포 설계</td><td>재실행 근거 · artifact 경로</td></tr>
+      </table>
+      <table>
+        <tr><th>상황 (테스트 케이스)</th><th>기대 결과</th><th>확인 기준</th></tr>
+        <tr><td>정상 스캔 문서</td><td>OCR · 필드 · 근거 생성</td><td>필수 필드 · Box · 원문</td></tr>
+        <tr><td>기울어진 문서</td><td>보정 후 품질 개선 또는 warning</td><td>CER · Field accuracy</td></tr>
+        <tr><td>표가 있는 문서</td><td>셀 구조 보존 또는 검토 표시</td><td>행 · 열 · 합계 관계</td></tr>
+        <tr><td>VLM 근거 없는 답</td><td>failed 또는 review</td><td>evidence 대조</td></tr>
+        <tr><td>개인정보 포함</td><td>마스킹 · 로컬 처리 정책 적용</td><td>원본 · 로그 · 전송 경로</td></tr>
+        <tr><td>TensorRT Engine 불일치</td><td>실행 중단 · 환경 정보 출력</td><td>버전 · GPU · shape manifest</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "실패 상황"까지 미리 정해?</strong> — 정상 문서만 시험하면 기울어진 문서·근거 없는 답이 왔을 때 프로그램이 조용히 틀린 값을 내보내요. 실패할 때 <b>어떻게 실패해야 하는지</b>(멈춤·경고·검토)를 정해 두는 게 안전한 프로그램이에요.</div>
+      <p>다음 수업(11/10)에서는 오늘 만든 <code>document.json</code>·OCR/VLM 결과를 <b>FastAPI</b>의 요청·응답(JSON API)으로 연결해요.</p>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>Day16_20261109.pdf</code> — 큰 그림 p2–18 · 전처리 p19–28 · OCR 실행·평가 p31–38 · 구조화·검증 p41–48 · VLM p51–58 · 근거·Hybrid·보안·메모리 p59–71 · 배포 p74–82 · 미니 애플리케이션 p85–92 · 정리 p98–99</li>
+        <li>공식 문서: <a href="https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html" target="_blank">OpenCV Thresholding</a> · <a href="https://docs.opencv.org/4.x/da/d6e/tutorial_py_geometric_transformations.html" target="_blank">OpenCV Geometric Transformations (warpPerspective)</a></li>
+        <li>공식 문서: <a href="https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html" target="_blank">Tesseract — Improving the quality of the output (PSM)</a> · <a href="https://pypi.org/project/pytesseract/" target="_blank">pytesseract (image_to_string / image_to_data)</a></li>
+        <li>공식 문서: <a href="https://huggingface.co/docs/transformers/en/chat_templating_multimodal" target="_blank">Transformers Multimodal chat templates</a> · <a href="https://huggingface.co/docs/transformers/en/tasks/image_text_to_text" target="_blank">Image-text-to-text</a></li>
+        <li>공식 문서: <a href="https://docs.python.org/3/library/re.html" target="_blank">Python re</a> · <a href="https://docs.python.org/3/library/json.html" target="_blank">Python json</a></li>
+        <li>공식 문서: <a href="https://docs.nvidia.com/deeplearning/tensorrt/latest/index.html" target="_blank">NVIDIA TensorRT</a> · <a href="https://docs.nvidia.com/metropolis/deepstream/dev-guide/text/DS_plugin_gst-nvinfer.html" target="_blank">DeepStream Gst-nvinfer</a> · <a href="https://developer.nvidia.com/embedded/jetpack" target="_blank">NVIDIA JetPack</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day15.html">← 이전: Day15</a>
+      <span></span>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== 원근 보정 체험 =====
+  (() => {
+    const cv = document.getElementById('warp'), ctx = cv.getContext('2d');
+    const W = 480, H = 300, PW = 250, OX = 270, OW = 196, OH = 280, OY = 10;
+    const TRUE_Q = [[40, 26], [222, 46], [234, 274], [18, 258]];
+    let pts = TRUE_Q.map(p => p.slice()), drag = -1;
+
+    // src 4점 → dst 4점 원근 변환 행렬(3×3) 구하기 (8원 연립방정식)
+    function homography(s, d) {
+      const A = [], b = [];
+      for (let i = 0; i < 4; i++) {
+        const [x, y] = s[i], [u, v] = d[i];
+        A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+        A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+      }
+      for (let c = 0; c < 8; c++) {
+        let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+        [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+        if (Math.abs(A[c][c]) < 1e-9) return null;
+        for (let r = 0; r < 8; r++) if (r !== c) {
+          const f = A[r][c] / A[c][c];
+          for (let k = c; k < 8; k++) A[r][k] -= f * A[c][k];
+          b[r] -= f * b[c];
+        }
+      }
+      const h = b.map((v, i) => v / A[i][i]);
+      return [[h[0], h[1], h[2]], [h[3], h[4], h[5]], [h[6], h[7], 1]];
+    }
+    function apply(M, x, y) {
+      const w = M[2][0] * x + M[2][1] * y + 1;
+      return [(M[0][0] * x + M[0][1] * y + M[0][2]) / w, (M[1][0] * x + M[1][1] * y + M[1][2]) / w];
+    }
+
+    // 1) 가상 청구서 그리기 (210×300)
+    const doc = document.createElement('canvas'); doc.width = 210; doc.height = 300;
+    const d = doc.getContext('2d');
+    d.fillStyle = '#fdfcf7'; d.fillRect(0, 0, 210, 300);
+    d.strokeStyle = '#333'; d.lineWidth = 2; d.strokeRect(8, 8, 194, 284);
+    d.fillStyle = '#111'; d.font = 'bold 24px sans-serif'; d.fillText('INVOICE', 18, 40);
+    d.font = '12px sans-serif';
+    d.fillText('발행일   2026-11-09', 22, 70); d.fillText('공급자   AI Lab', 22, 90);
+    d.lineWidth = 1; d.beginPath(); d.moveTo(18, 110); d.lineTo(192, 110); d.moveTo(18, 128); d.lineTo(192, 128); d.moveTo(18, 180); d.lineTo(192, 180); d.stroke();
+    d.fillText('품목', 22, 123); d.fillText('금액', 150, 123);
+    d.fillText('GPU 서버 임대', 22, 148); d.fillText('900,000', 140, 148);
+    d.fillText('데이터 라벨링', 22, 168); d.fillText('222,273', 140, 168);
+    d.font = 'bold 15px sans-serif'; d.fillText('합계', 22, 214); d.fillText('1,234,500원', 102, 214);
+    d.font = '10px sans-serif'; d.fillStyle = '#888'; d.fillText('↑ 위쪽', 150, 280);
+    const docPx = d.getImageData(0, 0, 210, 300).data;
+
+    // 2) "사진" 만들기: 문서를 TRUE_Q 사다리꼴로 비틀어 넣고 그림자
+    const photo = ctx.createImageData(PW, H), P = photo.data;
+    const Minv = homography(TRUE_Q, [[0, 0], [209, 0], [209, 299], [0, 299]]);
+    for (let y = 0; y < H; y++) for (let x = 0; x < PW; x++) {
+      const [u, v] = apply(Minv, x, y), k = (y * PW + x) * 4;
+      const shade = 0.55 + 0.45 * Math.min(1, (x + 0.5 * y) / 260);
+      let r = 92, g = 100, bl = 112;
+      if (u >= 0 && v >= 0 && u < 210 && v < 300) {
+        const j = ((v | 0) * 210 + (u | 0)) * 4; r = docPx[j]; g = docPx[j + 1]; bl = docPx[j + 2];
+      }
+      P[k] = r * shade; P[k + 1] = g * shade; P[k + 2] = bl * shade; P[k + 3] = 255;
+    }
+    const out = ctx.createImageData(OW, OH);
+
+    function orderInfo(q) {
+      const s = [];
+      for (let i = 0; i < 4; i++) {
+        const a = q[i], b2 = q[(i + 1) % 4], c = q[(i + 2) % 4];
+        s.push((b2[0] - a[0]) * (c[1] - b2[1]) - (b2[1] - a[1]) * (c[0] - b2[0]));
+      }
+      if (s.every(v => v > 0)) return 'cw';
+      if (s.every(v => v < 0)) return 'ccw';
+      return 'twist';
+    }
+    function draw() {
+      // 출력: 출력 픽셀마다 사진의 어느 점인지 거꾸로 찾기 (warpPerspective가 하는 일)
+      const back = homography([[0, 0], [OW - 1, 0], [OW - 1, OH - 1], [0, OH - 1]], pts);
+      const O = out.data;
+      for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) {
+        const k = (y * OW + x) * 4;
+        let v = [255, 255, 255];
+        if (back) {
+          const [sx, sy] = apply(back, x, y);
+          if (sx >= 0 && sy >= 0 && sx < PW && sy < H) { const j = ((sy | 0) * PW + (sx | 0)) * 4; v = [P[j], P[j + 1], P[j + 2]]; }
+        }
+        O[k] = v[0]; O[k + 1] = v[1]; O[k + 2] = v[2]; O[k + 3] = 255;
+      }
+      ctx.clearRect(0, 0, W, H);
+      ctx.putImageData(photo, 0, 0);
+      ctx.putImageData(out, OX, OY);
+      ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.strokeRect(OX - 0.5, OY - 0.5, OW + 1, OH + 1);
+      ctx.fillStyle = '#555'; ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('→ warpPerspective 결과', OX + 4, H - 1);
+      const acc = getComputedStyle(cv).getPropertyValue('--accent2').trim() || '#ff5fa2';
+      ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+      ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]);
+      pts.forEach((p, i) => {
+        ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(p[0], p[1], 9, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(String(i + 1), p[0], p[1] + 4); ctx.textAlign = 'start';
+      });
+
+      // 읽기용 숫자들
+      const M = homography(pts, [[0, 0], [699, 0], [699, 999], [0, 999]]);
+      document.getElementById('warp-m').textContent = M
+        ? '[' + M.map(r => '[' + r.map(v => v.toFixed(Math.abs(v) < 0.01 ? 5 : 2)).join(', ') + ']').join(', ') + ']' : '계산 불가';
+      const ord = orderInfo(pts);
+      document.getElementById('warp-order').textContent =
+        ord === 'cw' ? '시계 방향 ✔' : ord === 'ccw' ? '반시계 방향 ✘' : '꼬임 ✘';
+      // 각 점이 (순서와 상관없이) 가장 가까운 진짜 문서 모서리에서 얼마나 떨어졌나 → 그중 최댓값
+      const off = Math.max(...pts.map(p => Math.min(...TRUE_Q.map(q => Math.hypot(p[0] - q[0], p[1] - q[1])))));
+      document.getElementById('warp-off').textContent = Math.round(off);
+      const v = document.getElementById('warp-verdict'), why = document.getElementById('warp-why');
+      if (ord === 'ccw') {
+        v.textContent = '❌ 거울에 비친 것처럼 뒤집힌 문서가 나왔어요';
+        why.textContent = '🤔 dst는 왼위→오위→오아래→왼아래(시계 방향)인데 src가 반시계 방향이라, 문서의 왼쪽 아래 귀퉁이가 결과의 오른쪽 위로 가는 행렬이 만들어졌어요. 거울상이 된 글자는 OCR이 못 읽어요 — src와 dst의 순서를 꼭 맞춰야 해요.';
+      } else if (ord === 'twist') {
+        v.textContent = '❌ 모서리 선이 서로 엇갈려 꼬였어요';
+        why.textContent = '🤔 1→2→3→4를 이은 선이 X자로 교차하면 "사각형"이 아니어서, 행렬이 문서를 비틀어 접은 것처럼 펴요. 네 점은 한 방향으로 돌아가는 순서여야 해요.';
+      } else if (off > 14) {
+        v.textContent = `⚠️ 순서는 맞지만 점 하나가 문서 귀퉁이에서 ${Math.round(off)}px 벗어났어요`;
+        why.textContent = '🤔 행렬은 "내가 찍은 네 점"을 출력 네 귀퉁이로 보낼 뿐, 진짜 문서 끝을 몰라요. 점이 문서 밖이면 배경(회색)이 딸려 오고, 안쪽이면 가장자리 글자가 잘리며, 한쪽만 어긋나면 글줄이 다시 기울어요.';
+      } else {
+        v.textContent = '✅ 반듯한 정면 문서가 됐어요';
+        why.textContent = '🤔 네 점이 문서 귀퉁이와 같은 순서(시계 방향)로 짝지어져서, 사다리꼴 → 직사각형으로 펴는 행렬이 하나로 정해졌어요. 오른쪽의 그림자는 그대로인 것도 보세요 — 원근 보정은 모양만 펴고 밝기는 못 고쳐서 이진화가 따로 필요해요.';
+      }
+    }
+    function pos(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
+    cv.addEventListener('pointerdown', e => {
+      const [x, y] = pos(e);
+      drag = pts.findIndex(p => Math.hypot(p[0] - x, p[1] - y) < 16);
+      if (drag >= 0) { cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; }
+    });
+    cv.addEventListener('pointermove', e => {
+      if (drag < 0) return;
+      const [x, y] = pos(e);
+      pts[drag] = [Math.max(0, Math.min(PW - 1, x)), Math.max(0, Math.min(H - 1, y))];
+      draw();
+    });
+    cv.addEventListener('pointerup', () => { drag = -1; cv.style.cursor = 'grab'; });
+    document.getElementById('warp-swap').addEventListener('click', () => { [pts[1], pts[3]] = [pts[3], pts[1]]; draw(); });
+    document.getElementById('warp-reset').addEventListener('click', () => { pts = TRUE_Q.map(p => p.slice()); draw(); });
+    draw();
+  })();
+
+  // ===== CER 체험 =====
+  (() => {
+    const ref = document.getElementById('cer-ref'), hyp = document.getElementById('cer-hyp'), nos = document.getElementById('cer-nospace');
+    function align(a, b) {
+      const n = a.length, m = b.length, D = [];
+      for (let i = 0; i <= n; i++) { D.push(new Array(m + 1).fill(0)); D[i][0] = i; }
+      for (let j = 0; j <= m; j++) D[0][j] = j;
+      for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++)
+        D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1, D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      const ops = []; let i = n, j = m;
+      while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && D[i][j] === D[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)) { ops.push([a[i - 1] === b[j - 1] ? '=' : 'S', a[i - 1], b[j - 1]]); i--; j--; }
+        else if (i > 0 && D[i][j] === D[i - 1][j] + 1) { ops.push(['D', a[i - 1], '']); i--; }
+        else { ops.push(['I', '', b[j - 1]]); j--; }
+      }
+      return { ops: ops.reverse(), dist: D[n][m] };
+    }
+    function esc(c) { return c === ' ' ? '␣' : c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function calc() {
+      let r = ref.value, h = hyp.value;
+      if (nos.checked) { r = r.replace(/\s+/g, ''); h = h.replace(/\s+/g, ''); }
+      const { ops, dist } = align(r, h), n = r.length, cer = n ? dist / n : 0;
+      const cnt = { S: 0, D: 0, I: 0 };
+      let top = '', bot = '';
+      const sty = {
+        '=': '', S: 'background:var(--accent2);color:#fff;border-radius:4px',
+        D: 'background:var(--muted);color:#fff;border-radius:4px', I: 'background:var(--accent);color:#fff;border-radius:4px'
+      };
+      ops.forEach(([op, a, b]) => {
+        if (op !== '=') cnt[op]++;
+        top += `<span style="display:inline-block;min-width:1.2em;text-align:center;${sty[op]}">${a ? esc(a) : '·'}</span>`;
+        bot += `<span style="display:inline-block;min-width:1.2em;text-align:center;${sty[op]}">${b ? esc(b) : '·'}</span>`;
+      });
+      document.getElementById('cer-align').innerHTML =
+        `<div>정답 ${top}<br>OCR&nbsp; ${bot}<br><small style="font-family:var(--font-body);color:var(--muted)">분홍 = S 바꿔 읽음 · 회색 = D 빠뜨림 · 보라 = I 끼워 넣음 · ␣ = 띄어쓰기 · · = 글자 없음</small></div>`;
+      document.getElementById('cer-s').textContent = cnt.S;
+      document.getElementById('cer-d').textContent = cnt.D;
+      document.getElementById('cer-i').textContent = cnt.I;
+      document.getElementById('cer-dist').textContent = dist;
+      document.getElementById('cer-n').textContent = n;
+      document.getElementById('cer-val').textContent = n ? cer.toFixed(3) : '계산 안 함';
+      const digits = s => s.replace(/[^0-9]/g, '');
+      const fr = digits(ref.value), fh = digits(hyp.value);
+      const fieldOk = fr !== '' && fr === fh;
+      const v = document.getElementById('cer-verdict'), why = document.getElementById('cer-why');
+      if (!n) { v.textContent = '정답이 비어 있어요 → CER은 계산하지 않고 따로 집계해요'; why.textContent = '🤔 분모(정답 글자 수)가 0이면 나눌 수 없어요. 빈 페이지에 OCR이 글자를 지어낸 경우는 별도 항목으로 세요.'; return; }
+      v.textContent = `CER ${(cer * 100).toFixed(1)}% · 숫자만 뽑은 필드 값: ${fieldOk ? '✅ 일치 (' + fr + ')' : '❌ 불일치 (' + (fr || '없음') + ' vs ' + (fh || '없음') + ')'}`;
+      if (dist === 0) why.textContent = '🤔 한 글자도 안 고쳐도 되니 편집 거리 0, CER 0이에요.';
+      else if (cer > 1) why.textContent = '🤔 CER이 100%를 넘었어요! 분모는 정답 글자 수인데, 없는 글자를 잔뜩 끼워 넣으면(I) 고칠 횟수가 정답보다 많아질 수 있어서예요.';
+      else if (fieldOk) why.textContent = '🤔 글자는 틀렸지만 숫자만 남기는 정규화(쉼표·원·공백 제거)를 하니 필드 값은 같아요. 틀린 글자가 값에 영향 없는 기호였기 때문이에요 — CER과 필드 정확도가 다른 이야기를 하는 순간이에요.';
+      else if (cer < 0.2) why.textContent = `🤔 ${n}글자 중 ${dist}번만 고치면 되니 CER은 낮지만, 그 실수가 숫자에 있어서 금액이 통째로 틀렸어요. 업무에선 이게 "완전 오답"이라 필드 정확도를 따로 봐요.`;
+      else why.textContent = '🤔 고칠 곳이 많아 CER이 높아요. 전처리(이진화·보정)나 PSM 설정을 바꿔 검증 문서에서 다시 재 보는 게 다음 순서예요.';
+    }
+    [ref, hyp].forEach(el => el.addEventListener('input', calc)); nos.addEventListener('change', calc);
+    calc();
+  })();
+  </script>
+</body>
+</html>

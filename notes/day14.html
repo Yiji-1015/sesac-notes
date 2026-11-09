@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day14 · 전이학습과 오류 분석 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag dl">딥러닝</span>
+      <h1>Day14 · 전이학습과 오류 분석</h1>
+      <div class="meta">2026-11-05(목) · 데이터셋 설계 · 전이학습 · Fine-tuning · 클래스 불균형 · Macro F1 · Grad-CAM</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>전이학습 = 이미 학습된 모델의 <b>Backbone</b>(특징 뽑는 부분)을 빌려 오고, 우리 문제용 <b>Head</b>(분류기)만 새로 학습한 뒤, 필요하면 <b>Head-only → Partial → Full</b> 순서로 층을 연다.</li>
+          <li>데이터가 불균형하면 Accuracy는 실패를 가린다 → <b>Macro F1</b>과 클래스별 Recall·support, <b>Confusion Matrix</b>, 오류 이미지를 같이 본다.</li>
+          <li><b>Grad-CAM</b>은 "모델이 어디에 반응했나"를 보여 주는 <b>단서</b>일 뿐 원인을 확정하지 않는다. 비교 조건과 설정을 기록해야 결과를 설명할 수 있다.</li>
+        </ol>
+      </div>
+
+      <h2>이론 ↔ 명령어 한눈에</h2>
+      <table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install torch torchvision scikit-learn opencv-python Pillow</code></td></tr>
+        <tr><td><a href="#dataset">① 데이터셋 설계 · 누수</a></td><td><code>ImageFolder()</code>, <code>class_to_idx</code>, <code>Counter(targets)</code>, <code>GroupShuffleSplit</code></td></tr>
+        <tr><td><a href="#transfer">② Backbone · Head</a></td><td><code>resnet18(weights=)</code>, <code>weights.transforms()</code>, <code>requires_grad</code>, <code>nn.Linear</code>, <code>model.eval()</code></td></tr>
+        <tr><td><a href="#finetune">③ Fine-tuning 범위 · 학습률</a></td><td><code>layer4.requires_grad_(True)</code>, <code>AdamW([{"params", "lr"}])</code>, best 복원</td></tr>
+        <tr><td><a href="#imbalance">④ 클래스 불균형</a></td><td><code>CrossEntropyLoss(weight=)</code>, <code>WeightedRandomSampler</code></td></tr>
+        <tr><td><a href="#eval">⑤ 평가 · 오류 분석</a></td><td><code>confusion_matrix()</code>, <code>classification_report()</code>, <code>f1_score(average=)</code>, <code>softmax</code></td></tr>
+        <tr><td><a href="#gradcam">⑥ Grad-CAM</a></td><td><code>register_forward_hook()</code>, <code>register_hook()</code>, <code>interpolate()</code></td></tr>
+        <tr><td><a href="#repro">⑦ 비교 · 저장 · 재현</a></td><td><code>torch.manual_seed()</code>, <code>torch.save()</code>, <code>torch.load(weights_only=True)</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>torch</code>, <code>torchvision</code></td><td>모델·학습 엔진 / 사전학습 모델(ResNet18)·ImageFolder·transforms</td><td><code>import torch</code>, <code>from torchvision.models import resnet18</code></td></tr>
+        <tr><td><code>scikit-learn</code></td><td>Confusion Matrix, F1, 분류 보고서, 그룹 단위 분할</td><td><code>from sklearn.metrics import f1_score</code></td></tr>
+        <tr><td><code>numpy</code></td><td>숫자 배열 계산</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>Pillow</code></td><td>이미지 파일 열기 (ImageFolder가 내부에서 씀)</td><td><code>from PIL import Image</code></td></tr>
+        <tr><td><code>opencv-python</code></td><td>이미지 읽기·저장, Heatmap 겹쳐 그리기 (Day13 전처리 연결)</td><td><code>import cv2</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python -m pip install torch torchvision scikit-learn opencv-python Pillow numpy
+python -c "import torch, torchvision, sklearn, cv2; print(torch.__version__, torchvision.__version__, sklearn.__version__, cv2.__version__)"
+python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능
+
+device = "cuda" if torch.cuda.is_available() else "cpu"      # 선택한 device를 기록</code></pre>
+      <div class="callout">💡 pip 이름과 import 이름이 다른 경우: <code>scikit-learn</code> → <code>sklearn</code>, <code>opencv-python</code> → <code>cv2</code>, <code>Pillow</code> → <code>PIL</code>. <code>torch</code>와 <code>torchvision</code>은 서로 짝이 맞는 버전이어야 해서 함께 설치해요.</div>
+      <div class="callout warn">⚠️ 사전학습 가중치(Weight)는 처음 쓸 때 인터넷에서 내려받아 캐시에 저장돼요. <b>수업 전에 미리 받아 두고</b>, 다운로드가 실패했다고 <code>weights=None</code>(무작위 가중치)으로 조용히 바꾸지 않습니다. 🤔 <b>왜?</b> — 무작위 가중치는 "전이학습"이 아니라서, 결과가 나빠져도 그 이유를 엉뚱하게 해석하게 돼요. 그리고 출처를 믿을 수 없는 checkpoint는 <code>torch.load</code> 하지 않아요(파일 안의 코드가 실행될 수 있어서).</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>Day13까지는 이미지를 <b>처리</b>하는 코드를 다뤘어요. 오늘은 이미지를 <b>분류</b>하는 모델을 만들고, 틀린 사례를 분석해서 다음에 뭘 고칠지 정하는 법을 배워요.</p>
+      <div class="callout">🤔 <strong>왜 전이학습?</strong> — 처음부터(Scratch) 학습하면 "모서리·질감·모양을 알아보는 법"부터 배워야 해서 데이터와 시간이 아주 많이 들어요. 사전학습 Backbone은 이미 그걸 알고 있으니, 우리는 <b>그 특징을 우리 클래스로 연결하는 부분만</b> 배우면 돼요 → 적은 데이터·적은 계산으로 출발할 수 있어요. 다만 <b>우리 데이터에서의 성능은 따로 다시 확인</b>해야 해요.</div>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🏭</div><strong>제품 사진 검사</strong><span>정상 / 결함 유형 분류</span></div>
+        <div class="usecase"><div class="emoji">🧾</div><strong>문서 사진 분류</strong><span>영수증 · 명세서 · 기타</span></div>
+        <div class="usecase"><div class="emoji">⚖️</div><strong>드문 클래스 지키기</strong><span>결함처럼 적지만 중요한 것을 놓치지 않기</span></div>
+        <div class="usecase"><div class="emoji">🔍</div><strong>모델 점검</strong><span>배경·워터마크 같은 엉뚱한 단서에 기대는지 확인</span></div>
+      </div>
+      <div class="flow">
+        <span class="step">데이터셋 · 분할</span><span class="arrow">→</span>
+        <span class="step">사전학습 Backbone<br><small>+ 새 Head</small></span><span class="arrow">→</span>
+        <span class="step">학습 범위 선택</span><span class="arrow">→</span>
+        <span class="step">불균형 대응</span><span class="arrow">→</span>
+        <span class="step">지표 · 오류 이미지</span><span class="arrow">→</span>
+        <span class="step">Grad-CAM</span><span class="arrow">→</span>
+        <span class="step">다음 실험 가설</span>
+      </div>
+      <div class="callout">💡 <strong>하루 내내 지키는 약속</strong>
+        <ol>
+          <li><b>train</b>으로만 배우고, <b>valid</b>로만 고르고, <b>test</b>는 마지막 확인용으로 남긴다.</li>
+          <li>비교할 때는 한 번에 <b>하나만</b> 바꾸고 나머지 조건은 같게 둔다.</li>
+          <li>오답이 없으면 "0건"이라고 쓰고, Grad-CAM은 원인이 아니라 <b>단서</b>로 쓴다.</li>
+        </ol>
+      </div>
+      <div class="callout">🤔 <strong>왜 test를 마지막까지 아껴?</strong> — valid 점수를 보며 epoch·층·학습률을 고르는 순간, 그 선택은 valid에 <b>맞춰진</b> 거예요. test까지 보면서 고르면 test도 "본 문제"가 되어 실제 성능보다 좋게 보여요. 그래서 test는 고른 뒤 <b>딱 한 번</b> 확인하는 용도예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="dataset">① 데이터셋 설계 — 라벨과 분할을 믿을 수 있나?</h2>
+      <p>좋은 모델은 데이터셋 설계에서 시작해요. 한 장의 이미지에는 <b>이미지 경로·고유 ID · 정답 클래스 · 출처(그룹 ID) · 분할(train/valid/test)</b> 정보가 함께 있어야 하고, 모델 쪽에는 <b>색 순서(RGB) · 입력 크기 · 값 범위/Normalize · 증강 허용 범위</b>라는 입력 계약이 있어요.</p>
+
+      <h3>ImageFolder — 폴더 이름이 곧 라벨</h3>
+<pre><code>data/
+├─ train/
+│   ├─ circle/    *.png
+│   ├─ square/    *.png
+│   └─ triangle/  *.png
+├─ valid/  (같은 클래스 폴더 3개)
+└─ test/   (같은 클래스 폴더 3개)</code></pre>
+      <p><code>ImageFolder</code>는 클래스 폴더 이름을 <b>정렬</b>해서 0, 1, 2 번호를 붙여요 → <code>{'circle': 0, 'square': 1, 'triangle': 2}</code>. 그래서 <b>폴더 이름을 바꾸면 라벨 번호가 바뀝니다</b>(라벨 계약 변경).</p>
+      <div class="callout">🤔 <strong>왜 정렬 순서로 번호를 붙여?</strong> — 폴더를 읽는 순서는 운영체제마다 다를 수 있어요. 이름순으로 정렬하면 어느 컴퓨터에서든 <b>같은 이름 → 같은 번호</b>가 보장돼요. 반대로 말하면, 폴더 하나만 이름이 달라도(예: valid에만 <code>Triangle</code>) 번호가 어긋나 <b>모델은 맞혔는데 채점은 틀린</b> 일이 생겨요. 그래서 분할마다 매핑을 비교해요.</div>
+      <div class="callout warn">⚠️ train·valid·test에서 클래스 이름과 번호 순서가 <b>똑같아야</b> 해요. 빈 폴더, 숨김 파일, 지원하지 않는 확장자도 미리 검사합니다.</div>
+
+      <h3>데이터 누수 (Leakage)</h3>
+      <p>같은 사진(또는 거의 같은 장면)이 train과 test에 동시에 들어가면, 모델이 "외운 걸" 시험 보는 셈이라 점수가 <b>부풀려져요</b>.</p>
+      <table>
+        <tr><th>상황</th><th>분할 단위</th><th>🤔 왜?</th></tr>
+        <tr><td>독립 상품 사진</td><td>이미지 단위</td><td>각 촬영이 서로 독립이면 그냥 나눠도 됨</td></tr>
+        <tr><td>환자·사람 사진</td><td>사람/환자 ID</td><td>같은 사람 특징이 test로 새는 것 방지</td></tr>
+        <tr><td>영상 Frame</td><td>영상 또는 장면 ID</td><td>옆 프레임끼리 거의 똑같음 → 프레임 단위 분할 금지</td></tr>
+        <tr><td>증강 이미지</td><td>원본 ID</td><td>증강본은 원본과 거의 같은 사진이라, 갈라지면 test에 "답"이 새어 들어감</td></tr>
+      </table>
+      <figure>
+        <svg viewBox="0 0 640 230" style="width:100%;height:auto" role="img" aria-label="이미지 단위 분할과 그룹 단위 분할 비교 그림" font-family="inherit">
+          <text x="160" y="22" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">❌ 이미지(Frame) 단위로 섞어 나눔</text>
+          <text x="480" y="22" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text)">✅ 그룹(영상·원본) 단위로 나눔</text>
+          <line x1="320" y1="10" x2="320" y2="222" stroke="var(--line)" stroke-width="2"/>
+          <text x="20" y="62" font-size="13" fill="var(--muted)">train</text>
+          <text x="20" y="142" font-size="13" fill="var(--muted)">test</text>
+          <rect x="62" y="40" width="240" height="44" rx="8" fill="none" stroke="var(--line)" stroke-width="2"/>
+          <rect x="62" y="120" width="240" height="44" rx="8" fill="none" stroke="var(--line)" stroke-width="2"/>
+          <rect x="70" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="84" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A1</text><rect x="104" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="118" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A2</text><rect x="138" y="48" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="152" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B1</text><rect x="172" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="186" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A4</text><rect x="206" y="48" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="220" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B3</text><rect x="240" y="48" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="254" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B4</text>
+          <rect x="70" y="128" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="84" y="147" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A3</text><rect x="104" y="128" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="118" y="147" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B2</text>
+          <path d="M150 128 C150 105 120 100 120 78" fill="none" stroke="#e03131" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="62" y="192" font-size="12" fill="#e03131" font-weight="700">A3는 A2·A4와 거의 같은 장면 →</text>
+          <text x="62" y="210" font-size="12" fill="#e03131" font-weight="700">test가 "본 문제"가 되어 점수 부풀림</text>
+          <text x="340" y="62" font-size="13" fill="var(--muted)">train</text>
+          <text x="340" y="142" font-size="13" fill="var(--muted)">test</text>
+          <rect x="382" y="40" width="240" height="44" rx="8" fill="none" stroke="var(--line)" stroke-width="2"/>
+          <rect x="382" y="120" width="240" height="44" rx="8" fill="none" stroke="var(--line)" stroke-width="2"/>
+          <rect x="390" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="404" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A1</text><rect x="424" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="438" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A2</text><rect x="458" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="472" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A3</text><rect x="492" y="48" width="28" height="28" rx="5" fill="var(--accent)" opacity="0.9"/><text x="506" y="67" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">A4</text>
+          <rect x="390" y="128" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="404" y="147" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B1</text><rect x="424" y="128" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="438" y="147" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B2</text><rect x="458" y="128" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="472" y="147" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B3</text><rect x="492" y="128" width="28" height="28" rx="5" fill="var(--accent2)" opacity="0.9"/><text x="506" y="147" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">B4</text>
+          <text x="382" y="192" font-size="12.5" fill="var(--text)" font-weight="700">영상 A는 전부 train, 영상 B는 전부 test →</text>
+          <text x="382" y="210" font-size="12.5" fill="var(--text)" font-weight="700">test엔 처음 보는 영상만 (그룹 분할)</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 보라 칸은 영상 A, 분홍 칸은 영상 B에서 나온 Frame이에요(숫자 = 순서). 왼쪽은 Frame을 낱장으로 섞어 나눠 A3가 test로, 이웃 A2·A4는 train으로 갈라졌어요. 오른쪽은 영상(그룹) 하나를 통째로 한쪽에만 넣었어요. <b>🤔 왜?</b> 옆 Frame끼리는 거의 같은 사진이라, 왼쪽처럼 나누면 test 문제의 &quot;쌍둥이&quot;가 이미 train에 있어요. 모델이 외운 걸로 맞혀도 점수가 올라가니, 처음 보는 영상에서의 실력을 잴 수 없어요. 그래서 분할 단위를 <b>독립인 단위(그룹)</b>로 잡아요.</figcaption></figure>
+      <div class="callout">💡 <strong>분할 전 확인할 것</strong> — <b>중복</b>(같은 파일·거의 같은 장면), <b>그룹</b>(같은 제품·영상에서 나온 사진), <b>라벨</b>(기준이 모호하면 모델 오류와 데이터 오류가 섞임), <b>분포</b>(train에만 특정 배경·카메라·조명이 있으면 모델이 물체 대신 환경을 배움).</div>
+
+      <h3>🔧 명령어: 클래스 매핑 · 개수 확인 <code>ImageFolder()</code></h3>
+<pre><code>from collections import Counter
+from torchvision.datasets import ImageFolder
+
+train = ImageFolder("data/train")
+valid = ImageFolder("data/valid")
+test  = ImageFolder("data/test")
+assert train.class_to_idx == valid.class_to_idx
+assert train.class_to_idx == test.class_to_idx
+print(train.class_to_idx)              # {'circle': 0, 'square': 1, 'triangle': 2}
+for ds in [train, valid, test]:
+    print(ds.root, Counter(ds.targets)) # train: Counter({0: 120, 1: 40, 2: 20})</code></pre>
+      <figure><img class="smooth" src="img/day14/dataset_counts.png" alt="수업 예제 데이터 train, valid, test의 클래스별 이미지 수 막대그래프"><figcaption><b>무엇을 보나:</b> 수업 예제 데이터를 실제로 센 개수예요. train은 circle 120 · square 40 · triangle 20(6 : 2 : 1), valid는 30 · 30 · 30, test는 10 · 10 · 10이에요. <b>🤔 왜?</b> train만 기울어 있으면 모델은 "일단 circle"이라고 답하는 쉬운 길부터 배워요(④). 반대로 valid·test가 균형이라, 소수 클래스를 놓치면 평가에서 바로 드러나요. 그래서 학습 전에 <code>Counter(targets)</code>로 분할마다 개수를 먼저 확인해요.</figcaption></figure>
+      <table>
+        <tr><th>인자 / 속성</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>root</code> <small>(필수)</small></td><td>클래스 폴더들이 있는 상위 경로</td><td>클래스 폴더 하나 위를 가리켜야 함 (분할 폴더 자체)</td></tr>
+        <tr><td><code>transform</code></td><td>이미지 변환 (Resize, ToTensor 등)</td><td>안 주면 PIL 이미지 그대로 나와서 모델에 바로 못 넣음</td></tr>
+        <tr><td><code>target_transform</code></td><td>라벨 변환</td><td>보통 그대로 둠</td></tr>
+        <tr><td><code>is_valid_file</code></td><td>파일 검사 함수</td><td>숨김 파일·이상한 확장자를 걸러낼 때</td></tr>
+        <tr><td><code>allow_empty=False</code></td><td>빈 클래스 폴더 허용 여부</td><td>기본은 빈 폴더가 있으면 에러 → 클래스가 조용히 사라지는 걸 막아 줌</td></tr>
+        <tr><td><code>.class_to_idx</code> / <code>.classes</code></td><td>폴더명 → 번호 사전 / 클래스 이름 목록</td><td></td></tr>
+        <tr><td><code>.targets</code> / <code>.samples</code></td><td>라벨 번호 목록 / (파일 경로, 라벨) 목록</td><td><code>Counter(targets)</code>로 불균형 확인</td></tr>
+      </table>
+
+      <h3>🔧 명령어: 그룹 단위 분할 (예시 도구: <code>GroupShuffleSplit</code>)</h3>
+<pre><code>from sklearn.model_selection import GroupShuffleSplit
+gss = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=42)
+tr_idx, va_idx = next(gss.split(rows, groups=rows.group_id))   # 같은 group_id는 한쪽에만</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>groups</code></td><td>각 샘플의 그룹 ID (원본·제품·영상 번호)</td><td>안 주면 그냥 이미지 단위 무작위 분할 → 누수 위험</td></tr>
+        <tr><td><code>test_size</code></td><td>떼어 낼 비율 (그룹 기준)</td><td>그룹 크기가 제각각이면 실제 이미지 비율은 정확히 안 맞을 수 있음</td></tr>
+        <tr><td><code>random_state</code></td><td>무작위 고정값</td><td>같은 값이면 같은 분할 재현</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="transfer">② Backbone과 Head — 무엇을 빌려 오고, 무엇을 새로 만드나?</h2>
+      <div class="flow">
+        <span class="step">RGB 이미지<br><small>Batch</small></span><span class="arrow">→</span>
+        <span class="step"><b>Backbone</b> (빌려 옴)<br><small>특징 추출 · 풀링</small></span><span class="arrow">→</span>
+        <span class="step">특징 벡터<br><small>ResNet18은 512개</small></span><span class="arrow">→</span>
+        <span class="step"><b>새 Head</b> (새로 학습)<br><small>Linear(512, 3)</small></span><span class="arrow">→</span>
+        <span class="step">클래스 점수<br><small>Logit 3개</small></span>
+      </div>
+      <p><b>Backbone</b>은 가장자리·질감·형태처럼 여러 이미지 문제에서 다시 쓸 수 있는 특징을 만들어요. <b>Head</b>는 그 특징을 오늘 우리 클래스 수에 맞는 점수(Logit)로 바꾸는 마지막 층이에요.</p>
+      <div class="callout">🤔 <strong>왜 Head는 갈아 끼워?</strong> — 원래 ResNet18의 Head(<code>fc</code>)는 ImageNet <b>1000개 클래스</b> 점수를 내도록 학습돼 있어요. 우리는 3클래스라 출력 개수부터 맞지 않고, "1000개 중 몇 번"이라는 의미도 우리 문제와 무관해요. 반면 Backbone이 뽑는 모서리·질감 같은 특징은 <b>어느 문제에나 쓸모가 있어서</b> 그대로 빌려 와요.</div>
+      <p><b>Head의 학습 파라미터 수</b> = 특징 수 × 클래스 수 + bias</p>
+<pre><code>nn.Linear(512, 3)
+  weight [3, 512] → 1,536개
+  bias   [3]      →     3개
+  합계 = 512 × 3 + 3 = 1,539개   ← 특징 512개를 Weight로 조합하고 Bias를 더해 클래스 점수 3개</code></pre>
+
+      <h3>얼리는 스위치는 두 개!</h3>
+      <table>
+        <tr><th>스위치</th><th>무엇을 고정?</th><th>주의</th></tr>
+        <tr><td><code>requires_grad = False</code></td><td><b>가중치</b>. gradient를 계산하지 않아 학습이 이 숫자를 못 바꿈</td><td>순전파 계산은 그대로 함</td></tr>
+        <tr><td>Optimizer에 넘기는 목록</td><td>실제로 <b>갱신</b>되는 파라미터</td><td>열었어도 목록에 없으면 안 바뀜</td></tr>
+        <tr><td><code>model.eval()</code> / <code>train()</code></td><td><b>BatchNorm 기억값</b>(평균·분산)과 Dropout 동작</td><td>얼려도 <code>train()</code> 모드면 BN 기억값은 계속 바뀜</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Backbone을 먼저 얼려(freeze)?</strong> — 새 Head는 처음에 <b>무작위</b>라서 초반 gradient가 크고 엉망이에요. 이때 Backbone까지 열어 두면 그 엉망인 gradient가 이미 잘 배운 특징을 <b>망가뜨려요</b>. 먼저 Head만 학습해 안정시키면 학습할 숫자도 적어 빠르고, 메모리(VRAM)도 적게 들고, 데이터가 적을 때 과적합도 덜해요. 그다음에 필요하면 층을 열어요(③).</div>
+      <div class="callout">🤔 <strong>왜 스위치가 두 개나?</strong> — BatchNorm은 학습 중에 "들어오는 데이터의 평균·분산"을 기억값으로 계속 갱신하는데, 이건 gradient가 아니라 <b>train 모드일 때 자동으로</b> 일어나요. 그래서 <code>requires_grad=False</code>로 가중치를 얼려도 train 모드면 BN 기억값은 우리 데이터 쪽으로 바뀌어요. 완전히 고정하려면 Backbone을 eval 모드로 둘지 <b>정책을 정하고 기록</b>해요.</div>
+      <div class="callout warn">⚠️ <strong>입력 규칙도 가중치와 한 묶음</strong> — 사전학습 때 쓴 Resize·Crop·Normalize(ImageNet 평균·표준편차)를 그대로 지켜야 해요. 🤔 <b>왜?</b> — Backbone은 "그 규칙으로 바뀐 숫자"를 보고 특징을 배웠어요. 규칙이 바뀌면 들어오는 숫자의 분포가 달라져 특징도 달라지는데, 에러는 안 나니 <b>조용히, 자신 있게</b> 틀려요. OpenCV로 읽은 BGR 이미지를 그대로 넣는 것도 같은 이유로 안 돼요(RGB로 바꾸기).</div>
+
+      <h3>🔧 명령어: 사전학습 모델 불러오기 · Head 교체</h3>
+<pre><code>from torch import nn
+from torchvision.models import resnet18, ResNet18_Weights
+
+weights = ResNet18_Weights.DEFAULT
+model = resnet18(weights=weights)       # ① 학습된 가중치 불러오기
+for p in model.parameters():
+    p.requires_grad = False             # ② 기존 파라미터 얼리기
+in_features = model.fc.in_features      # 512
+model.fc = nn.Linear(in_features, num_classes)   # ③ 새 Head (새로 만든 층은 기본으로 학습 가능)
+preprocess = weights.transforms()       # 이 가중치가 원하는 평가용 입력 변환</code></pre>
+      <div class="callout">🤔 <strong>왜 이 순서(불러오기 → 얼리기 → 새 Head)?</strong> — 얼린 <b>다음에</b> 새 Head를 만들어야, 새 층은 기본값 <code>requires_grad=True</code> 그대로라 학습 대상이 돼요. 순서를 바꾸면 아래 "순서 실수"가 생겨요.</div>
+      <table>
+        <tr><th>인자 / 코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weights=ResNet18_Weights.DEFAULT</code></td><td>사전학습 가중치 사용 (키워드 전용 인자)</td><td><code>None</code>(기본값)이면 무작위 시작 → 특징을 못 뽑는 Backbone 위에선 Head도 못 배움</td></tr>
+        <tr><td><code>progress=True</code></td><td>다운로드 진행 표시</td><td>False면 조용히 받음</td></tr>
+        <tr><td><code>model.fc.in_features</code></td><td>Head에 들어오는 특징 수 (ResNet18 = 512)</td><td>숫자를 직접 적지 않고 읽어 오면 다른 모델로 바꿔도 안 깨짐</td></tr>
+        <tr><td><code>nn.Linear(in, out)</code></td><td>out = 우리 클래스 수</td><td>클래스 수와 다르면 Loss 계산에서 에러 또는 엉뚱한 학습</td></tr>
+        <tr><td><code>weights.transforms()</code></td><td>Resize → CenterCrop → 0~1 값 변환 → ImageNet mean/std Normalize</td><td>임의로 바꾸면 특징 분포가 달라짐. 학습용 증강도 <b>같은 입력 규격</b>을 지켜서 만듦</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>순서 실수 주의</strong> — Head를 먼저 붙이고 나서 <code>model.parameters()</code> 전체를 얼리면 <b>새 Head까지 얼어서</b> 아무것도 배우지 않아요. 에러 메시지도 안 나요! 그래서 아래처럼 학습 파라미터 수를 꼭 출력해 확인합니다.</div>
+
+      <h3>🔧 명령어: 학습 가능한 파라미터 수 세기</h3>
+<pre><code>trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+total     = sum(p.numel() for p in model.parameters())
+print("trainable:", trainable, "/ total:", total)   # Head-only면 Head 몫(1,539)만 나와야 정상
+
+for name, p in model.named_parameters():
+    if p.requires_grad:
+        print(name)                                  # fc.weight, fc.bias</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>🤔 왜 확인?</th></tr>
+        <tr><td><code>p.numel()</code></td><td>그 파라미터 텐서 안의 숫자 개수</td><td>학습 범위와 계산 비용을 실험표에 같이 기록하려고</td></tr>
+        <tr><td><code>p.requires_grad</code></td><td>학습 대상이면 True</td><td>고정했다고 생각한 층이 실제로 열려 있지 않은지 확인</td></tr>
+        <tr><td><code>model.named_parameters()</code></td><td>(이름, 파라미터) 쌍으로 돌기</td><td>어느 층이 열렸는지 <b>이름으로</b> 보고, Optimizer에 넘긴 목록과 일치하는지 대조</td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day14/params_bars.png" alt="ResNet18에서 Head-only, Partial, Full 전략별 학습 파라미터 수를 로그 눈금 막대로 비교"><figcaption><b>무엇을 보나:</b> ResNet18 구조(3클래스 Head)에서 실제로 센 학습 파라미터 수예요. Head-only는 <b>1,539개</b>(전체의 0.014%), layer4까지 열면 8,395,267개(75.1%), 전체는 11,178,051개. 가로축은 한 칸이 10배인 log 눈금이에요. <b>🤔 왜?</b> 파라미터는 뒤쪽 층일수록 채널이 많아 몰려 있어요 — layer4 하나가 전체의 3/4이에요. 그래서 Head-only는 계산·메모리가 아주 적고 과적합 위험도 낮은 "안전한 첫 기준선"이고, layer4만 열어도 학습량이 수천 배로 뛰어요. 위 코드로 출력한 숫자가 이 값과 다르면 얼리기 순서를 의심해요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="finetune">③ Fine-tuning — 어디까지 다시 학습시킬까?</h2>
+      <table>
+        <tr><th>전략</th><th>앞쪽 Backbone</th><th>마지막 Stage (layer4)</th><th>새 Head</th><th>특징</th></tr>
+        <tr><td><b>Head-only</b></td><td>🔒 고정</td><td>🔒 고정</td><td>학습</td><td>빠르고 안정적, 학습 파라미터·VRAM 적음. 작은 데이터·비슷한 분야의 첫 기준선</td></tr>
+        <tr><td><b>Partial</b></td><td>🔒 고정</td><td>학습</td><td>학습</td><td>마지막 층만 살짝 조정</td></tr>
+        <tr><td><b>Full</b></td><td>학습</td><td>학습</td><td>학습</td><td>연산 많고 과적합 위험. 분야 차이가 클 때 검토</td></tr>
+      </table>
+      <figure>
+        <svg viewBox="0 0 640 260" style="width:100%;height:auto" role="img" aria-label="Head-only, Partial, Full 전략별로 얼린 층과 학습하는 층을 표시한 그림" font-family="inherit">
+          <text x="210" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">Head-only</text>
+          <rect x="150" y="40" width="120" height="30" rx="6" fill="var(--accent)"/><text x="210" y="60" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">fc · 학습</text>
+          <rect x="150" y="78" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="210" y="98" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 layer4</text>
+          <rect x="150" y="116" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="210" y="136" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 layer3</text>
+          <rect x="150" y="154" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="210" y="174" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 layer2</text>
+          <rect x="150" y="192" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="210" y="212" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 conv1·layer1</text>
+          <text x="370" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">Partial</text>
+          <rect x="310" y="40" width="120" height="30" rx="6" fill="var(--accent)"/><text x="370" y="60" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">fc · 학습</text>
+          <rect x="310" y="78" width="120" height="30" rx="6" fill="var(--accent)"/><text x="370" y="98" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">layer4 · 학습</text>
+          <rect x="310" y="116" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="370" y="136" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 layer3</text>
+          <rect x="310" y="154" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="370" y="174" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 layer2</text>
+          <rect x="310" y="192" width="120" height="30" rx="6" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/><text x="370" y="212" text-anchor="middle" font-size="11.5" fill="var(--muted)">🔒 conv1·layer1</text>
+          <text x="530" y="24" text-anchor="middle" font-size="14" font-weight="700" fill="var(--text)">Full</text>
+          <rect x="470" y="40" width="120" height="30" rx="6" fill="var(--accent)"/><text x="530" y="60" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">fc · 학습</text>
+          <rect x="470" y="78" width="120" height="30" rx="6" fill="var(--accent)"/><text x="530" y="98" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">layer4 · 학습</text>
+          <rect x="470" y="116" width="120" height="30" rx="6" fill="var(--accent)"/><text x="530" y="136" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">layer3 · 학습</text>
+          <rect x="470" y="154" width="120" height="30" rx="6" fill="var(--accent)"/><text x="530" y="174" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">layer2 · 학습</text>
+          <rect x="470" y="192" width="120" height="30" rx="6" fill="var(--accent)"/><text x="530" y="212" text-anchor="middle" font-size="11.5" fill="#fff" font-weight="700">conv1·layer1 · 학습</text>
+          <text x="10" y="60" font-size="12.5" fill="var(--muted)">fc (새 Head)</text>
+          <text x="10" y="98" font-size="12.5" fill="var(--muted)">layer4</text>
+          <text x="10" y="136" font-size="12.5" fill="var(--muted)">layer3</text>
+          <text x="10" y="174" font-size="12.5" fill="var(--muted)">layer2</text>
+          <text x="10" y="212" font-size="12.5" fill="var(--muted)">conv1·layer1</text>
+          <text x="10" y="248" font-size="12" fill="var(--muted)">↑ 출력 쪽 (클래스 점수)</text>
+          <text x="630" y="248" text-anchor="end" font-size="12" fill="var(--muted)">입력 쪽(이미지)은 맨 아래 ↓ · 아래층일수록 일반적인 특징</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 세로 한 줄이 한 전략이에요. 위가 출력(Head), 아래가 입력 쪽 층. 색칠된 칸만 <code>requires_grad=True</code> + Optimizer 목록에 들어가 값이 바뀌고, 🔒 칸은 순전파만 하고 그대로예요. 열리는 순서는 항상 <b>위(출력 쪽)부터 아래로</b>. <b>🤔 왜?</b> 아래층은 모서리·색 변화처럼 어느 사진에나 통하는 특징이라 빌린 그대로 써도 되고, 위층일수록 원래 데이터(ImageNet)에 특화돼 고칠 필요가 커요. 그래서 "어디까지 열까?"는 위에서부터 한 칸씩 내려가며 실험해요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 마지막 Stage(layer4)부터 열어?</strong> — 앞쪽 층은 모서리·색 변화처럼 <b>어느 사진에나 통하는</b> 기본 특징을, 뒤쪽 층은 원래 데이터(ImageNet)의 물체에 <b>특화된</b> 특징을 배워요. 우리 데이터에 맞게 고칠 필요가 큰 건 뒤쪽이라, 거기부터 열어야 적은 비용으로 효과를 봐요.</div>
+      <p><b>단계적으로 연다</b>: ① Head-only로 데이터·라벨·학습 루프가 정상인지 확인 → ② 마지막 Stage만 열어 <b>작은 학습률</b>로 조정 → ③ 개선이 없거나 데이터가 충분할 때 더 앞쪽 층을 여는 실험을 따로 해요. 각 단계는 같은 분할·평가 지표·epoch 예산으로 비교하고, test는 최종 확인까지 보관해요.</p>
+      <div class="callout">🤔 <strong>왜 Head-only부터?</strong> — 결과가 나쁠 때 원인이 "데이터·라벨 문제"인지 "학습 범위 문제"인지 가르려면, 가장 단순하고 안정적인 기준선이 먼저 있어야 해요. 기준선이 정상으로 돌아간다는 걸 확인한 뒤에야 층을 연 효과를 공정하게 잴 수 있어요.</div>
+      <table>
+        <tr><th>단계</th><th>학습 범위</th><th>학습률 예 (Backbone / Head)</th><th>볼 것</th></tr>
+        <tr><td>A</td><td>새 Head</td><td>1e-3</td><td>기준 성능, 어느 클래스를 틀리나</td></tr>
+        <tr><td>B</td><td>layer4 + Head</td><td>1e-4 / 1e-3</td><td>valid 개선, 과적합</td></tr>
+        <tr><td>C</td><td>전체 Backbone + Head</td><td>1e-5 / 5e-4</td><td>성능 · 시간 · VRAM · 안정성</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Backbone은 작은 학습률?</strong> — Backbone은 이미 좋은 값 근처에 있어요. 큰 보폭으로 움직이면 잘 배운 특징을 <b>한 번에 망가뜨려요</b>. 새 Head는 무작위에서 출발하니 크게, 기존 층은 작게 움직여요. 그래서 많이 열수록(C) Backbone 학습률을 더 줄여요.</div>
+      <figure><img class="smooth" src="img/day14/lr_groups.png" alt="단계 A, B, C별 Backbone과 Head의 학습률을 로그 눈금 막대로 비교"><figcaption><b>무엇을 보나:</b> 강의 예시 학습률을 log 눈금으로 그렸어요. Head(분홍)는 1e-3 근처로 거의 그대로인데, Backbone(보라)은 A에선 고정, B에선 1e-4, C에선 1e-5로 <b>열수록 10배씩 작아져요</b>. <b>🤔 왜?</b> 보폭(lr)이 크면 한 번에 값이 크게 바뀌어요. 무작위에서 출발한 Head는 크게 움직여야 빨리 배우지만, 이미 좋은 값 근처의 Backbone을 크게 움직이면 잘 배운 특징이 망가져요. 많이 열수록 망가질 수 있는 부분이 늘어나니 보폭을 더 줄여요.</figcaption></figure>
+      <div class="callout warn">⚠️ <strong>전이학습이 항상 더 좋은 건 아니다</strong> — 원래 학습한 데이터(Source)의 특징이 우리 데이터(Target)의 배경·잡음·색과 안 맞으면 Head-only가 낮게 나올 수 있어요. 강의의 설명용 소형 모델 예시(ResNet18 결과 아님)에서는 Scratch(처음부터) Macro F1 0.911, Head-only 0.269, Partial 0.674였어요. 이럴 땐 실패로 숨기지 말고 <b>도메인 차이와 학습 조건</b>을 설명합니다. Partial도 학습률·epoch·불균형 때문에 다시 한 클래스로 치우칠 수 있어요.</div>
+      <table>
+        <tr><th>전략 (설명용 소형 모델)</th><th>학습 파라미터</th><th>총 파라미터</th><th>비율</th></tr>
+        <tr><td>Head-only</td><td>99</td><td>6,131</td><td>1.6%</td></tr>
+        <tr><td>Partial FT</td><td>4,739</td><td>6,131</td><td>77.3%</td></tr>
+        <tr><td>Scratch / Full</td><td>6,131</td><td>6,131</td><td>100%</td></tr>
+      </table>
+      <p><b>lr과 epoch</b>: lr은 <b>보폭</b>, epoch는 <b>학습 예산</b>. lr이 너무 작으면 정해진 epoch 안에 덜 배우고, 너무 크면 초반 loss가 튀어요. 그리고 <b>마지막 epoch가 가장 좋은 epoch는 아니라서</b> valid loss가 가장 낮았던 순간(best)을 따로 저장해 둡니다.</p>
+      <figure><img class="smooth" src="img/day14/best_epoch.png" alt="작은 데모 CNN의 epoch별 train loss와 valid loss 곡선, best epoch 13 표시"><figcaption><b>무엇을 보나:</b> 작은 데모 CNN(ResNet18 아님)을 수업 예제 데이터로 15 epoch 학습한 실제 곡선이에요. train loss(보라)는 꾸준히 내려가지만 valid loss(주황)는 들쭉날쭉해서, 가장 낮은 곳은 <b>epoch 13(0.294)</b>이고 마지막 epoch 15는 1.649로 다시 나빠졌어요. <b>🤔 왜?</b> 학습은 train만 보고 움직이니, 어느 epoch가 "처음 보는 사진"에 가장 좋은지는 보장하지 않아요(lr 0.01로 작은 데이터에선 특히 출렁여요). 그래서 매 epoch valid loss를 재고 가장 좋았던 순간의 가중치를 <code>deepcopy</code>해 두었다가 마지막에 되돌려요.</figcaption></figure>
+
+      <h3>🔧 명령어: 층 열기 · 층별 학습률</h3>
+<pre><code>for p in model.layer4.parameters():
+    p.requires_grad = True              # 마지막 Stage 열기 (= model.layer4.requires_grad_(True))
+
+optimizer = torch.optim.AdamW([
+    {"params": model.layer4.parameters(), "lr": 1e-4},   # Backbone: 작게
+    {"params": model.fc.parameters(),     "lr": 1e-3},   # 새 Head: 크게
+], weight_decay=1e-4)</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>"params"</code></td><td>이 그룹에서 학습할 파라미터</td><td>같은 파라미터를 두 그룹에 넣으면 <b>에러</b>, 빠뜨리면 그 층은 <b>학습 안 됨</b> (Optimizer는 받은 목록만 고치니까)</td></tr>
+        <tr><td><code>"lr"</code></td><td>그룹별 학습률</td><td>크면 빨리 배우지만 불안정, Backbone에 크게 주면 사전학습 특징이 망가짐</td></tr>
+        <tr><td><code>weight_decay</code></td><td>가중치가 너무 커지지 않게 억제 (그룹별로도 지정 가능)</td><td>0이면 억제 없음 → 작은 데이터에서 과적합 쉬움</td></tr>
+        <tr><td><code>betas</code>·<code>eps</code></td><td>(선택) AdamW의 내부 설정</td><td>보통 기본값 사용</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>자주 하는 실수</strong>
+        <ul>
+          <li>층을 새로 연 뒤 Optimizer를 그대로 씀 → 새로 연 층은 Optimizer 목록에 없어서 <b>안 바뀜</b>. 다시 만들거나 그룹을 추가(<code>add_param_group()</code>).</li>
+          <li>Head-only인데 Backbone을 안 얼리고 전체를 Optimizer에 넣음.</li>
+          <li>사전학습 Weight의 Normalize를 빠뜨려 입력 분포가 달라짐.</li>
+          <li>valid 점수를 보면서 epoch·층·학습률을 계속 바꾸고 그걸 최종 성능처럼 보고함.</li>
+        </ul>
+      </div>
+
+      <h3>🔧 명령어: 학습 루프 + best 복원</h3>
+<pre><code>import copy
+optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=0.01)
+criterion = nn.CrossEntropyLoss()
+best_loss = float("inf")
+for epoch in range(8):
+    model.train()
+    backbone.eval()                               # 얼린 Backbone의 BN 기억값 고정 (정책)
+    optimizer.zero_grad()                         # 1) 지난 gradient 지우기
+    loss = criterion(model(X_train), y_train)     # 2) 예측하고 오차 계산
+    loss.backward()                               # 3) gradient 계산
+    optimizer.step()                              # 4) 한 걸음 이동
+    with torch.no_grad():
+        valid_loss = criterion(model(X_valid), y_valid)   # valid는 채점만
+    if valid_loss &lt; best_loss:                    # 가장 좋았던 순간 기억
+        best_loss, best_state = valid_loss, copy.deepcopy(model.state_dict())
+model.load_state_dict(best_state)                 # best로 되돌리기</code></pre>
+      <p><small><code>backbone</code>은 모델에서 Head를 뺀 앞부분이에요(ResNet18이면 <code>fc</code> 앞까지). <code>Day14_oneday요약.pdf</code>의 대표 코드를 정리한 것입니다.</small></p>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>[p for p in ... if p.requires_grad]</code></td><td>열린 파라미터만 Optimizer에 넘김</td><td>전부 넘기면 얼린 층에 쓸데없는 상태(메모리)가 생기고 실수 확인도 어려움</td></tr>
+        <tr><td><code>lr=0.01</code></td><td>보폭</td><td>0.001로 줄이면 같은 epoch 안에 덜 배움, 0.1로 키우면 초반 valid loss가 크게 튐</td></tr>
+        <tr><td><code>range(8)</code></td><td>epoch 수 (학습 예산)</td><td>1로 줄이면 소수 클래스를 하나도 못 찾을 수 있음 — 다수 클래스부터 배우기 때문</td></tr>
+        <tr><td><code>with torch.no_grad()</code></td><td>valid 계산에선 gradient를 안 만듦</td><td>빼면 메모리 낭비. valid는 채점만 하고 학습에 쓰지 않음</td></tr>
+        <tr><td><code>copy.deepcopy(state_dict())</code></td><td>그 순간의 가중치를 복사해 보관</td><td>deepcopy 없이 담으면 학습이 계속되며 같이 바뀜. 복원 줄을 지우면 다시 나빠진 마지막 epoch 모델이 남음</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="imbalance">④ 클래스 불균형 — 적은 클래스를 포기하지 않게</h2>
+      <p>train이 circle 120 · square 40 · triangle 20장이라면, 모델이 <b>전부 circle</b>이라고만 해도 Accuracy는 120/180 ≈ <b>66.7%</b>나 돼요. 하지만 triangle은 하나도 못 찾죠. 전체 점수만 보면 이 실패가 안 보여요.</p>
+      <div class="callout">🤔 <strong>왜 모델이 다수 클래스로 쏠려?</strong> — Loss는 모든 샘플의 오차를 평균해요. circle이 2/3를 차지하면 "일단 circle"이라고만 해도 평균 오차가 꽤 줄어서, 모델은 그 쉬운 길부터 배워요. triangle 20장의 오차는 평균 속에서 <b>목소리가 작아요</b>. 그래서 Loss의 배점을 바꾸거나(class weight), 문제를 내는 빈도를 바꿔요(Sampler).</div>
+      <div class="callout warn">⚠️ train에서만 Loss·Sampling을 조정하고, valid/test는 실제 평가 목적에 맞는 분포를 그대로 유지해요. 🤔 <b>왜?</b> — 평가는 "실제로 쓸 때 얼마나 잘하나"를 재는 거라, 평가 데이터를 바꾸면 그 질문 자체가 바뀌어요. train 분포와 실제 운영 분포가 다르면 어떤 균형 전략이 필요한지도 따로 정해요.</div>
+      <table>
+        <tr><th>방법</th><th>바꾸는 것</th><th>장점</th><th>주의점</th></tr>
+        <tr><td><b>Class weight</b></td><td>Loss 기여도 (배점)</td><td>구현이 단순</td><td>가중치가 너무 크면 불안정</td></tr>
+        <tr><td><b>Weighted sampler</b></td><td>Batch에 뽑히는 빈도 (출제 빈도)</td><td>소수 클래스를 더 자주 학습</td><td>같은 샘플 중복 추출·확률 기록 필요</td></tr>
+        <tr><td>데이터 수집·증강</td><td>학습 자료 범위</td><td>데이터 범위 보완</td><td>라벨 의미·편향 검증 필요</td></tr>
+        <tr><td>Threshold·후처리</td><td>운영 판단 규칙</td><td>업무 비용 반영</td><td>다중 클래스·확률 보정 고려</td></tr>
+      </table>
+      <div class="callout">💡 <strong>class weight = 배점</strong>: 뽑는 횟수는 그대로, 적은 클래스 오답에 큰 벌점. <strong>Sampler = 출제 빈도</strong>: 벌점은 그대로, 적은 클래스를 더 자주 뽑음. <b>둘을 같이 쓰면 보정이 두 번</b> 들어가요. 그리고 불균형 대응은 "세게"가 아니라 "균형" — 너무 세게 주면 이번엔 소수 클래스 쪽으로 치우쳐 오히려 나빠집니다. 두 방법은 같은 seed·epoch에서 <b>별도 후보로</b> 비교해요.</div>
+
+      <div class="lab">
+        <strong>🧪 체험: 클래스 개수를 바꿔 보세요 — 어떤 보정이 걸리나?</strong>
+        <div class="readout">
+          <label>circle <input type="number" min="1" max="9999" id="imbN0" value="120"></label>
+          <label>square <input type="number" min="1" max="9999" id="imbN1" value="40"></label>
+          <label>triangle <input type="number" min="1" max="9999" id="imbN2" value="20"></label>
+        </div>
+        <table id="imbTable">
+          <tr><th>클래스</th><th>개수</th><th>class weight (평균 1)</th><th>Sampler로 뽑힐 확률 (클래스 합)</th></tr>
+        </table>
+        <div class="readout">
+          <div>전부 다수 클래스로 찍었을 때 Accuracy <span class="big" id="imbAcc">0.667</span></div>
+        </div>
+        <div class="verdict" id="imbVerdict"></div>
+      </div>
+
+      <h3>🔧 명령어: Class weight <code>nn.CrossEntropyLoss(weight=)</code></h3>
+<pre><code>counts = torch.tensor([120, 40, 20], dtype=torch.float)
+class_weight = counts.sum() / counts             # 적을수록 큼 (역빈도)
+class_weight = class_weight / class_weight.mean()   # 평균 1로 맞춤
+print(class_weight)                              # tensor([0.30, 0.90, 1.80])
+loss_fn = nn.CrossEntropyLoss(weight=class_weight.to(device))</code></pre>
+      <div class="callout">🤔 <strong>왜 역빈도(전체 ÷ 개수)?</strong> — 개수가 1/6인 triangle에 6배 무게를 주면, 클래스마다 "개수 × 무게"가 비슷해져서 Loss 안에서 <b>세 클래스의 목소리 크기가 같아져요</b>. 평균 1로 나누는 건 전체 Loss 크기를 원래와 비슷하게 유지해 학습률 감각을 바꾸지 않으려는 선택이에요(절댓값보다 <b>상대 비율</b>이 중요).</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weight</code></td><td>길이 C(클래스 수) 텐서. 클래스별 loss 기여도</td><td>안 주면 모든 클래스 같은 배점. 1/개수²처럼 너무 세게 주면 오히려 나빠질 수 있음</td></tr>
+        <tr><td><code>reduction="mean"</code></td><td><code>"mean"</code>(기본, scalar 반환) / <code>"sum"</code> / <code>"none"</code></td><td>none이면 샘플별 loss 그대로 → 어떤 샘플이 많이 틀리는지 볼 때</td></tr>
+        <tr><td><code>ignore_index=-100</code></td><td>계산에서 뺄 라벨 값</td><td>라벨 없는 샘플을 표시할 때</td></tr>
+        <tr><td><code>label_smoothing=0.0</code></td><td>정답을 100%가 아니라 살짝 부드럽게</td><td>올리면 과하게 확신하는 걸 줄여 줌</td></tr>
+        <tr><td><code>.to(device)</code></td><td>weight를 모델과 같은 장치로</td><td>GPU 모델에 CPU weight를 주면 에러</td></tr>
+      </table>
+      <div class="callout">💡 class weight는 <b>train loss</b>만 바꿔요. valid의 클래스 수나 평가 지표 계산식은 안 바뀝니다. 그래서 학습 안정성과 <b>클래스별 Recall</b>을 함께 봐요.</div>
+
+      <h3>🔧 명령어: <code>WeightedRandomSampler</code></h3>
+<pre><code>from torch.utils.data import DataLoader, WeightedRandomSampler
+targets = torch.tensor(train_dataset.targets)
+counts = torch.bincount(targets)
+assert torch.all(counts &gt; 0)                     # 빈 클래스가 있으면 1/0이 됨
+class_weight = 1.0 / counts.float()
+sample_weight = class_weight[targets]            # 클래스 weight → 샘플별 weight로 바꿈
+sampler = WeightedRandomSampler(sample_weight, num_samples=len(sample_weight), replacement=True)
+loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)   # shuffle은 쓰지 않음</code></pre>
+      <div class="callout">🤔 <strong>왜 샘플별 1/개수?</strong> — circle 한 장은 1/120, triangle 한 장은 1/20의 무게를 받아요. 클래스 전체로 더하면 120 × 1/120 = 20 × 1/20 = 1 → <b>세 클래스가 뽑힐 확률이 똑같아져요</b>. 그만큼 triangle은 여러 번 다시 뽑혀요.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weights</code> <small>(필수)</small></td><td><b>샘플별</b> 뽑힐 가중치 (클래스별 아님!)</td><td>클래스 weight 3개를 그대로 주면 "샘플 3개"로 해석돼 엉망이 됨</td></tr>
+        <tr><td><code>num_samples</code> <small>(필수)</small></td><td>한 epoch에 뽑을 개수</td><td>데이터 수와 같게 두면 epoch 길이가 그대로</td></tr>
+        <tr><td><code>replacement=True</code></td><td>복원 추출 → 같은 샘플이 여러 번 뽑힘</td><td>False면 한 장씩만 뽑혀서 적은 클래스를 더 자주 볼 수 없음</td></tr>
+        <tr><td><code>generator</code></td><td>난수 고정 (재현용)</td><td>안 주면 실행마다 뽑히는 순서가 달라짐</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>sampler=</code>를 쓰면 DataLoader의 <code>shuffle=True</code>와 같이 쓰지 않아요(뽑는 순서를 Sampler가 이미 정하니까). 역빈도는 클래스별 뽑힐 확률을 맞출 뿐, <b>모든 Batch에 똑같은 개수</b>가 들어간다는 보장은 없어요.</div>
+      <figure><img class="smooth" src="img/day14/sampler_batches.png" alt="class weight 막대와 보통 추출 대 WeightedRandomSampler의 배치별 클래스 수 상자그림"><figcaption><b>무엇을 보나:</b> ① class weight는 circle 0.30 · square 0.90 · triangle 1.80 — 개수의 역수라 적을수록 커요. ②③은 120 : 40 : 20 데이터에서 32장 배치를 300번 <b>실제로 뽑아</b> 센 결과예요. 보통 추출은 배치당 평균 21.3 · 7.1 · 3.6장, WeightedRandomSampler는 10.8 · 10.3 · 10.9장으로 거의 1/3씩. <b>🤔 왜?</b> Sampler는 샘플마다 1/개수의 무게를 줘서 클래스 합이 같아지니, 평균적으로 각 클래스가 같은 비율로 뽑혀요. 하지만 상자(배치마다 흔들리는 범위)가 3~19장으로 넓듯이 <b>매 배치 정확히 같지는 않아요</b> — 확률을 맞춘 것이지 개수를 고정한 게 아니라서요. class weight는 뽑는 횟수는 ②처럼 그대로 두고 벌점만 바꿔요.</figcaption></figure>
+      <table>
+        <tr><th>합성 예시 (valid)</th><th>circle Recall</th><th>square Recall</th><th>triangle Recall</th><th>Macro F1</th></tr>
+        <tr><td>Head-only</td><td>1.000</td><td>0.167</td><td>0.000</td><td>0.269</td></tr>
+        <tr><td>Class weight</td><td>1.000</td><td>0.667</td><td>0.633</td><td>0.763</td></tr>
+        <tr><td>Sampler</td><td>1.000</td><td>0.733</td><td>0.700</td><td>0.810</td></tr>
+      </table>
+      <p><small>강의의 설명용 합성 예시예요. 이 순위가 다른 데이터에서도 유지되지는 않아요.</small></p>
+      <figure><img class="smooth" src="img/day14/metric_trap.png" alt="전부 circle로 찍은 두 경우와 Sampler 예시의 Accuracy, Weighted F1, Macro F1 비교"><figcaption><b>무엇을 보나:</b> "전부 circle"이라고만 답하는 모델은 120 : 40 : 20 데이터에서 Accuracy 0.667, Weighted F1 0.533이지만 Macro F1은 0.267이에요(4 : 2 : 1 예시도 0.571 → 0.242). 반면 세 클래스를 고르게 맞히는 Sampler 예시는 세 지표가 모두 약 0.81로 같아요. <b>🤔 왜?</b> Accuracy·Weighted F1은 장수가 많은 클래스에 표를 많이 줘서, 다수 클래스만 맞혀도 점수가 높아요. Macro F1은 클래스마다 한 표씩이라 square·triangle의 F1 0이 그대로 평균을 끌어내려요. 세 지표가 <b>벌어지면</b> 불균형이 성적을 가리고 있다는 신호예요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="eval">⑤ 평가와 오류 분석 — 어디서, 왜 틀렸나?</h2>
+      <h3>Confusion Matrix (혼동 행렬)</h3>
+      <p><b>행 = 실제, 열 = 예측</b>. 대각선이 맞힌 것이고, 대각선 밖이 "무엇을 무엇으로 헷갈렸나"예요.</p>
+      <table>
+        <tr><th>실제 ＼ 예측</th><th>circle</th><th>square</th><th>triangle</th></tr>
+        <tr><th>circle</th><td><b>30</b></td><td>0</td><td>0</td></tr>
+        <tr><th>square</th><td>8</td><td><b>22</b></td><td>0</td></tr>
+        <tr><th>triangle</th><td>5</td><td>4</td><td><b>21</b></td></tr>
+      </table>
+      <p>→ (Sampler 합성 예시) circle은 30/30을 찾았지만, triangle은 21/30만 찾았고 나머지는 circle·square로 착각했어요. Macro F1 ≈ 0.810.</p>
+      <figure><img class="smooth" src="img/day14/cm_heatmap.png" alt="위 혼동 행렬을 개수와 행 기준 비율 두 가지 색 지도로 그린 그림"><figcaption><b>무엇을 보나:</b> 위 표를 색으로 칠했어요(진할수록 큼). 초록 테두리 대각선이 맞힌 것, 빨간 점선은 <b>circle 열로 몰린 오답 13개</b>(square 8 + triangle 5). 오른쪽은 각 행을 그 행의 합으로 나눈 비율이라 대각선이 곧 클래스별 Recall(1.00 · 0.73 · 0.70)이에요. <b>🤔 왜?</b> 오답이 한 열에 몰렸다는 건 모델이 헷갈리면 "circle"로 도망간다는 뜻이에요 — train에 circle이 가장 많았던 흔적일 수 있어요. 클래스마다 개수가 다를 땐 raw 숫자만 보면 큰 클래스가 진해 보이니, 행 비율로 바꿔 클래스끼리 공정하게 비교해요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 숫자 하나 말고 행렬?</strong> — Accuracy는 "몇 개 맞혔나"만 알려 줘요. 행렬은 <b>무엇을 무엇으로</b> 헷갈렸는지 보여 줘서, "square를 circle로 자주 착각한다" 같은 다음 실험의 실마리를 줘요.</div>
+
+      <h3>클래스별 지표</h3>
+      <table>
+        <tr><th>지표</th><th>공식</th><th>질문</th></tr>
+        <tr><td><b>Precision</b></td><td>그 클래스로 예측한 것 중 정답 비율</td><td>예측을 얼마나 믿을 수 있나?</td></tr>
+        <tr><td><b>Recall</b></td><td>실제 그 클래스 중 찾아낸 비율</td><td>실제 대상을 얼마나 안 놓쳤나?</td></tr>
+        <tr><td><b>F1</b></td><td>2 × P × R / (P + R) — 조화평균</td><td>P와 R을 한 숫자로 요약하면?</td></tr>
+        <tr><td><b>Support</b></td><td>실제 그 클래스 표본 수</td><td>몇 장을 근거로 한 숫자인가?</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 F1은 "조화"평균?</strong> — 그냥 평균이면 Precision 1.0 · Recall 0.0도 0.5로 그럴듯해 보여요. 조화평균은 <b>둘 중 작은 쪽에 끌려가서</b> 하나라도 0이면 F1도 0이 돼요. "둘 다 괜찮아야 높은 점수"라는 뜻이에요.</div>
+      <div class="figs">
+      <figure><img class="smooth" src="img/day14/prf_bars.png" alt="위 혼동 행렬의 클래스별 Precision, Recall, F1 막대그래프"><figcaption><b>무엇을 보나:</b> 같은 행렬로 계산한 클래스별 지표예요. circle은 Recall 1.00인데 Precision 0.70, triangle은 반대로 Precision 1.00인데 Recall 0.70. F1은 둘 다 0.82로 같아요. <b>🤔 왜?</b> circle은 모든 circle을 찾았지만 "circle"이라는 예측 43개 중 13개가 다른 클래스라 믿기 어렵고, triangle은 "triangle"이라고 하면 늘 맞지만 30개 중 9개를 놓쳐요. 실패 방향이 정반대여도 F1 하나로는 같아 보이니 P·R을 함께 봐요.</figcaption></figure>
+      <figure><img class="smooth" src="img/day14/f1_harmonic.png" alt="Precision을 1로 고정하고 Recall을 바꿀 때 산술평균과 F1을 비교한 곡선"><figcaption><b>무엇을 보나:</b> Precision을 1.0으로 고정하고 Recall만 0 → 1로 바꿨어요. 그냥 평균(회색 점선)은 Recall이 0이어도 0.5, F1(분홍)은 0에서 출발해요. <b>🤔 왜?</b> 조화평균은 작은 값에 끌려가는 평균이라, 한쪽이 0이면 결과도 0이에요. 그래서 "하나는 완벽, 하나는 엉망"인 모델이 그럴듯한 점수를 받지 못해요.</figcaption></figure>
+      </div>
+
+      <h3>Macro vs Weighted 평균</h3>
+      <table>
+        <tr><th></th><th>Macro</th><th>Weighted</th></tr>
+        <tr><td>계산</td><td>클래스별 F1의 <b>단순 평균</b></td><td>support(개수)를 가중치로 평균</td></tr>
+        <tr><td>소수 클래스</td><td>다른 클래스와 <b>같은 비중</b></td><td>다수 클래스에 묻힘</td></tr>
+        <tr><td>언제</td><td>불균형 문제의 균형 확인</td><td>전체 분포 기준 요약</td></tr>
+      </table>
+<pre><code>예) 실제 circle 4 · square 2 · triangle 1장, 모델은 전부 circle이라고 예측
+Accuracy    = 4/7 = 0.571   ← 절반 넘음?!
+circle F1   = 0.727,  square F1 = 0,  triangle F1 = 0
+Weighted F1 = 0.727 × 4/7 = 0.416
+Macro F1    = (0.727 + 0 + 0) / 3 = 0.242   ← 실패가 드러남</code></pre>
+      <div class="callout">🤔 <strong>왜 불균형엔 Accuracy 대신 Macro F1?</strong> — Accuracy와 Weighted F1은 <b>장수가 많은 클래스가 점수를 지배</b>해요. 그래서 다수 클래스만 맞혀도 점수가 높게 나와 소수 클래스의 실패를 가려요. Macro F1은 클래스마다 한 표씩 주니까, 한 클래스라도 0이면 점수가 크게 떨어져요. 결함처럼 <b>적지만 중요한</b> 클래스를 지켜야 할 때 맞는 지표예요. 그래서 Macro F1과 클래스별 Recall·support를 <b>반드시 함께</b> 봐요.</div>
+
+      <p>아래 칸의 숫자를 바꿔 보세요. 대각선 밖으로 옮길수록 Macro F1이 Accuracy보다 훨씬 빨리 떨어지는 걸 볼 수 있어요.</p>
+      <div class="lab">
+        <table id="cm-table">
+          <tr><th>실제 ＼ 예측</th><th>circle</th><th>square</th><th>triangle</th></tr>
+          <tr><th>circle</th><td><input type="number" min="0" max="999" id="cm-00" value="8"></td><td><input type="number" min="0" max="999" id="cm-01" value="0"></td><td><input type="number" min="0" max="999" id="cm-02" value="0"></td></tr>
+          <tr><th>square</th><td><input type="number" min="0" max="999" id="cm-10" value="1"></td><td><input type="number" min="0" max="999" id="cm-11" value="0"></td><td><input type="number" min="0" max="999" id="cm-12" value="0"></td></tr>
+          <tr><th>triangle</th><td><input type="number" min="0" max="999" id="cm-20" value="1"></td><td><input type="number" min="0" max="999" id="cm-21" value="0"></td><td><input type="number" min="0" max="999" id="cm-22" value="0"></td></tr>
+        </table>
+        <div class="readout">
+          <button type="button" id="cm-preset-a">예시: 10장 전부 circle</button>
+          <button type="button" id="cm-preset-b">예시: Sampler 결과</button>
+          <button type="button" id="cm-preset-c">예시: 전부 정답</button>
+        </div>
+        <table id="cm-per-class">
+          <tr><th>클래스</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th></tr>
+        </table>
+        <div class="readout">
+          <div>Accuracy <span class="big" id="cm-acc">0.00</span></div>
+          <div>Weighted F1 <span class="big" id="cm-wf1">0.00</span></div>
+          <div>Macro F1 <span class="big" id="cm-mf1">0.00</span></div>
+        </div>
+        <div class="verdict" id="cm-verdict"></div>
+      </div>
+
+      <h3>🔧 명령어: <code>confusion_matrix</code> · <code>classification_report</code></h3>
+<pre><code>from sklearn.metrics import confusion_matrix, classification_report, f1_score
+labels = list(range(len(class_names)))           # [0, 1, 2] = class_to_idx 순서
+cm = confusion_matrix(y_true, y_pred, labels=labels)
+report = classification_report(y_true, y_pred, labels=labels, target_names=class_names,
+                               output_dict=True, zero_division=0)
+print(cm)
+print(report["macro avg"]["f1-score"])
+print(f1_score(y_true, y_pred, average="macro"))</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>y_true</code>, <code>y_pred</code> <small>(필수)</small></td><td>실제 라벨, 예측 라벨</td><td>순서를 바꾸면 Precision과 Recall이 뒤바뀜</td></tr>
+        <tr><td><code>labels</code></td><td>행·열 순서. <code>class_to_idx</code>와 같은 순서로</td><td>안 주면 데이터에 나온 라벨만 → 예측 0건인 클래스가 표에서 빠질 수 있음</td></tr>
+        <tr><td><code>target_names</code></td><td>보고서에 찍을 클래스 이름</td><td>순서가 labels와 어긋나면 이름이 틀리게 붙음</td></tr>
+        <tr><td><code>output_dict=True</code></td><td>문자열 대신 중첩 사전으로 반환 → 표·JSON 저장</td><td>False(기본)면 사람이 읽는 문자열</td></tr>
+        <tr><td><code>zero_division=0</code></td><td>분모가 0일 때(예측 0건) 값을 0으로</td><td>기본 <code>"warn"</code>은 경고를 띄움. 정책을 정해 두면 결과가 일관됨</td></tr>
+        <tr><td><code>average=</code></td><td><code>"macro"</code> / <code>"weighted"</code> / <code>"micro"</code></td><td>weighted는 소수 클래스 실패를 가릴 수 있음</td></tr>
+        <tr><td><code>digits=2</code>, <code>sample_weight</code></td><td>(선택) 소수점 자리 수, 샘플별 가중치</td><td></td></tr>
+      </table>
+
+      <h3>오류를 원인 후보로 나누기</h3>
+      <table>
+        <tr><th>후보</th><th>예</th></tr>
+        <tr><td>데이터 부족</td><td>소수 클래스의 다양한 형태·배경·조명이 부족</td></tr>
+        <tr><td>도메인 차이</td><td>사전학습 표현과 지금 촬영 환경이 다름</td></tr>
+        <tr><td>라벨 문제</td><td>클래스 기준이 모호, 잘못된 라벨, 중복</td></tr>
+        <tr><td>모델 문제</td><td>입력 크기·증강·동결 범위·학습률이 안 맞음</td></tr>
+      </table>
+      <div class="callout warn">⚠️ Confusion Matrix만 보고 원인을 확정하지 않아요. 틀린 이미지를 <b>원본·예측 확률·데이터 출처와 함께</b> 직접 보고(관찰) → 가설을 세우고 → 다음 실험으로 확인합니다. 🤔 <b>왜 확률까지?</b> — 0.51로 아깝게 틀린 것과 0.99로 <b>자신 있게 틀린</b> 것은 전혀 달라요. 자신 있게 틀린 오답은 모델이 엉뚱한 단서를 확실히 믿고 있다는 신호라 더 위험해요.</div>
+
+      <h3>🔧 명령어: 오답 이미지를 확률과 함께 모으기</h3>
+<pre><code>model.eval()
+with torch.no_grad():
+    logits = model(X_valid)
+    probs = logits.softmax(dim=1)          # 클래스별 확률 (합 = 1)
+    conf, pred = probs.max(dim=1)          # 가장 큰 확률과 그 클래스 = 예측
+wrong = (pred != y_valid).nonzero().flatten()
+for i in wrong[:8]:                        # 오분류 최대 8장
+    print(paths[i], "T=", class_names[y_valid[i]], "P=", class_names[pred[i]], f"{conf[i]:.2f}")</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>softmax(dim=1)</code></td><td>Logit을 0~1 확률로 (클래스 축)</td><td>Logit 크기는 해석이 어려워서, "얼마나 확신했나"로 바꿔 봄</td></tr>
+        <tr><td><code>max(dim=1)</code></td><td>가장 큰 확률과 그 위치 = 예측</td><td><code>argmax</code>와 같은 예측 + 확신도를 한 번에</td></tr>
+        <tr><td><code>pred != y_valid</code></td><td>틀린 샘플만 고르기</td><td>T(실제)·P(예측)·확률·파일 경로를 같이 남겨야 출처까지 추적 가능</td></tr>
+      </table>
+      <figure><img class="smooth" src="img/day14/error_gallery.png" alt="작은 데모 CNN이 맞힌 예 3장과 틀린 예 5장을 실제 라벨, 예측, 확률과 함께 보여 주는 갤러리"><figcaption><b>무엇을 보나:</b> 작은 데모 CNN(수업 예제 데이터로 몇 초 학습, Macro F1 0.944)의 실제 valid 결과예요. 윗줄은 맞힌 예, 아랫줄은 오답 <b>5장 전부</b>(T = 실제, P = 예측과 확률). 오답 4장이 실제 circle이고, 확률은 0.50~0.64로 모두 <b>아슬아슬</b>했어요. 또 오답 대부분이 배경이 밝고 도형이 흐린 색이에요. <b>🤔 왜?</b> 확률을 같이 보면 "자신 있게 틀린"(0.9 이상) 위험한 오답은 없고 경계선에서 흔들린 것뿐이라는 걸 알 수 있어요. 그리고 오답 사진을 직접 보니 "도형과 배경의 대비가 낮을 때 틀린다"는 <b>가설</b>이 생겨요 — 이건 행렬 숫자만으로는 절대 안 보여요. 다음 실험(대비 증강 등)으로 확인할 거리예요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="gradcam">⑥ Grad-CAM — 모델은 어디에 반응했나?</h2>
+      <p>Grad-CAM은 "이 클래스 점수에 사진의 어느 부분이 기여했나"를 <b>열지도(Heatmap)</b>로 보여 줘요. 모델이 물체가 아니라 배경·테두리·글자·촬영 위치 같은 엉뚱한 곳에 기대는지(편향) 찾는 단서가 됩니다.</p>
+      <div class="callout">🤔 <strong>왜 Grad-CAM이 필요해?</strong> — 지표와 Confusion Matrix는 "얼마나·무엇을" 틀렸는지만 알려 줘요. "<b>왜</b> 그렇게 판단했나"는 안 보여 주죠. 예측이 <b>맞았어도</b> 배경색이나 워터마크로 맞힌 거라면 현장에서 금방 무너져요. Grad-CAM은 모델이 기댄 위치를 보여 줘서 그런 편향 후보를 찾게 해 줘요.</div>
+      <div class="flow">
+        <span class="step">입력 Forward</span><span class="arrow">→</span>
+        <span class="step">관심 클래스<br>Logit 선택</span><span class="arrow">→</span>
+        <span class="step">마지막 Conv<br>Feature Map으로 미분</span><span class="arrow">→</span>
+        <span class="step">Gradient 공간 평균<br><small>= 채널별 중요도</small></span><span class="arrow">→</span>
+        <span class="step">가중합 → ReLU</span><span class="arrow">→</span>
+        <span class="step">입력 크기로 확대<br>원본에 겹치기</span>
+      </div>
+<pre><code>α_k  = 채널 k의 gradient를 가로·세로로 평균     ← 채널 k가 이 클래스에 얼마나 중요한가
+CAM  = ReLU( Σ_k  α_k × FeatureMap_k )          ← 점수를 "올린" 곳만 남김</code></pre>
+      <div class="callout">🤔 <strong>왜 이렇게 계산?</strong> — Feature Map의 각 채널은 "어떤 무늬가 <b>어디에</b> 있나"를 담은 지도예요. gradient는 "그 채널 값이 커지면 클래스 점수가 얼마나 오르나"예요. 그래서 gradient 평균(α)으로 채널마다 <b>중요도</b>를 매기고, 그 중요도로 지도들을 겹쳐 더하면 "점수에 기여한 위치"가 나와요. ReLU는 점수를 <b>낮추는</b> 쪽(음수)을 지워서 근거가 흐려지지 않게 해요.</div>
+      <table>
+        <tr><th>대상 층</th><th>장점</th><th>단점</th></tr>
+        <tr><td>깊은 Conv 층 (보통 <b>마지막 Conv block</b>)</td><td>클래스 의미가 강함</td><td>공간 해상도가 낮음 (흐릿)</td></tr>
+        <tr><td>얕은 Conv 층</td><td>가장자리·질감 해상도 높음</td><td>클래스 구분력 상대적으로 약함</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 보통 마지막 Conv block?</strong> — 위치 정보가 남아 있는 <b>마지막</b> 층이라서요. 그 뒤(풀링·Head)로 가면 위치가 사라져 지도를 못 그리고, 더 앞쪽은 위치는 선명하지만 아직 "이게 square다" 같은 클래스 의미가 약해요. 여러 층을 비교할 땐 별도 실험으로 기록해요.</div>
+      <figure><img class="smooth" src="img/day14/gradcam_demo.png" alt="작은 데모 CNN에서 계산한 circle, square, triangle 이미지의 Grad-CAM 열지도와 겹쳐 보기"><figcaption><b>무엇을 보나:</b> ⚠️ <b>작은 데모 CNN</b>(수업 예제 도형 데이터로 CPU에서 몇 초 학습, ResNet18 아님)의 마지막 Conv(8×8)로 실제 계산한 Grad-CAM이에요. 왼쪽 입력, 가운데 열지도(빨강 = 점수에 기여 큼), 오른쪽 겹쳐 보기. square·triangle은 도형 위·모서리에 반응했지만, circle은 <b>맞혔는데도(P=0.85) 도형이 아니라 배경 쪽</b>에 반응했어요. <b>🤔 왜?</b> Grad-CAM은 "점수를 올린 위치"를 보여 줄 뿐 "사람이 보기에 옳은 근거"를 보장하지 않아요. circle 행처럼 정답을 맞혀도 엉뚱한 곳(배경 밝기·잡음)에 기댔을 수 있다는 <b>편향 후보</b>가 되고, 그 영역을 가려 점수가 실제로 바뀌는지 확인해야 원인이라 말할 수 있어요. 8×8 지도를 32×32로 늘린 거라 흐릿한 것도 정상이에요.</figcaption></figure>
+      <div class="callout">💡 <strong>target을 바꾸면 질문이 바뀐다</strong> — 같은 square 사진이라도 "square 점수의 근거는?"과 "circle 점수의 근거는?"은 다른 질문이라 열지도도 달라져요. 그리고 열지도는 가장 밝은 곳을 1로 맞춘 값이라 <b>밝기 ≠ 점수</b>예요. 확률 0.03인 클래스도 밝게 보일 수 있어요.</div>
+      <figure><img class="smooth" src="img/day14/gradcam_targets.png" alt="같은 square 이미지에 target을 circle, square, triangle로 바꿔 계산한 Grad-CAM 비교"><figcaption><b>무엇을 보나:</b> 같은 square 사진에서 target만 바꿨어요. target=square(확률 0.99)는 도형 위에, target=circle(0.01)·triangle(0.00)은 구석 배경에 빨간 곳이 생겨요. <b>🤔 왜?</b> target이 바뀌면 "어느 클래스 점수의 근거인가"라는 질문이 바뀌니 지도도 달라져요. 그리고 지도마다 최댓값을 1로 맞추기 때문에 확률이 0.00인 클래스도 <b>진한 빨강</b>이 나와요 — 색이 진하다고 그 클래스일 가능성이 높다는 뜻이 아니에요.</figcaption></figure>
+      <div class="callout warn">⚠️ <strong>Grad-CAM의 한계</strong>
+        <ul>
+          <li>해상도가 낮고, 고른 층·클래스·정규화 방식에 따라 결과가 달라진다.</li>
+          <li>강한 색이 반드시 사람에게 의미 있는 물체 부분은 아니다 → <b>인과 설명이 아니라 모델 의존성의 단서</b>.</li>
+          <li>그래서 해당 영역을 가리거나 바꾼 입력(Occlusion·Counterfactual)으로 점수가 실제로 바뀌는지, 데이터 Slice별 지표와 같이 확인한다.</li>
+          <li>Grad-CAM은 분석용 gradient만 쓴다. <code>optimizer.step()</code>으로 모델을 바꾸는 단계가 아니다.</li>
+        </ul>
+      </div>
+      <div class="callout">💡 <strong>편향 점검 순서</strong> — ① 모델이 물체보다 배경색·테두리·문자·촬영 위치에 집중하는지 본다 → ② 클래스마다 카메라·해상도·압축률이 다른지 메타데이터와 연결한다 → ③ 그 영역을 가린 입력으로 예측 변화를 확인한다 → ④ 데이터를 고친 뒤 같은 오류 Slice와 Grad-CAM을 다시 비교한다.</div>
+
+      <h3>🔧 명령어: Hook으로 activation · gradient 기록</h3>
+<pre><code>activation, gradient, handles = {}, {}, []
+def save_grad(grad):
+    gradient["value"] = grad.detach()
+def save_act(module, inputs, output):
+    activation["value"] = output.detach()
+    handles.append(output.register_hook(save_grad))      # 이 텐서의 gradient도 기록
+
+model.eval()
+image = image.detach().requires_grad_(True)
+target_layer = model.layer4[-1]                          # 마지막 Conv block
+handles.append(target_layer.register_forward_hook(save_act))
+try:
+    with torch.enable_grad():                            # eval이어도 gradient는 켬
+        model.zero_grad(set_to_none=True)
+        logits = model(image)
+        logits[0, target_class].backward()               # 관심 클래스 점수로 미분
+finally:
+    for h in handles:
+        h.remove()                                       # 꼭 지우기!</code></pre>
+      <div class="callout">🤔 <strong>왜 Hook을 써?</strong> — 모델은 최종 Logit만 돌려주고 중간 층의 출력(Feature Map)과 그 gradient는 버려요. Hook은 "그 층을 지날 때 값을 몰래 복사해 둬"라는 <b>갈고리</b>라서, 모델 코드를 고치지 않고 중간값을 꺼낼 수 있어요. <code>try/finally</code>로 감싸는 건 중간에 에러가 나도 Hook을 <b>반드시</b> 지우려는 거예요.</div>
+      <table>
+        <tr><th>명령어</th><th>뜻</th><th>주의 / 🤔 왜?</th></tr>
+        <tr><td><code>module.register_forward_hook(fn)</code></td><td>그 층을 지날 때 <code>fn(module, args, output)</code> 호출</td><td>RemovableHandle을 돌려줌 → <code>.remove()</code></td></tr>
+        <tr><td><code>tensor.register_hook(fn)</code></td><td>그 텐서의 gradient가 계산되면 <code>fn(grad)</code> 호출</td><td>Feature Map에 대한 gradient를 얻는 방법</td></tr>
+        <tr><td><code>model.eval()</code> + <code>enable_grad()</code></td><td>BN·Dropout은 평가 모드, gradient는 계산</td><td>평가 모드로 결과를 고정하되, 미분은 필요하니까. <code>inference_mode()</code>·<code>no_grad()</code> 안에선 gradient가 안 생김</td></tr>
+        <tr><td><code>target_class</code></td><td>무엇에 대한 설명인가 (보통 예측 클래스)</td><td>바꾸면 다른 질문이 됨 → target class와 층을 함께 기록</td></tr>
+        <tr><td><code>.detach()</code></td><td>저장할 값을 계산 그래프에서 떼어 냄</td><td>그래프를 붙잡고 있지 않아 메모리 절약</td></tr>
+      </table>
+      <div class="callout warn">⚠️ Hook을 지우지 않고 계속 등록하면 한 번 Forward에 여러 번 호출되고 메모리가 늘어나요. 그리고 Grad-CAM 중에는 <code>optimizer.step()</code>을 부르지 않아요 — 설명하려다 모델을 바꾸면 안 되니까요.</div>
+
+      <h3>🔧 명령어: 채널 weight와 Heatmap 계산</h3>
+<pre><code>grads = gradient["value"][0]          # [C, H, W]
+acts  = activation["value"][0]        # [C, H, W]
+alpha = grads.mean(dim=(1, 2))        # 채널별 중요도
+cam = torch.relu((alpha[:, None, None] * acts).sum(0))
+cam = cam / (cam.max() + 1e-8)        # 0~1로 맞춤
+cam = torch.nn.functional.interpolate(cam[None, None], size=image_hw,
+                                      mode="bilinear", align_corners=False)[0, 0]</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>mean(dim=(1, 2))</code></td><td>gradient를 가로·세로로 평균</td><td>위치별 잡음을 평균으로 눌러 채널 하나당 중요도 숫자 하나로</td></tr>
+        <tr><td><code>torch.relu(...)</code></td><td>클래스 점수를 올린 영역만 남김</td><td>빼면 점수를 <b>낮추는</b> 영역까지 칠해져 근거가 흐려짐</td></tr>
+        <tr><td><code>cam.max() + 1e-8</code></td><td>가장 밝은 곳을 1로</td><td>1e-8은 cam이 전부 0일 때 0으로 나누는 걸 막음. 이 정규화 때문에 <b>밝기 ≠ 점수</b></td></tr>
+        <tr><td><code>interpolate(size=image_hw, mode="bilinear")</code></td><td>작은 열지도를 원본 크기로 확대</td><td>원본에 겹쳐 보려면 크기가 같아야 함. 확대일 뿐 해상도가 생기지는 않음</td></tr>
+      </table>
+      <p><small>간단히 쓰면 hook 대신 <code>torch.autograd.grad(score[0, target], features)[0]</code>로 특징 지도에 대한 gradient를 바로 받을 수도 있어요.</small></p>
+
+      <!-- ============================================================ -->
+      <h2 id="repro">⑦ 비교 · 저장 · 재현 — 다른 사람도 같은 결과를 얻나?</h2>
+      <table>
+        <tr><th>고정할 조건</th><th>기록할 변경</th></tr>
+        <tr><td>분할 · 클래스 매핑</td><td>Weight · 시작 checkpoint</td></tr>
+        <tr><td>평가 입력 · 주 지표</td><td>학습 범위 · 학습률 · 학습량(epoch)</td></tr>
+        <tr><td>비교 기준 (valid로 선택, test로 최종 확인)</td><td>BN 정책 · Loss · Sampler · seed</td></tr>
+      </table>
+      <p>주 지표는 <b>Macro F1</b>, 보조 지표는 Accuracy·클래스별 Recall·시간·학습 파라미터 수. 후보 선택 규칙(예: Macro F1 → valid loss 순)도 <b>미리</b> 정하고, 결과를 본 뒤 기준을 바꾸지 않아요. 순차 학습(Head-only → Partial)이면 앞 단계의 학습량도 기록해요.</p>
+      <div class="callout">🤔 <strong>왜 한 번에 하나만 바꿔?</strong> — lr과 Sampler를 동시에 바꿨는데 좋아졌다면, 어느 쪽 덕분인지 <b>알 수 없어요</b>. 나머지 조건을 고정해야 차이를 그 변경 하나의 효과로 해석할 수 있어요. 결과를 본 뒤 규칙을 바꾸면 "좋아 보이는 쪽"을 고르게 되니 규칙은 미리 정해요.</div>
+<pre><code>torch.manual_seed(14)                         # 맨 앞에서 무작위 시작값 고정
+
+torch.save({"weights": best_state, "classes": train_set.classes,
+            "lr": 0.01, "epochs": 8, "seed": 14, "test_used": False}, "model.pt")
+
+saved = torch.load("model.pt", map_location="cpu", weights_only=True)
+model.load_state_dict(saved["weights"]); model.eval()</code></pre>
+      <table>
+        <tr><th>명령어 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>torch.manual_seed(n)</code></td><td>무작위 시작값 고정</td><td>seed만 바꿔도 결과가 꽤 흔들림 → 한 번 결과로 결론 내지 않고 seed를 바꿔 여러 번 확인</td></tr>
+        <tr><td><code>torch.save(dict, path)</code></td><td>가중치 + <b>만든 방법</b>(클래스·lr·epoch·seed·test 사용 여부)을 함께 저장</td><td>가중치만 저장하면 다시 만들 수도, 클래스 번호를 해석할 수도 없음</td></tr>
+        <tr><td><code>map_location="cpu"</code></td><td>GPU에서 저장한 걸 CPU로 불러오기</td><td>빼면 GPU가 없는 컴퓨터에서 에러</td></tr>
+        <tr><td><code>weights_only=True</code></td><td>텐서 같은 안전한 값만 불러옴</td><td>False면 파일 안의 임의 코드가 실행될 수 있음 → 믿을 수 없는 checkpoint는 <code>torch.load</code> 하지 않기</td></tr>
+      </table>
+      <table>
+        <tr><th>상황</th><th>기대 결과</th><th>확인 근거</th></tr>
+        <tr><td>정상 3클래스 폴더</td><td>Batch·라벨·학습 정상</td><td>class_to_idx · Shape</td></tr>
+        <tr><td>minority 1장</td><td>지표 계산 가능, 경고 기록</td><td>support · zero_division</td></tr>
+        <tr><td>train/test 중복</td><td>실행 전 감사 실패</td><td>파일 / 지각 해시</td></tr>
+        <tr><td>Weight 미준비</td><td>명확한 안내 후 중단</td><td>임의 random weight 대체 금지</td></tr>
+        <tr><td>저장 모델 복원</td><td>동일 입력 Logit이 허용 오차 안에서 일치</td><td>classes · transform · state_dict</td></tr>
+      </table>
+      <div class="callout">💡 같은 설정으로 다시 실행했을 때 결과가 다르면 <b>Weight · transform · seed · class_to_idx</b>부터 확인해요. 그리고 epoch 수가 같아도 학습 시간까지 같지는 않아요.</div>
+      <figure><img class="smooth" src="img/day14/seed_spread.png" alt="같은 설정에서 seed만 바꿔 학습한 작은 데모 CNN의 valid Macro F1 점 그래프"><figcaption><b>무엇을 보나:</b> 작은 데모 CNN을 데이터·구조·epoch(15)·lr을 모두 같게 두고 <code>torch.manual_seed</code>만 바꿔 6번 학습한 실제 결과예요. valid Macro F1이 seed 3은 0.734, seed 2는 1.000 — <b>0.266</b>이나 차이 나요. <b>🤔 왜?</b> seed는 첫 가중치와 배치 순서를 정해요. 데이터가 작고 epoch가 짧으면 출발점·순서 운이 결과를 크게 흔들어요. 그래서 "A 설정이 B보다 0.05 좋다"는 결론은 seed 하나로 내리면 안 되고, 여러 seed의 범위를 비교하거나 seed를 고정·기록해 같은 조건에서 비교해요.</figcaption></figure>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>Day14_20261105.pdf</code> (p.2–11 큰 그림, p.17–26 데이터셋, p.27–46 전이학습·Fine-tuning, p.47–58 불균형, p.59–68 평가·오류, p.69–79 Grad-CAM, p.80–99 비교·프로젝트·Weight 점검)</li>
+        <li>요약: <code>Day14_oneday요약.pdf</code> (대표 코드 흐름, 파라미터별 변화)</li>
+        <li>공식 문서: <a href="https://docs.pytorch.org/vision/stable/models.html" target="_blank">Torchvision Models (resnet18 · Weights · transforms)</a> · <a href="https://docs.pytorch.org/vision/stable/generated/torchvision.datasets.ImageFolder.html" target="_blank">ImageFolder</a></li>
+        <li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html" target="_blank">CrossEntropyLoss</a> · <a href="https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.WeightedRandomSampler" target="_blank">WeightedRandomSampler</a></li>
+        <li>공식 문서: <a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html" target="_blank">scikit-learn classification_report</a> · 논문: Selvaraju et al., <i>Grad-CAM</i>, ICCV 2017</li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day13.html">← 이전: Day13</a>
+      <a href="day15.html">다음: Day15 →</a>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  // ===== Confusion Matrix → Accuracy · Macro F1 · Weighted F1 =====
+  (() => {
+    const names = ['circle', 'square', 'triangle'];
+    const cell = (i, j) => document.getElementById(`cm-${i}${j}`);
+    const presets = {
+      'cm-preset-a': [[8, 0, 0], [1, 0, 0], [1, 0, 0]],
+      'cm-preset-b': [[30, 0, 0], [8, 22, 0], [5, 4, 21]],
+      'cm-preset-c': [[10, 0, 0], [0, 10, 0], [0, 0, 10]],
+    };
+    const perTable = document.getElementById('cm-per-class');
+    const rows = names.map(n => {
+      const tr = perTable.insertRow();
+      const th = document.createElement('th'); th.textContent = n; tr.appendChild(th);
+      return [0, 1, 2, 3].map(() => tr.insertCell());
+    });
+    const f = v => v.toFixed(3);
+
+    function calc() {
+      const m = [0, 1, 2].map(i => [0, 1, 2].map(j => Math.max(0, Math.floor(+cell(i, j).value || 0))));
+      const total = m.flat().reduce((a, b) => a + b, 0);
+      const correct = m[0][0] + m[1][1] + m[2][2];
+      let macro = 0, weighted = 0;
+      const recalls = [], supports = [];
+      names.forEach((_, k) => {
+        const tp = m[k][k];
+        const predK = m[0][k] + m[1][k] + m[2][k];
+        const support = m[k][0] + m[k][1] + m[k][2];
+        const p = predK ? tp / predK : 0;
+        const r = support ? tp / support : 0;
+        const f1 = (p + r) ? 2 * p * r / (p + r) : 0;
+        macro += f1 / 3;
+        weighted += total ? f1 * support / total : 0;
+        recalls.push(r); supports.push(support);
+        rows[k][0].textContent = f(p); rows[k][1].textContent = f(r);
+        rows[k][2].textContent = f(f1); rows[k][3].textContent = support;
+      });
+      const acc = total ? correct / total : 0;
+      document.getElementById('cm-acc').textContent = f(acc);
+      document.getElementById('cm-wf1').textContent = f(weighted);
+      document.getElementById('cm-mf1').textContent = f(macro);
+      // 가장 많이 놓친 클래스(support가 있는 것 중 Recall 최저)와 가장 많은 클래스
+      let worst = -1;
+      names.forEach((_, k) => { if (supports[k] && (worst < 0 || recalls[k] < recalls[worst])) worst = k; });
+      const big = supports.indexOf(Math.max(...supports));
+      const share = total ? supports[big] / total : 0;
+      const gap = acc - macro;
+      document.getElementById('cm-verdict').textContent = !total ? '숫자를 넣어 보세요'
+        : gap > 0.2
+          ? `⚠️ Accuracy ${f(acc)}인데 Macro F1은 ${f(macro)} — 왜? ${names[big]}이(가) 전체의 ${(share * 100).toFixed(0)}%라 그것만 맞혀도 Accuracy가 높지만, ${names[worst]} Recall이 ${f(recalls[worst])}라서 Macro(클래스마다 한 표)에선 그 실패가 그대로 드러나요`
+          : `✅ Accuracy와 Macro F1 차이 ${f(Math.abs(gap))} — 클래스별로 비교적 고르게 맞혀서 두 지표가 비슷해요 (가장 약한 클래스: ${names[worst]}, Recall ${f(recalls[worst])})`;
+    }
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) cell(i, j).addEventListener('input', calc);
+    Object.entries(presets).forEach(([id, mat]) => {
+      document.getElementById(id).addEventListener('click', () => {
+        mat.forEach((r, i) => r.forEach((v, j) => { cell(i, j).value = v; }));
+        calc();
+      });
+    });
+    calc();
+  })();
+
+  // ===== 클래스 개수 → class weight · Sampler 확률 · "다수만 찍기" Accuracy =====
+  (() => {
+    const names = ['circle', 'square', 'triangle'];
+    const inputs = [0, 1, 2].map(k => document.getElementById(`imbN${k}`));
+    const table = document.getElementById('imbTable');
+    const rows = names.map(n => {
+      const tr = table.insertRow();
+      const th = document.createElement('th'); th.textContent = n; tr.appendChild(th);
+      return [0, 1, 2].map(() => tr.insertCell());
+    });
+    function calc() {
+      const n = inputs.map(el => Math.max(1, Math.floor(+el.value || 1)));
+      const total = n.reduce((a, b) => a + b, 0);
+      const inv = n.map(c => total / c);
+      const mean = inv.reduce((a, b) => a + b, 0) / 3;
+      const cw = inv.map(v => v / mean);
+      names.forEach((_, k) => {
+        rows[k][0].textContent = n[k];
+        rows[k][1].textContent = cw[k].toFixed(2);
+        rows[k][2].textContent = (n[k] * (1 / n[k]) / 3).toFixed(3);   // 샘플별 1/개수 → 클래스 합은 모두 1/3
+      });
+      const big = n.indexOf(Math.max(...n));
+      const small = n.indexOf(Math.min(...n));
+      const acc = n[big] / total;
+      document.getElementById('imbAcc').textContent = acc.toFixed(3);
+      const ratio = n[big] / n[small];
+      document.getElementById('imbVerdict').textContent = ratio < 1.5
+        ? `거의 균형이에요 (최대/최소 ${ratio.toFixed(1)}배) — 그래서 class weight도 1에 가깝고, 보정이 거의 필요 없어요`
+        : `${names[big]}만 찍어도 Accuracy ${acc.toFixed(3)} — 왜? 전체의 ${(acc * 100).toFixed(0)}%가 ${names[big]}이라서요. 그래서 개수가 ${ratio.toFixed(1)}배 적은 ${names[small]}에 ${(cw[small] / cw[big]).toFixed(1)}배 큰 벌점(class weight)을 주거나, Sampler로 세 클래스를 1/3씩 같은 확률로 뽑아요`;
+    }
+    inputs.forEach(el => el.addEventListener('input', calc));
+    calc();
+  })();
+  </script>
+</body>
+</html>
