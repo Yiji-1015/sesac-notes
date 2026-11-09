@@ -43,5 +43,9 @@
  {"term": "Jetson", "aliases": [], "full": "NVIDIA Jetson", "short": "카메라 옆 현장에 설치하는 NVIDIA GPU가 달린 작은 컴퓨터(엣지 장치).", "analogy": "", "day": 16, "key": false},
  {"term": "JetPack", "aliases": [], "full": "NVIDIA JetPack SDK", "short": "Jetson용 소프트웨어 묶음. CUDA·TensorRT·DeepStream 버전 조합이 정해져 있어요.", "analogy": "", "day": 16, "key": false},
  {"term": "DeepStream", "aliases": ["nvinfer", "gst-nvinfer", "nvstreammux"], "full": "NVIDIA DeepStream SDK", "short": "영상 입력 → Decode → Batch(nvstreammux) → 추론(nvinfer, TensorRT) → 추적 → 화면/저장을 플러그인으로 잇는 영상 분석 파이프라인.", "analogy": "공장 컨베이어 벨트처럼 프레임이 단계별로 흘러가는 라인.", "day": 16, "key": false},
- {"term": "Throttling", "aliases": [], "full": "Thermal throttling", "short": "장치가 뜨거워지면 스스로 속도를 낮추는 현상. 그래서 엣지에선 온도·전력도 함께 기록해요.", "analogy": "", "day": 16, "key": false}
+ {"term": "Throttling", "aliases": [], "full": "Thermal throttling", "short": "장치가 뜨거워지면 스스로 속도를 낮추는 현상. 그래서 엣지에선 온도·전력도 함께 기록해요.", "analogy": "", "day": 16, "key": false},
+ {"term": "jiwer", "aliases": ["jiwer.cer"], "full": "jiwer (CER·WER 계산 라이브러리)", "short": "정답 문자열과 OCR·음성인식 결과를 넣으면 CER(글자 오류율)·WER(단어 오류율)을 계산해 주는 Python 패키지. 순서는 (정답, 예측).", "analogy": "빨간 펜으로 틀린 글자 수를 세어 주는 채점기.", "day": 16, "key": false},
+ {"term": "필드 정확도", "aliases": ["Field accuracy"], "full": "Field accuracy (필드 정확도)", "short": "합계·날짜·공급자 같은 업무 필드 중 값이 정확히 맞은 비율. 글자 하나만 틀려도 그 필드는 통째로 틀린 걸로 세요.", "analogy": "받아쓰기 점수(CER)가 아니라 '시험 답안 칸이 맞았나'를 세는 것.", "day": 16, "key": true},
+ {"term": "보류", "aliases": [], "full": "보류 (review · 사람 확인)", "short": "근거와 맞지 않거나 원문에 없는 값을 자동으로 확정하지 않고 null로 두어 사람이 확인하게 하는 상태. 정답으로 세지 않아요.", "analogy": "애매한 판정은 비디오 판독으로 넘기기.", "day": 16, "key": false},
+ {"term": "greedy decoding", "aliases": ["Greedy"], "full": "Greedy decoding (탐욕적 생성)", "short": "다음 토큰을 매번 가장 확률 높은 것 하나로 고르는 생성 방식. do_sample=False가 이것이라 같은 입력에 같은 답이 나와요.", "analogy": "갈림길마다 지금 가장 넓은 길만 고르는 것.", "day": 16, "key": false}
 ]

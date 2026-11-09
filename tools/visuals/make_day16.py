@@ -415,6 +415,89 @@ def fig_precision_size():
     save(fig, 16, "precision_size")
 
 
+# ------------------------------------------------------------ oneday 요약본의 실측 숫자로 그린 그림
+# 숫자 출처: Day16 oneday 요약 PDF (scikit-image 내장 스캔 페이지 · 코드로 그린 영어 청구서를
+# Tesseract 5.5.2 · SmolVLM-256M-Instruct로 실제 실행한 결과). 여기서는 그 숫자를 그래프로만 옮긴다.
+def fig_param_cer():
+    fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.9), gridspec_kw={"width_ratios": [1.15, 1, 1]})
+    ax = axes[0]                                              # blockSize
+    labels = ["3", "15", "30", "31\n(코드)", "101"]
+    vals = [0.137, 0.050, None, 0.057, 0.084]
+    for i, v in enumerate(vals):
+        if v is None:
+            ax.text(i, 0.02, "실행\n오류", ha="center", va="bottom", color=C["red"], fontsize=10, fontweight="bold")
+            continue
+        ax.bar(i, v, color=C["purple"] if i == 3 else C["blue"], width=0.6)
+        ax.text(i, v + 0.008, f"{v:.3f}", ha="center", fontsize=10)
+    ax.set_xticks(range(5)); ax.set_xticklabels(labels)
+    ax.set_ylim(0, 0.45); ax.set_ylabel("CER (낮을수록 좋음)")
+    ax.set_title("blockSize (C=11)"); ax.set_xlabel("짝수는 안 됨 (가운데 픽셀이 없어서)")
+    ax = axes[1]                                              # C
+    labels = ["0", "11\n(코드)", "30", "60"]
+    vals = [0.388, 0.057, 0.020, 0.221]
+    for i, v in enumerate(vals):
+        ax.bar(i, v, color=C["purple"] if i == 1 else (C["mint"] if i == 2 else C["orange"]), width=0.6)
+        ax.text(i, v + 0.008, f"{v:.3f}", ha="center", fontsize=10)
+    ax.set_xticks(range(4)); ax.set_xticklabels(labels)
+    ax.set_ylim(0, 0.45); ax.set_title("C (blockSize=31)"); ax.set_xlabel("너무 작아도, 너무 커도 나빠짐")
+    ax = axes[2]                                              # 이진화 방법
+    labels = ["원본 Gray", "Otsu\n(기준 157 하나)", "Adaptive\n(31, 11)"]
+    vals = [0.324, 0.361, 0.057]
+    cols = [C["gray"], C["red"], C["purple"]]
+    for i, v in enumerate(vals):
+        ax.bar(i, v, color=cols[i], width=0.6)
+        ax.text(i, v + 0.008, f"{v:.3f}", ha="center", fontsize=10)
+    ax.set_xticks(range(3)); ax.set_xticklabels(labels, fontsize=10)
+    ax.set_ylim(0, 0.45); ax.set_title("이진화 방법"); ax.set_xlabel("왼쪽이 어두운 페이지에선 전역 기준이 실패")
+    for a in axes:
+        a.grid(axis="x", visible=False)
+    fig.suptitle("같은 스캔 페이지(왼쪽이 어두움)를 PSM 6으로 OCR했을 때의 글자 오류율 — oneday 요약본 실측",
+                 fontsize=12.5, fontweight="bold")
+    save(fig, 16, "param_cer")
+
+
+def fig_conf_threshold():
+    fig, ax = plt.subplots(figsize=(11, 2.9))
+    ax.axvspan(92.8, 100, ymin=0.25, ymax=0.75, color=C["mint"], alpha=0.35)
+    ax.text(96.4, 0.5, "맞게 읽은 단어 20개\n모두 92.8점 이상", ha="center", va="center",
+            fontsize=10.5, color=C["ink"], fontweight="bold")
+    ax.plot([65.6], [0.5], "o", ms=14, color=C["orange"], mec="white", mew=2)
+    ax.annotate("오답 1개: DOCO3\n(숫자 0을 글자 O로) 65.6점", (65.6, 0.5), (65.6, 0.95), ha="center", va="top",
+                fontsize=10.5, color=C["orange"], fontweight="bold", arrowprops=dict(arrowstyle="-", color=C["orange"]))
+    for x, lab, col in [(50, "기준 50 → 검토 0개\n(오답이 그냥 통과)", C["red"]),
+                        (90, "기준 90 → 검토 1개\n(오답만 정확히 걸림)", C["purple"])]:
+        ax.axvline(x, color=col, ls="--", lw=2)
+        ax.text(x - 0.8, 0.06, lab, ha="right", va="bottom", fontsize=10, color=col, fontweight="bold")
+    ax.set_xlim(30, 100); ax.set_ylim(0, 1); ax.set_yticks([])
+    ax.set_xlabel("Tesseract confidence (단어 21개, 정면 보정한 청구서)")
+    ax.spines["left"].set_visible(False); ax.grid(axis="y", visible=False)
+    ax.set_title("confidence 기준선을 어디에 긋느냐 — oneday 요약본 실측")
+    save(fig, 16, "conf_threshold")
+
+
+def fig_cer_vs_field():
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.6))
+    names = ["0.5배 사진\n(350×240)", "0.4배 사진\n(280×192)", "0.4배 → 2배 확대\n(INTER_CUBIC)"]
+    cer = [0.041, 0.066, 0.008]
+    field = [3, 2, 3]
+    ax = axes[0]
+    for i, v in enumerate(cer):
+        ax.bar(i, v, color=[C["blue"], C["orange"], C["mint"]][i], width=0.6)
+        ax.text(i, v + 0.002, f"{v:.3f}", ha="center", fontsize=10.5)
+    ax.set_xticks(range(3)); ax.set_xticklabels(names, fontsize=10); ax.set_ylim(0, 0.085)
+    ax.set_title("CER (낮을수록 좋음)"); ax.grid(axis="x", visible=False)
+    ax = axes[1]
+    for i, v in enumerate(field):
+        ax.bar(i, v, color=[C["blue"], C["red"], C["mint"]][i], width=0.6)
+        ax.text(i, v + 0.06, f"{v}/3", ha="center", fontsize=11, fontweight="bold")
+    ax.text(1, 1.0, "공급자\n놓침", ha="center", color="white", fontsize=10, fontweight="bold")
+    ax.set_xticks(range(3)); ax.set_xticklabels(names, fontsize=10); ax.set_ylim(0, 3.6); ax.set_yticks([0, 1, 2, 3])
+    ax.set_title("필드 정답 (합계 · 날짜 · 공급자)"); ax.grid(axis="x", visible=False)
+    fig.suptitle("CER 6.6%뿐인데 필드 하나를 통째로 놓침 — 두 지표는 다른 것을 잰다 (oneday 요약본 실측)",
+                 fontsize=12.5, fontweight="bold")
+    save(fig, 16, "cer_vs_field")
+
+
 if __name__ == "__main__":
     fig_preprocess_steps()
     fig_threshold_profile()
@@ -424,3 +507,6 @@ if __name__ == "__main__":
     fig_kv_extract()
     fig_crop_vs_resize()
     fig_precision_size()
+    fig_param_cer()
+    fig_conf_threshold()
+    fig_cer_vs_field()

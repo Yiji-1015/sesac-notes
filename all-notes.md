@@ -6378,18 +6378,26 @@ _2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · 
 
 - VLM은 이미지+질문을 함께 보고 답하지만 그럴듯한 오답이 있어 원문 근거와 대조해야 하고, 배포는 지원 모델을 ONNX → TensorRT Engine으로 바꿔 Jetson·DeepStream에서 돌린다.
 
+🤝 하루 내내 지키는 약속 3가지
+
+- 원본을 덮어쓰지 않는다 — 원본·전처리본·OCR 결과·최종 JSON을 따로 저장하고, 좌표가 어느 이미지 기준인지 같이 적어요. 🤔 왜? 전처리를 바꿔 다시 돌리거나 "이 값이 어디서 나왔지?"를 확인하려면 출발점이 남아 있어야 해요.
+
+- 값은 근거와 함께 — raw(원문) · value(정규화 값) · bbox · confidence를 한 묶음으로. 근거가 없으면 0이나 빈 문자열이 아니라 null + 검토 이유를 남겨요. 🤔 왜? 0은 "금액이 0원"이라는 진짜 값처럼 보여요. null이어야 "못 찾음"이 구분돼요.
+
+- 분모와 출처를 섞지 않는다 — 같은 문서·정답·정규화 규칙에서 비교하고, 직접 돌린 결과인지 남이 기록한 결과인지 적어요. 🤔 왜? 문서 10장 CER과 100장 CER, 내가 돌린 값과 남이 적은 값을 나란히 놓으면 비교가 아니라 착시예요.
+
 ## 이론 ↔ 명령어 한눈에
 
 | 이론 | 대응 명령어 |
 |---|---|
 | 📦 필요한 패키지 | pip install opencv-python numpy pandas pytesseract + Tesseract 프로그램 (VLM은 transformers) |
-| ① 문서 전처리 | cv2.imread(), cv2.cvtColor(), cv2.threshold(), cv2.adaptiveThreshold(), cv2.getPerspectiveTransform(), cv2.warpPerspective() |
+| ① 문서 전처리 | cv2.imread(), cv2.cvtColor(), cv2.threshold(), cv2.adaptiveThreshold(), cv2.getPerspectiveTransform(), cv2.warpPerspective(), cv2.perspectiveTransform()(좌표 되돌리기), cv2.resize() |
 | ② OCR 실행 · Box · Confidence | pytesseract.image_to_data(lang=, config="--oem 3 --psm 6", output_type=Output.DATAFRAME) |
-| ③ OCR 품질 평가 | levenshtein() → cer(), 필드 정확도 |
+| ③ OCR 품질 평가 | levenshtein() → cer(), jiwer.cer(), 필드 정확도 |
 | ④ 구조화 · JSON · 검증 | re.search(), re.sub(), json.dump(), validate_invoice() |
 | ⑤ VLM 이미지 질의응답 | pipeline("image-text-to-text"), processor.apply_chat_template(), model.generate() |
-| ⑥ 근거 검증 · Hybrid · 보안 | json.loads() + 필수 key·bbox 검사 |
-| ⑦ 엣지 배포 (TensorRT · Jetson · DeepStream) | trtexec --onnx= --saveEngine=, --loadEngine=, --minShapes/--optShapes/--maxShapes |
+| ⑥ 근거 검증 · Hybrid · 보안 | json.loads() + 필수 key·bbox 검사, if answer == raw → 채택 / None(보류) |
+| ⑦ 엣지 배포 (TensorRT · Jetson · DeepStream) | torch.onnx.export(), trtexec --onnx= --saveEngine=, --loadEngine=, --minShapes/--optShapes/--maxShapes |
 | ⑧ OCR·VLM 미니 애플리케이션 설계 | @dataclass OCRResult, VLMResult, 폴더별 역할 |
 
 ## 📦 필요한 패키지
@@ -6401,6 +6409,8 @@ _2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · 
 | pandas | OCR 단어 결과를 표(DataFrame)로 다루기, 평가표 저장 | import pandas as pd |
 | pytesseract | Python에서 Tesseract OCR 엔진을 불러 쓰는 연결 고리 | import pytesseract, from pytesseract import Output |
 | (표준 라이브러리) re, json, datetime, dataclasses | 정규식으로 날짜·금액 찾기, JSON 저장, 날짜 검증, 결과 구조 정의 | import re, json (설치 불필요) |
+| jiwer | 정답과 OCR 결과로 CER·WER 계산 (직접 짠 cer()와 같은 값) | import jiwer |
+| scikit-image (선택) | 연습용 내장 이미지 — data.page()는 왼쪽이 어두운 스캔 페이지 | from skimage import data |
 | VLM을 실제로 돌릴 때 (준비된 모델이 있을 때만) |  |  |
 | transformers | VLM 모델·Processor 불러오기, pipeline, 답 생성 | from transformers import pipeline, AutoProcessor, AutoModelForImageTextToText |
 | torch | 모델이 내부에서 쓰는 계산 엔진 (Day9부터 설치됨) | import torch |
@@ -6409,7 +6419,7 @@ _2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · 
 ### 🔧 설치 · 확인
 
 ```
-python -m pip install opencv-python numpy pandas pytesseract
+python -m pip install opencv-python numpy pandas pytesseract jiwer scikit-image
 python -c "import cv2, pytesseract; print(cv2.__version__, pytesseract.get_tesseract_version())"
 tesseract --version          # 진짜 OCR 엔진 프로그램이 깔려 있나?
 tesseract --list-langs       # kor, eng 언어 데이터가 있나?
@@ -6527,6 +6537,14 @@ adaptive = cv2.adaptiveThreshold(
 
 🤔 왜 눈으로 보기 좋은 결과를 고르면 안 돼? — 사람에게 깨끗해 보이는 이미지와 OCR 오류율이 낮은 이미지는 항상 같지 않아요. 그래서 설정은 개발·검증 문서의 CER(③)로 고르고, 최종 평가 문서는 그 선택 과정에서 빼 둬요. 최종 문서를 보며 고르면 그 문서에 맞춘 선택이 돼서 점수가 부풀어요.
 
+### 🔬 값을 바꾸면 실제로 어떻게 될까
+
+oneday 요약본이 왼쪽이 어두운 스캔 페이지(scikit-image 내장 data.page())를 이진화한 뒤 Tesseract(PSM 6)로 읽어, 숫자 하나씩만 바꿔 가며 CER을 잰 결과예요.
+
+[그림: blockSize 3, 15, 31, 101과 C 0, 11, 30, 60, 그리고 Gray·Otsu·Adaptive 이진화 방법에 따른 CER 막대 그래프] 무엇을 보나: 보라색이 강의 코드 값(31, 11)이에요. blockSize 3은 0.137로 나빠지고, 15가 0.050으로 가장 좋았어요. 30(짝수)은 아예 실행 오류. C는 0이면 0.388로 크게 나빠지고, 30에서 0.020으로 코드 값보다도 좋았어요. 오른쪽은 이진화 방법 비교 — Otsu(0.361)가 이진화 안 한 Gray(0.324)보다도 나빴어요. 🤔 왜? Otsu는 페이지 전체에 기준 하나(157)를 써서, 어두운 왼쪽은 종이까지 검게 칠해져 글자가 묻혀요. Adaptive는 주변 31×31마다 기준을 따로 잡아 그림자를 상쇄해요. 그리고 C=0이면 "주변 평균보다 조금만 어두워도 검정"이라 종이 결이 점으로 찍히고, 60이면 기준이 너무 낮아 흐린 획까지 하얗게 사라져요.
+
+💡 정답은 "31, 11"이 아니에요. 이 페이지에선 C=30이 더 좋았듯, 알맞은 값은 문서마다 달라요. 후보 몇 개를 돌려 보고 CER이 가장 낮은 걸 고르는 게 방법이에요 — 그래서 ③ 평가가 전처리 선택의 잣대가 돼요.
+
 ### 원근 보정 — 비스듬한 문서를 정면으로
 
 문서를 비스듬히 찍으면 사각형이 사다리꼴이 돼요. 실제 문서의 네 모서리(src)와 펼친 뒤 네 모서리(dst)를 짝지으면, 둘을 잇는 3×3 변환 행렬 M이 하나 정해져요. 아래 왼쪽 사진의 번호 점 4개를 끌어 보세요. 오른쪽이 그 점들로 편 결과예요.
@@ -6558,6 +6576,28 @@ warped = cv2.warpPerspective(
 🤔 왜 점이 꼭 4개야? — 원근 변환 행렬 M에는 정해야 할 숫자가 8개 있어요(9칸 중 마지막은 1로 고정). 점 하나가 x·y 식 두 개를 주니까, 4쌍이면 딱 8개 식이 생겨 M이 하나로 정해져요. 3개면 모자라고, 5개 이상이면 "가장 잘 맞는" M을 따로 구해야 해요.
 
 ⚠️ 좌표계 주의 — 보정본에서 나온 OCR Box는 보정본 좌표예요. 원본 사진 위에 그리려면 M의 역변환으로 되돌려야 해요. 그래서 JSON에 어떤 이미지 기준 좌표인지(coordinate_space)와 이미지 크기를 같이 적어요.
+
+### 🔧 명령어: 보정본 좌표 → 원본 사진 좌표 cv2.perspectiveTransform() · 작은 사진 확대 cv2.resize()
+
+```
+box = np.float32([[[40, 370]]])                      # 보정본에서 찾은 TOTAL: 의 왼쪽 위 점, shape (1, 1, 2)
+back = cv2.perspectiveTransform(box, np.linalg.inv(M))
+print(back)                                         # [[[64.7 349.6]]] → 사진에서 직접 읽은 (65, 350)과 1px 안
+
+small = cv2.resize(warped, None, fx=2, fy=2,        # 가로·세로 2배
+                   interpolation=cv2.INTER_CUBIC)
+```
+
+| 코드 | 뜻 | 바꾸면? |
+|---|---|---|
+| np.linalg.inv(M) | M(사진 → 보정본)의 역행렬 = 보정본 → 사진 | M을 그대로 쓰면 한 번 더 "펴는" 셈이라 엉뚱한 곳을 가리켜요 |
+| 점 shape (N, 1, 2) | perspectiveTransform이 기대하는 모양 | (N, 2)로 넣으면 에러 — 이미지가 아니라 점을 옮기는 함수라 따로 있어요(warpPerspective는 이미지용) |
+| fx=2, fy=2 | 가로·세로 배율 (dsize=None일 때) | 요약본 실측: 0.4배로 줄인 흐린 사진이 CER 0.066 → 0.008, 필드 2/3 → 3/3 |
+| INTER_CUBIC | 주변 16칸으로 부드럽게 새 픽셀 계산 | INTER_NEAREST면 계단이 그대로 커져 확대 효과가 줄어요 |
+
+🤔 왜 확대만 했는데 더 잘 읽어? — 새 정보가 생긴 건 아니에요. Tesseract 공식 문서(ImproveQuality)에 따르면 글자가 어느 정도 커야(대문자 높이 30px 안팎) 가장 잘 읽혀서, 너무 작은 글자는 획이 1~2픽셀로 뭉개져 모양을 못 알아봐요. 키워 주면 엔진이 익숙한 크기로 보게 되는 거예요.
+
+⚠️ 흔한 실수: 모서리 순서 — 요약본에서 corners의 시작점을 오른쪽 위로 바꿨더니(값은 같고 순서만 한 칸 밀림) 문서가 90도 돌아가 찌그러져 CER 0.008 → 1.254, 필드 3/3 → 0/3이 됐어요. 두 점만 맞바꾸면 사각형이 꼬여 화면 대부분이 검게 나왔고요(CER 1.0). 위 체험의 "2번 ↔ 4번" 버튼이 바로 그 상황이에요. 🤔 CER이 1을 넘을 수 있어? — 네. 분모는 정답 글자 수인데, 엉뚱한 글자를 잔뜩 끼워 넣으면(I) 오류 수가 정답 길이보다 많아질 수 있어요.
 
 ## ② OCR 실행 — Text · Box · Confidence
 
@@ -6624,6 +6664,10 @@ print(words[columns])
 
 ⚠️ conf 90 ≠ "90% 확률로 맞음" — 엔진 내부의 신뢰 점수일 뿐, 문맥상 정답률과 같지 않아요. 그리고 50은 설명용 기준이에요. 원본 OCR 결과는 지우지 말고 보관해요.
 
+[그림: 단어 21개 confidence 분포에서 오답 DOCO3 하나가 65.6점, 나머지 20개는 92.8점 이상이고 기준 50과 90 선을 비교한 그림] 무엇을 보나: oneday 요약본이 정면 보정한 청구서를 실제로 OCR한 결과예요. 21단어 중 틀린 건 DOC03을 DOCO3(숫자 0 → 글자 O)로 읽은 하나뿐이고, 그 점수는 65.6이에요. 기준 50이면 오답이 그대로 통과(검토 0개), 기준 90이면 오답 하나만 정확히 걸려요(검토 1개). 🤔 왜? "50"이 상식적인 기준처럼 보여도 엔진은 틀린 글자에도 꽤 높은 점수를 줘요. 0과 O는 모양이 거의 같아서 엔진 입장에선 "꽤 확신"하거든요. 그래서 기준은 감으로 정하지 말고 오답들의 점수 분포를 먼저 본 뒤 그어요.
+
+🔬 PSM을 바꿔 보면 — 같은 청구서 전체를 --psm 7(한 줄 가정)로 읽으면 CER 0.008 → 1.0(빈 문자열), --psm 8(한 단어)은 "a" 한 글자만 나왔어요. 반대로 합계 한 줄만 잘라서 PSM 7로 넣으면 TOTAL: 33000을 정확히 읽어요. 🤔 왜? PSM은 "이 그림이 어떻게 생겼다"는 약속이라, 7줄짜리 문서에 "한 줄이야"라고 하면 엔진이 여러 줄을 한 줄로 억지로 맞추다 포기해요. 그래서 입력 범위가 다른 결과끼리(페이지 전체 vs 한 줄 crop) CER로 순위를 매기면 안 돼요.
+
 💡 객체탐지의 box와 OCR의 word box는 둘 다 "위치"예요. 차이는 OCR box에는 문자열·줄·블록 정보가 함께 붙는다는 것.
 
 ## ③ OCR 품질 평가 — 글자 · 단어 · 필드를 따로
@@ -6676,6 +6720,25 @@ def cer(reference: str, prediction: str) -> float:
 
 🤔 왜 문서별 평균과 micro CER을 구분해? — 문서별 CER을 평균 내면 10글자짜리 영수증과 2,000글자짜리 계약서가 같은 무게예요. micro CER은 전체 오류 수 ÷ 전체 정답 글자 수라서 글자 하나하나가 같은 무게예요. 짧은 문서 몇 장이 크게 틀리면 두 값이 크게 달라지니, 어떤 걸 보고했는지 적어요.
 
+### 🔧 명령어: 라이브러리로 한 줄 jiwer.cer()
+
+```
+import jiwer                                   # pip install jiwer
+
+truth = " ".join(lines)                         # 정답 글자 (줄을 공백 한 칸으로 이음)
+read = " ".join(text.split())                   # OCR 글자 — 줄바꿈·여러 공백을 한 칸으로
+score = jiwer.cer(truth, read)                  # (정답, 예측) 순서!
+print(round(score, 3))
+```
+
+| 인자 · 규칙 | 뜻 | 바꾸면? |
+|---|---|---|
+| 첫 번째 인자 reference | 정답 — 분모가 되는 쪽 | 순서를 바꾸면 분모가 OCR 결과 길이가 돼서 값이 달라져요 |
+| " ".join(text.split()) | 공백·줄바꿈을 같은 규칙으로 정리 | 한쪽만 정리하면 "줄바꿈 vs 공백" 차이가 전부 오류로 세져요 |
+| jiwer.wer() | 같은 방식, 단위만 단어 | 숫자 한 글자 틀려도 단어 하나가 통째로 틀린 걸로 세요 |
+
+[그림: 0.5배, 0.4배, 0.4배를 2배 확대한 청구서 사진의 CER과 필드 정답 수를 나란히 비교한 막대 그래프] 무엇을 보나: oneday 요약본이 청구서를 일부러 작게 줄여 OCR한 결과예요. 0.4배 사진은 CER이 겨우 6.6%인데 공급자 필드를 통째로 놓쳤어요(2/3). 2배로 키우면 CER 0.008, 필드 3/3으로 회복돼요. 🤔 왜? OCR이 줄 맨 앞에 ‘ 한 글자를 붙여 ‘SUPPLIER: ALPHA STUDIO로 읽었는데, 구조화 규칙이 ^SUPPLIER:(줄이 SUPPLIER로 시작)라서 매칭이 안 됐어요. 글자 하나 = CER엔 작은 오류, 하지만 라벨 규칙을 깨면 값 전체를 잃어요. 그래서 CER과 필드 정답을 함께 봐요.
+
 [그림: 같은 문서를 금액 CER 14.3%, 필드 정확도 66.7%, JSON 문법 100%, 원문 근거 불일치 검토로 따로 채점한 네 칸 그림] 무엇을 보나: 강의의 가상 수치예요. 같은 문서 한 장인데 금액 CER은 14.3%(1/7 글자), 필드 정확도는 66.7%(3개 중 2개), JSON 문법은 100%(파싱 성공), 원문 근거는 "금액 불일치 → 검토"예요. 🤔 왜? 잣대마다 보는 단위와 분모가 달라서예요. JSON이 완벽해도 값이 틀릴 수 있고, CER이 낮아도 그 한 글자가 금액이면 업무상 실패예요. 그래서 하나로 합치지 않고 같은 문서·정답·정규화 규칙에서 따로 비교해요.
 
 ## ④ 구조화 — 글자를 업무 데이터(JSON)로
@@ -6723,6 +6786,14 @@ print(issued_at, total)        # 2026-11-09 1234500
 | flags | re.IGNORECASE(대소문자 무시), re.MULTILINE(줄마다 ^ $) | "Total"/"TOTAL"을 한 패턴으로 잡을 때 IGNORECASE |
 
 🤔 왜 패턴으로 찾고 date()로 또 검사해? — 정규식은 "모양"만 봐요. 2026-13-45도 모양은 날짜예요. date(2026, 13, 45)는 ValueError를 내니까, 패턴은 후보 찾기, date는 진짜인지 확인으로 역할을 나눠요. 그리고 실패하면 아무 값이나 넣지 말고 None으로 남겨요.
+
+🔬 정규식을 느슨하게 바꾸면 (oneday 요약본 실측, 실제 OCR 문자열) · re.search(r"^TOTAL: (\d+)$", text, re.MULTILINE) → "33000" ✅ · re.search(r"(\d+)", text) (첫 숫자) → "3" ❌ — 맨 윗줄 DOCO3의 3을 금액으로 집었어요. · re.MULTILINE만 빼도 → None → match.group(1)에서 프로그램이 멈춰요. 🤔 왜? ^·$는 기본이 "글 전체의 처음·끝"이에요. 여러 줄 글에서 "줄마다 처음·끝"으로 보려면 MULTILINE이 필요해요. 그리고 라벨(TOTAL:)을 빼면 "숫자처럼 생긴 아무거나"가 후보가 돼요.
+
+```
+amounts = re.findall(r"^[A-Z]+ \d+ \d+ (\d+)$", text, re.MULTILINE)   # 품목 줄의 마지막 숫자들
+if sum(int(a) for a in amounts) != total["value"]:
+    reasons.append("total_mismatch")
+```
 
 ### Key-value — "라벨 · 값 · 근거"를 한 묶음으로
 
@@ -6868,6 +6939,10 @@ print(result[0]["generated_text"])
 | max_new_tokens | 새로 만들 답의 최대 길이(토큰) | 너무 작으면 JSON이 중간에 잘려 파싱 실패. 크면 느려지고 쓸데없는 말이 붙을 수 있어요 |
 | return_full_text=False | 새 답 부분만 돌려받기 | True면 질문(입력)까지 붙어 나와서 답만 따로 잘라야 해요 |
 
+🔬 max_new_tokens를 3으로 줄이면 — oneday 요약본에서 SmolVLM-256M에 "What is the total amount?"를 물었을 때 128이면 33000, 3이면 33이 나왔어요. 에러 없이 잘린 숫자가 나온 거예요. 🤔 왜 에러가 안 나? 모델은 토큰을 한 조각씩 만들다 개수 제한에 닿으면 그냥 멈출 뿐이에요. "답이 덜 끝났다"는 신호가 따로 없어서, 잘린 33도 멀쩡한 답처럼 보여요. 그래서 다음 단계(⑥)에서 OCR 원문과 대조하면 33 ≠ 33000으로 걸러져 보류돼요.
+
+💡 do_sample=False — 매번 가장 확률 높은 토큰만 고르는 방식(greedy)이라 같은 입력이면 같은 답이 나와요. 결과를 기록하고 다시 실행해 대조하려면 이 설정이 필요해요.
+
 ### 🔧 명령어: 직접 버전 AutoProcessor · apply_chat_template() · generate()
 
 ```
@@ -6971,6 +7046,37 @@ print("설명용 이미지의 Box 범위:", valid_box)
 
 ⚠️ JSON 파싱 성공 ≠ 내용이 사실. 이 코드는 구조만 봐요. answer·evidence·page가 맞는지는 OCR 원문과 그 bbox를 잘라 낸 이미지(crop)에 대조한 뒤 확인완료·검토필요·실패를 정해요.
 
+### 🔬 실제 VLM은 얼마나 지어낼까
+
+oneday 요약본이 SmolVLM-256M-Instruct(do_sample=False)에 정면 보정한 청구서를 보여 주고 질문 6개를 던진 결과예요. 아래쪽 세 질문은 문서에 없는 값이에요.
+
+| 질문 | VLM 답 | OCR 원문 | 대조 결과 |
+|---|---|---|---|
+| 합계 | 33000 | 33000 | ✅ 채택 |
+| 공급자 | ALPHA STUDIO | ALPHA STUDIO | ✅ 채택 |
+| 발행일 | 2026-11-03 | 2026-11-03 | ✅ 채택 |
+| 세금 | 0. | 문서에 없음 | ⏸ 보류 |
+| 할인액 | 33000 (합계를 그대로) | 문서에 없음 | ⏸ 보류 |
+| 공급자 전화번호 | ALPHA STUDIO | 문서에 없음 | ⏸ 보류 |
+
+⚠️ 프롬프트로는 못 막았어요. 질문 끝에 "없으면 null이라고 답해"를 붙여도 세금은 여전히 0., "JSON으로 답해"라고 해도 33000만 답했어요. 🤔 왜? 작은 VLM일수록 지시를 잘 안 따르고, 생성 모델은 원래 "질문에 어울리는 그럴듯한 답"을 만드는 게 기본 동작이에요. 빈칸이 있으면 근처에 보이는 숫자나 글자로 채워 버려요. 그래서 믿을 건 프롬프트가 아니라 원문 대조예요.
+
+### 🔧 명령어: 가장 단순한 결합 규칙
+
+```
+if answer == total["raw"]:          # VLM 답이 OCR 원문과 같으면
+    final = total["value"]          # → 채택
+else:
+    final = None                    # → 보류, 사람이 확인 (정답으로 세지 않음)
+```
+
+| 코드 | 뜻 | 바꾸면? |
+|---|---|---|
+| answer == total["raw"] | VLM 답을 OCR이 읽은 원문 글자와 비교 | 대조 없이 final = answer로 하면 할인액 질문의 33000이 그대로 "할인액"으로 저장돼요(요약본 실측) |
+| final = None | 보류 — 값이 없다는 게 아니라 "확인 전" | 0이나 ""를 넣으면 진짜 값과 구분이 안 돼요 |
+
+🤔 왜 보류를 정답으로 안 세? — 보류는 "사람이 확인해야 함"이지 "맞음"이 아니에요. 보류를 정답에 넣으면 자동화율이 부풀고, 빼고 세면 "자동으로 처리된 것 중 몇 개가 맞았나"와 "몇 개를 사람에게 넘겼나"를 따로 볼 수 있어요. 위 표라면 6개 중 채택 3 · 보류 3.
+
 ### OCR + VLM을 합치는 세 가지 방식
 
 [그림: ] 무엇을 보나: 세 줄이 세 가지 조립 방법이에요. A는 OCR 결과에 규칙만 씌우고, B는 VLM에 바로 묻고 근거를 검증하고, C(Hybrid)는 OCR이 찾은 글자·위치와 잘라 낸 이미지를 VLM에 주고 판단을 맡겨요. 🤔 왜? Hybrid는 두 점수를 평균 내는 게 아니라 역할을 나누는 거예요. OCR의 정확한 전사·좌표가 VLM 답의 근거(grounding)가 되고, VLM의 문맥 이해가 OCR이 놓친 관계(어느 숫자가 합계인지)를 메워 줘요.
@@ -7048,6 +7154,25 @@ VLM 질문은 보통 다섯 유형이에요: 읽기("상단 제목은?") · 탐�
 | Engine | 실행 | 최적화된 입력·출력·연산 정보 보유 |
 | ExecutionContext | 실행 | 동적 shape · Tensor 주소 · 추론 상태 관리 (실제 호출 단위) |
 | CUDA Stream | 실행 | 비동기 실행과 "다 끝났는지" 확인 시점 제어 |
+
+### 🔧 명령어: PyTorch → ONNX 내보내기 torch.onnx.export()
+
+```
+import torch
+
+model.eval()                                       # Dropout·BatchNorm을 추론 모드로
+x = torch.randn(1, 3, 224, 224)                    # 실제로 넣을 크기의 예시 입력
+torch.onnx.export(model, (x,), "model.onnx")       # PyTorch → ONNX
+# 다음: ONNX 결과를 원본 PyTorch 결과와 비교 → 대상 장치에서 trtexec로 Engine Build
+```
+
+| 인자 | 뜻 | 바꾸면? |
+|---|---|---|
+| model | 내보낼 신경망 (eval() 상태로) | train 모드로 내보내면 Dropout 등이 섞여 결과가 원본과 달라져요 |
+| (x,) | 예시 입력 (튜플) — 이걸 한 번 흘려 보내며 계산 순서를 기록 | 크기를 대충 주면 그 크기로 고정된 모델이 나와요 |
+| dynamic_shapes | 바뀌는 축(예: batch)을 지정 | 안 주면 batch 1로 고정 — 4장씩 넣으면 실행이 거부돼요. 아래 trtexec의 min/opt/max shape와 짝 |
+
+🤔 왜 Engine은 "대상 장치에서" 만들어? — TensorRT Engine은 그 GPU의 종류와 TensorRT·드라이버 버전에 맞춰 가장 빠른 계산 방법을 골라 굳힌 파일이에요. 노트북 RTX에서 만든 Engine을 Jetson에 옮기면 맞지 않아요. ONNX는 어디서나 쓰는 교환 형식, Engine은 그 장치 전용 실행 파일이라고 생각하면 돼요.
 
 ### 🔧 명령어: trtexec로 빌드 · 추론 확인
 
@@ -7203,6 +7328,8 @@ def ask_document(image_path, question, pipe) -> VLMResult:
 
 - 강의: Day16_20261109.pdf — 큰 그림 p2–18 · 전처리 p19–28 · OCR 실행·평가 p31–38 · 구조화·검증 p41–48 · VLM p51–58 · 근거·Hybrid·보안·메모리 p59–71 · 배포 p74–82 · 미니 애플리케이션 p85–92 · 정리 p98–99
 
+- 요약: Day16_oneday요약.pdf — 하루 지도 · 교시별 핵심 · 파라미터를 바꿔 다시 실행한 실측 결과(Tesseract 5.5.2 · SmolVLM-256M-Instruct, 합성 영어 문서 기준이라 실제 한국어 문서·손글씨 성능을 뜻하지는 않아요)
+
 - 공식 문서: OpenCV Thresholding · OpenCV Geometric Transformations (warpPerspective)
 
 - 공식 문서: Tesseract — Improving the quality of the output (PSM) · pytesseract (image_to_string / image_to_data)
@@ -7213,7 +7340,7 @@ def ask_document(image_path, question, pipe) -> VLMResult:
 
 - 공식 문서: NVIDIA TensorRT · DeepStream Gst-nvinfer · NVIDIA JetPack
 
-## 📖 Day16 용어 (45개)
+## 📖 Day16 용어 (49개)
 - **OCR** (Optical Character Recognition (광학 문자 인식)): 이미지 속 글자를 읽어 텍스트로 바꾸는 전체 과정. 전처리 → 글자 인식(Text·Box·Confidence) → 후처리 → 정보 추출로 이어져요.
 - **Tesseract** (Tesseract OCR 엔진): 무료로 쓰는 OCR 엔진 프로그램. pip가 아니라 따로 설치하고, kor·eng 같은 언어 데이터도 함께 깔아야 해요.
 - **pytesseract** (Python wrapper for Tesseract): Python에서 Tesseract 프로그램을 불러 쓰게 해 주는 연결 고리 패키지. 엔진이 없으면 TesseractNotFoundError가 나요.
@@ -7259,3 +7386,7 @@ def ask_document(image_path, question, pipe) -> VLMResult:
 - **JetPack** (NVIDIA JetPack SDK): Jetson용 소프트웨어 묶음. CUDA·TensorRT·DeepStream 버전 조합이 정해져 있어요.
 - **DeepStream** (NVIDIA DeepStream SDK): 영상 입력 → Decode → Batch(nvstreammux) → 추론(nvinfer, TensorRT) → 추적 → 화면/저장을 플러그인으로 잇는 영상 분석 파이프라인.
 - **Throttling** (Thermal throttling): 장치가 뜨거워지면 스스로 속도를 낮추는 현상. 그래서 엣지에선 온도·전력도 함께 기록해요.
+- **jiwer** (jiwer (CER·WER 계산 라이브러리)): 정답 문자열과 OCR·음성인식 결과를 넣으면 CER(글자 오류율)·WER(단어 오류율)을 계산해 주는 Python 패키지. 순서는 (정답, 예측).
+- **필드 정확도** (Field accuracy (필드 정확도)): 합계·날짜·공급자 같은 업무 필드 중 값이 정확히 맞은 비율. 글자 하나만 틀려도 그 필드는 통째로 틀린 걸로 세요.
+- **보류** (보류 (review · 사람 확인)): 근거와 맞지 않거나 원문에 없는 값을 자동으로 확정하지 않고 null로 두어 사람이 확인하게 하는 상태. 정답으로 세지 않아요.
+- **greedy decoding** (Greedy decoding (탐욕적 생성)): 다음 토큰을 매번 가장 확률 높은 것 하나로 고르는 생성 방식. do_sample=False가 이것이라 같은 입력에 같은 답이 나와요.

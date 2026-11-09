@@ -27,17 +27,25 @@
         </ol>
       </div>
 
+      <div class="callout">🤝 <strong>하루 내내 지키는 약속 3가지</strong>
+        <ol>
+          <li><b>원본을 덮어쓰지 않는다</b> — 원본·전처리본·OCR 결과·최종 JSON을 따로 저장하고, 좌표가 <b>어느 이미지 기준</b>인지 같이 적어요. <br>🤔 왜? 전처리를 바꿔 다시 돌리거나 "이 값이 어디서 나왔지?"를 확인하려면 출발점이 남아 있어야 해요.</li>
+          <li><b>값은 근거와 함께</b> — <code>raw</code>(원문) · <code>value</code>(정규화 값) · <code>bbox</code> · <code>confidence</code>를 한 묶음으로. 근거가 없으면 0이나 빈 문자열이 아니라 <code>null</code> + 검토 이유를 남겨요. <br>🤔 왜? 0은 "금액이 0원"이라는 <b>진짜 값</b>처럼 보여요. null이어야 "못 찾음"이 구분돼요.</li>
+          <li><b>분모와 출처를 섞지 않는다</b> — 같은 문서·정답·정규화 규칙에서 비교하고, 직접 돌린 결과인지 남이 기록한 결과인지 적어요. <br>🤔 왜? 문서 10장 CER과 100장 CER, 내가 돌린 값과 남이 적은 값을 나란히 놓으면 비교가 아니라 착시예요.</li>
+        </ol>
+      </div>
+
       <h2>이론 ↔ 명령어 한눈에</h2>
       <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
         <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install opencv-python numpy pandas pytesseract</code> + <b>Tesseract 프로그램</b> (VLM은 <code>transformers</code>)</td></tr>
-        <tr><td><a href="#prep">① 문서 전처리</a></td><td><code>cv2.imread()</code>, <code>cv2.cvtColor()</code>, <code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getPerspectiveTransform()</code>, <code>cv2.warpPerspective()</code></td></tr>
+        <tr><td><a href="#prep">① 문서 전처리</a></td><td><code>cv2.imread()</code>, <code>cv2.cvtColor()</code>, <code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getPerspectiveTransform()</code>, <code>cv2.warpPerspective()</code>, <code>cv2.perspectiveTransform()</code>(좌표 되돌리기), <code>cv2.resize()</code></td></tr>
         <tr><td><a href="#ocr">② OCR 실행 · Box · Confidence</a></td><td><code>pytesseract.image_to_data(lang=, config="--oem 3 --psm 6", output_type=Output.DATAFRAME)</code></td></tr>
-        <tr><td><a href="#eval">③ OCR 품질 평가</a></td><td><code>levenshtein()</code> → <code>cer()</code>, 필드 정확도</td></tr>
+        <tr><td><a href="#eval">③ OCR 품질 평가</a></td><td><code>levenshtein()</code> → <code>cer()</code>, <code>jiwer.cer()</code>, 필드 정확도</td></tr>
         <tr><td><a href="#struct">④ 구조화 · JSON · 검증</a></td><td><code>re.search()</code>, <code>re.sub()</code>, <code>json.dump()</code>, <code>validate_invoice()</code></td></tr>
         <tr><td><a href="#vlm">⑤ VLM 이미지 질의응답</a></td><td><code>pipeline("image-text-to-text")</code>, <code>processor.apply_chat_template()</code>, <code>model.generate()</code></td></tr>
-        <tr><td><a href="#ground">⑥ 근거 검증 · Hybrid · 보안</a></td><td><code>json.loads()</code> + 필수 key·bbox 검사</td></tr>
-        <tr><td><a href="#deploy">⑦ 엣지 배포 (TensorRT · Jetson · DeepStream)</a></td><td><code>trtexec --onnx= --saveEngine=</code>, <code>--loadEngine=</code>, <code>--minShapes/--optShapes/--maxShapes</code></td></tr>
+        <tr><td><a href="#ground">⑥ 근거 검증 · Hybrid · 보안</a></td><td><code>json.loads()</code> + 필수 key·bbox 검사, <code>if answer == raw</code> → 채택 / <code>None</code>(보류)</td></tr>
+        <tr><td><a href="#deploy">⑦ 엣지 배포 (TensorRT · Jetson · DeepStream)</a></td><td><code>torch.onnx.export()</code>, <code>trtexec --onnx= --saveEngine=</code>, <code>--loadEngine=</code>, <code>--minShapes/--optShapes/--maxShapes</code></td></tr>
         <tr><td><a href="#app">⑧ OCR·VLM 미니 애플리케이션 설계</a></td><td><code>@dataclass OCRResult</code>, <code>VLMResult</code>, 폴더별 역할</td></tr>
       </table>
 
@@ -50,13 +58,15 @@
         <tr><td><code>pandas</code></td><td>OCR 단어 결과를 표(DataFrame)로 다루기, 평가표 저장</td><td><code>import pandas as pd</code></td></tr>
         <tr><td><code>pytesseract</code></td><td>Python에서 <b>Tesseract</b> OCR 엔진을 불러 쓰는 연결 고리</td><td><code>import pytesseract</code>, <code>from pytesseract import Output</code></td></tr>
         <tr><td>(표준 라이브러리) <code>re</code>, <code>json</code>, <code>datetime</code>, <code>dataclasses</code></td><td>정규식으로 날짜·금액 찾기, JSON 저장, 날짜 검증, 결과 구조 정의</td><td><code>import re, json</code> (설치 불필요)</td></tr>
+        <tr><td><code>jiwer</code></td><td>정답과 OCR 결과로 CER·WER 계산 (직접 짠 <code>cer()</code>와 같은 값)</td><td><code>import jiwer</code></td></tr>
+        <tr><td><code>scikit-image</code> <small>(선택)</small></td><td>연습용 내장 이미지 — <code>data.page()</code>는 왼쪽이 어두운 스캔 페이지</td><td><code>from skimage import data</code></td></tr>
         <tr><td colspan="3"><b>VLM을 실제로 돌릴 때 (준비된 모델이 있을 때만)</b></td></tr>
         <tr><td><code>transformers</code></td><td>VLM 모델·Processor 불러오기, <code>pipeline</code>, 답 생성</td><td><code>from transformers import pipeline, AutoProcessor, AutoModelForImageTextToText</code></td></tr>
         <tr><td><code>torch</code></td><td>모델이 내부에서 쓰는 계산 엔진 (Day9부터 설치됨)</td><td><code>import torch</code></td></tr>
         <tr><td colspan="3"><b>배포 (pip 아님)</b> — <b>TensorRT</b>(<code>trtexec</code> 명령 포함)·<b>JetPack</b>·<b>DeepStream</b>은 NVIDIA가 장치·버전별로 따로 배포하는 소프트웨어예요. 수업 기준은 PC의 TensorRT 11.3, Jetson은 그 JetPack이 지원하는 조합.</td></tr>
       </table>
       <h3>🔧 설치 · 확인</h3>
-<pre><code>python -m pip install opencv-python numpy pandas pytesseract
+<pre><code>python -m pip install opencv-python numpy pandas pytesseract jiwer scikit-image
 python -c "import cv2, pytesseract; print(cv2.__version__, pytesseract.get_tesseract_version())"
 tesseract --version          # 진짜 OCR 엔진 프로그램이 깔려 있나?
 tesseract --list-langs       # kor, eng 언어 데이터가 있나?
@@ -201,6 +211,11 @@ adaptive = cv2.adaptiveThreshold(
       </table>
       <div class="callout">🤔 <strong>왜 눈으로 보기 좋은 결과를 고르면 안 돼?</strong> — 사람에게 깨끗해 보이는 이미지와 <b>OCR 오류율이 낮은</b> 이미지는 항상 같지 않아요. 그래서 설정은 <b>개발·검증 문서의 CER</b>(③)로 고르고, 최종 평가 문서는 그 선택 과정에서 빼 둬요. 최종 문서를 보며 고르면 그 문서에 맞춘 선택이 돼서 점수가 부풀어요.</div>
 
+      <h3>🔬 값을 바꾸면 실제로 어떻게 될까</h3>
+      <p>oneday 요약본이 <b>왼쪽이 어두운 스캔 페이지</b>(scikit-image 내장 <code>data.page()</code>)를 이진화한 뒤 Tesseract(PSM 6)로 읽어, 숫자 하나씩만 바꿔 가며 CER을 잰 결과예요.</p>
+      <figure id="fig-param-cer"><img class="smooth" src="img/day16/param_cer.png" alt="blockSize 3, 15, 31, 101과 C 0, 11, 30, 60, 그리고 Gray·Otsu·Adaptive 이진화 방법에 따른 CER 막대 그래프"><figcaption><b>무엇을 보나:</b> 보라색이 강의 코드 값(31, 11)이에요. blockSize 3은 0.137로 나빠지고, 15가 0.050으로 가장 좋았어요. 30(짝수)은 아예 실행 오류. C는 0이면 0.388로 크게 나빠지고, 30에서 0.020으로 코드 값보다도 좋았어요. 오른쪽은 이진화 방법 비교 — Otsu(0.361)가 이진화 안 한 Gray(0.324)보다도 <b>나빴어요</b>. <b>🤔 왜?</b> Otsu는 페이지 전체에 기준 하나(157)를 써서, 어두운 왼쪽은 종이까지 검게 칠해져 글자가 묻혀요. Adaptive는 주변 31×31마다 기준을 따로 잡아 그림자를 상쇄해요. 그리고 C=0이면 "주변 평균보다 조금만 어두워도 검정"이라 종이 결이 점으로 찍히고, 60이면 기준이 너무 낮아 흐린 획까지 하얗게 사라져요.</figcaption></figure>
+      <div class="callout">💡 <strong>정답은 "31, 11"이 아니에요.</strong> 이 페이지에선 C=30이 더 좋았듯, <b>알맞은 값은 문서마다 달라요</b>. 후보 몇 개를 돌려 보고 CER이 가장 낮은 걸 고르는 게 방법이에요 — 그래서 ③ 평가가 전처리 선택의 잣대가 돼요.</div>
+
       <h3>원근 보정 — 비스듬한 문서를 정면으로</h3>
       <p>문서를 비스듬히 찍으면 사각형이 사다리꼴이 돼요. 실제 문서의 <b>네 모서리(src)</b>와 펼친 뒤 <b>네 모서리(dst)</b>를 짝지으면, 둘을 잇는 3×3 <b>변환 행렬 M</b>이 하나 정해져요. 아래 왼쪽 사진의 번호 점 4개를 끌어 보세요. 오른쪽이 그 점들로 편 결과예요.</p>
       <div class="lab">
@@ -239,6 +254,23 @@ warped = cv2.warpPerspective(
       </table>
       <div class="callout">🤔 <strong>왜 점이 꼭 4개야?</strong> — 원근 변환 행렬 M에는 정해야 할 숫자가 8개 있어요(9칸 중 마지막은 1로 고정). 점 하나가 x·y 식 두 개를 주니까, 4쌍이면 딱 8개 식이 생겨 M이 하나로 정해져요. 3개면 모자라고, 5개 이상이면 "가장 잘 맞는" M을 따로 구해야 해요.</div>
       <div class="callout warn">⚠️ <strong>좌표계 주의</strong> — 보정본에서 나온 OCR Box는 <b>보정본 좌표</b>예요. 원본 사진 위에 그리려면 M의 <b>역변환</b>으로 되돌려야 해요. 그래서 JSON에 어떤 이미지 기준 좌표인지(<code>coordinate_space</code>)와 이미지 크기를 같이 적어요.</div>
+
+      <h3>🔧 명령어: 보정본 좌표 → 원본 사진 좌표 <code>cv2.perspectiveTransform()</code> · 작은 사진 확대 <code>cv2.resize()</code></h3>
+<pre><code>box = np.float32([[[40, 370]]])                      # 보정본에서 찾은 TOTAL: 의 왼쪽 위 점, shape (1, 1, 2)
+back = cv2.perspectiveTransform(box, np.linalg.inv(M))
+print(back)                                         # [[[64.7 349.6]]] → 사진에서 직접 읽은 (65, 350)과 1px 안
+
+small = cv2.resize(warped, None, fx=2, fy=2,        # 가로·세로 2배
+                   interpolation=cv2.INTER_CUBIC)</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>np.linalg.inv(M)</code></td><td>M(사진 → 보정본)의 <b>역행렬</b> = 보정본 → 사진</td><td>M을 그대로 쓰면 한 번 더 "펴는" 셈이라 엉뚱한 곳을 가리켜요</td></tr>
+        <tr><td>점 shape <code>(N, 1, 2)</code></td><td><code>perspectiveTransform</code>이 기대하는 모양</td><td><code>(N, 2)</code>로 넣으면 에러 — 이미지가 아니라 <b>점</b>을 옮기는 함수라 따로 있어요(<code>warpPerspective</code>는 이미지용)</td></tr>
+        <tr><td><code>fx=2, fy=2</code></td><td>가로·세로 배율 (<code>dsize=None</code>일 때)</td><td>요약본 실측: 0.4배로 줄인 흐린 사진이 CER <b>0.066 → 0.008</b>, 필드 2/3 → 3/3</td></tr>
+        <tr><td><code>INTER_CUBIC</code></td><td>주변 16칸으로 부드럽게 새 픽셀 계산</td><td><code>INTER_NEAREST</code>면 계단이 그대로 커져 확대 효과가 줄어요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 확대만 했는데 더 잘 읽어?</strong> — 새 정보가 생긴 건 아니에요. Tesseract 공식 문서(ImproveQuality)에 따르면 글자가 어느 정도 커야(대문자 높이 30px 안팎) 가장 잘 읽혀서, 너무 작은 글자는 획이 1~2픽셀로 뭉개져 모양을 못 알아봐요. 키워 주면 엔진이 <b>익숙한 크기</b>로 보게 되는 거예요.</div>
+      <div class="callout warn">⚠️ <strong>흔한 실수: 모서리 순서</strong> — 요약본에서 <code>corners</code>의 시작점을 오른쪽 위로 바꿨더니(값은 같고 순서만 한 칸 밀림) 문서가 <b>90도 돌아가 찌그러져</b> CER 0.008 → <b>1.254</b>, 필드 3/3 → 0/3이 됐어요. 두 점만 맞바꾸면 사각형이 꼬여 화면 대부분이 검게 나왔고요(CER 1.0). 위 체험의 "2번 ↔ 4번" 버튼이 바로 그 상황이에요. <br>🤔 <b>CER이 1을 넘을 수 있어?</b> — 네. 분모는 정답 글자 수인데, 엉뚱한 글자를 잔뜩 <b>끼워 넣으면(I)</b> 오류 수가 정답 길이보다 많아질 수 있어요.</div>
 
       <!-- ============================================================ -->
       <h2 id="ocr">② OCR 실행 — Text · Box · Confidence</h2>
@@ -366,6 +398,8 @@ print(words[columns])</code></pre>
         <tr><td>box와 원본 crop을 같이 저장해 사람이 검토</td><td>기준 하나로 모든 문서를 <b>자동 삭제</b>하지 않기</td></tr>
       </table>
       <div class="callout warn">⚠️ <strong>conf 90 ≠ "90% 확률로 맞음"</strong> — 엔진 내부의 신뢰 점수일 뿐, 문맥상 정답률과 같지 않아요. 그리고 50은 설명용 기준이에요. 원본 OCR 결과는 지우지 말고 보관해요.</div>
+      <figure id="fig-conf-threshold"><img class="smooth" src="img/day16/conf_threshold.png" alt="단어 21개 confidence 분포에서 오답 DOCO3 하나가 65.6점, 나머지 20개는 92.8점 이상이고 기준 50과 90 선을 비교한 그림"><figcaption><b>무엇을 보나:</b> oneday 요약본이 정면 보정한 청구서를 실제로 OCR한 결과예요. 21단어 중 틀린 건 <code>DOC03</code>을 <code>DOCO3</code>(숫자 0 → 글자 O)로 읽은 하나뿐이고, 그 점수는 65.6이에요. 기준 50이면 오답이 그대로 통과(검토 0개), 기준 90이면 오답 하나만 정확히 걸려요(검토 1개). <b>🤔 왜?</b> "50"이 상식적인 기준처럼 보여도 엔진은 틀린 글자에도 꽤 높은 점수를 줘요. 0과 O는 모양이 거의 같아서 엔진 입장에선 "꽤 확신"하거든요. 그래서 기준은 감으로 정하지 말고 <b>오답들의 점수 분포를 먼저 본 뒤</b> 그어요.</figcaption></figure>
+      <div class="callout">🔬 <strong>PSM을 바꿔 보면</strong> — 같은 청구서 전체를 <code>--psm 7</code>(한 줄 가정)로 읽으면 CER 0.008 → <b>1.0</b>(빈 문자열), <code>--psm 8</code>(한 단어)은 <code>"a"</code> 한 글자만 나왔어요. 반대로 <b>합계 한 줄만 잘라서</b> PSM 7로 넣으면 <code>TOTAL: 33000</code>을 정확히 읽어요. <br>🤔 왜? PSM은 "이 그림이 어떻게 생겼다"는 <b>약속</b>이라, 7줄짜리 문서에 "한 줄이야"라고 하면 엔진이 여러 줄을 한 줄로 억지로 맞추다 포기해요. 그래서 <b>입력 범위가 다른 결과끼리</b>(페이지 전체 vs 한 줄 crop) CER로 순위를 매기면 안 돼요.</div>
       <div class="callout">💡 객체탐지의 box와 OCR의 word box는 둘 다 "위치"예요. 차이는 OCR box에는 <b>문자열·줄·블록 정보</b>가 함께 붙는다는 것.</div>
 
       <!-- ============================================================ -->
@@ -424,6 +458,21 @@ def cer(reference: str, prediction: str) -&gt; float:
         <tr><td>정규화 규칙</td><td>공백·대소문자·기호를 비교 전에 어떻게 다룰지 <b>먼저 고정</b></td><td>규칙이 바뀌면 같은 결과도 CER이 달라져요(위 체험의 체크박스)</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 문서별 평균과 micro CER을 구분해?</strong> — 문서별 CER을 평균 내면 10글자짜리 영수증과 2,000글자짜리 계약서가 <b>같은 무게</b>예요. micro CER은 전체 오류 수 ÷ 전체 정답 글자 수라서 <b>글자 하나하나가 같은 무게</b>예요. 짧은 문서 몇 장이 크게 틀리면 두 값이 크게 달라지니, 어떤 걸 보고했는지 적어요.</div>
+
+      <h3>🔧 명령어: 라이브러리로 한 줄 <code>jiwer.cer()</code></h3>
+<pre><code>import jiwer                                   # pip install jiwer
+
+truth = " ".join(lines)                         # 정답 글자 (줄을 공백 한 칸으로 이음)
+read = " ".join(text.split())                   # OCR 글자 — 줄바꿈·여러 공백을 한 칸으로
+score = jiwer.cer(truth, read)                  # (정답, 예측) 순서!
+print(round(score, 3))</code></pre>
+      <table>
+        <tr><th>인자 · 규칙</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td>첫 번째 인자 <code>reference</code></td><td>정답 — 분모가 되는 쪽</td><td>순서를 바꾸면 분모가 OCR 결과 길이가 돼서 값이 달라져요</td></tr>
+        <tr><td><code>" ".join(text.split())</code></td><td>공백·줄바꿈을 같은 규칙으로 정리</td><td>한쪽만 정리하면 "줄바꿈 vs 공백" 차이가 전부 오류로 세져요</td></tr>
+        <tr><td><code>jiwer.wer()</code></td><td>같은 방식, 단위만 <b>단어</b></td><td>숫자 한 글자 틀려도 단어 하나가 통째로 틀린 걸로 세요</td></tr>
+      </table>
+      <figure id="fig-cer-vs-field"><img class="smooth" src="img/day16/cer_vs_field.png" alt="0.5배, 0.4배, 0.4배를 2배 확대한 청구서 사진의 CER과 필드 정답 수를 나란히 비교한 막대 그래프"><figcaption><b>무엇을 보나:</b> oneday 요약본이 청구서를 일부러 작게 줄여 OCR한 결과예요. 0.4배 사진은 CER이 겨우 6.6%인데 <b>공급자 필드를 통째로 놓쳤어요</b>(2/3). 2배로 키우면 CER 0.008, 필드 3/3으로 회복돼요. <b>🤔 왜?</b> OCR이 줄 맨 앞에 <code>‘</code> 한 글자를 붙여 <code>‘SUPPLIER: ALPHA STUDIO</code>로 읽었는데, 구조화 규칙이 <code>^SUPPLIER:</code>(줄이 SUPPLIER로 <b>시작</b>)라서 매칭이 안 됐어요. 글자 하나 = CER엔 작은 오류, 하지만 <b>라벨 규칙을 깨면 값 전체를 잃어요</b>. 그래서 CER과 필드 정답을 함께 봐요.</figcaption></figure>
       <figure id="fig-eval-units"><img class="smooth" src="img/day16/eval_units.png" alt="같은 문서를 금액 CER 14.3%, 필드 정확도 66.7%, JSON 문법 100%, 원문 근거 불일치 검토로 따로 채점한 네 칸 그림"><figcaption><b>무엇을 보나:</b> 강의의 가상 수치예요. <b>같은 문서 한 장</b>인데 금액 CER은 14.3%(1/7 글자), 필드 정확도는 66.7%(3개 중 2개), JSON 문법은 100%(파싱 성공), 원문 근거는 "금액 불일치 → 검토"예요. <b>🤔 왜?</b> 잣대마다 <b>보는 단위와 분모</b>가 달라서예요. JSON이 완벽해도 값이 틀릴 수 있고, CER이 낮아도 그 한 글자가 금액이면 업무상 실패예요. 그래서 하나로 합치지 않고 같은 문서·정답·정규화 규칙에서 따로 비교해요.</figcaption></figure>
 
       <!-- ============================================================ -->
@@ -472,6 +521,15 @@ print(issued_at, total)        # 2026-11-09 1234500</code></pre>
         <tr><td><code>flags</code></td><td><code>re.IGNORECASE</code>(대소문자 무시), <code>re.MULTILINE</code>(줄마다 <code>^ $</code>)</td><td>"Total"/"TOTAL"을 한 패턴으로 잡을 때 IGNORECASE</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 패턴으로 찾고 <code>date()</code>로 또 검사해?</strong> — 정규식은 "모양"만 봐요. <code>2026-13-45</code>도 모양은 날짜예요. <code>date(2026, 13, 45)</code>는 <code>ValueError</code>를 내니까, 패턴은 <b>후보 찾기</b>, date는 <b>진짜인지 확인</b>으로 역할을 나눠요. 그리고 실패하면 아무 값이나 넣지 말고 <code>None</code>으로 남겨요.</div>
+      <div class="callout warn">🔬 <strong>정규식을 느슨하게 바꾸면</strong> (oneday 요약본 실측, 실제 OCR 문자열) <br>
+        · <code>re.search(r"^TOTAL: (\d+)$", text, re.MULTILINE)</code> → <code>"33000"</code> ✅ <br>
+        · <code>re.search(r"(\d+)", text)</code> (첫 숫자) → <code>"3"</code> ❌ — 맨 윗줄 <code>DOCO3</code>의 3을 금액으로 집었어요. <br>
+        · <code>re.MULTILINE</code>만 빼도 → <code>None</code> → <code>match.group(1)</code>에서 <b>프로그램이 멈춰요</b>. <br>
+        🤔 왜? <code>^</code>·<code>$</code>는 기본이 "글 전체의 처음·끝"이에요. 여러 줄 글에서 "<b>줄마다</b> 처음·끝"으로 보려면 MULTILINE이 필요해요. 그리고 라벨(<code>TOTAL:</code>)을 빼면 "숫자처럼 생긴 아무거나"가 후보가 돼요.</div>
+      <div class="callout">🤔 <strong>왜 "품목 합 = 합계" 검사를 남겨?</strong> — OCR이 합계 <code>33000</code>을 <code>38000</code>으로 잘못 읽었다고 해 봐요. 정규식은 모양만 보니 38000을 기쁘게 꺼내요. 그런데 품목 금액(12000 + 9000 + 12000 = 33000)과 비교하면 안 맞으니 <code>review_reasons</code>에 <code>"total_mismatch"</code>가 남아요. 이 검사를 빼면 틀린 값이 <b>조용히 저장</b>돼요.
+<pre><code>amounts = re.findall(r"^[A-Z]+ \d+ \d+ (\d+)$", text, re.MULTILINE)   # 품목 줄의 마지막 숫자들
+if sum(int(a) for a in amounts) != total["value"]:
+    reasons.append("total_mismatch")</code></pre></div>
 
       <h3>Key-value — "라벨 · 값 · 근거"를 한 묶음으로</h3>
       <figure id="fig-kv"><img class="smooth" src="img/day16/kv_extract.png" alt="청구서에서 발행일, 공급자, 합계 라벨 박스와 오른쪽 값 박스를 화살표로 잇고 total_amount의 raw, value, currency, confidence, bbox와 검증 결과를 정리한 그림"><figcaption><b>무엇을 보나:</b> 왼쪽은 라벨(점선) 오른쪽에 있는 값(실선)을 짝지은 모습이에요. 오른쪽은 그중 합계 한 칸에 담는 정보 — 원문 <code>raw "1,234,500원"</code>, 정수 <code>value 1234500</code>, 통화, 점수, 위치 — 와 그 아래 검증(공급가액 1,122,273 + 세액 112,227 = 합계 1,234,500 → <b>passed</b>)이에요. <b>🤔 왜?</b> value만 남기면 나중에 "1234500은 어디서 왔지?"를 확인할 길이 없어요. raw와 bbox가 있으면 원본 이미지의 그 자리를 잘라 보며 OCR이 틀렸는지, 정규화가 틀렸는지를 바로 가를 수 있어요.</figcaption></figure>
@@ -650,6 +708,8 @@ print(result[0]["generated_text"])</code></pre>
         <tr><td><code>max_new_tokens</code></td><td>새로 만들 답의 최대 길이(토큰)</td><td>너무 작으면 JSON이 중간에 잘려 파싱 실패. 크면 느려지고 쓸데없는 말이 붙을 수 있어요</td></tr>
         <tr><td><code>return_full_text=False</code></td><td>새 답 부분만 돌려받기</td><td>True면 질문(입력)까지 붙어 나와서 답만 따로 잘라야 해요</td></tr>
       </table>
+      <div class="callout">🔬 <strong><code>max_new_tokens</code>를 3으로 줄이면</strong> — oneday 요약본에서 SmolVLM-256M에 "What is the total amount?"를 물었을 때 128이면 <code>33000</code>, 3이면 <code>33</code>이 나왔어요. <b>에러 없이</b> 잘린 숫자가 나온 거예요. <br>🤔 왜 에러가 안 나? 모델은 토큰을 한 조각씩 만들다 개수 제한에 닿으면 그냥 멈출 뿐이에요. "답이 덜 끝났다"는 신호가 따로 없어서, 잘린 <code>33</code>도 멀쩡한 답처럼 보여요. 그래서 다음 단계(⑥)에서 OCR 원문과 대조하면 <code>33 ≠ 33000</code>으로 걸러져 보류돼요.</div>
+      <div class="callout">💡 <strong><code>do_sample=False</code></strong> — 매번 가장 확률 높은 토큰만 고르는 방식(greedy)이라 <b>같은 입력이면 같은 답</b>이 나와요. 결과를 기록하고 다시 실행해 대조하려면 이 설정이 필요해요.</div>
 
       <h3>🔧 명령어: 직접 버전 <code>AutoProcessor</code> · <code>apply_chat_template()</code> · <code>generate()</code></h3>
 <pre><code>from transformers import AutoProcessor, AutoModelForImageTextToText
@@ -742,6 +802,31 @@ print("설명용 이미지의 Box 범위:", valid_box)</code></pre>
         <tr><td>bbox 길이·자료형·<code>x1 &lt; x2</code>·이미지 범위</td><td>좌표 4개가 아니거나, 글자("530")이거나, 뒤집혔거나, 1000×1200 밖</td><td>엉뚱한 곳을 잘라 "근거"로 보여 줄 수 있어요</td></tr>
       </table>
       <div class="callout warn">⚠️ <strong>JSON 파싱 성공 ≠ 내용이 사실.</strong> 이 코드는 <b>구조</b>만 봐요. answer·evidence·page가 맞는지는 OCR 원문과 그 bbox를 잘라 낸 이미지(crop)에 <b>대조한 뒤</b> 확인완료·검토필요·실패를 정해요.</div>
+
+      <h3>🔬 실제 VLM은 얼마나 지어낼까</h3>
+      <p>oneday 요약본이 SmolVLM-256M-Instruct(<code>do_sample=False</code>)에 정면 보정한 청구서를 보여 주고 질문 6개를 던진 결과예요. 아래쪽 세 질문은 <b>문서에 없는 값</b>이에요.</p>
+      <table>
+        <tr><th>질문</th><th>VLM 답</th><th>OCR 원문</th><th>대조 결과</th></tr>
+        <tr><td>합계</td><td><code>33000</code></td><td><code>33000</code></td><td>✅ 채택</td></tr>
+        <tr><td>공급자</td><td><code>ALPHA STUDIO</code></td><td><code>ALPHA STUDIO</code></td><td>✅ 채택</td></tr>
+        <tr><td>발행일</td><td><code>2026-11-03</code></td><td><code>2026-11-03</code></td><td>✅ 채택</td></tr>
+        <tr><td>세금</td><td><code>0.</code></td><td>문서에 없음</td><td>⏸ 보류</td></tr>
+        <tr><td>할인액</td><td><code>33000</code> (합계를 그대로)</td><td>문서에 없음</td><td>⏸ 보류</td></tr>
+        <tr><td>공급자 전화번호</td><td><code>ALPHA STUDIO</code></td><td>문서에 없음</td><td>⏸ 보류</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>프롬프트로는 못 막았어요.</strong> 질문 끝에 "없으면 null이라고 답해"를 붙여도 세금은 여전히 <code>0.</code>, "JSON으로 답해"라고 해도 <code>33000</code>만 답했어요. <br>🤔 왜? 작은 VLM일수록 지시를 잘 안 따르고, 생성 모델은 원래 "질문에 어울리는 그럴듯한 답"을 만드는 게 기본 동작이에요. 빈칸이 있으면 근처에 보이는 숫자나 글자로 채워 버려요. 그래서 믿을 건 프롬프트가 아니라 <b>원문 대조</b>예요.</div>
+
+      <h3>🔧 명령어: 가장 단순한 결합 규칙</h3>
+<pre><code>if answer == total["raw"]:          # VLM 답이 OCR 원문과 같으면
+    final = total["value"]          # → 채택
+else:
+    final = None                    # → 보류, 사람이 확인 (정답으로 세지 않음)</code></pre>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>answer == total["raw"]</code></td><td>VLM 답을 OCR이 읽은 <b>원문 글자</b>와 비교</td><td>대조 없이 <code>final = answer</code>로 하면 할인액 질문의 <code>33000</code>이 그대로 "할인액"으로 저장돼요(요약본 실측)</td></tr>
+        <tr><td><code>final = None</code></td><td>보류 — 값이 없다는 게 아니라 "확인 전"</td><td>0이나 <code>""</code>를 넣으면 진짜 값과 구분이 안 돼요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 보류를 정답으로 안 세?</strong> — 보류는 "사람이 확인해야 함"이지 "맞음"이 아니에요. 보류를 정답에 넣으면 자동화율이 부풀고, 빼고 세면 "자동으로 처리된 것 중 몇 개가 맞았나"와 "몇 개를 사람에게 넘겼나"를 따로 볼 수 있어요. 위 표라면 6개 중 <b>채택 3 · 보류 3</b>.</div>
 
       <h3>OCR + VLM을 합치는 세 가지 방식</h3>
       <figure id="fig-hybrid">
@@ -893,6 +978,21 @@ print("설명용 이미지의 Box 범위:", valid_box)</code></pre>
         <tr><td><b>ExecutionContext</b></td><td>실행</td><td>동적 shape · Tensor 주소 · 추론 상태 관리 (실제 호출 단위)</td></tr>
         <tr><td><b>CUDA Stream</b></td><td>실행</td><td>비동기 실행과 "다 끝났는지" 확인 시점 제어</td></tr>
       </table>
+
+      <h3>🔧 명령어: PyTorch → ONNX 내보내기 <code>torch.onnx.export()</code></h3>
+<pre><code>import torch
+
+model.eval()                                       # Dropout·BatchNorm을 추론 모드로
+x = torch.randn(1, 3, 224, 224)                    # 실제로 넣을 크기의 예시 입력
+torch.onnx.export(model, (x,), "model.onnx")       # PyTorch → ONNX
+# 다음: ONNX 결과를 원본 PyTorch 결과와 비교 → 대상 장치에서 trtexec로 Engine Build</code></pre>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>model</code></td><td>내보낼 신경망 (<code>eval()</code> 상태로)</td><td>train 모드로 내보내면 Dropout 등이 섞여 결과가 원본과 달라져요</td></tr>
+        <tr><td><code>(x,)</code></td><td>예시 입력 (튜플) — 이걸 한 번 흘려 보내며 계산 순서를 기록</td><td>크기를 대충 주면 그 크기로 고정된 모델이 나와요</td></tr>
+        <tr><td><code>dynamic_shapes</code></td><td>바뀌는 축(예: batch)을 지정</td><td>안 주면 batch 1로 고정 — 4장씩 넣으면 실행이 거부돼요. 아래 trtexec의 min/opt/max shape와 짝</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Engine은 "대상 장치에서" 만들어?</strong> — TensorRT Engine은 그 GPU의 종류와 TensorRT·드라이버 버전에 맞춰 <b>가장 빠른 계산 방법을 골라 굳힌</b> 파일이에요. 노트북 RTX에서 만든 Engine을 Jetson에 옮기면 맞지 않아요. ONNX는 어디서나 쓰는 교환 형식, Engine은 그 장치 전용 실행 파일이라고 생각하면 돼요.</div>
 
       <h3>🔧 명령어: <code>trtexec</code>로 빌드 · 추론 확인</h3>
 <pre><code># Linux Bash 예시: 준비된 ONNX와 NVIDIA GPU 필요
@@ -1063,6 +1163,7 @@ def ask_document(image_path, question, pipe) -&gt; VLMResult:
       <h2>원본 자료</h2>
       <ul>
         <li>강의: <code>Day16_20261109.pdf</code> — 큰 그림 p2–18 · 전처리 p19–28 · OCR 실행·평가 p31–38 · 구조화·검증 p41–48 · VLM p51–58 · 근거·Hybrid·보안·메모리 p59–71 · 배포 p74–82 · 미니 애플리케이션 p85–92 · 정리 p98–99</li>
+        <li>요약: <code>Day16_oneday요약.pdf</code> — 하루 지도 · 교시별 핵심 · 파라미터를 바꿔 다시 실행한 실측 결과(Tesseract 5.5.2 · SmolVLM-256M-Instruct, 합성 영어 문서 기준이라 실제 한국어 문서·손글씨 성능을 뜻하지는 않아요)</li>
         <li>공식 문서: <a href="https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html" target="_blank">OpenCV Thresholding</a> · <a href="https://docs.opencv.org/4.x/da/d6e/tutorial_py_geometric_transformations.html" target="_blank">OpenCV Geometric Transformations (warpPerspective)</a></li>
         <li>공식 문서: <a href="https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html" target="_blank">Tesseract — Improving the quality of the output (PSM)</a> · <a href="https://pypi.org/project/pytesseract/" target="_blank">pytesseract (image_to_string / image_to_data)</a></li>
         <li>공식 문서: <a href="https://huggingface.co/docs/transformers/en/chat_templating_multimodal" target="_blank">Transformers Multimodal chat templates</a> · <a href="https://huggingface.co/docs/transformers/en/tasks/image_text_to_text" target="_blank">Image-text-to-text</a></li>
