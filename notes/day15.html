@@ -77,8 +77,8 @@ python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사�
       <!-- ============================================================ -->
       <h2 id="box">① 박스 좌표 — 같은 박스, 세 가지 표현</h2>
       <div class="figs">
-        <figure><img src="img/day15/input.png" alt="도형 3개가 있는 이미지"><figcaption>원본 이미지</figcaption></figure>
-        <figure><img src="img/day15/labeled.png" alt="도형마다 박스가 그려진 이미지"><figcaption>라벨 txt를 읽어 박스로 그린 모습</figcaption></figure>
+        <figure><img src="img/day15/input.png" alt="도형 3개가 있는 이미지"><figcaption><b>원본 이미지</b><br><b>무엇을 보나:</b> 잡음 낀 회색 배경 위에 초록 원·빨강 사각형·파랑 삼각형이 있어요. 모델이 받는 건 이 픽셀뿐이에요. <b>🤔 왜 도형?</b> 박스 좌표가 맞는지 눈으로 바로 확인할 수 있게, 경계가 분명한 물체를 썼어요.</figcaption></figure>
+        <figure><img src="img/day15/labeled.png" alt="도형마다 박스가 그려진 이미지"><figcaption><b>라벨 txt를 읽어 박스로 그린 모습</b><br><b>무엇을 보나:</b> 각 도형에 <code>클래스 번호 + 이름</code>(0 square, 1 circle, 2 triangle)과 박스가 붙었어요. 박스는 도형에 딱 맞게 감싸요. <b>🤔 왜 그려 봐?</b> 라벨 txt는 0~1 사이 숫자 네 개라 눈으로는 맞는지 알 수 없어요. 그려서 박스가 물체에서 <b>밀리거나 뒤바뀌지 않았는지</b> 확인하는 게 학습 전 첫 점검이에요.</figcaption></figure>
       </div>
       <table>
         <tr><th>표현</th><th>숫자 4개</th><th>어디서 쓰나</th></tr>
