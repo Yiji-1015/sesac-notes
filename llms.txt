@@ -20,6 +20,7 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 - [Day14 · 전이학습과 오류 분석](https://yiji-1015.github.io/sesac-notes/notes/day14.html): 2026-11-05(목) · 데이터셋 설계 · 전이학습 · Fine-tuning · 클래스 불균형 · Macro F1 · Grad-CAM
 - [Day15 · 객체탐지와 YOLO](https://yiji-1015.github.io/sesac-notes/notes/day15.html): 2026-11-06(금) · 객체탐지 · IoU · mAP · YOLO 학습/추론 · 추적
 - [Day16 · OCR → 문서 구조화 → VLM 질의응답 → 엣지 배포](https://yiji-1015.github.io/sesac-notes/notes/day16.html): 2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · JSON 구조화 · VLM · Grounding · Hybrid · TensorRT · Jetson · DeepStream
+- [Day17 · FastAPI 지식 관리 API](https://yiji-1015.github.io/sesac-notes/notes/day17.html): 2026-11-10(화) · FastAPI · HTTP 요청/응답 · CRUD · Pydantic 검증 · JSON 파일 저장 · 상태 코드
 
 ## 참고
 - 저장소(원본 HTML·그림 생성 스크립트): https://github.com/Yiji-1015/sesac-notes

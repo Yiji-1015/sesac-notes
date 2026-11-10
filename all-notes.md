@@ -7390,3 +7390,840 @@ def ask_document(image_path, question, pipe) -> VLMResult:
 - **필드 정확도** (Field accuracy (필드 정확도)): 합계·날짜·공급자 같은 업무 필드 중 값이 정확히 맞은 비율. 글자 하나만 틀려도 그 필드는 통째로 틀린 걸로 세요.
 - **보류** (보류 (review · 사람 확인)): 근거와 맞지 않거나 원문에 없는 값을 자동으로 확정하지 않고 null로 두어 사람이 확인하게 하는 상태. 정답으로 세지 않아요.
 - **greedy decoding** (Greedy decoding (탐욕적 생성)): 다음 토큰을 매번 가장 확률 높은 것 하나로 고르는 생성 방식. do_sample=False가 이것이라 같은 입력에 같은 답이 나와요.
+
+---
+
+# Day17 · FastAPI 지식 관리 API
+_2026-11-10(화) · FastAPI · HTTP 요청/응답 · CRUD · Pydantic 검증 · JSON 파일 저장 · 상태 코드_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day17.html
+
+📌 딱 3줄 요약
+
+- FastAPI는 "이 주소로 이런 요청이 오면 이 함수를 실행해"를 연결해 주는 도구예요. RAG·Agent를 사람들이 쓰는 서비스로 만들 때 입구가 돼요.
+
+- 오늘은 AI가 나중에 쓸 지식의 원본을 등록·조회·수정·삭제(CRUD)하고 JSON 파일에 저장하는 API를 만들어요.
+
+- 응답 한 번으로 끝내지 않고 상태 코드(200·201·204·404·422)와 실제 파일, 재시작 후 값까지 확인해야 완성이에요.
+
+## 이론 ↔ 명령어 한눈에
+
+| 이론 | 대응 명령어 |
+|---|---|
+| 📦 필요한 패키지 | python -m pip install fastapi uvicorn |
+| ① 첫 서버 띄우기 | FastAPI(), @app.get(), python -m uvicorn main:app --reload |
+| ② HTTP 요청과 응답 | Method · Path · Query · Body · Status, /docs의 Try it out |
+| ③ JSON 파일 저장소 | json.load(), json.dump(), with LOCK:, temp.replace() |
+| ④ 조회 (GET) | @app.get("/api/knowledge/{knowledge_id}"), raise HTTPException(404) |
+| ⑤ 등록 (POST) · 입력 검증 | class KnowledgeWrite(BaseModel), Field(min_length=, max_length=), status_code=201 |
+| ⑥ 수정 (PUT) | @app.put(), enumerate(), data["entries"][i] = updated |
+| ⑦ 삭제 (DELETE) · 상태 코드 | @app.delete(status_code=204), Response(status_code=204) |
+| 🧪 직접 요청 보내 보기 | (브라우저 안에서 CRUD 흉내) |
+| ⑧ 끝까지 추적 · 재시작 | Ctrl+C → 같은 명령으로 재실행 → GET |
+| ⑨ 역할별로 파일 나누기 | APIRouter(prefix=, tags=), app.include_router(), uvicorn app.main:app |
+| ⑩ 다음 단계와 연결 | PostgreSQL · RAG · Agent (오늘은 구현 안 함) |
+
+## 📦 필요한 패키지
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| fastapi | 주소(Route)와 함수를 연결하고, 입력 검증·자동 문서(/docs)를 만들어 줌 | from fastapi import FastAPI, HTTPException, Response |
+| uvicorn | 실제로 네트워크 요청을 받아 FastAPI 앱에 넘겨주는 서버 프로그램 | 직접 import 안 함 — python -m uvicorn main:app으로 실행 |
+| pydantic | 입력·응답 데이터의 모양 검사 (fastapi를 깔면 같이 설치됨) | from pydantic import BaseModel, Field |
+| json, pathlib, threading | 파일 읽기/쓰기, 파일 경로, 잠금 — 파이썬 기본 내장이라 설치 안 함 | import json, from pathlib import Path, from threading import Lock |
+| jinja2 (선택) | JSON 대신 HTML 화면을 만들 때 쓰는 템플릿 엔진 | from fastapi.templating import Jinja2Templates |
+| pytest, httpx (선택) | 자동 테스트. TestClient가 내부에서 httpx를 씀 | from fastapi.testclient import TestClient |
+
+### 🔧 설치 · 확인 (PowerShell)
+
+```
+python --version                                   # 3.10 이상인지
+python -m venv .venv                               # 프로젝트 전용 가상환경 만들기
+.\.venv\Scripts\Activate.ps1                       # 가상환경 켜기
+python -m pip install fastapi uvicorn
+python -c "import sys; print(sys.executable)"      # 지금 쓰는 python이 .venv 안의 것인지
+python -m pip show fastapi pydantic uvicorn        # 설치된 버전 확인
+```
+
+💡 활성화(Activate.ps1)가 보안 정책 때문에 막힐 때는 정책을 억지로 바꾸지 말고, 가상환경의 python을 경로로 직접 부르면 돼요. 활성화는 "python이라고만 쳐도 .venv 것을 쓰게 해 주는" 편의 기능일 뿐이에요.
+
+```
+.\.venv\Scripts\python.exe -m pip install fastapi uvicorn
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
+Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요청 확인
+```
+
+🤔 왜 pip 대신 python -m pip? — PC에 파이썬이 여러 개 있으면 pip가 엉뚱한 파이썬에 설치할 수 있어요. python -m pip은 "지금 이 python에 설치해"라는 뜻이라 설치한 곳과 실행하는 곳이 어긋나지 않아요. python -m uvicorn도 같은 이유예요.
+
+## 이거 어디에 써?
+
+새로 온 직원이 "우리 팀 개발환경은 어디서 확인해요?"라고 물으면, 나중에는 AI Agent가 대답해 줄 거예요. 그런데 Agent가 답하려면 근거가 되는 안내문이 어딘가에 정리돼 있어야 해요. 오늘은 그 안내문(지식)의 원본을 넣고·찾고·고치고·지우는 API를 만들어요.
+
+🧑‍💼
+
+사내 온보딩"가상환경 사용 안내" 같은 문서를 등록·수정
+
+❓
+
+FAQ 관리자주 묻는 질문 답변을 분류별로 조회
+
+🔎
+
+RAG의 재료검색·답변 생성이 읽어 갈 원본 저장소
+
+🤖
+
+Agent 도구Agent가 "지식 조회"를 부를 때 실제로 찾는 곳
+
+[그림: 사용자 화면 아래 FastAPI가 있고, 그 아래 지식 관리 API(오늘), RAG(이후), AI Agent(이후) 세 칸과 각각의 저장소가 있는 그림] 무엇을 보나: 맨 위 사용자 화면의 요청은 모두 FastAPI라는 입구를 지나요. 그 아래 세 갈래 중 초록 실선(지식 관리 API + JSON 파일)만 오늘 만들고, 회색 점선(RAG, Agent)은 이후 수업에서 붙여요. 🤔 왜 이 순서? RAG는 지식을 검색하고 Agent는 그걸 도구로 불러 쓰는데, 둘 다 원본이 정리돼 있어야 시작할 수 있어요. 원본이 낡으면 검색도 답변도 같이 흔들려요.
+
+|  | 지식 관리 API (오늘) | RAG (다음 단계) | AI Agent (이후) |
+|---|---|---|---|
+| 답하는 질문 | "안내문을 어떻게 유지하지?" | "관련 근거가 어디 있지?" | "이 작업엔 어떤 도구가 필요하지?" |
+| 하는 일 | 등록·조회·수정·삭제, 저장 상태 확인 | 문서 검색 → 문맥 제공 → 답변·출처 | 도구 선택·호출 제안 → 실행 결과 점검 |
+| AI 모델 필요? | ❌ 없어도 동작 | ✅ 임베딩·LLM | ✅ LLM |
+
+🤔 왜 셋을 따로 나눠? — 같은 서비스로 이어 붙일 수는 있지만 책임이 달라요. 원본 저장은 "정확히 남기기", 검색은 "잘 찾기", Agent는 "무슨 도구를 쓸지 판단하기"예요. 한 덩어리로 섞으면 검색 방식을 바꿀 때 저장 코드까지 건드리게 돼요.
+
+⚠️ FastAPI ≠ AI 모델 ≠ Agent. 오늘 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 나중에 만들 검색 인덱스는 자동으로 바뀌지 않아요(따로 다시 만들어야 해요).
+
+## ① 첫 서버 띄우기
+
+API(Application Programming Interface)는 프로그램끼리 주고받는 약속된 창구예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.
+
+### 🔧 명령어: main.py — 첫 JSON 응답
+
+```
+from fastapi import FastAPI
+
+app = FastAPI(title="Knowledge API")       # 앱 객체 만들기
+
+@app.get("/health")                        # GET /health 요청이 오면
+def health():                              # 이 함수를 실행해서
+    return {"status": "ok"}                # 이 값을 JSON으로 돌려줌
+```
+
+| 코드 | 역할 |
+|---|---|
+| FastAPI(title=...) | 앱 객체 생성. title은 /docs 맨 위에 보이는 이름(선택) |
+| @app.get("/health") | Route 등록 — "GET 방식 + /health 경로"를 바로 아래 함수에 연결 |
+| def health(): | 요청 처리 함수(View / Handler라고도 불러요). 요청이 올 때마다 실행 |
+| return {...} | 파이썬 dict를 돌려주면 FastAPI가 JSON으로 바꿔서 응답 (상태 코드 200) |
+
+🤔 왜 함수 위에 @를 붙여? — @app.get(...)은 데코레이터예요. 함수를 바꾸지 않고 "이 함수를 이 주소에 등록해 둬"라는 표시만 붙여요. 그래서 함수는 평범한 파이썬 함수 그대로고, 언제 실행할지는 FastAPI가 정해요.
+
+### 🔧 명령어: 서버 실행
+
+```
+# main.py가 있는 폴더에서, .venv 활성화 후
+python -m uvicorn main:app --reload
+
+# 브라우저 주소창에
+http://127.0.0.1:8000/health      → {"status":"ok"}
+http://127.0.0.1:8000/docs        → 자동 API 문서
+
+# 서버 끄기: 실행 중인 터미널에서 Ctrl+C
+```
+
+| 부분 | 뜻 |
+|---|---|
+| main | main.py 파일(모듈) 이름 — .py는 안 붙임 |
+| :app | 그 파일 안의 앱 변수 이름 (app = FastAPI()의 app) |
+| --reload | 코드를 저장하면 서버가 알아서 다시 켜짐. 개발용이에요 |
+| 127.0.0.1 | "내 컴퓨터" (= localhost). 다른 PC에서는 이 주소로 못 들어와요 |
+| 8000 | 포트 — 한 컴퓨터 안에서 프로그램마다 다른 "문 번호". 바꾸면 URL도 같이 바꿔요 |
+
+🤔 왜 Uvicorn이 따로 있어? — FastAPI는 "요청이 오면 어떤 함수를 부를지"만 알아요. 네트워크에서 요청을 실제로 받아 오는 일은 Uvicorn(서버 프로그램)이 해요. 식당으로 치면 Uvicorn은 손님을 받는 홀 직원, FastAPI는 주문서를 보고 요리사를 정하는 주방장이에요.
+
+⚠️ 서버는 한 개만 띄우세요. 같은 포트로 두 번 실행하면 "이미 사용 중" 오류가 나거나, 예전 코드가 도는 서버에 요청이 가서 헷갈려요. 고쳤는데 안 바뀌면 터미널이 두 개 떠 있지 않은지부터 보세요.
+
+### 🔧 /docs — 자동 문서에서 요청 보내기
+
+주소창은 기본적으로 GET만 보내요. POST·PUT·DELETE는 /docs(Swagger UI)에서 보내요.
+
+| 순서 | 할 일 | 확인할 것 |
+|---|---|---|
+| 1 | 경로를 펼쳐 입력 약속 읽기 | Path·Query·Body에 무엇이 필요한지 |
+| 2 | Try it out | 입력 칸이 열림 |
+| 3 | Execute | 실제 요청이 서버로 감 |
+| 4 | Server response | 실제 Code(상태 코드)와 Response body |
+
+⚠️ 아래쪽 Responses 칸은 "이런 응답이 나올 수 있다"는 문서상 예시예요. 진짜 결과는 Server response의 Code·Body로 확인해요.
+
+## ② HTTP 요청과 응답
+
+HTTP는 브라우저·프로그램이 서버와 대화하는 규칙이에요. 대화는 항상 요청 1개 ↔ 응답 1개가 한 쌍이에요.
+
+[그림: http://127.0.0.1:8000/api/knowledge/2?category=api 를 통신 방식, 내 컴퓨터, 포트, 자원 경로, Path 값, Query로 나눠 색칠한 그림] 무엇을 보나: URL 하나를 색깔별로 잘랐어요. 127.0.0.1:8000까지가 "어느 서버", /api/knowledge가 "무슨 자원", /2가 "그중 어느 것(Path 값)", ?category=api가 "어떤 조건으로(Query)"예요. 🤔 왜 둘을 나눠? Path는 대상을 콕 집을 때(2번 지식), Query는 목록을 걸러낼 때(분류가 api인 것만) 써요. 빠지면 안 되는 건 Path, 있어도 없어도 되는 건 Query가 자연스러워요.
+
+| 이름 | 예시 | 역할 |
+|---|---|---|
+| Method | GET · POST · PUT · DELETE | 무엇을 하려는지 (요청의 의도) |
+| Path | /api/knowledge/4 | 어떤 자원의 어느 것인지 |
+| Query | ?category=api | 목록을 거를 선택 조건 |
+| Header | Content-Type: application/json | 본문 형식 같은 부가 정보 |
+| Body | {"title": "실습 환경 안내", ...} | 새로 만들거나 고칠 데이터 (GET엔 보통 없음) |
+| Status | 200 · 201 · 204 · 404 · 422 | 처리 결과를 숫자로 |
+| Response body | 지식 JSON / 오류 detail / 없음 | 클라이언트가 받는 내용 |
+
+```
+# 요청                                   # 응답
+GET /api/knowledge/2                     Status: 200
+Host: 127.0.0.1:8000                     Content-Type: application/json
+(Body 없음)                              {"id": 2, "title": "서버 실행",
+                                          "category": "api",
+                                          "content": "uvicorn으로 개발 서버를 켠다."}
+```
+
+[그림: 클라이언트, Uvicorn, Route, 타입 검증, 처리 함수, storage.py 여섯 칸을 지나 200, 404, 422로 갈라지는 흐름도] 무엇을 보나: GET /api/knowledge/2 한 건이 ①→⑥을 차례로 지나요. 같은 경로라도 어디서 멈추느냐에 따라 결과가 갈라져요 — foo는 ④ 타입 검증에서 정수로 못 바꿔 422(함수는 아예 실행 안 됨), 9999는 ⑤ 함수가 끝까지 못 찾아 404, 2는 ⑥에서 찾아 200. 🤔 왜 알아야 해? 상태 코드만 보고 "어느 단계에서 막혔는지"를 바로 알 수 있어서, 오류가 나면 고칠 곳을 좁힐 수 있어요.
+
+🤔 왜 URL을 직접 쪼개서 해석하지 않아? — FastAPI가 Route(Method+Path 대조) → 타입 검증 → 함수 → 응답을 순서대로 연결해 줘요. 우리는 "knowledge_id: int"라고 약속만 적으면, 문자열 "2"를 정수 2로 바꾸고 안 되면 422를 돌려주는 일까지 자동이에요.
+
+## ③ JSON 파일 저장소
+
+오늘의 저장소는 데이터베이스가 아니라 JSON 파일 하나예요. 서버를 껐다 켜도 지식이 남아 있게 하려면 메모리(변수)가 아니라 파일에 써야 해요.
+
+```
+// data/knowledge.json
+{
+  "next_id": 4,
+  "entries": [
+    {"id": 1, "title": "가상환경", "category": "setup", "content": "프로젝트별 패키지를 분리한다."},
+    {"id": 2, "title": "서버 실행", "category": "api",   "content": "uvicorn으로 개발 서버를 켠다."},
+    {"id": 3, "title": "입력 오류", "category": "api",   "content": "422이면 입력값을 확인한다."}
+  ]
+}
+```
+
+| 키 | 뜻 |
+|---|---|
+| entries | 지식 항목 목록. 항목 1건 = id + 제목 + 본문 + 분류 |
+| id | 서버가 발급하는 번호. 사용자가 정하지 않아요 |
+| next_id | 다음에 줄 번호. 파일 안에만 두고, API 응답에는 내보내지 않아요 |
+
+⚠️ JSON 문자열은 큰따옴표만 돼요('가상환경' ❌). 마지막 항목 뒤 쉼표도 안 돼요. 파일 문법이 깨지면 서버가 읽다가 실패해요.
+
+### 🔧 명령어: storage.py — 읽기·쓰기 보조 함수
+
+```
+import json
+from pathlib import Path
+from threading import Lock
+
+BASE = Path(__file__).resolve().parent         # 이 파일(storage.py)이 있는 폴더
+DATA = BASE / "data" / "knowledge.json"
+LOCK = Lock()
+
+def read_data():                                 # 파일 → dict
+    with DATA.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+def write_data(data):                            # dict → 파일
+    temp = DATA.with_suffix(".tmp")
+    try:
+        with temp.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기
+    finally:
+        temp.unlink(missing_ok=True)             # 남은 임시 파일 정리
+```
+
+| 코드 | 뜻 |
+|---|---|
+| Path(__file__).resolve().parent | "이 코드 파일이 있는 폴더". 어느 폴더에서 서버를 켜든 같은 data 파일을 찾게 해 줘요 |
+| encoding="utf-8" | 한글이 깨지지 않게 (Windows 기본값은 cp949라 꼭 적어요) |
+| json.load(f) / json.dump(data, f) | JSON 글자 ↔ 파이썬 dict·list 변환 |
+| ensure_ascii=False | 한글을 가 같은 코드 대신 그대로 저장 |
+| indent=2 | 사람이 읽기 좋게 줄바꿈·들여쓰기 |
+| with_suffix(".tmp") | 같은 폴더에 knowledge.tmp 경로 만들기 |
+
+[그림: 왼쪽은 원본에 바로 쓰다 중간에 끊겨 반쯤 쓰인 파일, 오른쪽은 임시 파일에 다 쓴 뒤 원본과 바꿔치기하는 그림] 무엇을 보나: 왼쪽은 knowledge.json을 바로 "w"로 열어 쓰다가 도중에 멈춘 경우예요. "w"로 여는 순간 원본 내용이 지워지니, 반쯤 쓰인 깨진 JSON만 남아요. 오른쪽은 .tmp에 먼저 끝까지 쓰고, 성공했을 때만 replace()로 바꿔치기해요. 🤔 왜? 쓰다 실패해도 망가지는 건 임시 파일뿐이라 원본이 살아남아요. 그래서 "저장 실패 = 예전 데이터 그대로"가 보장돼요.
+
+### 🔧 with LOCK: — 읽기부터 저장까지 한 번에 잠그기
+
+```
+from storage import LOCK, read_data, write_data
+
+with LOCK:                       # 이 블록은 한 번에 한 요청만
+    data = read_data()           # 1. 읽고
+    ...                          # 2. 바꾸고
+    write_data(data)             # 3. 저장
+```
+
+[그림: 동시에 20건을 등록했을 때 Lock 없이는 1건, with LOCK은 20건이 저장된 가로 막대그래프] 무엇을 보나: 스레드 20개가 동시에 "파일 읽기 → 항목 추가 → 저장"을 했을 때 파일에 남은 항목 수예요(이 PC에서 직접 5번 돌린 결과, 읽기와 저장 사이에 0.01초 틈을 일부러 넣어 차이를 크게 보이게 했어요). Lock이 없으면 20건을 보냈는데 1건만 남았어요. 🤔 왜? 20개가 모두 "빈 파일"을 거의 동시에 읽고, 각자 1건을 더해 저장했어요. 나중에 저장한 쪽이 앞선 저장을 덮어써서 결국 하나만 남아요. with LOCK:으로 읽기~저장을 묶으면 앞 요청이 끝날 때까지 다음 요청이 기다리니 20건이 다 남아요.
+
+🤔 왜 쓰기 한 줄만 잠그면 안 돼? — 문제는 "예전 내용을 읽은 채로 저장하는 것"이에요. 쓰기만 잠그면 두 요청이 같은 옛날 내용을 읽은 뒤 차례로 저장해서 결국 덮어써요. 그래서 읽기 → 변경 → 저장을 하나의 with LOCK 안에 둬요. FastAPI는 def 함수도 여러 요청을 동시에 처리할 수 있어서 이게 필요해요.
+
+⚠️ 이 Lock은 서버 프로세스 하나 안에서만 지켜 줘요. 서버를 여러 개 띄우거나, 실행 중에 편집기로 파일을 직접 고치거나, 여러 표를 한꺼번에 바꾸는 경우는 못 막아요. 그건 데이터베이스의 트랜잭션이 하는 일이에요(다음 수업).
+
+⚠️ 파일 읽기에 실패하면 "빈 목록이겠지" 하고 빈 데이터로 덮어쓰면 안 돼요. 그 순간 지식이 전부 사라져요. 원인(경로·JSON 문법)을 먼저 확인해요.
+
+## ④ 조회 (GET) — 목록·상세·조건
+
+### 🔧 명령어: 목록 조회
+
+```
+@app.get("/api/knowledge")
+def list_knowledge():
+    with LOCK:
+        data = read_data()          # 요청마다 파일을 새로 읽음
+    return data["entries"]          # list를 돌려주면 JSON 배열
+```
+
+| 요청 | 결과 |
+|---|---|
+| GET /api/knowledge | 200 + 지식 3개 배열 |
+| 목록이 비어 있을 때 | 200 + [] (없는 게 오류는 아니에요) |
+
+🤔 왜 요청마다 파일을 다시 읽어? — 한 번 읽어 변수에 들고 있으면, 다른 요청이 파일을 바꿔도 옛날 값을 보여 줘요. 매번 읽으면 항상 파일이 진짜 기준이 돼요. GET은 읽기만 하고 파일을 절대 바꾸지 않아요.
+
+### 🔧 명령어: 상세 조회 + 404
+
+```
+from fastapi import HTTPException
+
+@app.get("/api/knowledge/{knowledge_id}")
+def get_knowledge(knowledge_id: int):            # {knowledge_id} 자리 값을 int로 받음
+    with LOCK:
+        data = read_data()
+    for entry in data["entries"]:
+        if entry["id"] == knowledge_id:
+            return entry                         # 찾으면 200
+    raise HTTPException(404, "Knowledge not found")   # 끝까지 없으면 404
+```
+
+| 코드 조각 | API에서의 역할 |
+|---|---|
+| @app.get(".../{knowledge_id}") | Route — 어떤 요청을 받나 (중괄호 = Path Parameter 자리) |
+| get_knowledge(...) | Function — 요청을 받으면 무엇을 하나 |
+| knowledge_id: int | Parameter — 어떤 값을 받나 (이름이 중괄호 안 이름과 같아야 해요) |
+| entry["id"] | Field — 어떤 자료와 비교하나 |
+
+강의 코드를 그대로 돌려 받은 실제 응답이에요 (FastAPI 0.162 · Pydantic 2.14):
+
+```
+GET /api/knowledge/2     → 200 {"id":2,"title":"서버 실행","category":"api","content":"uvicorn으로 개발 서버를 켠다."}
+GET /api/knowledge/9999  → 404 {"detail":"Knowledge not found"}
+GET /api/knowledge/foo   → 422 {"detail":[{"type":"int_parsing","loc":["path","knowledge_id"],
+                                 "msg":"Input should be a valid integer, unable to parse string as an integer","input":"foo"}]}
+GET /nope                → 404 {"detail":"Not Found"}      ← 경로 자체가 없을 때
+```
+
+🤔 왜 오류는 return이 아니라 raise? — return {"error": ...}을 하면 상태 코드가 200(성공)으로 나가요. 받는 프로그램은 성공인 줄 알고 그 dict를 지식으로 써 버려요. raise HTTPException(404)은 함수를 즉시 멈추고 "실패, 이유는 이것"을 상태 코드로 알려요.
+
+💡 404가 두 종류예요. {"detail":"Not Found"}는 그런 주소(Route)가 아예 없음(오타), {"detail":"Knowledge not found"}는 주소는 맞는데 그 ID의 지식이 없음. detail 문구로 구분해요.
+
+### 🔧 명령어: Query로 목록 거르기
+
+```
+@app.get("/api/knowledge")
+def list_knowledge(category: str | None = None):     # 기본값이 있으면 → Query, 생략 가능
+    with LOCK:
+        data = read_data()
+    result = []
+    for entry in data["entries"]:
+        if category is None or entry["category"] == category:
+            result.append(entry)
+    return result
+```
+
+| 요청 | 실제 결과 |
+|---|---|
+| GET /api/knowledge | 전체 3건 |
+| GET /api/knowledge?category=api | id 2, 3 — 2건 |
+| GET /api/knowledge?category=zzz | 200 + [] |
+
+🤔 FastAPI는 Path와 Query를 어떻게 구분해? — 함수 매개변수 이름이 경로의 {중괄호}에 있으면 Path, 없으면 Query로 봐요. = None처럼 기본값을 주면 "안 보내도 되는" 선택 조건이 돼요. 이 함수는 기존 목록 Route를 교체하는 거라, 같은 경로를 두 번 등록하지 않아요.
+
+제목·본문에 특정 글자가 들어간 것을 찾는 방법도 있어요:
+
+```
+from fastapi import Query
+
+@app.get("/api/knowledge")
+def list_knowledge(q: str = Query("", max_length=80)):
+    ...
+        if q in entry["title"] or q in entry["content"]:    # "포함하나?" 단순 비교
+            result.append(entry)
+```
+
+⚠️ ?q=서버는 글자가 그대로 들어 있는지만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 의미 기반 검색(RAG·벡터 검색)은 이후 수업에서 배워요.
+
+## ⑤ 등록 (POST) · 입력 검증
+
+새 지식은 URL이 아니라 Body에 담아 보내요. ID는 보내지 않아요 — 서버가 정해요.
+
+```
+POST /api/knowledge
+Content-Type: application/json
+
+{
+  "title": "실습 환경 안내",
+  "content": "Python 3.10 이상을 사용한다.",
+  "category": "setup"
+}
+```
+
+### 🔧 명령어: Pydantic으로 입력 모양 정하기
+
+```
+from pydantic import BaseModel, Field
+
+class KnowledgeWrite(BaseModel):                          # POST·PUT 입력
+    title: str = Field(min_length=1, max_length=80)
+    content: str = Field(min_length=1, max_length=2000)
+    category: str = Field(min_length=1, max_length=30)
+
+class Knowledge(KnowledgeWrite):                          # 응답 = 입력 + id
+    id: int
+```
+
+| 인자 / 표현 | 뜻 |
+|---|---|
+| BaseModel | 상속하면 "이 모양의 데이터만 받겠다"는 검사 틀이 됨 |
+| title: str | 문자열이어야 함. 기본값이 없으니 필수 필드 |
+| Field(min_length=1) | 최소 1글자 — 빈 문자열 "" 거부 |
+| Field(max_length=80) | 최대 길이. title 80 · content 2,000 · category 30자 |
+| class Knowledge(KnowledgeWrite) | 입력 모델을 물려받고 id만 추가한 응답 모델 |
+| payload.model_dump() | 검증된 모델 → 파이썬 dict (파일 저장은 안 함) |
+
+🤔 왜 입력 모델과 응답 모델을 나눠? — 입력할 땐 id가 없어야 하고(서버가 정하니까), 응답할 땐 있어야 해요. 하나로 쓰면 사용자가 "id": 1을 보내 남의 번호를 흉내 낼 수 있어요. 그리고 이 모델은 DB 테이블이 아니에요 — 모양 검사만 하고, 저장은 다른 코드가 해요.
+
+### 🔧 명령어: 등록 함수
+
+```
+@app.post("/api/knowledge", status_code=201, response_model=Knowledge)
+def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite로 검사
+    with LOCK:
+        data = read_data()                            # 1. 현재 파일 읽기
+        entry = payload.model_dump()                  # 2. 새 항목 dict 만들기
+        entry["id"] = data["next_id"]                 #    + 새 ID
+        data["entries"].append(entry)                 # 3. 목록에 추가
+        data["next_id"] += 1                          # 4. 다음 번호 올리기
+        write_data(data)                              # 5. 파일 저장
+    return entry                                      # 6. 만든 항목 응답
+```
+
+| 인자 | 뜻 |
+|---|---|
+| status_code=201 | 성공 시 200 대신 201 Created(새로 만들었음) |
+| response_model=Knowledge | 응답 모양을 검사·정리하고 /docs에 표시. next_id 같은 내부 값이 새지 않게 걸러 줘요 |
+| payload: KnowledgeWrite | 매개변수 타입이 BaseModel이면 → Body로 받아요 |
+
+[그림: 위는 len+1 방식으로 ID 2 삭제 후 새 항목이 3을 받아 충돌, 아래는 next_id 방식으로 4를 받는 그림] 무엇을 보나: 위 줄은 "목록 길이 + 1"로 번호를 매긴 경우예요. ID 2를 지우면 길이가 2가 되고, 새 항목이 3을 받아 이미 있는 3번과 겹쳐요(빨강). 아래 줄은 next_id를 파일에 따로 적어 두는 강의 방식 — 삭제해도 4는 그대로라 새 항목은 4를 받아요. 🤔 왜? ID는 "이 지식의 이름표"라 한 번 쓴 번호는 다시 쓰면 안 돼요. 지워진 2번을 기억하던 다른 프로그램이 새 항목을 옛 지식으로 착각할 수 있어요. 그래서 next_id는 줄이지 않고, entries와 같은 파일에 저장해 재시작해도 이어져요.
+
+생성 확인은 응답 한 번으로 끝내지 않아요.
+
+| 순서 | 확인 | 초기 3건에서 한 번 등록했을 때 |
+|---|---|---|
+| 1 | POST 응답 | 201, id = 4 |
+| 2 | 그 ID로 상세 재조회 | GET /api/knowledge/4 → 200 |
+| 3 | 목록 개수 | 3개 → 4개 |
+| 4 | 파일 직접 열기 | id 4 항목 있음, next_id: 5 |
+
+⚠️ /docs에서 Execute를 또 누르면 또 하나 생겨요(POST는 누를 때마다 새로 만듦). 응답에서 받은 실제 ID를 적어 두고 그걸로 확인해요.
+
+### 🔧 422 — 잘못된 입력은 저장 전에 막힘
+
+| 보낸 입력 | 실제 결과 | detail에서 볼 곳 |
+|---|---|---|
+| 정상 세 필드 | 201 | 새 ID가 붙은 항목 |
+| title 빠짐 | 422 | "type":"missing", "loc":["body","title"] |
+| content가 "" | 422 | "type":"string_too_short", "loc":["body","content"] |
+| JSON 문법 오류 (끝에 쉼표) | 422 | "type":"json_invalid" |
+
+세 번 다 422가 난 뒤 파일을 확인하니 항목 4개 · next_id 5 그대로였어요. 검증은 함수 본문이 실행되기 전에 일어나서, 저장 코드까지 가지도 않아요.
+
+🤔 loc은 어떻게 읽어? — 어디서 틀렸는지 알려 주는 주소예요. 첫 칸이 "path" / "query" / "body" 중 하나고, 다음 칸이 필드 이름이에요. 422가 나면 loc과 msg부터 보면 고칠 곳이 바로 나와요.
+
+| 검사 종류 | 질문 | 누가 막나 |
+|---|---|---|
+| 형식 | 세 필드가 있나? 길이가 맞나? | Pydantic → 자동 422 (오늘) |
+| 내용 | 안내 내용이 맞나? 오래된 절차 아닌가? | 사람의 검토 — 코드가 못 막아요 |
+| 권한 | 아무나 고치고 지워도 되나? | 인증·권한 설계 (오늘은 로컬 학습용이라 없음) |
+
+⚠️ 형식 통과 ≠ 사실 · 권한 보장. "content": "Python 2.7을 쓴다"도 1~2,000자라 통과해요. response_model도 응답 모양만 검사해요. 잘못된 입력(형식)과 부정확한 원문(내용)을 구분해야 나중에 Agent가 믿을 수 있는 자료를 써요.
+
+## ⑥ 수정 (PUT)
+
+```
+PUT /api/knowledge/4
+Content-Type: application/json
+
+{"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}
+```
+
+이 수업의 PUT 규칙: 세 필드를 모두 보내 내용을 통째로 교체해요. ID·항목 수·next_id는 그대로예요.
+
+### 🔧 명령어: 수정 함수
+
+```
+@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
+def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Body 둘 다
+    with LOCK:
+        data = read_data()
+        for i, entry in enumerate(data["entries"]):      # i = 위치, entry = 항목
+            if entry["id"] == knowledge_id:
+                updated = payload.model_dump()
+                updated["id"] = knowledge_id             # ID는 그대로
+                data["entries"][i] = updated             # 그 위치에 덮어씀 (append 아님!)
+                write_data(data)
+                return updated
+    raise HTTPException(404, "Knowledge not found")     # 못 찾으면 저장 없이 404
+```
+
+| 표현 | 뜻 |
+|---|---|
+| enumerate(list) | (위치, 값)을 같이 꺼내 줌 — 바꿀 위치가 필요해서 |
+| data["entries"][i] = updated | 그 자리 항목을 교체. append()를 쓰면 수정이 아니라 추가가 돼요 |
+
+[그림: id 1, 3, 4 세 항목 아래에 index 0, 1, 2를 적고, entries[4]는 IndexError, entries[1]은 id 3 항목이라는 설명을 붙인 그림] 무엇을 보나: ID 2를 지운 뒤 목록이에요. 칸 안 숫자는 id(이름표), 아래 주황 숫자는 index(지금 줄 선 순서)예요. entries[4]로 id 4를 찾으면 위치는 0~2뿐이라 오류, entries[1]로 id 1을 찾으면 엉뚱하게 id 3이 나와요. 🤔 왜? 처음엔 우연히 id 1이 index 0, id 2가 index 1…처럼 하나씩 밀려 맞아 보이지만, 삭제가 한 번 일어나면 바로 어긋나요. 그래서 data["entries"][knowledge_id]로 찾지 않고, 하나씩 돌며 entry["id"] == knowledge_id로 비교해요.
+
+| 요청 | 실제 결과 | 파일 |
+|---|---|---|
+| 있는 ID + 세 필드 | 200 + 수정된 항목 | 그 항목만 교체, 개수 4 · next_id 5 그대로 |
+| 같은 PUT 다시 | 200 | 변화 없음 (몇 번 보내도 결과 같음) |
+| category 빼고 | 422 missing | 기존 항목 그대로 |
+| 없는 ID + 정상 Body | 404 | 새 항목이 생기지 않음 |
+
+🤔 왜 없는 ID로 PUT 하면 새로 만들지 않고 404? — "수정하라"고 했는데 몰래 만들어 버리면, ID를 잘못 적은 실수가 조용히 새 지식으로 쌓여요. 만드는 건 POST, 고치는 건 PUT으로 역할을 나눠야 실수가 드러나요.
+
+💡 PUT vs PATCH — PUT은 전체 교체(세 필드 다), PATCH는 바꿀 필드만 보내는 부분 수정이에요. PATCH는 payload.model_dump(exclude_unset=True)로 "보낸 필드만" 꺼낼 수 있지만, "안 보냄"과 "null로 보냄"을 구분하는 규칙을 따로 정해야 해서 오늘은 PUT만 써요. 이 API에 PATCH를 보내면 405 Method Not Allowed가 나와요.
+
+## ⑦ 삭제 (DELETE) · 상태 코드
+
+지우는 건 knowledge.json 파일 전체가 아니라, 그 안에서 ID가 일치하는 항목 하나예요. 나머지 항목과 next_id는 그대로예요.
+
+### 🔧 명령어: 삭제 함수
+
+```
+from fastapi import Response
+
+@app.delete("/api/knowledge/{knowledge_id}", status_code=204)
+def delete_knowledge(knowledge_id: int):
+    with LOCK:
+        data = read_data()
+        for i, entry in enumerate(data["entries"]):
+            if entry["id"] == knowledge_id:
+                data["entries"].pop(i)                 # 그 위치 한 건 제거
+                write_data(data)
+                return Response(status_code=204)       # 본문 없는 성공
+    raise HTTPException(404, "Knowledge not found")
+```
+
+| 표현 | 뜻 |
+|---|---|
+| list.pop(i) | i번째 위치의 원소 하나를 빼냄 |
+| Response(status_code=204) | 본문 없는 HTTP 응답. JSON을 같이 보내지 않아요 |
+
+```
+DELETE /api/knowledge/4   → 204  (빈 본문)
+GET    /api/knowledge/4   → 404  {"detail":"Knowledge not found"}
+DELETE /api/knowledge/4   → 404  (이미 없음)
+```
+
+🤔 왜 204엔 {"message":"deleted"}를 안 붙여? — 204는 이름부터 "No Content(보낼 내용 없음)"예요. 성공했다는 건 숫자 204가 이미 말해 줘요. 받는 쪽 코드도 빈 204에 response.json()을 호출하면 오류가 나니까, 상태 코드만 보고 판단해요.
+
+### 지금까지 쓴 상태 코드
+
+| 코드 | 우리 API의 상황 | 다음에 확인할 것 |
+|---|---|---|
+| 200 OK | 목록·상세 조회 / 정상 수정 | 응답 데이터 = 저장된 값? |
+| 201 Created | 새 항목 생성 | 새 ID가 실제 파일에도? |
+| 204 No Content | 삭제 성공 | 본문 없음 + 재조회 404 |
+| 404 Not Found | 없는 경로 / 없는 지식 | Path 오타인지 ID가 없는 건지 |
+| 405 Method Not Allowed | 경로는 있는데 그 Method는 없음 | GET·POST·PUT·DELETE 중 맞는지 |
+| 422 Unprocessable | 자료형·필수값·길이 규칙 위반 | detail의 loc·msg |
+| 500 Server Error | 서버 코드·파일 접근 오류 | 서버 터미널 로그와 저장 파일 |
+
+🤔 왜 숫자가 2xx·4xx·5xx로 나뉘어? — 첫 자리만 봐도 누구 탓인지 알 수 있어요. 2xx 성공, 4xx 요청한 쪽이 뭔가 잘못 보냄(주소·입력), 5xx 서버가 처리하다 실패. 그래서 404·422를 200으로 숨기면 안 돼요 — 받는 프로그램이 실패를 알아챌 방법이 사라져요.
+
+⚠️ 실패한 요청은 파일을 바꾸면 안 돼요. 422는 함수 실행 전에 막히니 저장 코드가 안 돌고, 404는 저장 전에 raise 하고, 쓰기 실패 땐 성공 응답을 만들지 않아요. 확인할 때는 실패 요청 전후로 항목 수와 next_id가 같은지 봐요.
+
+## 🧪 직접 요청 보내 보기
+
+브라우저 안에서 오늘 만든 API를 흉내 냈어요(실제 서버는 아니고, 강의 코드와 같은 규칙으로 움직여요). Method와 ID, Body를 바꿔 보내기를 누르면 상태 코드·응답·파일 내용이 바뀌어요. 아래 칸은 knowledge.json이에요.
+
+💡 해 볼 것: ① id에 foo 넣고 GET → 422 ② POST 두 번 → id 4, 5 ③ id 2 DELETE 후 len+1 방식을 켜고 POST → 번호 충돌 ④ PUT으로 없는 id 9999 → 404이고 파일은 그대로 ⑤ 서버 재시작 후에도 파일이 남는지.
+
+## ⑧ 끝까지 추적 · 재시작 확인
+
+지식 하나를 만들고 → 고치고 → 서버를 껐다 켜고 → 지우고 → 다시 껐다 켜며, 각 단계에서 파일 상태가 예상대로인지 봐요.
+
+[그림: 6단계 동안 저장된 항목 수(3,4,4,4,3,3)와 next_id(4,5,5,5,5,5)를 계단 그래프로 그리고 각 단계의 상태 코드를 적은 그림] 무엇을 보나: 강의 코드를 실제로 돌리며 기록한 값이에요. 보라 실선은 저장된 항목 수, 주황 점선은 next_id예요. POST에서 둘 다 1씩 오르고, PUT과 재시작에서는 그대로, DELETE에서는 항목 수만 줄고 next_id는 5로 남아요. 아래 글씨는 각 단계의 응답이에요. 🤔 왜 재시작까지 봐? 응답은 "방금 메모리에서 만든 값"일 뿐이에요. 서버를 껐다 켜도 같은 값이 나와야 파일에 진짜 저장된 거예요. 응답만 바뀌고 파일이 그대로면 미완성이에요.
+
+| 순서 | 요청·조작 | 예상 데이터 상태 |
+|---|---|---|
+| 1 | 처음 파일 확인 | 항목 3개 · next_id 4 |
+| 2 | "실습 환경 안내" POST → 받은 ID 기록 | 항목 4개 · id 4 · next_id 5 |
+| 3 | 같은 ID 본문 PUT | 개수·ID 그대로, 본문만 변경 |
+| 4 | 서버 종료(Ctrl+C) → 같은 폴더·같은 명령으로 재실행 | 수정한 본문이 그대로 조회됨 |
+| 5 | 같은 ID DELETE → 재조회 | 상세 404 · 목록에서 사라짐 |
+| 6 | 다시 재실행 → 재조회 | 삭제 상태 유지 · next_id 5 |
+
+⚠️ 서버 시작 ≠ 데이터 초기화. 서버를 켤 때마다 seed(처음 데이터)를 복사하는 코드가 있으면 재시작할 때마다 수정·삭제가 되돌아가요. 초기화는 서버를 끄고 따로, 일부러 하는 작업이에요. 재실행했더니 값이 달라졌다면 자동 초기화나 다른 폴더의 파일을 읽고 있지 않은지 의심해요.
+
+## ⑨ 역할별로 파일 나누기
+
+기능이 늘면 main.py 하나가 너무 길어져요. 바뀌는 이유가 다른 코드를 다른 파일로 나눠요.
+
+```
+fastapi_knowledge/
+├─ app/
+│  ├─ __init__.py
+│  ├─ main.py                 ← 앱 만들고 Router 등록만
+│  ├─ schemas.py              ← 입력·응답 모양 (KnowledgeWrite, Knowledge)
+│  ├─ routers/
+│  │  ├─ __init__.py
+│  │  └─ knowledge.py         ← HTTP: Method·Path·상태 코드
+│  └─ repositories/
+│     ├─ __init__.py
+│     └─ json_knowledge.py    ← 저장: 읽기·변경·저장·LOCK
+├─ data/
+│  ├─ knowledge.json          ← 실제 데이터
+│  └─ knowledge.seed.json     ← 처음 데이터 (초기화용)
+├─ README.md
+└─ requirements.txt
+```
+
+[그림: main.py에서 routers, repositories, data/knowledge.json으로 이어지고 아래 schemas.py가 router에 연결된 구조도] 무엇을 보나: 요청은 왼쪽에서 오른쪽으로 흘러요. main은 조립만, Router는 HTTP 약속(어떤 주소·어떤 상태 코드), Repository는 파일 읽기·저장, 맨 오른쪽이 실제 데이터예요. 아래 schemas는 Router가 입력 검사와 응답 모양에 써요. 🤔 왜 나눠? 데이터가 같아도 HTTP 규칙과 저장 방식은 바뀌는 이유가 달라요. 다음 수업에서 JSON 파일을 PostgreSQL로 바꿀 때 Repository만 고치면 되고, URL·상태 코드는 그대로 둘 수 있어요.
+
+### 🔧 명령어: app/main.py — 조립
+
+```
+from fastapi import FastAPI
+from app.routers.knowledge import router
+
+app = FastAPI(title="Knowledge API")
+app.include_router(router)                 # Router에 모아 둔 경로들을 앱에 연결
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+```
+# 프로젝트 최상위(fastapi_knowledge/)에서, 한 줄로
+python -m uvicorn app.main:app --reload
+```
+
+| 부분 | 뜻 |
+|---|---|
+| app.main | app/main.py (폴더는 점으로 이어요) |
+| :app | 그 파일 안의 앱 변수 |
+
+⚠️ 실행 위치는 프로젝트 최상위예요. app/ 안에 들어가서 실행하면 from app.routers ...를 못 찾아요(ModuleNotFoundError). 그리고 /health가 200이라고 데이터 파일까지 준비됐다는 뜻은 아니에요 — 서버가 대답만 하는지 보는 단순 점검이에요.
+
+### 🔧 명령어: APIRouter — 관련 경로 묶기
+
+```
+# app/routers/knowledge.py
+from fastapi import APIRouter
+from app.schemas import Knowledge, KnowledgeWrite
+from app.repositories import json_knowledge as repo
+
+router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+
+@router.post("", status_code=201, response_model=Knowledge)
+def create_knowledge(payload: KnowledgeWrite):
+    return repo.create(payload.model_dump())       # 저장은 Repository에 맡김
+```
+
+| 인자 | 뜻 |
+|---|---|
+| prefix="/api/knowledge" | 이 Router의 모든 경로 앞에 붙는 공통 부분. prefix + "" → /api/knowledge, prefix + "/{knowledge_id}" → /api/knowledge/{knowledge_id} |
+| tags=["knowledge"] | /docs에서 묶어 보여 줄 그룹 이름일 뿐. 인증·권한과 무관 |
+
+⚠️ 옮긴 뒤에는 main.py에 남아 있던 같은 @app.post("/api/knowledge")를 지워야 해요. 같은 Route가 두 번 등록되면 먼저 등록된 쪽이 받아서, 고친 코드가 안 도는 것처럼 보여요.
+
+### 🔧 명령어: Repository — 저장 로직 그대로 옮기기
+
+```
+# app/repositories/json_knowledge.py (일부)
+# LOCK · read_data · write_data 도 이 파일에서 정의
+BASE = Path(__file__).resolve().parents[2]       # 프로젝트 루트 (repositories → app → 루트)
+DATA = BASE / "data" / "knowledge.json"
+
+def create(fields: dict) -> dict:
+    with LOCK:
+        data = read_data()
+        entry = dict(fields)
+        entry["id"] = data["next_id"]
+        data["entries"].append(entry)
+        data["next_id"] += 1
+        write_data(data)
+    return entry
+```
+
+🤔 왜 parent가 parents[2]로 바뀌어? — 코드가 놓인 파일이 app/repositories/ 안으로 두 단계 깊어졌으니까요. parents[0]=repositories, [1]=app, [2]=프로젝트 루트. 바뀐 건 파일 위치뿐이고 ID 발급·추가·저장 순서는 똑같아요.
+
+💡 나중에 RAG를 붙이면 "질의 Router → RAG 처리 함수 → 검색 + LLM" 길이 따로 생겨요. Repository에는 DB·파일 접근만 남겨요. 오늘은 Service 계층을 새로 만들지 않아요 — 책임이 다른 기능이 실제로 생길 때 나눠요.
+
+### 🔧 같은 데이터를 HTML 화면으로 (Template)
+
+```
+from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates      # pip install jinja2
+
+templates = Jinja2Templates(directory=BASE / "templates")
+
+@app.get("/web/knowledge", response_class=HTMLResponse)
+def knowledge_page(request: Request):
+    with LOCK:
+        data = read_data()
+    return templates.TemplateResponse(
+        request=request, name="knowledge.html",
+        context={"entries": data["entries"]})
+```
+
+```
+<!-- templates/knowledge.html -->
+{% for entry in entries %}
+  <li>{{ entry.title }}</li>
+{% endfor %}
+```
+
+|  | JSON API | HTML Template |
+|---|---|---|
+| 주소 | GET /api/knowledge | GET /web/knowledge |
+| Content-Type | application/json | text/html |
+| 누가 쓰나 | 프로그램 (다른 서버·Agent·관리 화면) | 사람 (브라우저 화면) |
+
+🤔 왜 둘 다 있어? — 둘은 같은 파일을 읽어요. 다만 프로그램은 값을 꺼내 쓰기 쉬운 JSON이 필요하고, 사람은 보기 좋은 화면이 필요해요. 오늘 만드는 건 JSON API이고, Template은 비교용이에요.
+
+### 🔧 자동 테스트 — 실제 지식 파일은 건드리지 않게
+
+```
+# tests/test_knowledge.py      (pip install pytest httpx)
+from fastapi.testclient import TestClient
+from app.main import app
+from app.repositories import json_knowledge as repo
+
+def test_missing(tmp_path, monkeypatch):
+    test_file = tmp_path / "knowledge.json"
+    test_file.write_text('{"next_id":1,"entries":[]}', encoding="utf-8")
+    monkeypatch.setattr(repo, "DATA", test_file)       # 저장 경로만 임시 파일로 바꿔치기
+    before = test_file.read_bytes()
+    with TestClient(app) as client:
+        r = client.delete("/api/knowledge/9999")
+    assert r.status_code == 404
+    assert test_file.read_bytes() == before            # 실패 후 파일이 그대로인지
+```
+
+| 표현 | 뜻 |
+|---|---|
+| TestClient(app) | 서버를 띄우지 않고 앱에 바로 요청을 보내는 가짜 클라이언트 |
+| tmp_path | pytest가 테스트마다 만들어 주는 빈 임시 폴더 |
+| monkeypatch.setattr(repo, "DATA", ...) | 테스트하는 동안만 repo.DATA 값을 바꿈 (끝나면 원래대로) |
+| assert | 조건이 거짓이면 테스트 실패 |
+
+```
+python -m pytest -q
+```
+
+🤔 왜 임시 파일로 바꿔? — 테스트는 일부러 등록·삭제를 마구 해요. 실제 knowledge.json으로 돌리면 테스트할 때마다 진짜 지식이 지워지고 섞여요. 저장 위치를 Repository 한 곳(DATA)에 모아 둔 덕분에 그 한 줄만 바꿔치기하면 돼요. 단, 서버 재시작 확인은 테스트가 대신 못 해서 따로 해요.
+
+## ⑩ 다음 단계와 연결
+
+### 왜 파일로 되는데 DB를 배워?
+
+| 오늘의 JSON 파일 | PostgreSQL에서 풀 질문 |
+|---|---|
+| 정상 저장 후 재시작해도 남아요 | 동시에 여러 요청이 바꾸면? |
+| 작은 파일 전체를 읽고 전체를 다시 저장해요 | 데이터가 10만 건이면? 필요한 줄만 읽을 수 없나? |
+| Lock은 서버 프로세스 하나 안에서만 | 서버가 여러 대면? |
+| 표 하나(entries) | 작성자·분류 같은 여러 표의 관계를 어떻게 지키지? |
+| — | 여러 변경을 "모두 성공 아니면 모두 취소"로 하려면? → 트랜잭션 |
+
+| 날짜 | 핵심 질문 | 결과 |
+|---|---|---|
+| 11/10 (오늘) | HTTP로 지식을 어떻게 CRUD 하나? | JSON 파일 기반 FastAPI CRUD |
+| 11/11 | 표·관계·SQL로 데이터를 어떻게 다루나? | SQL CRUD · JOIN · ERD · 트랜잭션 |
+| 11/12 | 오늘 API를 PostgreSQL에 어떻게 연결하나? | ORM · 연동 CRUD · 설정 · 통합 테스트 |
+| 11/13 ~ 11/20 | LLM · Prompt · LLM API · Embedding · Vector DB · Chunking | Retriever–Prompt–Generator, 즉 RAG를 API로 제공 |
+
+🤔 왜 URL·Method는 그대로 두라고 해? — 이 API를 부르는 쪽(화면, 다른 서버, 나중의 Agent)은 주소와 응답 모양만 알아요. 저장소가 파일에서 DB로 바뀌어도 약속이 같으면 부르는 쪽은 아무것도 고칠 필요가 없어요. 그래서 바꾸는 건 저장 구현(Repository)뿐이에요.
+
+### Agent와 API가 만나는 두 방향
+
+| 방향 | 흐름 | 뜻 |
+|---|---|---|
+| 사용자가 Agent를 부름 | 사용자 → FastAPI → Agent 처리 | API가 Agent의 서비스 입구. 작업 요청을 검증하고 결과·상태를 전달 |
+| Agent가 API를 씀 | Agent → 도구 함수 → 지식 API | "지식 조회"를 도구로 연결. 도구의 설명·입력·실행 코드는 따로 만들어요 |
+
+| 단계 | 누가 | 예 |
+|---|---|---|
+| 판단 | Agent(LLM) | "지식 조회가 필요하다" |
+| 도구 호출 제안 | Agent(LLM) | get_knowledge(2) |
+| 검증·실행 | 애플리케이션 | 권한 확인 → GET /api/knowledge/2 |
+| 결과 반환 | 애플리케이션 | 원문 + 상태 기록 |
+
+⚠️ FastAPI 경로를 만들었다고 Agent 도구가 되지는 않아요. 모델은 "이걸 부르자"고 제안만 하고, 실제 호출·권한 확인·기록은 우리 애플리케이션 책임이에요. 처음 연결할 땐 조회(GET)부터 — 수정·삭제를 Agent에게 맡기려면 별도 권한·승인 규칙이 먼저예요.
+
+🤔 왜 Agent에게 삭제부터 안 줘? — LLM은 그럴듯하게 틀릴 수 있어요(Day16의 VLM이 없는 걸 지어낸 것처럼). 조회는 틀려도 답이 이상할 뿐이지만, 삭제는 원본이 사라져요. 되돌릴 수 없는 일일수록 사람의 승인을 거치게 해요.
+
+## 🩺 문제가 생기면 — 가장 가까운 원인부터
+
+| 증상 | 먼저 볼 것 | 구분할 점 |
+|---|---|---|
+| 서버 접속이 안 됨 | 터미널(서버가 떠 있나) · 포트 · 실행 명령 | HTTP 오류 응답과는 다름 — 응답 자체가 없음 |
+| 404 / 405 | /docs의 Path · Method · ID | 없는 자원(404) vs 그 Method가 없음(405) |
+| 422 | detail의 loc · msg | Path · Query · Body 중 어디인가 |
+| 파일 없음 / JSON 오류 | 파일 경로 · 괄호 · 큰따옴표 · 끝 쉼표 | 빈 데이터로 덮어쓰지 않기 |
+| 재실행하면 값이 달라짐 | 자동 초기화 코드 · 다른 폴더의 파일 | 서버 재시작과 seed 복사는 다른 일 |
+| 코드를 고쳤는데 그대로 | 서버가 두 개 떠 있지 않은지 · --reload | 같은 Route 중복 등록 |
+
+⚠️ 없는 ID를 시험할 땐 Body는 정상값으로 보내요. 없는 ID + 빠진 필드를 한꺼번에 보내면 422가 먼저 나와서 404를 확인할 수 없어요. 오류 조건은 한 번에 하나씩.
+
+## 원본 자료
+
+- 강의: 20261110.pdf (FastAPI 입문 · 지식 관리 API, 94쪽) — 플랫폼 속 위치 p2–11 · 첫 서버 p12–20 · JSON 조회 p22–28 · POST·검증 p30–36 · PUT p38–41 · DELETE·상태 코드 p43–47 · 역할별 구조·Template p49–55 · 플랫폼 연결 p57–65 · 부록(저장·Lock·용어·PATCH·검색·Template·테스트·Windows 실행) p79–91
+
+- 노트의 실제 응답·Lock 실험 값: 강의 코드를 FastAPI 0.162.2 · Pydantic 2.14.3에서 직접 실행해 확인 (그림 스크립트 tools/visuals/make_day17.py)
+
+- 공식 문서: FastAPI First Steps · Path Parameters · Query Parameters · Request Body
+
+- 공식 문서: Response Status Code · Handling Errors · Body - Updates (PUT/PATCH) · Response Model
+
+- 공식 문서: Bigger Applications (APIRouter) · Templates · Testing · Uvicorn Settings
+
+- 공식 문서: Pydantic Fields · Python json · pathlib · threading.Lock · os.replace · RFC 9110 HTTP Semantics
+
+## 📖 Day17 용어 (38개)
+- **FastAPI** (FastAPI (Python 웹 API 프레임워크)): '이 주소로 이런 요청이 오면 이 함수를 실행해'를 연결해 주는 Python 도구. 입력 검증과 자동 문서(/docs)도 만들어 줘요.
+- **Uvicorn** (Uvicorn (ASGI 서버)): 네트워크에서 요청을 실제로 받아 FastAPI 앱에 넘겨주는 서버 프로그램. python -m uvicorn main:app 으로 실행해요.
+- **API** (Application Programming Interface): 프로그램끼리 주고받는 약속된 창구. 어떤 주소에 어떤 형식으로 요청하면 어떤 형식으로 응답하는지 정해 둔 것.
+- **HTTP** (HyperText Transfer Protocol): 브라우저·프로그램이 서버와 대화하는 규칙. 항상 요청 1개와 응답 1개가 한 쌍이에요.
+- **CRUD** (Create · Read · Update · Delete): 데이터를 만들고(POST)·읽고(GET)·고치고(PUT)·지우는(DELETE) 네 가지 기본 동작.
+- **HTTP Method** (HTTP Method (GET · POST · PUT · DELETE · PATCH)): 요청이 무엇을 하려는지 나타내는 동사. 같은 주소라도 Method가 다르면 다른 함수가 실행돼요.
+- **Route** (Route (Method + Path → 함수 연결)): 'GET + /api/knowledge/{id}' 같은 Method와 경로 조합을 처리 함수에 연결해 둔 것. @app.get(...)으로 등록해요.
+- **Path Parameter** (Path Parameter (경로 값)): URL 경로 안에 들어가는 값. /api/knowledge/2 의 2처럼 대상 하나를 콕 집을 때 써요. 함수 인자 이름이 {중괄호} 이름과 같아야 해요.
+- **Query Parameter** (Query Parameter (? 뒤의 조건)): URL 끝 ?category=api 처럼 붙이는 선택 조건. 주로 목록을 거를 때 쓰고, 기본값이 있으면 생략할 수 있어요.
+- **Request Body** (Request Body (요청 본문)): POST·PUT에서 새로 만들거나 고칠 데이터를 JSON으로 담아 보내는 부분. GET에는 보통 없어요.
+- **Content-Type** (Content-Type 헤더): 본문이 어떤 형식인지 알려 주는 Header. JSON이면 application/json, HTML 화면이면 text/html.
+- **상태 코드** (HTTP Status Code): 처리 결과를 세 자리 숫자로 알려 줘요. 2xx 성공, 4xx 요청 쪽 문제(주소·입력), 5xx 서버 쪽 문제.
+- **201 Created**: 새 자원을 만들었다는 성공 코드. POST로 지식을 등록했을 때 써요.
+- **204 No Content**: 성공했지만 돌려줄 본문이 없다는 코드. 삭제 성공에 쓰고 JSON을 같이 보내지 않아요.
+- **404 Not Found**: 그런 주소(Route)가 없거나, 주소는 맞는데 그 ID의 자원이 없다는 코드. detail 문구로 둘을 구분해요.
+- **405 Method Not Allowed**: 경로는 있는데 그 Method는 지원하지 않는다는 코드. 예: PUT만 만든 경로에 PATCH를 보냄.
+- **422 Unprocessable Content**: 요청의 자료형·필수값·길이 규칙이 틀렸다는 코드. FastAPI가 함수 실행 전에 자동으로 내요. detail의 loc·msg로 위치를 확인해요.
+- **HTTPException** (fastapi.HTTPException): raise 하면 함수를 즉시 멈추고 지정한 상태 코드와 detail을 응답으로 보내요. 오류를 return으로 보내면 200이 되니 꼭 raise로.
+- **Pydantic** (Pydantic (데이터 검증 라이브러리)): class로 데이터 모양(필드·타입·길이)을 정해 두면 들어온 값을 검사해 줘요. FastAPI는 이걸로 Body를 검사하고 틀리면 422를 내요.
+- **Field** (pydantic.Field): 필드에 min_length·max_length 같은 규칙을 붙여요. 기본값을 주지 않으면 필수 필드예요.
+- **model_dump** (BaseModel.model_dump()): 검증된 Pydantic 모델을 파이썬 dict로 바꿔 줘요. exclude_unset=True면 실제로 보낸 필드만 꺼내요.
+- **response_model** (response_model= (응답 모델)): 응답의 모양을 검사·정리하고 /docs에 표시해요. 정의에 없는 필드(next_id 등)는 걸러져요. 사실성이나 권한은 보증하지 않아요.
+- **Swagger UI** (Swagger UI (FastAPI 자동 API 문서)): /docs 주소에 자동으로 생기는 API 문서 화면. Try it out → Execute로 POST·PUT·DELETE도 직접 보낼 수 있어요.
+- **데코레이터** (Decorator (@)): 함수 위에 @이름 을 붙여 그 함수에 기능이나 등록 정보를 덧씌우는 문법. @app.get(...)은 '이 함수를 이 주소에 등록'.
+- **localhost** (localhost (127.0.0.1)): '지금 이 컴퓨터 자신'을 가리키는 주소. 여기서 띄운 서버는 기본적으로 내 PC에서만 접속돼요.
+- **포트** (Port (포트 번호)): 한 컴퓨터 안에서 프로그램마다 다른 문 번호. 127.0.0.1:8000 의 8000. 같은 포트로 서버를 두 개 띄울 수 없어요.
+- **next_id** (next_id (다음에 줄 ID)): 다음 새 항목에 줄 번호를 따로 저장한 값. 삭제해도 줄이지 않아 지운 번호를 다시 쓰지 않아요. entries와 같은 파일에 저장해요.
+- **Lock** (threading.Lock (잠금)): with LOCK: 블록 안은 한 번에 한 요청만 실행되게 해요. 읽기→변경→저장을 통째로 묶어야 서로의 저장을 덮어쓰지 않아요.
+- **원자적 저장** (Atomic write (임시 파일에 쓰고 교체)): 임시 파일에 끝까지 쓴 뒤 replace()로 원본과 바꿔치기해요. 쓰다 실패해도 원본은 멀쩡해요.
+- **APIRouter** (fastapi.APIRouter): 관련 경로를 한 파일에 묶는 도구. prefix로 공통 주소를 붙이고, app.include_router()로 앱에 연결해요. tags는 /docs 그룹 이름일 뿐이에요.
+- **Repository** (Repository 패턴): 데이터 읽기·저장만 맡는 코드 묶음. 저장 방식을 파일에서 DB로 바꿀 때 이 부분만 고치면 돼요.
+- **Jinja2** (Jinja2 템플릿 엔진): HTML 틀에 {{ entry.title }} 같은 자리를 두고 데이터를 채워 화면을 만들어요. JSON API와 같은 데이터를 사람용 화면으로 보여 줄 때 써요.
+- **TestClient** (fastapi.testclient.TestClient): 서버를 띄우지 않고 앱에 바로 요청을 보내 응답을 확인하는 테스트용 클라이언트.
+- **monkeypatch** (pytest monkeypatch): 테스트하는 동안만 변수·함수를 다른 값으로 바꿔치기하고, 끝나면 원래대로 돌려놔요. 저장 경로를 임시 파일로 바꿀 때 써요.
+- **트랜잭션** (Transaction (트랜잭션)): 여러 변경을 '모두 성공 아니면 모두 취소'로 묶는 데이터베이스 기능. 파일 + Lock으로는 대신할 수 없어요.
+- **PostgreSQL** (PostgreSQL (관계형 데이터베이스)): 표·관계·SQL로 데이터를 저장하는 데이터베이스. 동시 요청·여러 서버·트랜잭션처럼 JSON 파일로 어려운 일을 맡아요.
+- **AI Agent**: LLM이 작업을 보고 필요한 도구를 골라 호출을 제안하고 결과를 확인하는 시스템. 실제 호출·권한 확인은 애플리케이션이 책임져요.
+- **RAG** (Retrieval-Augmented Generation (검색 증강 생성)): 질문과 관련된 근거 문서를 먼저 검색해 LLM에 함께 넣어 답하게 하는 방식. 원본 지식이 정리돼 있어야 시작할 수 있어요.

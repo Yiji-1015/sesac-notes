@@ -91,6 +91,7 @@
   --ml: #f76707;  --ml-soft: #fff1e0;
   --dl: #7048e8;  --dl-soft: #efeaff;
   --cv: #0ca678;  --cv-soft: #defbef;
+  --llm: #1c7ed6; --llm-soft: #e3f2ff;
 }
 
 * { box-sizing: border-box; }
@@ -177,6 +178,7 @@ a:hover { text-decoration: underline; }
 .card[data-tag="머신러닝"] { border-top-color: var(--ml); }
 .card[data-tag="딥러닝"] { border-top-color: var(--dl); }
 .card[data-tag="컴퓨터비전"] { border-top-color: var(--cv); }
+.card[data-tag="LLM·RAG"] { border-top-color: var(--llm); }
 .card:hover { text-decoration: none; transform: translateY(-4px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1); }
 .card h3 { margin: 8px 0 4px; font-size: 1.08rem; }
 .card p { margin: 0; color: var(--muted); font-size: 0.9rem; font-weight: 400; }
@@ -193,6 +195,7 @@ a:hover { text-decoration: underline; }
 .tag.ml, [data-tag="머신러닝"] .tag { background: var(--ml-soft); color: var(--ml); }
 .tag.dl, [data-tag="딥러닝"] .tag { background: var(--dl-soft); color: var(--dl); }
 .tag.cv, [data-tag="컴퓨터비전"] .tag { background: var(--cv-soft); color: var(--cv); }
+.tag.llm, [data-tag="LLM·RAG"] .tag { background: var(--llm-soft); color: var(--llm); }
 
 .empty { color: var(--muted); margin-top: 32px; display: none; }
 
