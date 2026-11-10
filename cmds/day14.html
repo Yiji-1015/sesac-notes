@@ -1,0 +1,451 @@
+<!-- Day14 명령어 — tools/split_commands.py 로 notes/day14.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="14">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day14.html#packages">📦 필요한 패키지</a></td><td><code>pip install torch torchvision scikit-learn opencv-python Pillow</code></td></tr>
+        <tr><td><a href="notes/day14.html#dataset">① 데이터셋 설계 · 누수</a></td><td><code>ImageFolder()</code>, <code>class_to_idx</code>, <code>Counter(targets)</code>, <code>GroupShuffleSplit</code></td></tr>
+        <tr><td><a href="notes/day14.html#transfer">② Backbone · Head</a></td><td><code>resnet18(weights=)</code>, <code>weights.transforms()</code>, <code>requires_grad</code>, <code>nn.Linear</code>, <code>model.eval()</code></td></tr>
+        <tr><td><a href="notes/day14.html#finetune">③ Fine-tuning 범위 · 학습률</a></td><td><code>layer4.requires_grad_(True)</code>, <code>AdamW([{"params", "lr"}])</code>, best 복원</td></tr>
+        <tr><td><a href="notes/day14.html#imbalance">④ 클래스 불균형</a></td><td><code>CrossEntropyLoss(weight=)</code>, <code>WeightedRandomSampler</code></td></tr>
+        <tr><td><a href="notes/day14.html#eval">⑤ 평가 · 오류 분석</a></td><td><code>confusion_matrix()</code>, <code>classification_report()</code>, <code>f1_score(average=)</code>, <code>softmax</code></td></tr>
+        <tr><td><a href="notes/day14.html#gradcam">⑥ Grad-CAM</a></td><td><code>register_forward_hook()</code>, <code>register_hook()</code>, <code>interpolate()</code></td></tr>
+        <tr><td><a href="notes/day14.html#repro">⑦ 비교 · 저장 · 재현</a></td><td><code>torch.manual_seed()</code>, <code>torch.save()</code>, <code>torch.load(weights_only=True)</code></td></tr>
+      </table>
+</section>
+<section class="cmd" id="d14-imagefolder" data-topic="torchvision" data-sub="데이터셋 · 분할" data-day="14" data-theory="notes/day14.html#dataset">
+  <h3>클래스 매핑 · 개수 확인 <code>ImageFolder()</code></h3>
+<pre><code>from collections import Counter
+from torchvision.datasets import ImageFolder
+
+train = ImageFolder("data/train")
+valid = ImageFolder("data/valid")
+test  = ImageFolder("data/test")
+assert train.class_to_idx == valid.class_to_idx
+assert train.class_to_idx == test.class_to_idx
+print(train.class_to_idx)              # {'circle': 0, 'square': 1, 'triangle': 2}
+for ds in [train, valid, test]:
+    print(ds.root, Counter(ds.targets)) # train: Counter({0: 120, 1: 40, 2: 20})</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 데이터 data/train · valid · test</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>train.class_to_idx</code></td><td><code>{&#x27;circle&#x27;: 0, &#x27;square&#x27;: 1, &#x27;triangle&#x27;: 2}</code></td><td>폴더 이름 알파벳 순서</td></tr>
+    <tr><td><code>train.class_to_idx == valid.class_to_idx == test.class_to_idx</code></td><td><code>True</code></td><td>분할마다 번호가 같아야 비교가 됨</td></tr>
+    <tr><td><code>Counter(train.targets)</code></td><td><code>{0: 120, 1: 40, 2: 20}</code></td><td>6 : 2 : 1로 기울어 있음</td></tr>
+    <tr><td><code>Counter(valid.targets)</code></td><td><code>{0: 30, 1: 30, 2: 30}</code></td><td>균형</td></tr>
+    <tr><td><code>Counter(test.targets)</code></td><td><code>{0: 10, 1: 10, 2: 10}</code></td><td>균형</td></tr>
+    <tr><td><code>train.samples[0]</code></td><td><code>(&#x27;…/train/circle/circle_000.png&#x27;, 0)</code></td><td>(파일 경로, 라벨)</td></tr>
+    <tr><td><code>train[0][0].size, train[0][0].mode</code></td><td><code>(40, 40), &#x27;RGB&#x27;</code></td><td>transform이 없어서 PIL 이미지 그대로</td></tr>
+    <tr><td><code>전부 circle이라고 찍었을 때 train 정확도</code></td><td><code>0.667</code></td><td>모델이 아무것도 안 배워도 66.7%</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 속성</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>root</code> <small>(필수)</small></td><td>클래스 폴더들이 있는 상위 경로</td><td>클래스 폴더 하나 위를 가리켜야 함 (분할 폴더 자체)</td></tr>
+        <tr><td><code>transform</code></td><td>이미지 변환 (Resize, ToTensor 등)</td><td>안 주면 PIL 이미지 그대로 나와서 모델에 바로 못 넣음</td></tr>
+        <tr><td><code>target_transform</code></td><td>라벨 변환</td><td>보통 그대로 둠</td></tr>
+        <tr><td><code>is_valid_file</code></td><td>파일 검사 함수</td><td>숨김 파일·이상한 확장자를 걸러낼 때</td></tr>
+        <tr><td><code>allow_empty=False</code></td><td>빈 클래스 폴더 허용 여부</td><td>기본은 빈 폴더가 있으면 에러 → 클래스가 조용히 사라지는 걸 막아 줌</td></tr>
+        <tr><td><code>.class_to_idx</code> / <code>.classes</code></td><td>폴더명 → 번호 사전 / 클래스 이름 목록</td><td></td></tr>
+        <tr><td><code>.targets</code> / <code>.samples</code></td><td>라벨 번호 목록 / (파일 경로, 라벨) 목록</td><td><code>Counter(targets)</code>로 불균형 확인</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d14-groupshufflesplit" data-topic="torchvision" data-sub="데이터셋 · 분할" data-day="14" data-theory="notes/day14.html#dataset">
+  <h3>그룹 단위 분할 (예시 도구: <code>GroupShuffleSplit</code>)</h3>
+<pre><code>from sklearn.model_selection import GroupShuffleSplit
+gss = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=42)
+tr_idx, va_idx = next(gss.split(rows, groups=rows.group_id))   # 같은 group_id는 한쪽에만</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>합성 표: 원본 20장 × (원본·flip·rot) = 60행, group_id = 원본 번호</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(tr_idx), len(va_idx)</code></td><td><code>45, 15</code></td><td>그룹 20개 중 25%인 5그룹 = 15행이 valid</td></tr>
+    <tr><td><code>sorted(set(rows.group_id[va_idx]))</code></td><td><code>[0, 1, 8, 15, 17]</code></td><td>valid로 간 원본 번호</td></tr>
+    <tr><td><code>set(train 그룹) &amp; set(valid 그룹)</code></td><td><code>set()</code></td><td>겹치는 원본 없음 → 누수 없음</td></tr>
+    <tr><td><code>train_test_split(이미지 단위, test_size=0.25)로 나누면 겹치는 원본 수</code></td><td><code>11</code></td><td>같은 원본의 변형이 양쪽에 → valid 점수가 부풀어요</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>groups</code></td><td>각 샘플의 그룹 ID (원본·제품·영상 번호)</td><td>안 주면 그냥 이미지 단위 무작위 분할 → 누수 위험</td></tr>
+        <tr><td><code>test_size</code></td><td>떼어 낼 비율 (그룹 기준)</td><td>그룹 크기가 제각각이면 실제 이미지 비율은 정확히 안 맞을 수 있음</td></tr>
+        <tr><td><code>random_state</code></td><td>무작위 고정값</td><td>같은 값이면 같은 분할 재현</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d14-사전학습-모델-불러오기-head-교체" data-topic="torchvision" data-sub="전이학습" data-day="14" data-theory="notes/day14.html#transfer">
+  <h3>사전학습 모델 불러오기 · Head 교체</h3>
+<pre><code>from torch import nn
+from torchvision.models import resnet18, ResNet18_Weights
+
+weights = ResNet18_Weights.DEFAULT
+model = resnet18(weights=weights)       # ① 학습된 가중치 불러오기
+for p in model.parameters():
+    p.requires_grad = False             # ② 기존 파라미터 얼리기
+in_features = model.fc.in_features      # 512
+model.fc = nn.Linear(in_features, num_classes)   # ③ 새 Head (새로 만든 층은 기본으로 학습 가능)
+preprocess = weights.transforms()       # 이 가중치가 원하는 평가용 입력 변환</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 train circle 한 장(40×40)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>weights</code></td><td><code>ResNet18_Weights.IMAGENET1K_V1</code></td><td>DEFAULT가 가리키는 실제 이름</td></tr>
+    <tr><td><code>model.fc  (교체 전)</code></td><td><code>Linear(in_features=512, out_features=1000, bias=True)</code></td><td>ImageNet 1000클래스 Head</td></tr>
+    <tr><td><code>model.fc.in_features</code></td><td><code>512</code></td><td></td></tr>
+    <tr><td><code>model.fc  (교체 후)</code></td><td><code>Linear(in_features=512, out_features=3, bias=True)</code></td><td>우리 3클래스 Head</td></tr>
+    <tr><td><code>model.fc.weight.requires_grad</code></td><td><code>True</code></td><td>얼린 뒤에 만들어서 학습 대상</td></tr>
+    <tr><td><code>preprocess</code></td><td><code>resize [256] → crop [224]
+mean [0.485, 0.456, 0.406]
+std [0.229, 0.224, 0.225]</code></td><td>평가용 입력 규칙</td></tr>
+    <tr><td><code>preprocess(40×40 PIL).shape</code></td><td><code>[3, 224, 224]</code></td><td>작은 사진도 224×224로 키움</td></tr>
+    <tr><td><code>model(x).shape</code></td><td><code>[1, 3]</code></td><td>[1, 3] 점수</td></tr>
+    <tr><td><code>순서 실수: fc를 먼저 바꾸고 전체를 얼림 → 학습 파라미터</code></td><td><code>0</code></td><td>0개! 에러도 안 남</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 이 순서(불러오기 → 얼리기 → 새 Head)?</strong> — 얼린 <b>다음에</b> 새 Head를 만들어야, 새 층은 기본값 <code>requires_grad=True</code> 그대로라 학습 대상이 돼요. 순서를 바꾸면 아래 "순서 실수"가 생겨요.</div>
+      <table>
+        <tr><th>인자 / 코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weights=ResNet18_Weights.DEFAULT</code></td><td>사전학습 가중치 사용 (키워드 전용 인자)</td><td><code>None</code>(기본값)이면 무작위 시작 → 특징을 못 뽑는 Backbone 위에선 Head도 못 배움</td></tr>
+        <tr><td><code>progress=True</code></td><td>다운로드 진행 표시</td><td>False면 조용히 받음</td></tr>
+        <tr><td><code>model.fc.in_features</code></td><td>Head에 들어오는 특징 수 (ResNet18 = 512)</td><td>숫자를 직접 적지 않고 읽어 오면 다른 모델로 바꿔도 안 깨짐</td></tr>
+        <tr><td><code>nn.Linear(in, out)</code></td><td>out = 우리 클래스 수</td><td>클래스 수와 다르면 Loss 계산에서 에러 또는 엉뚱한 학습</td></tr>
+        <tr><td><code>weights.transforms()</code></td><td>Resize → CenterCrop → 0~1 값 변환 → ImageNet mean/std Normalize</td><td>임의로 바꾸면 특징 분포가 달라짐. 학습용 증강도 <b>같은 입력 규격</b>을 지켜서 만듦</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>순서 실수 주의</strong> — Head를 먼저 붙이고 나서 <code>model.parameters()</code> 전체를 얼리면 <b>새 Head까지 얼어서</b> 아무것도 배우지 않아요. 에러 메시지도 안 나요! 그래서 <a href="#d14-학습-가능한-파라미터-수-세기">학습 가능한 파라미터 수 세기</a>처럼 학습 파라미터 수를 꼭 출력해 확인합니다.</div>
+</section>
+
+<section class="cmd" id="d14-학습-가능한-파라미터-수-세기" data-topic="torchvision" data-sub="전이학습" data-day="14" data-theory="notes/day14.html#transfer">
+  <h3>학습 가능한 파라미터 수 세기</h3>
+<pre><code>trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+total     = sum(p.numel() for p in model.parameters())
+print("trainable:", trainable, "/ total:", total)   # Head-only면 Head 몫(1,539)만 나와야 정상
+
+for name, p in model.named_parameters():
+    if p.requires_grad:
+        print(name)                                  # fc.weight, fc.bias</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Head 교체한 ResNet18 구조 (3클래스, weights=None이어도 개수는 같음)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>trainable</code></td><td><code>1,539</code></td><td>512 × 3 + 3</td></tr>
+    <tr><td><code>total</code></td><td><code>11,178,051</code></td><td>전체의 0.014%만 학습</td></tr>
+    <tr><td><code>[name for name, p in model.named_parameters() if p.requires_grad]</code></td><td><code>[&#x27;fc.weight&#x27;, &#x27;fc.bias&#x27;]</code></td><td>열린 층 이름</td></tr>
+    <tr><td><code>순서 실수 모델의 trainable</code></td><td><code>0</code></td><td>이 숫자가 0이면 바로 의심</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>🤔 왜 확인?</th></tr>
+        <tr><td><code>p.numel()</code></td><td>그 파라미터 텐서 안의 숫자 개수</td><td>학습 범위와 계산 비용을 실험표에 같이 기록하려고</td></tr>
+        <tr><td><code>p.requires_grad</code></td><td>학습 대상이면 True</td><td>고정했다고 생각한 층이 실제로 열려 있지 않은지 확인</td></tr>
+        <tr><td><code>model.named_parameters()</code></td><td>(이름, 파라미터) 쌍으로 돌기</td><td>어느 층이 열렸는지 <b>이름으로</b> 보고, Optimizer에 넘긴 목록과 일치하는지 대조</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d14-층-열기-층별-학습률" data-topic="torchvision" data-sub="전이학습" data-day="14" data-theory="notes/day14.html#finetune">
+  <h3>층 열기 · 층별 학습률</h3>
+<pre><code>for p in model.layer4.parameters():
+    p.requires_grad = True              # 마지막 Stage 열기 (= model.layer4.requires_grad_(True))
+
+optimizer = torch.optim.AdamW([
+    {"params": model.layer4.parameters(), "lr": 1e-4},   # Backbone: 작게
+    {"params": model.fc.parameters(),     "lr": 1e-3},   # 새 Head: 크게
+], weight_decay=1e-4)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Head 교체한 ResNet18 구조(weights=None)에서 layer4를 연 뒤</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>trainable (layer4 + fc)</code></td><td><code>8,395,267</code></td><td>전체의 75.1% — 갑자기 수천 배</td></tr>
+    <tr><td><code>[(len(g[&#x27;params&#x27;]), g[&#x27;lr&#x27;], g[&#x27;weight_decay&#x27;]) for g in optimizer.param_groups]</code></td><td><code>[(15, 0.0001, 0.0001), (2, 0.001, 0.0001)]</code></td><td>그룹마다 Tensor 수 · lr · weight_decay</td></tr>
+    <tr><td><code>층을 열기 전에 만든 optimizer가 관리하는 Tensor 수</code></td><td><code>2</code></td><td>fc 2개뿐 → layer4는 열어도 안 바뀜</td></tr>
+    <tr><td><code>같은 파라미터를 두 그룹에 넣으면</code></td><td><code>ValueError: some parameters appear in more than one parameter group…</code></td><td>중복은 에러</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>"params"</code></td><td>이 그룹에서 학습할 파라미터</td><td>같은 파라미터를 두 그룹에 넣으면 <b>에러</b>, 빠뜨리면 그 층은 <b>학습 안 됨</b> (Optimizer는 받은 목록만 고치니까)</td></tr>
+        <tr><td><code>"lr"</code></td><td>그룹별 학습률</td><td>크면 빨리 배우지만 불안정, Backbone에 크게 주면 사전학습 특징이 망가짐</td></tr>
+        <tr><td><code>weight_decay</code></td><td>가중치가 너무 커지지 않게 억제 (그룹별로도 지정 가능)</td><td>0이면 억제 없음 → 작은 데이터에서 과적합 쉬움</td></tr>
+        <tr><td><code>betas</code>·<code>eps</code></td><td>(선택) AdamW의 내부 설정</td><td>보통 기본값 사용</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>자주 하는 실수</strong>
+        <ul>
+          <li>층을 새로 연 뒤 Optimizer를 그대로 씀 → 새로 연 층은 Optimizer 목록에 없어서 <b>안 바뀜</b>. 다시 만들거나 그룹을 추가(<code>add_param_group()</code>).</li>
+          <li>Head-only인데 Backbone을 안 얼리고 전체를 Optimizer에 넣음.</li>
+          <li>사전학습 Weight의 Normalize를 빠뜨려 입력 분포가 달라짐.</li>
+          <li>valid 점수를 보면서 epoch·층·학습률을 계속 바꾸고 그걸 최종 성능처럼 보고함.</li>
+        </ul>
+      </div>
+</section>
+
+<section class="cmd" id="d14-학습-루프-best-복원" data-topic="torchvision" data-sub="전이학습" data-day="14" data-theory="notes/day14.html#finetune">
+  <h3>학습 루프 + best 복원</h3>
+<pre><code>import copy
+optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=0.01)
+criterion = nn.CrossEntropyLoss()
+best_loss = float("inf")
+for epoch in range(8):
+    model.train()
+    backbone.eval()                               # 얼린 Backbone의 BN 기억값 고정 (정책)
+    optimizer.zero_grad()                         # 1) 지난 gradient 지우기
+    loss = criterion(model(X_train), y_train)     # 2) 예측하고 오차 계산
+    loss.backward()                               # 3) gradient 계산
+    optimizer.step()                              # 4) 한 걸음 이동
+    with torch.no_grad():
+        valid_loss = criterion(model(X_valid), y_valid)   # valid는 채점만
+    if valid_loss &lt; best_loss:                    # 가장 좋았던 순간 기억
+        best_loss, best_state = valid_loss, copy.deepcopy(model.state_dict())
+model.load_state_dict(best_state)                 # best로 되돌리기</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · 8 epoch</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>학습 파라미터 수 (Head만)</code></td><td><code>99</code></td><td>32 × 3 + 3</td></tr>
+    <tr><td><code>epoch 0: valid loss</code></td><td><code>1.1187</code></td><td></td></tr>
+    <tr><td><code>epoch 1: valid loss</code></td><td><code>1.1452</code></td><td></td></tr>
+    <tr><td><code>epoch 2: valid loss</code></td><td><code>1.1794</code></td><td></td></tr>
+    <tr><td><code>epoch 3: valid loss</code></td><td><code>1.2190</code></td><td></td></tr>
+    <tr><td><code>epoch 4: valid loss</code></td><td><code>1.2613</code></td><td></td></tr>
+    <tr><td><code>epoch 5: valid loss</code></td><td><code>1.3033</code></td><td></td></tr>
+    <tr><td><code>epoch 6: valid loss</code></td><td><code>1.3426</code></td><td></td></tr>
+    <tr><td><code>epoch 7: valid loss</code></td><td><code>1.3769</code></td><td></td></tr>
+    <tr><td><code>best_epoch, best_loss</code></td><td><code>0, 1.1187</code></td><td>가장 좋았던 순간</td></tr>
+    <tr><td><code>마지막 epoch 모델의 valid loss</code></td><td><code>1.3769</code></td><td>복원 안 하면 이 모델이 남음</td></tr>
+    <tr><td><code>best 복원 후 클래스별 valid Recall (circle·square·triangle)</code></td><td><code>1.000 0.000 0.000</code></td><td>전부 circle로 답함</td></tr>
+    <tr><td><code>(해석 — 예상과 다르게 나온 결과)</code></td><td><code>valid loss가 epoch 0부터 오르기만 해서 best = 처음</code></td><td>무작위로 얼린 특징으론 모양을 못 가르고, Head가 train의 6 : 2 : 1 비율만 배워 &#x27;일단 circle&#x27;로 기움 → 균형 잡힌 valid에선 loss가 올라감. best 복원이 &#x27;나빠진 마지막 모델&#x27;을 막아 준 예이자, 사전학습 Backbone이 왜 필요한지 보여 주는 예</td></tr>
+  </table>
+</div>
+      <p><small><code>backbone</code>은 모델에서 Head를 뺀 앞부분이에요(ResNet18이면 <code>fc</code> 앞까지).</small></p>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>[p for p in ... if p.requires_grad]</code></td><td>열린 파라미터만 Optimizer에 넘김</td><td>전부 넘기면 얼린 층에 쓸데없는 상태(메모리)가 생기고 실수 확인도 어려움</td></tr>
+        <tr><td><code>lr=0.01</code></td><td>보폭</td><td>0.001로 줄이면 같은 epoch 안에 덜 배움, 0.1로 키우면 초반 valid loss가 크게 튐</td></tr>
+        <tr><td><code>range(8)</code></td><td>epoch 수 (학습 예산)</td><td>1로 줄이면 소수 클래스를 하나도 못 찾을 수 있음 — 다수 클래스부터 배우기 때문</td></tr>
+        <tr><td><code>with torch.no_grad()</code></td><td>valid 계산에선 gradient를 안 만듦</td><td>빼면 메모리 낭비. valid는 채점만 하고 학습에 쓰지 않음</td></tr>
+        <tr><td><code>copy.deepcopy(state_dict())</code></td><td>그 순간의 가중치를 복사해 보관</td><td>deepcopy 없이 담으면 학습이 계속되며 같이 바뀜. 복원 줄을 지우면 다시 나빠진 마지막 epoch 모델이 남음</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d14-nn-crossentropyloss-weight" data-topic="PyTorch" data-sub="클래스 불균형" data-day="14" data-theory="notes/day14.html#imbalance">
+  <h3>Class weight <code>nn.CrossEntropyLoss(weight=)</code></h3>
+<pre><code>counts = torch.tensor([120, 40, 20], dtype=torch.float)
+class_weight = counts.sum() / counts             # 적을수록 큼 (역빈도)
+class_weight = class_weight / class_weight.mean()   # 평균 1로 맞춤
+print(class_weight)                              # tensor([0.30, 0.90, 1.80])
+loss_fn = nn.CrossEntropyLoss(weight=class_weight.to(device))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 train 개수 [120, 40, 20] · &#x27;best 복원&#x27; 항목과 같은 모델·seed·8 epoch에 weight만 추가</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.bincount(train targets)</code></td><td><code>[120, 40, 20]</code></td><td></td></tr>
+    <tr><td><code>class_weight</code></td><td><code>0.30 0.90 1.80</code></td><td>역빈도를 평균 1로 — 적은 클래스일수록 큼</td></tr>
+    <tr><td><code>(counts * class_weight).tolist()</code></td><td><code>36 36 36</code></td><td>클래스마다 &#x27;개수 × 무게&#x27;가 같아짐</td></tr>
+    <tr><td><code>세 샘플 모두 logit [2, 0, 0], 정답 0·1·2 → 샘플별 loss</code></td><td><code>0.240 2.240 2.240</code></td><td>circle만 맞힘</td></tr>
+    <tr><td><code>weight 없음 (평균)</code></td><td><code>1.573</code></td><td></td></tr>
+    <tr><td><code>weight 있음</code></td><td><code>2.040</code></td><td>Σ wᵢ·lossᵢ ÷ Σ wᵢ — 틀린 square·triangle 쪽 벌점이 더 큼</td></tr>
+    <tr><td><code>valid Recall (weight 없음)</code></td><td><code>1.000 0.000 0.000</code></td><td>&#x27;best 복원&#x27; 항목 결과</td></tr>
+    <tr><td><code>valid Recall (weight 있음)</code></td><td><code>0.367 0.733 0.500</code></td><td>square·triangle은 0 → 0.73·0.50로 올랐지만 circle은 1.00 → 0.37로 떨어짐 — 공짜가 아님. 이 작은 실험의 결과일 뿐 일반 법칙은 아니에요</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 역빈도(전체 ÷ 개수)?</strong> — 개수가 1/6인 triangle에 6배 무게를 주면, 클래스마다 "개수 × 무게"가 비슷해져서 Loss 안에서 <b>세 클래스의 목소리 크기가 같아져요</b>. 평균 1로 나누는 건 전체 Loss 크기를 원래와 비슷하게 유지해 학습률 감각을 바꾸지 않으려는 선택이에요(절댓값보다 <b>상대 비율</b>이 중요).</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weight</code></td><td>길이 C(클래스 수) 텐서. 클래스별 loss 기여도</td><td>안 주면 모든 클래스 같은 배점. 1/개수²처럼 너무 세게 주면 오히려 나빠질 수 있음</td></tr>
+        <tr><td><code>reduction="mean"</code></td><td><code>"mean"</code>(기본, scalar 반환) / <code>"sum"</code> / <code>"none"</code></td><td>none이면 샘플별 loss 그대로 → 어떤 샘플이 많이 틀리는지 볼 때</td></tr>
+        <tr><td><code>ignore_index=-100</code></td><td>계산에서 뺄 라벨 값</td><td>라벨 없는 샘플을 표시할 때</td></tr>
+        <tr><td><code>label_smoothing=0.0</code></td><td>정답을 100%가 아니라 살짝 부드럽게</td><td>올리면 과하게 확신하는 걸 줄여 줌</td></tr>
+        <tr><td><code>.to(device)</code></td><td>weight를 모델과 같은 장치로</td><td>GPU 모델에 CPU weight를 주면 에러</td></tr>
+      </table>
+      <div class="callout">💡 class weight는 <b>train loss</b>만 바꿔요. valid의 클래스 수나 평가 지표 계산식은 안 바뀝니다. 그래서 학습 안정성과 <b>클래스별 Recall</b>을 함께 봐요.</div>
+</section>
+
+<section class="cmd" id="d14-weightedrandomsampler" data-topic="PyTorch" data-sub="클래스 불균형" data-day="14" data-theory="notes/day14.html#imbalance">
+  <h3><code>WeightedRandomSampler</code></h3>
+<pre><code>from torch.utils.data import DataLoader, WeightedRandomSampler
+targets = torch.tensor(train_dataset.targets)
+counts = torch.bincount(targets)
+assert torch.all(counts &gt; 0)                     # 빈 클래스가 있으면 1/0이 됨
+class_weight = 1.0 / counts.float()
+sample_weight = class_weight[targets]            # 클래스 weight → 샘플별 weight로 바꿈
+sampler = WeightedRandomSampler(sample_weight, num_samples=len(sample_weight), replacement=True)
+loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)   # shuffle은 쓰지 않음</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 train 180장 (120 · 40 · 20), generator seed 0</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>sample_weight[:2], sample_weight[-2:]</code></td><td><code>0.0083 0.0083, 0.0500 0.0500</code></td><td>circle 1/120 · triangle 1/20</td></tr>
+    <tr><td><code>한 epoch(180번) 뽑은 클래스 수</code></td><td><code>{0: 58, 1: 67, 2: 55}</code></td><td>거의 1/3씩 (정확히 같지는 않음)</td></tr>
+    <tr><td><code>triangle 뽑힌 횟수 / 서로 다른 triangle 장수</code></td><td><code>55 / 16</code></td><td>복원 추출: 16장이 평균 3.4번씩 뽑히고 4장은 이번 epoch에 한 번도 안 뽑힘</td></tr>
+    <tr><td><code>batch(32장)당 클래스 수 평균 [최소~최대]  sampler, 50 epoch</code></td><td><code>10.6 [5~19] · 10.5 [4~19] · 10.8 [4~19]</code></td><td>평균은 거의 1/3씩, 하지만 batch마다 흔들림</td></tr>
+    <tr><td><code>같은 통계  shuffle=True</code></td><td><code>21.4 [10~27] · 7.1 [0~16] · 3.6 [0~9]</code></td><td>보통 추출은 평균 6 : 2 : 1 그대로</td></tr>
+    <tr><td><code>클래스 weight 3개를 그대로 넣으면 → 뽑힌 인덱스</code></td><td><code>[2, 2, 2, 2, 2, 2, 1, 1, 2, 1]</code></td><td>0·1·2번 &#x27;샘플&#x27;만 뽑힘 — 샘플별 weight가 필요</td></tr>
+    <tr><td><code>DataLoader(…, sampler=sampler, shuffle=True)</code></td><td><code>ValueError: sampler option is mutually exclusive with shuffle…</code></td><td>둘은 같이 못 씀</td></tr>
+    <tr><td><code>valid Recall (sampler, batch 32 · 8 epoch)</code></td><td><code>0.267 0.567 0.533</code></td><td>Head-only 1.00 0.00 0.00 · class weight 0.37 0.73 0.50와 비교 — 같은 모델·seed의 작은 실험 결과예요</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 샘플별 1/개수?</strong> — circle 한 장은 1/120, triangle 한 장은 1/20의 무게를 받아요. 클래스 전체로 더하면 120 × 1/120 = 20 × 1/20 = 1 → <b>세 클래스가 뽑힐 확률이 똑같아져요</b>. 그만큼 triangle은 여러 번 다시 뽑혀요.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weights</code> <small>(필수)</small></td><td><b>샘플별</b> 뽑힐 가중치 (클래스별 아님!)</td><td>클래스 weight 3개를 그대로 주면 "샘플 3개"로 해석돼 엉망이 됨</td></tr>
+        <tr><td><code>num_samples</code> <small>(필수)</small></td><td>한 epoch에 뽑을 개수</td><td>데이터 수와 같게 두면 epoch 길이가 그대로</td></tr>
+        <tr><td><code>replacement=True</code></td><td>복원 추출 → 같은 샘플이 여러 번 뽑힘</td><td>False면 한 장씩만 뽑혀서 적은 클래스를 더 자주 볼 수 없음</td></tr>
+        <tr><td><code>generator</code></td><td>난수 고정 (재현용)</td><td>안 주면 실행마다 뽑히는 순서가 달라짐</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>sampler=</code>를 쓰면 DataLoader의 <code>shuffle=True</code>와 같이 쓰지 않아요(뽑는 순서를 Sampler가 이미 정하니까). 역빈도는 클래스별 뽑힐 확률을 맞출 뿐, <b>모든 Batch에 똑같은 개수</b>가 들어간다는 보장은 없어요.</div>
+      <table>
+        <tr><th>합성 예시 (valid)</th><th>circle Recall</th><th>square Recall</th><th>triangle Recall</th><th>Macro F1</th></tr>
+        <tr><td>Head-only</td><td>1.000</td><td>0.167</td><td>0.000</td><td>0.269</td></tr>
+        <tr><td>Class weight</td><td>1.000</td><td>0.667</td><td>0.633</td><td>0.763</td></tr>
+        <tr><td>Sampler</td><td>1.000</td><td>0.733</td><td>0.700</td><td>0.810</td></tr>
+      </table>
+      <p><small>강의의 설명용 합성 예시예요. 이 순위가 다른 데이터에서도 유지되지는 않아요.</small></p>
+</section>
+
+<section class="cmd" id="d14-confusion-matrix" data-topic="PyTorch" data-sub="평가 · 오류 분석" data-day="14" data-theory="notes/day14.html#eval">
+  <h3><code>confusion_matrix</code> · <code>classification_report</code></h3>
+<pre><code>from sklearn.metrics import confusion_matrix, classification_report, f1_score
+labels = list(range(len(class_names)))           # [0, 1, 2] = class_to_idx 순서
+cm = confusion_matrix(y_true, y_pred, labels=labels)
+report = classification_report(y_true, y_pred, labels=labels, target_names=class_names,
+                               output_dict=True, zero_division=0)
+print(cm)
+print(report["macro avg"]["f1-score"])
+print(f1_score(y_true, y_pred, average="macro"))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 valid 90장 (30 · 30 · 30) — &#x27;best 복원&#x27;(Head-only)·&#x27;Class weight&#x27; 항목에서 학습한 두 모델의 예측</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>confusion_matrix (Head-only)</code></td><td><code> 30   0   0
+ 30   0   0
+ 30   0   0</code></td><td>행 = 실제, 열 = 예측 (circle · square · triangle)</td></tr>
+    <tr><td><code>report[&#x27;macro avg&#x27;][&#x27;f1-score&#x27;] (Head-only)</code></td><td><code>0.167</code></td><td></td></tr>
+    <tr><td><code>f1_score(average=&#x27;weighted&#x27;) · accuracy (Head-only)</code></td><td><code>0.167 · 0.333</code></td><td></td></tr>
+    <tr><td><code>confusion_matrix (class weight)</code></td><td><code> 11  16   3
+  5  22   3
+ 10   5  15</code></td><td>행 = 실제, 열 = 예측 (circle · square · triangle)</td></tr>
+    <tr><td><code>report[&#x27;macro avg&#x27;][&#x27;f1-score&#x27;] (class weight)</code></td><td><code>0.528</code></td><td></td></tr>
+    <tr><td><code>f1_score(average=&#x27;weighted&#x27;) · accuracy (class weight)</code></td><td><code>0.528 · 0.533</code></td><td></td></tr>
+    <tr><td><code>confusion_matrix(y_true[:30], 전부 0)  ← labels 없이 (circle만 있는 부분)</code></td><td><code>[[30]]</code></td><td>1×1 표 — 없는 클래스가 표에서 사라짐</td></tr>
+    <tr><td><code>같은 입력에 labels=[0, 1, 2]</code></td><td><code> 30   0   0
+  0   0   0
+  0   0   0</code></td><td>3×3으로 고정</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>y_true</code>, <code>y_pred</code> <small>(필수)</small></td><td>실제 라벨, 예측 라벨</td><td>순서를 바꾸면 Precision과 Recall이 뒤바뀜</td></tr>
+        <tr><td><code>labels</code></td><td>행·열 순서. <code>class_to_idx</code>와 같은 순서로</td><td>안 주면 데이터에 나온 라벨만 → 예측 0건인 클래스가 표에서 빠질 수 있음</td></tr>
+        <tr><td><code>target_names</code></td><td>보고서에 찍을 클래스 이름</td><td>순서가 labels와 어긋나면 이름이 틀리게 붙음</td></tr>
+        <tr><td><code>output_dict=True</code></td><td>문자열 대신 중첩 사전으로 반환 → 표·JSON 저장</td><td>False(기본)면 사람이 읽는 문자열</td></tr>
+        <tr><td><code>zero_division=0</code></td><td>분모가 0일 때(예측 0건) 값을 0으로</td><td>기본 <code>"warn"</code>은 경고를 띄움. 정책을 정해 두면 결과가 일관됨</td></tr>
+        <tr><td><code>average=</code></td><td><code>"macro"</code> / <code>"weighted"</code> / <code>"micro"</code></td><td>weighted는 소수 클래스 실패를 가릴 수 있음</td></tr>
+        <tr><td><code>digits=2</code>, <code>sample_weight</code></td><td>(선택) 소수점 자리 수, 샘플별 가중치</td><td></td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d14-오답-이미지를-확률과-함께-모으기" data-topic="PyTorch" data-sub="평가 · 오류 분석" data-day="14" data-theory="notes/day14.html#eval">
+  <h3>오답 이미지를 확률과 함께 모으기</h3>
+<pre><code>model.eval()
+with torch.no_grad():
+    logits = model(X_valid)
+    probs = logits.softmax(dim=1)          # 클래스별 확률 (합 = 1)
+    conf, pred = probs.max(dim=1)          # 가장 큰 확률과 그 클래스 = 예측
+wrong = (pred != y_valid).nonzero().flatten()
+for i in wrong[:8]:                        # 오분류 최대 8장
+    print(paths[i], "T=", class_names[y_valid[i]], "P=", class_names[pred[i]], f"{conf[i]:.2f}")</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 valid 90장 — &#x27;Class weight&#x27; 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>probs[0], probs[0].sum()</code></td><td><code>0.366 0.401 0.233, 1.000</code></td><td>클래스별 확률, 합 1</td></tr>
+    <tr><td><code>len(wrong)</code></td><td><code>42 / 90</code></td><td>틀린 valid 수</td></tr>
+    <tr><td><code>Counter(T→P) 오답 유형</code></td><td><code>{&#x27;circle→square&#x27;: 16, &#x27;triangle→circle&#x27;: 10, &#x27;square→circle&#x27;: 5, &#x27;triangle→square&#x27;: 5, &#x27;circle→triangle&#x27;: 3, &#x27;square→triangle&#x27;: 3}</code></td><td>어느 쪽으로 틀리나</td></tr>
+    <tr><td><code>오답 확신도 conf[wrong] 최소 · 중앙 · 최대</code></td><td><code>0.34 · 0.37 · 0.44</code></td><td>0.9 이상이면 &#x27;자신 있게 틀린&#x27; 위험 오답 — 여기선 최대 0.44라 그런 오답은 없고, 모델이 전반적으로 확신이 낮음(3클래스 반반이 0.33)</td></tr>
+    <tr><td><code>paths[21], T, P, conf</code></td><td><code>circle_021.png  T=circle  P=square  0.44</code></td><td>가장 자신 있게 틀린 오답부터 — 이 사진을 직접 열어 봐야 &#x27;왜&#x27;가 보여요</td></tr>
+    <tr><td><code>paths[25], T, P, conf</code></td><td><code>circle_025.png  T=circle  P=square  0.43</code></td><td></td></tr>
+    <tr><td><code>paths[62], T, P, conf</code></td><td><code>triangle_002.png  T=triangle  P=square  0.41</code></td><td></td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>softmax(dim=1)</code></td><td>Logit을 0~1 확률로 (클래스 축)</td><td>Logit 크기는 해석이 어려워서, "얼마나 확신했나"로 바꿔 봄</td></tr>
+        <tr><td><code>max(dim=1)</code></td><td>가장 큰 확률과 그 위치 = 예측</td><td><code>argmax</code>와 같은 예측 + 확신도를 한 번에</td></tr>
+        <tr><td><code>pred != y_valid</code></td><td>틀린 샘플만 고르기</td><td>T(실제)·P(예측)·확률·파일 경로를 같이 남겨야 출처까지 추적 가능</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d14-hook으로-activation-gradient-기록" data-topic="PyTorch" data-sub="평가 · 오류 분석" data-day="14" data-theory="notes/day14.html#gradcam">
+  <h3>Hook으로 activation · gradient 기록</h3>
+<pre><code>activation, gradient, handles = {}, {}, []
+def save_grad(grad):
+    gradient["value"] = grad.detach()
+def save_act(module, inputs, output):
+    activation["value"] = output.detach()
+    handles.append(output.register_hook(save_grad))      # 이 텐서의 gradient도 기록
+
+model.eval()
+image = image.detach().requires_grad_(True)
+target_layer = model.layer4[-1]                          # 마지막 Conv block
+handles.append(target_layer.register_forward_hook(save_act))
+try:
+    with torch.enable_grad():                            # eval이어도 gradient는 켬
+        model.zero_grad(set_to_none=True)
+        logits = model(image)
+        logits[0, target_class].backward()               # 관심 클래스 점수로 미분
+finally:
+    for h in handles:
+        h.remove()                                       # 꼭 지우기!</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 구조(weights=None, 3클래스 Head) · 강의 circle 한 장을 preprocess → [1, 3, 224, 224]</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>activation[&#x27;value&#x27;].shape</code></td><td><code>[1, 512, 7, 7]</code></td><td>layer4[-1] 출력: 512채널 · 7×7 지도</td></tr>
+    <tr><td><code>gradient[&#x27;value&#x27;].shape</code></td><td><code>[1, 512, 7, 7]</code></td><td>같은 모양의 gradient</td></tr>
+    <tr><td><code>forward hook · tensor hook 호출 횟수</code></td><td><code>1 · 1</code></td><td>Forward 1번, backward 1번</td></tr>
+    <tr><td><code>h.remove() 전/후 target_layer._forward_hooks 수</code></td><td><code>1 → 0</code></td><td>지워야 다음 forward에 안 쌓임</td></tr>
+    <tr><td><code>no_grad() 안에서 output.register_hook</code></td><td><code>RuntimeError: cannot register a hook on a tensor that doesn…</code></td><td>gradient를 안 만드는 곳에선 hook을 못 검</td></tr>
+    <tr><td><code>image.grad.shape</code></td><td><code>[1, 3, 224, 224]</code></td><td>입력에도 gradient가 생김 (requires_grad_(True))</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 Hook을 써?</strong> — 모델은 최종 Logit만 돌려주고 중간 층의 출력(Feature Map)과 그 gradient는 버려요. Hook은 "그 층을 지날 때 값을 몰래 복사해 둬"라는 <b>갈고리</b>라서, 모델 코드를 고치지 않고 중간값을 꺼낼 수 있어요. <code>try/finally</code>로 감싸는 건 중간에 에러가 나도 Hook을 <b>반드시</b> 지우려는 거예요.</div>
+      <table>
+        <tr><th>명령어</th><th>뜻</th><th>주의 / 🤔 왜?</th></tr>
+        <tr><td><code>module.register_forward_hook(fn)</code></td><td>그 층을 지날 때 <code>fn(module, args, output)</code> 호출</td><td>RemovableHandle을 돌려줌 → <code>.remove()</code></td></tr>
+        <tr><td><code>tensor.register_hook(fn)</code></td><td>그 텐서의 gradient가 계산되면 <code>fn(grad)</code> 호출</td><td>Feature Map에 대한 gradient를 얻는 방법</td></tr>
+        <tr><td><code>model.eval()</code> + <code>enable_grad()</code></td><td>BN·Dropout은 평가 모드, gradient는 계산</td><td>평가 모드로 결과를 고정하되, 미분은 필요하니까. <code>inference_mode()</code>·<code>no_grad()</code> 안에선 gradient가 안 생김</td></tr>
+        <tr><td><code>target_class</code></td><td>무엇에 대한 설명인가 (보통 예측 클래스)</td><td>바꾸면 다른 질문이 됨 → target class와 층을 함께 기록</td></tr>
+        <tr><td><code>.detach()</code></td><td>저장할 값을 계산 그래프에서 떼어 냄</td><td>그래프를 붙잡고 있지 않아 메모리 절약</td></tr>
+      </table>
+      <div class="callout warn">⚠️ Hook을 지우지 않고 계속 등록하면 한 번 Forward에 여러 번 호출되고 메모리가 늘어나요. 그리고 Grad-CAM 중에는 <code>optimizer.step()</code>을 부르지 않아요 — 설명하려다 모델을 바꾸면 안 되니까요.</div>
+</section>
+
+<section class="cmd" id="d14-채널-weight와-heatmap-계산" data-topic="PyTorch" data-sub="평가 · 오류 분석" data-day="14" data-theory="notes/day14.html#gradcam">
+  <h3>채널 weight와 Heatmap 계산</h3>
+<pre><code>grads = gradient["value"][0]          # [C, H, W]
+acts  = activation["value"][0]        # [C, H, W]
+alpha = grads.mean(dim=(1, 2))        # 채널별 중요도
+cam = torch.relu((alpha[:, None, None] * acts).sum(0))
+cam = cam / (cam.max() + 1e-8)        # 0~1로 맞춤
+cam = torch.nn.functional.interpolate(cam[None, None], size=image_hw,
+                                      mode="bilinear", align_corners=False)[0, 0]</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>&#x27;Hook&#x27; 항목의 activation·gradient 그대로 — 가중치가 무작위라 지도 모양 자체엔 의미가 없어요(계산 과정 확인용)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>alpha.shape</code></td><td><code>[512]</code></td><td>채널마다 중요도 숫자 하나</td></tr>
+    <tr><td><code>(alpha * acts).sum(0).shape</code></td><td><code>[7, 7]</code></td><td>7×7 지도</td></tr>
+    <tr><td><code>relu 전 음수 칸 비율</code></td><td><code>4%</code></td><td>점수를 낮추는 쪽 칸 — relu가 지움</td></tr>
+    <tr><td><code>cam.min(), cam.max()  (정규화 후)</code></td><td><code>0.00, 1.00</code></td><td>가장 밝은 곳 = 1</td></tr>
+    <tr><td><code>interpolate(…, size=(224, 224)).shape</code></td><td><code>[224, 224]</code></td><td>원본 크기로 확대</td></tr>
+    <tr><td><code>확대 전후 서로 다른 값 개수</code></td><td><code>48 → 37699</code></td><td>부드럽게 이어 붙였을 뿐, 49칸 정보가 늘어나진 않음</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>mean(dim=(1, 2))</code></td><td>gradient를 가로·세로로 평균</td><td>위치별 잡음을 평균으로 눌러 채널 하나당 중요도 숫자 하나로</td></tr>
+        <tr><td><code>torch.relu(...)</code></td><td>클래스 점수를 올린 영역만 남김</td><td>빼면 점수를 <b>낮추는</b> 영역까지 칠해져 근거가 흐려짐</td></tr>
+        <tr><td><code>cam.max() + 1e-8</code></td><td>가장 밝은 곳을 1로</td><td>1e-8은 cam이 전부 0일 때 0으로 나누는 걸 막음. 이 정규화 때문에 <b>밝기 ≠ 점수</b></td></tr>
+        <tr><td><code>interpolate(size=image_hw, mode="bilinear")</code></td><td>작은 열지도를 원본 크기로 확대</td><td>원본에 겹쳐 보려면 크기가 같아야 함. 확대일 뿐 해상도가 생기지는 않음</td></tr>
+      </table>
+      <p><small>간단히 쓰면 hook 대신 <code>torch.autograd.grad(score[0, target], features)[0]</code>로 특징 지도에 대한 gradient를 바로 받을 수도 있어요.</small></p>
+</section>

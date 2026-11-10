@@ -1,0 +1,407 @@
+<!-- Day11 명령어 — tools/split_commands.py 로 notes/day11.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="11">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day11.html#packages">📦 필요한 패키지</a></td><td><code>torch</code>, <code>torchvision</code>, <code>pillow</code></td></tr>
+        <tr><td><a href="notes/day11.html#tensor">① 이미지 Tensor [N, C, H, W]</a></td><td><code>torch.rand()</code>, <code>permute()</code>, <code>unsqueeze(0)</code></td></tr>
+        <tr><td><a href="notes/day11.html#conv">② 합성곱 Conv2d</a></td><td><code>nn.Conv2d(in, out, kernel_size, stride=, padding=)</code>, <code>F.conv2d()</code></td></tr>
+        <tr><td><a href="notes/day11.html#pool">③ Pooling · BatchNorm · CNN 조립</a></td><td><code>nn.MaxPool2d()</code>, <code>nn.BatchNorm2d()</code>, <code>nn.AdaptiveAvgPool2d(1)</code>, <code>torch.flatten(x, 1)</code></td></tr>
+        <tr><td><a href="notes/day11.html#data">④ 이미지 읽기 · 증강 · 학습 · 평가 · 저장</a></td><td><code>datasets.ImageFolder()</code>, <code>transforms.Compose()</code>, <code>nn.CrossEntropyLoss()</code>, <code>torch.inference_mode()</code>, <code>torch.save()</code></td></tr>
+        <tr><td><a href="notes/day11.html#transfer">⑤ 전이학습 (Head-only · Partial)</a></td><td><code>resnet18(weights=)</code>, <code>weights.transforms()</code>, <code>requires_grad = False</code>, <code>model.fc = nn.Linear()</code></td></tr>
+        <tr><td><a href="notes/day11.html#bench">⑥ CPU·GPU 속도 비교 · 성능표</a></td><td><code>time.perf_counter()</code>, <code>torch.cuda.synchronize()</code>, <code>torch.cuda.max_memory_allocated()</code></td></tr>
+      </table>
+</section>
+<section class="cmd" id="d11-축-순서-바꾸기-개수-축-붙이기" data-topic="PyTorch" data-sub="Tensor" data-day="11" data-theory="notes/day11.html#tensor">
+  <h3>축 순서 바꾸기 · 개수 축 붙이기</h3>
+<pre><code>images = torch.rand(4, 3, 32, 32)     # 0~1 난수, 모양 연습용
+img = images[0]                       # [3, 32, 32]
+hwc  = img.permute(1, 2, 0)           # [32, 32, 3]  → plt.imshow(hwc)
+nchw = img.unsqueeze(0)               # [1, 3, 32, 32] → 사진 한 장을 모델에 넣을 때</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.rand 난수(seed 0) · 강의 데이터 train/horizontal/train_horizontal_000.png</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>images = torch.rand(4, 3, 32, 32); images.shape</code></td><td><code>[4, 3, 32, 32]</code></td><td>[N, C, H, W] = 4장 · 3채널 · 32×32</td></tr>
+    <tr><td><code>img = images[0]; img.shape</code></td><td><code>[3, 32, 32]</code></td><td>한 장을 꺼내면 N축이 빠짐</td></tr>
+    <tr><td><code>img.permute(1, 2, 0).shape</code></td><td><code>[32, 32, 3]</code></td><td>[H, W, C] — plt.imshow가 원하는 순서</td></tr>
+    <tr><td><code>hwc[5, 7, 1] == img[1, 5, 7]</code></td><td><code>True</code></td><td>값은 그대로, 읽는 순서만 바뀜</td></tr>
+    <tr><td><code>img.permute(1, 2, 0).is_contiguous()</code></td><td><code>False</code></td><td>메모리는 안 옮기고 보는 방식만 바꾼 view</td></tr>
+    <tr><td><code>img.unsqueeze(0).shape</code></td><td><code>[1, 3, 32, 32]</code></td><td>앞에 개수 축 1을 붙임 → 모델에 한 장 넣을 때</td></tr>
+    <tr><td><code>np.array(Image.open(png)).shape</code></td><td><code>(64, 64, 3)</code></td><td>PIL/NumPy 사진은 [H, W, C] · 0~255</td></tr>
+    <tr><td><code>transforms.ToTensor()(pil).shape, min, max</code></td><td><code>[3, 64, 64], 0.09, 0.72</code></td><td>ToTensor가 [C, H, W] · 0~1로 바꿔 줌</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>호출</th><th>하는 일</th><th>바꾸면?</th></tr>
+        <tr><td><code>torch.rand(N, C, H, W)</code></td><td>0~1 사이 난수 Tensor</td><td>숫자 순서가 곧 축 순서 → C를 뒤에 쓰면 Conv2d가 채널 오류</td></tr>
+        <tr><td><code>x.permute(1, 2, 0)</code></td><td>[C,H,W] → [H,W,C]. 값은 그대로, 읽는 순서만 바뀜</td><td>순서를 틀리면 그림이 깨지거나 imshow가 오류 (모양만 바뀌고 값은 안 바뀌니까)</td></tr>
+        <tr><td><code>x.unsqueeze(0)</code></td><td>[C,H,W] → [1,C,H,W]</td><td>빼먹으면 3차원이라 "batch 축 없음" 차원 오류</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d11-nn-conv2d" data-topic="PyTorch" data-sub="모델 만들기" data-day="11" data-theory="notes/day11.html#conv">
+  <h3><code>nn.Conv2d</code></h3>
+<pre><code>x = torch.rand(4, 3, 32, 32)
+conv = nn.Conv2d(3, 8, 3, padding=1)
+print(conv(x).shape)                          # torch.Size([4, 8, 32, 32])
+print(conv.weight.shape, conv.bias.shape)     # [8, 3, 3, 3]  [8]
+print(sum(p.numel() for p in conv.parameters()))   # 8·3·3·3 + 8 = 224
+
+# 가중치를 직접 넣어 계산해 보기 (함수형)
+import torch.nn.functional as F
+inp = torch.zeros(1, 1, 5, 5); inp[0, 0, :, 1] = 1        # 세로선
+kernel = torch.zeros(1, 1, 3, 3); kernel[0, 0, :, 1] = 1   # 세로선 검출 Kernel
+print(F.conv2d(inp, kernel)[0, 0])                          # 3×3, 세로선 위만 3</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.rand(4, 3, 32, 32) (seed 0) · 5×5 세로선 그림</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>nn.Conv2d(3, 8, 3, padding=1)(x).shape</code></td><td><code>[4, 8, 32, 32]</code></td><td>채널 3 → 8, 크기 유지(padding=1)</td></tr>
+    <tr><td><code>conv.weight.shape, conv.bias.shape</code></td><td><code>[8, 3, 3, 3], [8]</code></td><td>[out, in, K, K] — Kernel 8장, 각각 두께 3</td></tr>
+    <tr><td><code>sum(p.numel() for p in conv.parameters())</code></td><td><code>224</code></td><td>8·3·3·3 + 8 = 224</td></tr>
+    <tr><td><code>nn.Conv2d(3, 8, 3, padding=0)(x).shape</code></td><td><code>[4, 8, 30, 30]</code></td><td>padding 0이면 가장자리 2칸 줄어듦</td></tr>
+    <tr><td><code>nn.Conv2d(3, 8, 3, stride=2, padding=1)(x).shape</code></td><td><code>[4, 8, 16, 16]</code></td><td>stride 2면 가로·세로 절반</td></tr>
+    <tr><td><code>F.conv2d(inp, kernel)[0, 0]</code></td><td><code>3 0 0
+3 0 0
+3 0 0</code></td><td>padding 없이 5×5 → 3×3. 세로선(입력 1열)이 Kernel 가운데 열과 겹치는 출력 0열만 1×3 = 3</td></tr>
+    <tr><td><code>nn.Conv2d(1, 8, 3)(x)  ← in_channels 틀림</code></td><td><code>RuntimeError (채널 수 불일치)</code></td><td>Kernel 두께 1인데 입력은 3채널</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>in_channels</code> <small>(필수)</small></td><td>입력 채널 수 (RGB면 3)</td><td>앞 층 출력 채널과 다르면 오류 — Kernel 한 장이 입력 채널 수만큼 두께를 가져야 곱할 수 있으니까</td></tr>
+        <tr><td><code>out_channels</code> <small>(필수)</small></td><td>Kernel 개수 = 출력 채널 수</td><td>늘리면 찾는 패턴 종류가 많아지지만 파라미터·계산도 비례해 늘어남</td></tr>
+        <tr><td><code>kernel_size</code> <small>(필수)</small></td><td>창 크기 (보통 홀수, 3)</td><td>키우면 한 번에 넓게 보지만 파라미터가 K²에 비례해 늘어남 → 보통 3×3을 여러 층 쌓음</td></tr>
+        <tr><td><code>stride</code></td><td>건너뛰는 칸 수 (기본 1)</td><td>2면 출력 약 절반·계산 약 1/4 — 칸을 건너뛰어 덜 보니까</td></tr>
+        <tr><td><code>padding</code></td><td>가장자리 0 덧대기 (기본 0)</td><td>3×3에 1이면 크기 유지, 0이면 층마다 2칸씩 줄어듦</td></tr>
+        <tr><td><code>bias</code></td><td>편향 사용 (기본 True)</td><td>바로 뒤에 BatchNorm이 오면 False로 끄기도 함 — BN이 평균을 빼면서 bias 효과를 지워 버리거든요</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d11-smallcnn-만들기" data-topic="PyTorch" data-sub="모델 만들기" data-day="11" data-theory="notes/day11.html#pool">
+  <h3>SmallCNN 만들기</h3>
+<pre><code>class SmallCNN(nn.Module):
+    def __init__(self, num_classes):
+        super().__init__()
+        self.features = nn.Sequential(             # 특징 추출부 (Backbone)
+            nn.Conv2d(3, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+        )
+        self.pool = nn.AdaptiveAvgPool2d(1)        # Global Avg Pool
+        self.fc = nn.Linear(32, num_classes)       # Head
+    def forward(self, x):                          # [N,3,H,W]
+        x = self.features(x)                       # [N,32,H/4,W/4]
+        x = torch.flatten(self.pool(x), 1)         # [N,32]
+        return self.fc(x)                          # [N,K] 점수
+
+model = SmallCNN(num_classes=2)
+h = torch.rand(8, 3, 64, 64)
+for layer in model.features:
+    h = layer(h)
+    print(type(layer).__name__, tuple(h.shape))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.rand(8, 3, 64, 64) (seed 0)를 층마다 통과</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>features[0] Conv2d</code></td><td><code>[8, 16, 64, 64]</code></td><td>파라미터 448</td></tr>
+    <tr><td><code>features[2] MaxPool2d</code></td><td><code>[8, 16, 32, 32]</code></td><td>파라미터 0</td></tr>
+    <tr><td><code>features[3] Conv2d</code></td><td><code>[8, 32, 32, 32]</code></td><td>파라미터 4,640</td></tr>
+    <tr><td><code>features[5] MaxPool2d</code></td><td><code>[8, 32, 16, 16]</code></td><td>파라미터 0</td></tr>
+    <tr><td><code>model.pool(h).shape</code></td><td><code>[8, 32, 1, 1]</code></td><td>채널마다 평균 하나</td></tr>
+    <tr><td><code>torch.flatten(p, 1).shape</code></td><td><code>[8, 32]</code></td><td>[N, 32]</td></tr>
+    <tr><td><code>torch.flatten(p).shape  ← 1을 빼면</code></td><td><code>[256]</code></td><td>8장이 한 줄로 섞여 버림</td></tr>
+    <tr><td><code>model(torch.rand(8, 3, 64, 64)).shape</code></td><td><code>[8, 2]</code></td><td>[N, K] 점수(logit)</td></tr>
+    <tr><td><code>model(torch.rand(2, 3, 224, 224)).shape</code></td><td><code>[2, 2]</code></td><td>크기가 달라도 Head 입력은 32 → 그대로 동작</td></tr>
+    <tr><td><code>sum(p.numel() for p in model.parameters())</code></td><td><code>5,154</code></td><td>448 + 4,640 + 66</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>층</th><th>출력 shape</th><th>파라미터</th></tr>
+        <tr><td>Conv2d(3,16,3,p=1) → ReLU</td><td>[8, 16, 64, 64]</td><td>448</td></tr>
+        <tr><td>MaxPool2d(2)</td><td>[8, 16, 32, 32]</td><td>0</td></tr>
+        <tr><td>Conv2d(16,32,3,p=1) → ReLU</td><td>[8, 32, 32, 32]</td><td>4,640</td></tr>
+        <tr><td>MaxPool2d(2)</td><td>[8, 32, 16, 16]</td><td>0</td></tr>
+        <tr><td>AdaptiveAvgPool2d(1)</td><td>[8, 32, 1, 1]</td><td>0</td></tr>
+        <tr><td>flatten(x, 1)</td><td>[8, 32]</td><td>0</td></tr>
+        <tr><td>Linear(32, 2)</td><td>[8, 2]</td><td>66</td></tr>
+        <tr><td colspan="2"><b>합계 (K=2)</b></td><td><b>5,154</b></td></tr>
+      </table>
+      <table>
+        <tr><th>명령</th><th>뜻</th><th>바꾸면? / 주의</th></tr>
+        <tr><td><code>nn.MaxPool2d(kernel_size)</code></td><td>영역 최댓값. <code>stride</code>는 기본 kernel_size와 같음</td><td>파라미터 0개 (고르기만 하고 배울 숫자가 없음). 3으로 키우면 더 많이 줄고 디테일을 더 버림</td></tr>
+        <tr><td><code>nn.AdaptiveAvgPool2d(1)</code></td><td>입력 크기와 상관없이 채널마다 평균 하나</td><td>출력 크기를 "1×1"로 정해 두니까 32·64·224 어떤 사진이 와도 Head 입력이 32개로 같음</td></tr>
+        <tr><td><code>torch.flatten(x, 1)</code> / <code>nn.Flatten()</code></td><td>[N,32,1,1] → [N,32]</td><td><code>1</code>을 빼면 N축까지 펴서 [N·32]가 됨 → 사진끼리 섞여 버림</td></tr>
+        <tr><td><code>nn.Conv2d(…, stride=2)</code></td><td>Pool 대신 크기 줄이기</td><td>줄이는 법까지 배움 → 파라미터 있음 (8→8채널이면 584개)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 마지막에 Global Avg Pool을 써?</strong> — Feature Map을 그대로 펴서 Linear에 넣으면 사진 크기마다 입력 개수가 달라지고 파라미터도 커져요. 채널마다 평균 하나만 남기면 "이 패턴이 사진 <b>전체에서</b> 얼마나 나왔나"만 남아서, 위치 정보는 버리고 크기와도 무관해져요.</div>
+</section>
+
+<section class="cmd" id="d11-nn-batchnorm2d" data-topic="PyTorch" data-sub="모델 만들기" data-day="11" data-theory="notes/day11.html#pool">
+  <h3><code>nn.BatchNorm2d</code> (ResNet18엔 있고, SmallCNN엔 없음)</h3>
+<pre><code>block = nn.Sequential(
+    nn.Conv2d(3, 16, 3, padding=1, bias=False),
+    nn.BatchNorm2d(16),            # 채널 수와 같아야 함
+    nn.ReLU(),
+)
+print(block(torch.rand(8, 3, 64, 64)).shape)   # [8, 16, 64, 64]  (Shape 그대로)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.rand(8, 3, 64, 64) (seed 0)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>block(x).shape</code></td><td><code>[8, 16, 64, 64]</code></td><td>Shape 그대로</td></tr>
+    <tr><td><code>sum(p.numel() for p in bn.parameters())</code></td><td><code>32</code></td><td>채널마다 γ·β 하나씩 = 16 × 2</td></tr>
+    <tr><td><code>conv 출력 채널 평균 [:3]</code></td><td><code>-0.024 -0.228 0.075</code></td><td>BN 전: 채널마다 제각각</td></tr>
+    <tr><td><code>train 모드 BN 출력의 채널 평균·표준편차</code></td><td><code>평균 ≈ 1.3e-07, std ≈ 1.000</code></td><td>모든 채널이 평균 0 · 표준편차 1로</td></tr>
+    <tr><td><code>bn.running_mean[:3]  (forward 한 번 뒤)</code></td><td><code>-0.002 -0.023 0.007</code></td><td>0에서 batch 평균 쪽으로 10%(momentum 0.1)만 이동</td></tr>
+    <tr><td><code>train: 같은 사진, batch 구성만 바꿔 출력 차이</code></td><td><code>3.530</code></td><td>batch 통계를 써서 같은 사진도 결과가 달라짐</td></tr>
+    <tr><td><code>eval: 같은 사진, batch 구성만 바꿔 출력 차이</code></td><td><code>0.000</code></td><td>저장 통계를 써서 언제나 같은 결과</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 모드</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>num_features</code> <small>(필수)</small></td><td>채널 수 C</td><td>앞 Conv의 out_channels와 다르면 오류 (채널마다 따로 평균·크기를 맞추니까)</td></tr>
+        <tr><td><code>model.train()</code></td><td>지금 batch의 평균·분산으로 정규화 + 저장 통계 갱신</td><td>평가 때 이 모드면 batch 구성에 따라 결과가 흔들림</td></tr>
+        <tr><td><code>model.eval()</code></td><td>학습 중 저장해 둔 통계로 정규화</td><td>같은 사진은 언제나 같은 결과 → 평가·추론은 꼭 eval</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 BatchNorm을 넣어?</strong> — 층이 깊어지면 값이 층마다 점점 커지거나 한쪽으로 쏠려서, 학습률을 조금만 키워도 학습이 튀어요. BN이 채널마다 값의 평균·크기를 맞춰 주면 <b>큰 학습률에서도 안정적으로</b> 학습돼요. 평가 때는 batch마다 결과가 달라지면 안 되니까 저장된 통계를 써요(train/eval 동작이 다른 이유).</div>
+</section>
+
+<section class="cmd" id="d11-imagefolder" data-topic="PyTorch" data-sub="학습 루프" data-day="11" data-theory="notes/day11.html#data">
+  <h3><code>ImageFolder</code> + <code>transforms</code> + <code>DataLoader</code></h3>
+<pre><code>from torchvision import datasets, transforms
+from torch.utils.data import DataLoader
+
+transform = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])
+train_ds = datasets.ImageFolder("data/train", transform=transform)
+train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
+images, labels = next(iter(train_loader))
+print(train_ds.class_to_idx)       # {'horizontal': 0, 'vertical': 1}  ← 폴더 이름 순서대로 번호
+print(images.shape, labels.shape)  # torch.Size([32, 3, 64, 64]) torch.Size([32])</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 데이터 data/train (horizontal 30 · vertical 30) · data/valid (10 · 10)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>train_ds.class_to_idx</code></td><td><code>{&#x27;horizontal&#x27;: 0, &#x27;vertical&#x27;: 1}</code></td><td>폴더 이름 알파벳 순서로 번호</td></tr>
+    <tr><td><code>len(train_ds), len(valid_ds)</code></td><td><code>60, 20</code></td><td></td></tr>
+    <tr><td><code>train_ds.samples[0]</code></td><td><code>(&#x27;…/train/horizontal/train_horizontal_000.png&#x27;, 0)</code></td><td>(파일 경로, 라벨)</td></tr>
+    <tr><td><code>type(ImageFolder(&#x27;data/train&#x27;)[0][0])  ← transform 없음</code></td><td><code>Image</code></td><td>PIL 이미지 그대로 → batch로 못 묶음</td></tr>
+    <tr><td><code>images, labels = next(iter(train_loader))</code></td><td><code>[32, 3, 64, 64], [32]</code></td><td>batch_size=32 → 32장씩</td></tr>
+    <tr><td><code>images.min(), images.max()</code></td><td><code>0.03, 0.95</code></td><td>ToTensor로 0~1 실수</td></tr>
+    <tr><td><code>labels[:12]</code></td><td><code>1 0 1 1 1 1 1 0 1 0 0 1</code></td><td>shuffle=True라 두 클래스가 섞여 나옴</td></tr>
+    <tr><td><code>len(train_loader)</code></td><td><code>2</code></td><td>60장 ÷ 32 → 마지막 batch는 28장</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>ImageFolder(root, transform=None)</code></td><td><code>root</code> 필수. 이미지 + 폴더 라벨 쌍</td><td>transform을 안 주면 PIL 이미지 그대로 → 크기도 제각각이라 batch로 못 묶음</td></tr>
+        <tr><td><code>.class_to_idx</code> / <code>.samples</code></td><td>이름→번호 사전 / (파일경로, 라벨) 목록</td><td>폴더 이름을 바꾸면 정렬 순서가 바뀌어 번호도 바뀜 → 저장할 때 같이 남겨야 하는 이유</td></tr>
+        <tr><td><code>transforms.Compose([...])</code></td><td>변환을 순서대로 연결</td><td>순서가 중요: ToTensor 전엔 PIL용, 후엔 Tensor용 변환(Normalize)</td></tr>
+        <tr><td><code>transforms.Resize((64, 64))</code></td><td>목표 크기로 맞춤 (크기 필수)</td><td>크게 하면 디테일↑·계산↑, 작게 하면 빠르지만 작은 물체가 뭉개짐</td></tr>
+        <tr><td><code>transforms.ToTensor()</code></td><td>PIL [H,W,C] 0~255 → Tensor [C,H,W] 0~1 실수</td><td>인자 없음. 빼면 모델이 PIL을 못 받음</td></tr>
+        <tr><td><code>transforms.Normalize(mean, std)</code></td><td>채널마다 (x − mean) / std</td><td>사전학습 모델엔 <b>그 모델이 배울 때 쓴 값</b>을 써야 함 (<a href="#d11-resnet18-head-only-전이학습">ResNet18 Head-only 항목</a>의 <code>weights.transforms()</code>, 이론은 <a href="notes/day11.html#transfer">Day11 ⑤ 전이학습</a>)</td></tr>
+        <tr><td><code>DataLoader(…, shuffle=True)</code></td><td>batch로 묶기, train은 섞기</td><td>train을 안 섞으면 같은 클래스만 연달아 나와 학습이 한쪽으로 쏠림. valid는 섞을 필요 없음</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d11-손실-학습-루프-valid-평가-best-저장" data-topic="PyTorch" data-sub="학습 루프" data-day="11" data-theory="notes/day11.html#data">
+  <h3>손실 · 학습 루프 · valid 평가 · best 저장</h3>
+<pre><code>import copy
+model = SmallCNN(num_classes=2)
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+loss_fn = nn.CrossEntropyLoss()                 # softmax 전 logit을 그대로 넣음
+best_loss = float("inf")
+for epoch in range(1, num_epochs + 1):
+    model.train()
+    for images, labels in train_loader:
+        optimizer.zero_grad()
+        loss = loss_fn(model(images), labels)
+        loss.backward()
+        optimizer.step()
+    model.eval()
+    vl_sum, correct, n = 0.0, 0, 0
+    with torch.inference_mode():
+        for images, labels in valid_loader:
+            logits = model(images)
+            vl_sum += loss_fn(logits, labels).item() * len(labels)
+            correct += (logits.argmax(1) == labels).sum().item()
+            n += len(labels)
+    vl, va = vl_sum / n, correct / n
+    if vl &lt; best_loss:
+        best_loss, best_epoch, best_state = vl, epoch, copy.deepcopy(model.state_dict())
+model.load_state_dict(best_state)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 데이터 train 60장으로 SmallCNN 8 epoch (seed 0, NVIDIA GeForce RTX 5080 Laptop GPU) — 숫자는 작은 데이터라 흔들릴 수 있어요</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>nn.CrossEntropyLoss()([[0., 0.]], [0])</code></td><td><code>0.693</code></td><td>반반 확신 → −log 0.5</td></tr>
+    <tr><td><code>nn.CrossEntropyLoss()([[3., 0.]], [0])</code></td><td><code>0.049</code></td><td>정답에 자신 있게 → 벌점 작음</td></tr>
+    <tr><td><code>nn.CrossEntropyLoss()([[0., 3.]], [0])</code></td><td><code>3.049</code></td><td>자신 있게 틀림 → 벌점 큼</td></tr>
+    <tr><td><code>epoch 1: valid loss · acc</code></td><td><code>0.690 · 0.55</code></td><td></td></tr>
+    <tr><td><code>epoch 2: valid loss · acc</code></td><td><code>0.687 · 0.55</code></td><td></td></tr>
+    <tr><td><code>epoch 3: valid loss · acc</code></td><td><code>0.683 · 1.00</code></td><td></td></tr>
+    <tr><td><code>epoch 4: valid loss · acc</code></td><td><code>0.679 · 1.00</code></td><td></td></tr>
+    <tr><td><code>epoch 5: valid loss · acc</code></td><td><code>0.674 · 1.00</code></td><td></td></tr>
+    <tr><td><code>epoch 6: valid loss · acc</code></td><td><code>0.669 · 1.00</code></td><td></td></tr>
+    <tr><td><code>epoch 7: valid loss · acc</code></td><td><code>0.664 · 1.00</code></td><td></td></tr>
+    <tr><td><code>epoch 8: valid loss · acc</code></td><td><code>0.658 · 1.00</code></td><td></td></tr>
+    <tr><td><code>best_epoch, best_loss</code></td><td><code>8, 0.658</code></td><td>valid loss가 가장 낮았던 순간</td></tr>
+    <tr><td><code>(해석)</code></td><td><code>acc는 epoch 3부터 1.00, loss는 0.69 근처</code></td><td>방향은 다 맞혔지만 확률은 아직 반반에 가까움 — lr 1e-3에 step 16번뿐이라 확신이 덜 자람. 정확도만 보면 이걸 놓쳐요</td></tr>
+    <tr><td><code>state_dict()를 그대로 담고 나서 학습이 바뀌면</code></td><td><code>담아 둔 값도 바뀜: True</code></td><td>같은 Tensor를 가리킴</td></tr>
+    <tr><td><code>copy.deepcopy(state_dict())로 담았으면</code></td><td><code>담아 둔 값도 바뀜: False</code></td><td>복사본이라 그대로 남음</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령</th><th>뜻</th><th>바꾸면? / 빼먹으면?</th></tr>
+        <tr><td><code>nn.CrossEntropyLoss()</code></td><td>점수(logit) → Softmax 확률 → 정답 확률의 −log</td><td>앞에 softmax를 또 붙이면 두 번 적용돼 학습이 느려짐 (안에 이미 들어 있음)</td></tr>
+        <tr><td><code>model.eval()</code></td><td>BatchNorm·Dropout을 평가 모드로</td><td>빼먹으면 BN이 valid batch 통계를 써서 점수가 흔들림</td></tr>
+        <tr><td><code>torch.inference_mode()</code></td><td>기울기 기록 끄기</td><td>빼먹어도 값은 같지만 메모리·시간 낭비 (평가엔 역전파가 필요 없으니까)</td></tr>
+        <tr><td><code>copy.deepcopy(model.state_dict())</code></td><td>best 순간의 가중치를 복사해 둠</td><td>deepcopy 없이 담으면 같은 Tensor를 가리켜서 이후 학습에 따라 <b>같이 바뀜</b></td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 CrossEntropy는 "정답 확률의 −log"야?</strong> — 정답 확률이 1이면 −log 1 = 0(벌점 없음), 0.01이면 −log 0.01 ≈ 4.6(큰 벌점). <b>틀렸는데 자신만만할수록</b> 벌점이 급격히 커져서, 모델이 정답 쪽 확률을 올리도록 강하게 밀어줘요.</div>
+</section>
+
+<section class="cmd" id="d11-저장할-땐-읽는-법-까지-함께" data-topic="PyTorch" data-sub="학습 루프" data-day="11" data-theory="notes/day11.html#data">
+  <h3>저장할 땐 "읽는 법"까지 함께</h3>
+<pre><code>torch.save({
+    "state_dict": best_state,
+    "class_to_idx": train_ds.class_to_idx,   # 클래스 순서
+    "image_size": 64,                        # 입력 크기
+    "normalize": None,                       # 정규화 값 (썼다면 mean·std)
+    "best_epoch": best_epoch,
+}, "best_model.pt")
+
+ckpt = torch.load("best_model.pt", weights_only=True)
+restored = SmallCNN(num_classes=len(ckpt["class_to_idx"]))
+restored.load_state_dict(ckpt["state_dict"])
+restored.eval()</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>&#x27;손실 · 학습 루프&#x27; 항목에서 학습한 best SmallCNN을 임시 폴더에 저장</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.save({...}, &quot;best_model.pt&quot;) 파일 크기</code></td><td><code>23.5 KB</code></td><td>파라미터 5,154개 × 4byte ≈ 20KB + 정보</td></tr>
+    <tr><td><code>list(ckpt.keys())</code></td><td><code>[&#x27;state_dict&#x27;, &#x27;class_to_idx&#x27;, &#x27;image_size&#x27;, &#x27;normalize&#x27;, &#x27;best_epoch&#x27;]</code></td><td>숫자 + 읽는 법</td></tr>
+    <tr><td><code>ckpt[&quot;class_to_idx&quot;], ckpt[&quot;image_size&quot;]</code></td><td><code>{&#x27;horizontal&#x27;: 0, &#x27;vertical&#x27;: 1}, 64</code></td><td>0번이 horizontal인 걸 파일만 보고 앎</td></tr>
+    <tr><td><code>torch.allclose(model(x), restored(x))</code></td><td><code>True</code></td><td>불러온 모델이 같은 답을 냄</td></tr>
+    <tr><td><code>다른 구조에 load_state_dict</code></td><td><code>RuntimeError: Error(s) in loading state_dict for Sequential:…</code></td><td>층 이름·크기가 안 맞으면 오류</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>torch.save(obj, path)</code></td><td>사전·Tensor를 파일로</td><td>state_dict만 저장하면 숫자 묶음뿐 → 나중에 "0번이 cat이었나?"·입력 크기를 모름</td></tr>
+        <tr><td><code>torch.load(path, weights_only=True)</code></td><td>Tensor·기본 자료형만 안전하게 읽기</td><td>False면 파일 안의 임의 파이썬 객체까지 실행될 수 있음 → 신뢰하는 파일만</td></tr>
+        <tr><td><code>load_state_dict()</code> + <code>eval()</code></td><td>같은 구조 모델에 값 넣고 평가 모드</td><td>구조(층 이름·크기)가 다르면 키가 안 맞아 오류</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 정확도 하나만 보면 안 돼?</strong> — 클래스 비율이 9:1이면 "전부 다수 클래스"라고만 해도 정확도 90%예요. <b>Confusion Matrix · 클래스별 Recall</b>을 보면 어느 클래스를 어느 쪽으로 틀리는지 보이고, 실제로 틀린 사진(오류 사례)을 보면 "왜" 틀렸는지(어둡다, 잘렸다…) 단서가 나와요.</div>
+</section>
+
+<section class="cmd" id="d11-resnet18-head-only-전이학습" data-topic="torchvision" data-sub="전이학습" data-day="11" data-theory="notes/day11.html#transfer">
+  <h3>ResNet18 Head-only 전이학습</h3>
+<pre><code>from torchvision.models import resnet18, ResNet18_Weights
+
+weights = ResNet18_Weights.DEFAULT           # = IMAGENET1K_V1
+transform = weights.transforms()             # 사전학습 때와 같은 Resize·Crop·Normalize
+train_ds = datasets.ImageFolder("data/train", transform=transform)
+
+model = resnet18(weights=weights)
+for p in model.parameters():
+    p.requires_grad = False                  # 1) Backbone 고정
+model.fc = nn.Linear(model.fc.in_features, 2)   # 2) Head 교체 (고정 코드 뒤에!)
+optimizer = torch.optim.AdamW(model.fc.parameters(), lr=1e-3)
+
+model.eval()                                 # 3) 고정한 층의 BN은 저장 통계 유지
+model.fc.train()
+print(sum(p.numel() for p in model.parameters() if p.requires_grad))   # 1026</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 PNG 한 장</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>weights.transforms()</code></td><td><code>crop 224 · resize 256 · bilinear
+mean [0.485, 0.456, 0.406]
+std [0.229, 0.224, 0.225]</code></td><td>ImageNet 학습 때와 같은 입력 규칙</td></tr>
+    <tr><td><code>transform(64×64 PNG).shape</code></td><td><code>[3, 224, 224]</code></td><td>64×64가 224×224로 커짐</td></tr>
+    <tr><td><code>transform(PNG).mean(), .std()</code></td><td><code>-0.81, 0.89</code></td><td>Normalize 때문에 0~1이 아님 (음수도 나옴)</td></tr>
+    <tr><td><code>resnet18() 전체 파라미터</code></td><td><code>11,689,512</code></td><td>Head(1000클래스) 포함</td></tr>
+    <tr><td><code>model.fc.in_features</code></td><td><code>512</code></td><td>Head에 들어오는 특징 수</td></tr>
+    <tr><td><code>얼린 뒤 fc 교체 → 학습 파라미터 수</code></td><td><code>1,026</code></td><td>512 × 2 + 2 = Head만</td></tr>
+    <tr><td><code>fc 교체 뒤에 얼리면 → 학습 파라미터 수</code></td><td><code>0</code></td><td>순서 실수: 새 Head까지 얼어 배울 게 0개</td></tr>
+    <tr><td><code>model.eval(); model.fc.train() 후 forward → bn1 저장 통계</code></td><td><code>그대로</code></td><td>얼린 층의 BN 통계 유지</td></tr>
+    <tr><td><code>model.train() 후 forward → bn1 저장 통계</code></td><td><code>바뀜</code></td><td>requires_grad=False여도 BN 통계는 바뀜!</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>resnet18(weights=ResNet18_Weights.DEFAULT)</code></td><td>공식 ImageNet 사전학습 가중치로 생성 (처음 한 번 다운로드)</td><td><code>weights=None</code>이면 무작위 시작 → 전이학습이 아님 (빌려 올 지식이 없으니까)</td></tr>
+        <tr><td><code>weights.transforms()</code></td><td>그 가중치가 학습될 때 쓴 입력 변환 (224×224 · ImageNet Normalize)</td><td>다른 크기·정규화를 쓰면 Backbone이 본 적 없는 분포의 숫자가 들어와 사전학습 효과가 줄어듦</td></tr>
+        <tr><td><code>p.requires_grad = False</code></td><td>그 파라미터는 기울기 계산 안 함 → 안 바뀜</td><td>BN의 저장 통계는 기울기가 아니라 forward 때 갱신돼서 이걸로 안 멈춤 → 3)이 필요한 이유</td></tr>
+        <tr><td><code>model.fc = nn.Linear(model.fc.in_features, K)</code></td><td>Head를 내 클래스 수로 교체 (in_features = 512)</td><td>Freeze보다 <b>먼저</b> 교체하면 새 Head까지 얼어 학습할 게 0개가 됨 (새 층은 기본 requires_grad=True)</td></tr>
+        <tr><td><code>model.eval()</code> → <code>model.fc.train()</code></td><td>얼린 층의 BatchNorm은 저장된 통계 유지</td><td>나중에 <code>model.train()</code>을 다시 부르면 BN 통계가 내 작은 데이터로 바뀌어 버림</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d11-partial-미세조정-layer4-head-lr-다르게" data-topic="torchvision" data-sub="전이학습" data-day="11" data-theory="notes/day11.html#transfer">
+  <h3>Partial 미세조정 (layer4 + Head, lr 다르게)</h3>
+<pre><code>for p in model.layer4.parameters():
+    p.requires_grad = True
+optimizer = torch.optim.AdamW([
+    {"params": model.layer4.parameters(), "lr": 1e-4},   # 열어 준 층은 작게
+    {"params": model.fc.parameters(),     "lr": 1e-3},   # 새 Head는 크게
+])</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Head-only로 만든 ResNet18 구조(weights=None, 구조만)에서 layer4를 열었을 때</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>sum(p.numel() for p in model.layer4.parameters())</code></td><td><code>8,393,728</code></td><td>마지막 블록 하나에 전체의 약 3/4이 몰려 있음</td></tr>
+    <tr><td><code>학습 파라미터 수 (layer4 + fc)</code></td><td><code>8,394,754</code></td><td>전체 11,177,538의 75.1%</td></tr>
+    <tr><td><code>[g[&#x27;lr&#x27;] for g in optimizer.param_groups]</code></td><td><code>[0.0001, 0.001]</code></td><td>그룹마다 다른 lr</td></tr>
+    <tr><td><code>[len(g[&#x27;params&#x27;]) for g in optimizer.param_groups]</code></td><td><code>[15, 2]</code></td><td>layer4 Tensor 15개(Conv·BN), fc 2개(weight·bias)</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td>param group 리스트 <code>[{"params":…, "lr":…}, …]</code></td><td>층 묶음마다 lr을 따로</td><td>layer4에도 1e-3을 주면 사전학습 값이 크게 흔들려 오히려 성능이 떨어질 수 있음</td></tr>
+        <tr><td><code>model.layer4</code></td><td>ResNet18의 마지막 큰 블록 (512ch)</td><td>layer3까지 열면 더 유연하지만 학습 파라미터·과적합 위험이 커짐</td></tr>
+      </table>
+      <div class="callout warn">⚠️ SmallCNN(처음부터)과 ResNet18(전이학습)은 입력 크기·lr·학습 범위가 달라서, 성능 차이를 "순수한 구조 차이"라고 단정하지 말고 조건을 같이 적어요.</div>
+</section>
+
+<section class="cmd" id="d11-한-epoch-시간-재기" data-topic="PyTorch" data-sub="속도 측정" data-day="11" data-theory="notes/day11.html#bench">
+  <h3>한 epoch 시간 재기</h3>
+<pre><code>import time
+model = model.to(device)
+if device.type == "cuda":
+    torch.cuda.reset_peak_memory_stats()
+    torch.cuda.synchronize()
+seen, start = 0, time.perf_counter()
+for images, labels in train_loader:
+    images, labels = images.to(device), labels.to(device)
+    optimizer.zero_grad()
+    loss_fn(model(images), labels).backward()
+    optimizer.step()
+    seen += len(labels)
+if device.type == "cuda":
+    torch.cuda.synchronize()
+seconds = time.perf_counter() - start
+print(f"{seen / seconds:.2f} images/s")
+if device.type == "cuda":
+    print(torch.cuda.max_memory_allocated() / 1024**2, "MiB")</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>SmallCNN 학습 step, 워밍업 1회 후 측정 — 이 PC 기준이라 다른 장치에선 숫자가 달라요</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>CPU · 강의 train 60장, batch 32</code></td><td><code>5,081 images/s · 메모리 N/A</code></td><td>CPU에선 VRAM 값 없음</td></tr>
+    <tr><td><code>GPU(NVIDIA GeForce RTX 5080 Laptop GPU) · 같은 조건</code></td><td><code>21,048 images/s · peak 95.1 MiB</code></td><td>CPU의 약 4.1배 — 60장·batch 32라 GPU가 덜 바쁨</td></tr>
+    <tr><td><code>CPU · 난수 1024장, batch 256</code></td><td><code>4,477 images/s</code></td><td></td></tr>
+    <tr><td><code>GPU · 난수 1024장, batch 256</code></td><td><code>49,138 images/s · peak 342.2 MiB</code></td><td>batch가 크면 GPU가 약 11배</td></tr>
+    <tr><td><code>forward 20번: synchronize 없이 / 있게</code></td><td><code>6.1 ms / 22.1 ms</code></td><td>없으면 GPU가 끝나기 전에 시계를 멈춤</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령</th><th>뜻</th><th>빼먹으면?</th></tr>
+        <tr><td><code>time.perf_counter()</code></td><td>짧은 구간 측정용 정밀 시계(초)</td><td><code>time.time()</code>은 시스템 시계라 짧은 구간에선 덜 정확</td></tr>
+        <tr><td><code>torch.cuda.synchronize()</code></td><td>GPU 작업이 다 끝날 때까지 기다림</td><td>시간이 비정상적으로 짧게 찍힘</td></tr>
+        <tr><td><code>torch.cuda.reset_peak_memory_stats()</code></td><td>최대 메모리 기록을 0부터 다시</td><td>앞서 돌린 작업의 최대값이 섞임</td></tr>
+        <tr><td><code>torch.cuda.max_memory_allocated()</code></td><td>측정 구간에서 가장 많이 쓴 GPU 메모리(바이트)</td><td>CPU에선 의미 없음 → N/A</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 GPU가 항상 빠르진 않아?</strong> — GPU는 "한 번에 많이" 계산할 때 강해요. 작은 모델·작은 batch에선 데이터를 GPU로 옮기는 시간과 명령을 띄우는 오버헤드가 계산 시간보다 커질 수 있어요. 그래서 측정 범위(디스크 로딩 포함인지 등)도 같이 적어요.</div>
+      <div class="callout">💡 최종 성능표엔 <b>모델 · 학습 범위 · valid 지표 · 시간 · VRAM</b>을 함께 남기고, test는 모든 선택이 끝난 뒤 한 번만 봐요.</div>
+</section>

@@ -1,0 +1,451 @@
+<!-- Day13 명령어 — tools/split_commands.py 로 notes/day13.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="13">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day13.html#packages">📦 필요한 패키지</a></td><td><code>pip install opencv-python numpy matplotlib</code></td></tr>
+        <tr><td><a href="notes/day13.html#array">① 이미지 = 숫자 배열</a></td><td><code>cv2.imread()</code>, <code>cv2.imwrite()</code>, <code>img.shape</code>, <code>cv2.split()</code> / <code>merge()</code>, <code>cv2.imshow()</code></td></tr>
+        <tr><td><a href="notes/day13.html#color">② 색공간 · 크기</a></td><td><code>cv2.cvtColor()</code>, <code>cv2.resize()</code></td></tr>
+        <tr><td><a href="notes/day13.html#filter">③ Filter · Edge</a></td><td><code>cv2.GaussianBlur()</code>, <code>cv2.medianBlur()</code>, <code>cv2.bilateralFilter()</code>, <code>cv2.Canny()</code></td></tr>
+        <tr><td><a href="notes/day13.html#thresh">④ Threshold · 형태학</a></td><td><code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getStructuringElement()</code>, <code>cv2.morphologyEx()</code></td></tr>
+        <tr><td><a href="notes/day13.html#video">⑤ 영상 Frame 처리</a></td><td><code>cv2.VideoCapture()</code>, <code>cv2.VideoWriter()</code>, <code>cap.get(CAP_PROP_FPS)</code></td></tr>
+        <tr><td><a href="notes/day13.html#augment">⑥ 데이터 증강</a></td><td><code>cv2.flip()</code>, <code>cv2.getRotationMatrix2D()</code> + <code>cv2.warpAffine()</code>, <code>cv2.convertScaleAbs()</code></td></tr>
+        <tr><td><a href="notes/day13.html#verify">⑦ 일괄 처리 · 검증</a></td><td><code>sorted(Path.glob())</code>, <code>imread(path, 0)</code> 재읽기, 검증표</td></tr>
+      </table>
+</section>
+<section class="cmd" id="d13-cv2-imread" data-topic="OpenCV" data-sub="읽기 · 저장 · 표시" data-day="13" data-theory="notes/day13.html#array">
+  <h3>읽기 <code>cv2.imread()</code> · 저장 <code>cv2.imwrite()</code></h3>
+<pre><code>from pathlib import Path
+import cv2
+
+img = cv2.imread("data/scene.png", cv2.IMREAD_COLOR)
+if img is None:                              # 읽기 실패는 에러가 아니라 None!
+    raise RuntimeError("image read failed")
+print(img.shape, img.dtype, img.min(), img.max())
+
+Path("outputs").mkdir(parents=True, exist_ok=True)
+if not cv2.imwrite("outputs/copy.png", img):  # 성공 여부를 bool로 돌려줌
+    raise OSError("image save failed")</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>data/scene.png 기준</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>img = cv2.imread(&quot;data/scene.png&quot;)</code></td><td><code>img.shape → (240, 320, 3), dtype → uint8</code></td><td>세로 240 · 가로 320 · 채널 3(BGR)</td></tr>
+    <tr><td><code>img.min(), img.max()</code></td><td><code>(0, 255)</code></td><td>uint8이라 0~255 안</td></tr>
+    <tr><td><code>cv2.imread(&quot;data/scene.png&quot;, cv2.IMREAD_GRAYSCALE).shape</code></td><td><code>(240, 320)</code></td><td>채널 축이 없어짐</td></tr>
+    <tr><td><code>cv2.imread(&quot;data/rgba.png&quot;, cv2.IMREAD_UNCHANGED).shape</code></td><td><code>(240, 320, 4)</code></td><td>투명도(Alpha) 포함 4채널</td></tr>
+    <tr><td><code>cv2.imread(&quot;data/rgba.png&quot;).shape</code></td><td><code>(240, 320, 3)</code></td><td>기본 COLOR는 Alpha를 버림</td></tr>
+    <tr><td><code>cv2.imread(&quot;data/없는파일.png&quot;)</code></td><td><code>None</code></td><td>에러가 아니라 None!</td></tr>
+    <tr><td><code>cv2.imwrite(&quot;outputs/copy.png&quot;, img)</code></td><td><code>True</code></td><td>성공하면 True</td></tr>
+    <tr><td><code>cv2.imwrite(&quot;outputs/없는폴더/a.png&quot;, img)</code></td><td><code>False</code></td><td>폴더가 없으면 False (에러 아님)</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 <code>None</code> 검사를 직접 해?</strong> — <code>imread</code>는 경로가 틀려도 <b>에러를 내지 않고 None을 돌려줘요</b>. 검사하지 않으면 몇 줄 뒤 <code>cvtColor</code>에서 엉뚱한 에러가 나서 원인을 찾기 어려워요. <code>imwrite</code>도 실패하면 False만 돌려주니 반환값을 확인합니다.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>filename</code> <small>(필수)</small></td><td>파일 경로</td><td>틀리면 <code>imread</code>는 <code>None</code> — 에러가 안 나니 직접 확인</td></tr>
+        <tr><td><code>flags=cv2.IMREAD_COLOR</code></td><td>BGR 3채널로 읽기 (기본)</td><td>원본이 흑백·투명이어도 3채널로 맞춰 줘서 뒤 처리가 단순해짐</td></tr>
+        <tr><td><code>cv2.IMREAD_GRAYSCALE</code> (또는 <code>0</code>)</td><td>처음부터 흑백 <code>[H, W]</code>로 읽기</td><td>채널이 1개라 메모리·계산이 줄어듦. 저장한 Gray 결과를 다시 읽어 확인할 때도 사용</td></tr>
+        <tr><td><code>cv2.IMREAD_UNCHANGED</code></td><td>파일 그대로 (투명도 Alpha 채널 유지 가능)</td><td>기본 COLOR는 Alpha를 버리기 때문에, PNG의 4번째 채널이 필요하면 이걸 씀</td></tr>
+        <tr><td><code>imwrite</code>의 확장자</td><td>저장 형식(인코더)을 결정</td><td>.png는 손실 없음, .jpg는 손실 압축 → 0/255 Mask를 jpg로 저장하면 중간값이 생김</td></tr>
+        <tr><td><code>imwrite</code>의 <code>params=[]</code></td><td>(선택) 압축 품질 등 인코더 옵션</td><td></td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d13-cv2-imshow" data-topic="OpenCV" data-sub="읽기 · 저장 · 표시" data-day="13" data-theory="notes/day13.html#array">
+  <h3>화면에 띄우기 <code>cv2.imshow()</code> · <code>cv2.waitKey()</code></h3>
+<pre><code>cv2.imshow("result", img)    # 운영체제 창에 표시
+cv2.waitKey(0)               # 0 = 키를 누를 때까지 무기한 대기
+cv2.destroyAllWindows()
+
+# 창이 안 열리는 환경이면: 저장하거나 RGB로 바꿔 Matplotlib로
+import matplotlib.pyplot as plt
+plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)); plt.savefig("outputs/view.png")</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>창을 띄우는 명령이라 반환값만 정리</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv2.imshow(&quot;result&quot;, img)</code></td><td><code>None</code></td><td>창에 그리기만 하고 돌려주는 값 없음</td></tr>
+    <tr><td><code>cv2.waitKey(0)</code></td><td><code>누른 키의 번호 (예: q → 113, Esc → 27)</code></td><td>키 입력 전까지 멈춤</td></tr>
+    <tr><td><code>cv2.waitKey(1)</code></td><td><code>1ms 안에 키가 없으면 -1</code></td><td>영상 반복에서 매 Frame 잠깐만 기다릴 때</td></tr>
+  </table>
+</div>
+      <div class="callout warn">⚠️ 원격 서버·Notebook·일부 VS Code 환경에서는 GUI 창이 안 열릴 수 있어요. 🤔 <b>왜?</b> — <code>imshow</code>는 <b>운영체제의 창</b>을 띄우는 기능이라, 화면(디스플레이)이 없는 서버에서는 띄울 곳이 없거든요. 그럴 땐 <code>cv2.imwrite()</code>로 저장하거나 Matplotlib로 그려요.</div>
+</section>
+
+<section class="cmd" id="d13-cv2-split" data-topic="OpenCV" data-sub="읽기 · 저장 · 표시" data-day="13" data-theory="notes/day13.html#array">
+  <h3>채널 나누기·합치기 <code>cv2.split()</code> · <code>cv2.merge()</code></h3>
+<pre><code>b, g, r = cv2.split(img)          # 각각 [H, W]
+merged = cv2.merge([b, g, r])     # 원래대로 [H, W, 3]
+print("same:", (merged == img).all())
+rgb = cv2.merge([r, g, b])        # 순서를 바꿔 RGB로</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>빨간 사각형 안의 한 칸 img[35, 40]</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>img[35, 40]</code></td><td><code>[  0   0 255]</code></td><td>B 0 · G 0 · R 255</td></tr>
+    <tr><td><code>b, g, r = cv2.split(img)</code></td><td><code>b.shape → (240, 320)</code></td><td>채널마다 2차원 [H, W]</td></tr>
+    <tr><td><code>b[35, 40], g[35, 40], r[35, 40]</code></td><td><code>(0, 0, 255)</code></td><td></td></tr>
+    <tr><td><code>(cv2.merge([b, g, r]) == img).all()</code></td><td><code>True</code></td><td>넣은 순서 그대로면 원본과 같음</td></tr>
+    <tr><td><code>cv2.merge([r, g, b])[35, 40]</code></td><td><code>[255   0   0]</code></td><td>순서를 바꾸면 RGB 배열</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>split(src)</code></td><td>채널별 2차원 배열의 튜플</td><td>채널 하나만 보고 싶을 때 (예: 빨강 채널 밝기만)</td></tr>
+        <tr><td><code>merge(mv)</code></td><td>H·W·dtype이 같은 채널 배열들을 하나로 합침</td><td><b>넣는 순서 = 채널 순서</b>라, <code>[r, g, b]</code>로 넣으면 RGB 배열이 됨</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d13-cv2-cvtcolor" data-topic="OpenCV" data-sub="색 · 크기" data-day="13" data-theory="notes/day13.html#color">
+  <h3><code>cv2.cvtColor()</code></h3>
+<pre><code>gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)   # (240, 320)
+rgb  = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)    # (240, 320, 3)
+hsv  = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)    # (240, 320, 3)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>같은 빨간 칸 [35, 40]</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).shape</code></td><td><code>(240, 320)</code></td><td>채널 축이 사라짐</td></tr>
+    <tr><td><code>gray[35, 40]</code></td><td><code>76</code></td><td>0.299×255 ≈ 76 (빨강만 있으니 R 무게만)</td></tr>
+    <tr><td><code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)[35, 40]</code></td><td><code>[255   0   0]</code></td><td>B와 R 자리만 바뀜</td></tr>
+    <tr><td><code>hsv[35, 40]</code></td><td><code>[  0 255 255]</code></td><td>H 0(빨강) · S 255(진함) · V 255(밝음)</td></tr>
+    <tr><td><code>cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)[35, 40]</code></td><td><code>[76 76 76]</code></td><td>같은 밝기를 3번 복사 — 색은 안 돌아옴</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>src</code> <small>(필수)</small></td><td>입력 이미지</td><td>입력 채널 수가 code와 안 맞으면 에러 (예: Gray에 BGR2GRAY)</td></tr>
+        <tr><td><code>code</code> <small>(필수)</small></td><td>변환 종류 <code>COLOR_입력2출력</code></td><td>이름 그대로 읽으면 됨: BGR → GRAY</td></tr>
+        <tr><td><code>dstCn=0</code></td><td>(선택) 출력 채널 수, 0이면 자동</td><td>보통 그대로 둠</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d13-cv2-resize" data-topic="OpenCV" data-sub="색 · 크기" data-day="13" data-theory="notes/day13.html#color">
+  <h3><code>cv2.resize()</code></h3>
+<pre><code>small = cv2.resize(img, dsize=(224, 224), interpolation=cv2.INTER_AREA)
+half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+# 320×240 이미지를 dsize=(160, 120)으로 → shape는 (120, 160, 3)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>scene.png (240, 320, 3) · mask_truth.png</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv2.resize(img, dsize=(224, 224)).shape</code></td><td><code>(224, 224, 3)</code></td><td>4:3 → 1:1로 찌그러짐</td></tr>
+    <tr><td><code>cv2.resize(img, dsize=(160, 120)).shape</code></td><td><code>(120, 160, 3)</code></td><td>dsize는 (W, H), shape는 (H, W)!</td></tr>
+    <tr><td><code>cv2.resize(img, None, fx=0.5, fy=0.5).shape</code></td><td><code>(120, 160, 3)</code></td><td>비율 유지하며 절반</td></tr>
+    <tr><td><code>np.unique(mask)</code></td><td><code>[  0 255]</code></td><td>원본 마스크 (240, 320): 값 2종류</td></tr>
+    <tr><td><code>len(np.unique(resize(mask, fx=8, INTER_NEAREST)))</code></td><td><code>2</code></td><td>값 종류 그대로</td></tr>
+    <tr><td><code>len(np.unique(resize(mask, fx=8, INTER_LINEAR)))</code></td><td><code>75</code></td><td>경계에 중간값이 생김 → 마스크엔 NEAREST</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>src</code> <small>(필수)</small></td><td>입력 이미지</td><td></td></tr>
+        <tr><td><code>dsize</code> <small>(필수 자리)</small></td><td>출력 크기 <b>(W, H)</b>, 배율을 쓸 땐 <code>None</code> 또는 <code>(0, 0)</code></td><td>가로세로 비율이 원본과 다르면 <b>찌그러짐</b> (320×240 → 224×224는 4:3 → 1:1)</td></tr>
+        <tr><td><code>fx</code>, <code>fy</code> (기본 0)</td><td>가로·세로 배율</td><td>둘 다 0.5면 비율 유지하며 절반. dsize와 동시에 쓰기보다 <b>한 방식만</b> 골라야 코드가 명확</td></tr>
+        <tr><td><code>interpolation</code></td><td>보간법 (기본 <code>INTER_LINEAR</code>)</td><td>축소는 AREA, Mask는 NEAREST — 이유는 <a href="notes/day13.html#color">Day13 보간법 표</a> 참고</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>제일 많이 하는 실수</b>: <code>shape</code>는 <b>(H, W)</b>, <code>dsize</code>는 <b>(W, H)</b>. 순서가 반대예요. 🤔 <b>왜 반대?</b> — shape는 NumPy 배열의 "줄 수, 칸 수"이고, dsize는 OpenCV의 "이미지 크기" 표기(가로×세로, 예: 320×240)를 따르기 때문이에요. 서로 다른 관례가 한 코드에서 만나니 헷갈리는 거예요.</div>
+</section>
+
+<section class="cmd" id="d13-cv2-gaussianblur" data-topic="OpenCV" data-sub="필터 · 경계" data-day="13" data-theory="notes/day13.html#filter">
+  <h3><code>cv2.GaussianBlur()</code> · <code>cv2.medianBlur()</code> · <code>cv2.bilateralFilter()</code></h3>
+<pre><code>gaussian  = cv2.GaussianBlur(gray, ksize=(5, 5), sigmaX=0)
+median    = cv2.medianBlur(gray, ksize=5)
+bilateral = cv2.bilateralFilter(gray, d=9, sigmaColor=75, sigmaSpace=75)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>noisy_gray.png를 깨끗한 원본(clean_gray.png)과 비교 — 평균 오차(작을수록 원본에 가까움)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>noisy (필터 전)</code></td><td><code>2.91</code></td><td>소금·후추처럼 튀는 점 잡음</td></tr>
+    <tr><td><code>cv2.GaussianBlur(noisy, (5, 5), 0)</code></td><td><code>5.37</code></td><td>오히려 커짐 — 튀는 점을 주변에 번지게 하고 경계도 흐림</td></tr>
+    <tr><td><code>cv2.medianBlur(noisy, 5)</code></td><td><code>0.33</code></td><td>가장 작음 — 정렬한 가운데 값이라 튀는 점이 그냥 버려짐</td></tr>
+    <tr><td><code>cv2.bilateralFilter(noisy, 9, 75, 75)</code></td><td><code>3.60</code></td><td>조금 커짐 — 튀는 점도 &#x27;경계&#x27;로 보고 지켜 버림</td></tr>
+    <tr><td><code>출력 shape · dtype</code></td><td><code>(240, 320) · uint8</code></td><td>입력과 같음</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>ksize=(5, 5)</code> <small>(필수)</small></td><td>Kernel 크기, <b>양수 홀수</b> (또는 0이면 sigma로 계산)</td><td>크면 더 흐려지고 세부가 사라짐. 🤔 홀수인 이유: 출력할 <b>가운데 칸</b>이 딱 하나 있어야 하니까</td></tr>
+        <tr><td><code>sigmaX=0</code> <small>(필수)</small></td><td>가로 방향 퍼짐 정도. 0이면 Kernel 크기로부터 자동 계산</td><td>크면 먼 칸에도 가중치를 줘서 더 넓게 섞음</td></tr>
+        <tr><td><code>sigmaY=0</code>, <code>borderType</code></td><td>(선택) 세로 퍼짐(0이면 sigmaX와 같게), 가장자리 규칙</td><td></td></tr>
+        <tr><td><code>medianBlur</code>의 <code>ksize</code></td><td>정수 하나, 1보다 큰 홀수 (3, 5, 7 …)</td><td>짝수면 에러. 크면 더 큰 잡음 덩어리도 지우지만 가는 선도 사라짐</td></tr>
+        <tr><td><code>bilateralFilter</code>의 <code>d</code></td><td>이웃 지름</td><td>클수록 연산 증가 (느림)</td></tr>
+        <tr><td><code>sigmaColor</code> / <code>sigmaSpace</code></td><td>밝기 차이 / 거리를 얼마나 봐줄지</td><td>sigmaColor가 크면 경계 건너편도 섞여서 일반 Blur에 가까워짐</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "크면 무조건 좋다"가 아닐까?</strong> — 파라미터가 크면 잡음은 더 줄지만 <b>정보 손실과 연산량도 함께 늘어나요</b>. 그래서 먼저 <b>잡음 종류</b>(점 잡음인가, 고르게 퍼진 잡음인가)와 <b>Edge를 보존해야 하는지</b>를 확인하고 필터를 골라요.</div>
+</section>
+
+<section class="cmd" id="d13-cv2-canny" data-topic="OpenCV" data-sub="필터 · 경계" data-day="13" data-theory="notes/day13.html#filter">
+  <h3><code>cv2.Canny()</code></h3>
+<pre><code>blur  = cv2.GaussianBlur(gray, (5, 5), 0)     # 잡음 Edge를 줄이려고 먼저 Blur
+edges = cv2.Canny(blur, threshold1=70, threshold2=150)
+cv2.imwrite("outputs/edges.png", edges)        # 0 / 255 의 1채널</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>noisy_gray.png — 경계(흰색)로 표시된 칸 수</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>np.unique(cv2.Canny(blur, 70, 150))</code></td><td><code>[  0 255]</code></td><td>경계 255 / 아님 0 — 1채널</td></tr>
+    <tr><td><code>Canny(noisy, 70, 150) 경계 칸 수</code></td><td><code>12138</code></td><td>Blur 없이: 잡음까지 경계로</td></tr>
+    <tr><td><code>Canny(GaussianBlur(noisy, (5,5), 0), 70, 150)</code></td><td><code>3528</code></td><td>Blur 후: 잡음 경계가 줄어듦</td></tr>
+    <tr><td><code>Canny(blur, 30, 80)</code></td><td><code>9776</code></td><td>기준을 낮추면 경계 ↑</td></tr>
+    <tr><td><code>Canny(blur, 150, 300)</code></td><td><code>2496</code></td><td>기준을 높이면 경계 ↓</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>image</code> <small>(필수)</small></td><td>보통 Gray(+Blur) 이미지</td><td>Blur를 빼면 잡음 Edge가 크게 늘어남 (위 그림)</td></tr>
+        <tr><td><code>threshold1</code> / <code>threshold2</code> <small>(필수)</small></td><td>약한 / 강한 경계 기준 (밝기 <b>변화량</b> 기준)</td><td>낮추면 잡음 Edge↑, 높이면 약한 경계를 놓침</td></tr>
+        <tr><td><code>apertureSize=3</code></td><td>(선택) 밝기 변화를 재는 Kernel 크기</td><td>크면 더 굵은 변화에 반응</td></tr>
+        <tr><td><code>L2gradient=False</code></td><td>(선택) 변화량을 정확한 거리(L2)로 잴지</td><td>True면 조금 더 정확하지만 느림</td></tr>
+      </table>
+      <div class="callout warn">⚠️ Canny의 70/150은 <b>밝기 이진화 기준이 아니에요</b>(밝기 변화량 기준). 그리고 <b>Edge 수가 많다고 좋은 결과가 아니에요</b> — 많아진 만큼 잡음일 수 있어요.</div>
+</section>
+
+<section class="cmd" id="d13-cv2-threshold" data-topic="OpenCV" data-sub="이진화 · 형태학" data-day="13" data-theory="notes/day13.html#thresh">
+  <h3><code>cv2.threshold()</code> · <code>cv2.adaptiveThreshold()</code></h3>
+<pre><code>retval, binary = cv2.threshold(gray, thresh=140, maxval=255, type=cv2.THRESH_BINARY)
+print("used threshold:", retval)
+
+# Otsu: thresh 자리는 무시되고 자동으로 정해진 값이 retval로 나옴
+blur = cv2.GaussianBlur(gray, (5, 5), 0)
+retval, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+# Adaptive: 칸마다 주변 영역으로 기준을 따로 계산
+adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                 cv2.THRESH_BINARY, blockSize=11, C=2)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>scene.png의 gray — 흰색(255)이 된 칸 비율</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv2.threshold(gray, 140, 255, THRESH_BINARY)</code></td><td><code>retval=140, 흰 칸 44.1%</code></td><td>기준을 내가 정함 → retval도 140</td></tr>
+    <tr><td><code>np.unique(binary)</code></td><td><code>[  0 255]</code></td><td>0과 255 두 값만</td></tr>
+    <tr><td><code>cv2.threshold(blur, 0, 255, BINARY + OTSU)</code></td><td><code>retval=118, 흰 칸 53.1%</code></td><td>0은 무시되고 Otsu가 고른 기준이 retval</td></tr>
+    <tr><td><code>cv2.adaptiveThreshold(gray, 255, GAUSSIAN_C, BINARY, 11, 2)</code></td><td><code>흰 칸 88.7%</code></td><td>칸마다 주변 기준 — 반환값은 이미지 하나</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 반환</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>thresh</code></td><td>기준값 T</td><td>낮추면 바탕도 물체로, 높이면 물체도 바탕으로 (밝기 &gt; T인 칸이 늘거나 줄기 때문)</td></tr>
+        <tr><td><code>maxval</code></td><td>기준을 넘은 칸에 줄 값 (보통 255)</td><td>255가 관례인 이유: 흰색 = 전경이라 형태학·저장에서 바로 보이니까</td></tr>
+        <tr><td><code>type</code></td><td><code>THRESH_BINARY</code> / <code>THRESH_BINARY_INV</code>(흑백 반대)</td><td>INV면 어두운 쪽이 255 → 물체가 배경보다 어두울 때 사용</td></tr>
+        <tr><td><code>+ cv2.THRESH_OTSU</code></td><td>T를 자동 결정</td><td>retval에 실제로 고른 T가 들어오니 기록해 둠</td></tr>
+        <tr><td>반환 <code>retval, dst</code></td><td><b>실제 쓴 기준값</b>, 결과 이미지 — 2개!</td><td>하나로 받으면 튜플이 들어와 뒤에서 에러</td></tr>
+        <tr><td><code>blockSize</code> (Adaptive)</td><td>주변 영역 크기 (홀수)</td><td>작으면 잡음에 민감, 크면 Fixed에 가까워짐</td></tr>
+        <tr><td><code>C</code> (Adaptive)</td><td>주변 평균에서 빼는 값</td><td>크면 흰색(전경)으로 판정되는 칸이 늘어남</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d13-cv2-getstructuringelement" data-topic="OpenCV" data-sub="이진화 · 형태학" data-day="13" data-theory="notes/day13.html#thresh">
+  <h3><code>cv2.getStructuringElement()</code> · <code>cv2.morphologyEx()</code></h3>
+<pre><code>kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(5, 5))
+print(kernel)                                   # 0/1로 된 Kernel 모양 확인
+
+opened = cv2.morphologyEx(binary, op=cv2.MORPH_OPEN, kernel=kernel, iterations=1)
+closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>objects.png를 Otsu로 이진화한 뒤 — 흰 덩어리 개수(connectedComponents)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv2.getStructuringElement(MORPH_ELLIPSE, (5, 5))</code></td><td><code>0 0 1 0 0
+1 1 1 1 1
+1 1 1 1 1
+1 1 1 1 1
+0 0 1 0 0</code></td><td>0/1로 된 원 모양 Kernel</td></tr>
+    <tr><td><code>binary 의 흰 덩어리 수</code></td><td><code>8</code></td><td>작은 잡음 점까지 덩어리로 셈</td></tr>
+    <tr><td><code>morphologyEx(binary, MORPH_OPEN, kernel)</code></td><td><code>3</code></td><td>Opening: 작은 흰 점 제거</td></tr>
+    <tr><td><code>morphologyEx(opened, MORPH_CLOSE, kernel)</code></td><td><code>3</code></td><td>Closing: 물체 속 작은 구멍 메움</td></tr>
+    <tr><td><code>흰 칸 수 binary → opened → closed</code></td><td><code>14142 → 14119 → 14144</code></td><td>열기는 점을 지우고, 닫기는 틈을 메워 다시 늘어남</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>shape</code></td><td>Kernel 모양 <code>MORPH_RECT</code> / <code>MORPH_ELLIPSE</code> / <code>MORPH_CROSS</code></td><td>RECT는 각진 모서리를 잘 유지, ELLIPSE는 둥근 물체를 덜 각지게 다듬음 (Kernel 모양이 그대로 물체 가장자리에 찍히기 때문)</td></tr>
+        <tr><td><code>ksize</code></td><td>Kernel 크기</td><td>크면 더 큰 먼지·구멍까지 처리하지만, 물체 모양도 더 변함</td></tr>
+        <tr><td><code>anchor=(-1,-1)</code></td><td>(선택) 기준점, 기본은 가운데</td><td>보통 그대로 둠</td></tr>
+        <tr><td><code>op</code></td><td><code>MORPH_OPEN</code> / <code>MORPH_CLOSE</code> (침식·팽창만이면 <code>MORPH_ERODE</code> / <code>MORPH_DILATE</code>)</td><td>OPEN은 먼지, CLOSE는 구멍 — 남은 문제가 무엇인지 보고 고름</td></tr>
+        <tr><td><code>iterations</code></td><td>반복 횟수 (기본 1)</td><td>Kernel 크기와 함께 실제 영향 범위를 결정 (3×3을 2번 ≈ 더 큰 Kernel)</td></tr>
+      </table>
+      <div class="callout">💡 관례: <b>흰색(255) = 전경(물체)</b>. 🤔 <b>왜 관례를 확인?</b> — 침식·팽창은 <b>흰색</b>을 깎고 부풀리는 연산이라, 물체가 검은색이면 효과가 정반대로 나와요. 물체가 어두우면 <code>THRESH_BINARY_INV</code>로 뒤집고 시작해요.</div>
+      <div class="flow">
+        <span class="step">원본</span><span class="arrow">→</span>
+        <span class="step">Gray</span><span class="arrow">→</span>
+        <span class="step">Blur</span><span class="arrow">→</span>
+        <span class="step">Binary</span><span class="arrow">→</span>
+        <span class="step">Closing</span>
+      </div>
+      <div class="callout">🤔 <strong>왜 이 순서?</strong> — 각 단계가 다음 단계의 약점을 막아 줘요. Gray로 밝기만 남기고 → Blur로 잡음을 줄여야 Threshold가 잡음 점을 물체로 착각하지 않고 → 그래도 남은 먼지·구멍은 Morphology가 정리해요. <b>처리 순서가 바뀌면 결과도 달라지니</b> 각 단계의 입력·출력 shape와 값 범위를 기록해요.</div>
+</section>
+
+<section class="cmd" id="d13-cv2-videocapture" data-topic="OpenCV" data-sub="영상" data-day="13" data-theory="notes/day13.html#video">
+  <h3>읽기 <code>cv2.VideoCapture()</code> · 저장 <code>cv2.VideoWriter()</code></h3>
+<pre><code>def process_frame(frame):                 # Frame 함수는 파일을 열고 닫지 않음
+    gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    small = cv2.resize(gray, size, interpolation=cv2.INTER_AREA)
+    edge  = cv2.Canny(cv2.GaussianBlur(small, (3, 3), 0), 80, 160)
+    return cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR)   # 컬러 Writer엔 3채널로
+
+size = (160, 120)                         # (W, H)
+cap = cv2.VideoCapture("data/sample.avi")
+writer = None
+try:
+    assert cap.isOpened()
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    assert 0 &lt; fps &lt; float("inf")         # 0이나 무한대면 잘못 읽힌 값
+    fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+    writer = cv2.VideoWriter("outputs/edge.avi", fourcc, fps, size)
+    assert writer.isOpened()
+    while True:
+        ok, frame = cap.read()
+        if not ok:                        # 끝 또는 읽기 실패
+            break
+        writer.write(process_frame(frame))   # write는 반복 안에서
+finally:
+    cap.release()                         # release는 반복이 끝난 뒤
+    if writer is not None:
+        writer.release()</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>data/sample.avi</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cap.isOpened()</code></td><td><code>True</code></td><td>열기 성공</td></tr>
+    <tr><td><code>cap.get(cv2.CAP_PROP_FPS)</code></td><td><code>12</code></td><td>초당 Frame 수</td></tr>
+    <tr><td><code>cap.get(cv2.CAP_PROP_FRAME_COUNT)</code></td><td><code>48</code></td><td>전체 Frame 수</td></tr>
+    <tr><td><code>ok, frame = cap.read()</code></td><td><code>ok → True, frame.shape → (240, 320, 3)</code></td><td>Frame 한 장 = 이미지 배열</td></tr>
+    <tr><td><code>반복으로 처리·저장한 Frame 수</code></td><td><code>48</code></td><td>마지막 다음 read()는 ok=False → 반복 끝</td></tr>
+    <tr><td><code>writer.isOpened()</code></td><td><code>True</code></td><td>MJPG + .avi 조합 OK</td></tr>
+    <tr><td><code>저장한 edge.avi 다시 읽기: Frame 수 · shape</code></td><td><code>48 · (120, 160, 3)</code></td><td>(160, 120)으로 줄여 3채널로 저장됨</td></tr>
+    <tr><td><code>frameSize=(160,120)인데 (320,240) Frame을 write</code></td><td><code>저장된 Frame 수 0</code></td><td>에러 없이 조용히 실패!</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면? / 🤔 왜?</th></tr>
+        <tr><td><code>VideoCapture(source)</code></td><td>파일 경로 또는 카메라 번호 (<code>0</code> = 기본 카메라)</td><td>열기 실패도 에러가 아니라서 <code>isOpened()</code>로 직접 확인</td></tr>
+        <tr><td><code>cap.read()</code></td><td><code>(ok, frame)</code> 두 개 반환</td><td>마지막 Frame 다음엔 <code>ok=False</code> → 이걸로 반복을 끝냄</td></tr>
+        <tr><td><code>cap.get(prop)</code> / <code>set(prop, value)</code></td><td>속성값(float) 읽기 / 설정 시도</td><td>코덱에 따라 값이 부정확할 수 있고, set은 모든 백엔드가 지원하지 않음 → 그래서 FPS를 검사</td></tr>
+        <tr><td><code>VideoWriter_fourcc(*"MJPG")</code></td><td>코덱 코드 (<code>"mp4v"</code>, <code>"XVID"</code> 등)</td><td>확장자·코덱·설치된 코덱 조합이 맞아야 열림</td></tr>
+        <tr><td><code>fps</code> <small>(필수)</small></td><td>저장할 재생 속도</td><td>입력 FPS와 다르게 주면 재생시간이 바뀜 (절반 → 2배 느리게)</td></tr>
+        <tr><td><code>frameSize</code> <small>(필수)</small></td><td>모든 Frame의 <b>(W, H)</b></td><td>write하는 Frame 크기와 다르면 <b>조용히 저장 실패</b> — Writer는 한 가지 크기로만 파일을 만들기 때문</td></tr>
+        <tr><td><code>isColor=True</code></td><td>(선택) 컬러 Frame 여부 (기본 True)</td><td>Gray Frame을 저장하려면 False로 두거나, GRAY2BGR로 3채널로 바꿔서 넣기</td></tr>
+        <tr><td><code>release()</code></td><td>파일·카메라 자원 해제</td><td>안 하면 파일 끝 정보가 안 써져 <b>재생이 안 될 수 있고</b>, 카메라도 계속 잡고 있음</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Frame 함수와 반복·I/O를 나눠?</strong> — <code>process_frame</code> 안에서 <code>VideoCapture</code>를 매번 열면 반복 I/O로 <b>성능이 크게 떨어지고</b> 자원 관리도 복잡해져요. 처리 함수는 "배열 → 배열"만 하고, 열기·반복·저장은 바깥에서 맡으면 같은 함수를 이미지에도 그대로 쓸 수 있어요.</div>
+      <div class="callout warn">⚠️ <b>영상 저장이 안 될 때 확인 순서</b>: ① <code>writer.isOpened()</code> True? ② Frame (W, H) = frameSize? ③ Gray Frame + isColor=True 아닌지? ④ 확장자·fourcc·설치 코덱 조합? ⑤ release 후 파일 크기와 다시 읽기 확인. MJPG는 손실 압축이라 픽셀이 원본과 완전히 같지는 않아요.</div>
+</section>
+
+<section class="cmd" id="d13-cv2-flip" data-topic="OpenCV" data-sub="증강 · 기하 변환" data-day="13" data-theory="notes/day13.html#augment">
+  <h3>반전 <code>cv2.flip()</code></h3>
+<pre><code>horizontal = cv2.flip(img, flipCode=1)    # 좌우
+vertical   = cv2.flip(img, flipCode=0)    # 상하
+both       = cv2.flip(img, flipCode=-1)   # 둘 다</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>빨간 사각형이 있는 자리 (가로 320, 세로 240)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>img (원본)</code></td><td><code>x 15~65, y 15~55</code></td><td></td></tr>
+    <tr><td><code>cv2.flip(img, 1)</code></td><td><code>x 254~304, y 15~55</code></td><td>좌우: x → 319 - x</td></tr>
+    <tr><td><code>cv2.flip(img, 0)</code></td><td><code>x 15~65, y 184~224</code></td><td>상하: y → 239 - y</td></tr>
+    <tr><td><code>cv2.flip(img, -1)</code></td><td><code>x 254~304, y 184~224</code></td><td>둘 다</td></tr>
+    <tr><td><code>cv2.flip(img, 1).shape</code></td><td><code>(240, 320, 3)</code></td><td>크기는 그대로</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>flipCode</code> <small>(필수)</small></td><td><code>1</code> = 좌우, <code>0</code> = 상하, 음수 = 둘 다</td><td>상하 반전은 하늘·땅이 뒤집혀 일반 사진에선 부자연스러움 → 과제에 맞는지 확인</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d13-getrotationmatrix2d" data-topic="OpenCV" data-sub="증강 · 기하 변환" data-day="13" data-theory="notes/day13.html#augment">
+  <h3>회전 <code>getRotationMatrix2D()</code> + <code>warpAffine()</code></h3>
+<pre><code>h, w = img.shape[:2]
+M = cv2.getRotationMatrix2D(center=(w / 2, h / 2), angle=10, scale=1.0)   # 2×3 행렬
+rotated = cv2.warpAffine(img, M, dsize=(w, h), borderMode=cv2.BORDER_REFLECT)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>scene.png, 가운데 기준 10° 회전</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv2.getRotationMatrix2D((160, 120), 10, 1.0)</code></td><td><code>[[  0.985   0.174 -18.407]
+ [ -0.174   0.985  29.607]]</code></td><td>2×3 행렬: [cos sin 이동x; -sin cos 이동y]</td></tr>
+    <tr><td><code>warpAffine(img, M, (320, 240)).shape</code></td><td><code>(240, 320, 3)</code></td><td>dsize 그대로 → 모서리가 잘림</td></tr>
+    <tr><td><code>기본(BORDER_CONSTANT) 왼쪽 위 칸 rot[0, 0]</code></td><td><code>[0 0 0]</code></td><td>빈 곳은 검정(0)으로 채움</td></tr>
+    <tr><td><code>BORDER_REFLECT 왼쪽 위 칸 rot[0, 0]</code></td><td><code>[  0   0 255]</code></td><td>빈 곳을 거울처럼 비친 값으로</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 두 단계?</strong> — <code>getRotationMatrix2D</code>는 "어느 칸이 어디로 가는지"를 적은 <b>2×3 행렬(지도)</b>만 만들고, <code>warpAffine</code>이 그 지도대로 <b>실제 픽셀을 재배치</b>해요. 지도를 따로 두니 회전·이동·확대를 하나의 행렬로 합쳐 한 번에 적용할 수 있어요.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>center</code></td><td>회전 중심 (x, y) — 여기는 (W/2, H/2) 순서</td><td>중심을 모서리로 주면 사진이 화면 밖으로 크게 빠져나감</td></tr>
+        <tr><td><code>angle</code></td><td>각도 (<b>도</b> 단위, 양수 = 반시계)</td><td>크면 모서리 손실↑, 큰 회전은 라벨 뜻도 바꿀 수 있음</td></tr>
+        <tr><td><code>scale</code></td><td>크기 배율 (1.0 = 그대로)</td><td>1보다 작게 하면 빈 모서리가 더 커짐</td></tr>
+        <tr><td><code>M</code> <small>(필수)</small></td><td>getRotationMatrix2D가 만든 2×3 행렬</td><td></td></tr>
+        <tr><td><code>dsize</code> <small>(필수)</small></td><td>출력 크기 <b>(W, H)</b></td><td>원본 크기로 두면 회전으로 삐져나간 모서리는 잘림</td></tr>
+        <tr><td><code>borderMode</code></td><td>빈 모서리 채우는 규칙</td><td>기본은 검은색 → 모델이 "검은 삼각형"을 특징으로 배울 수 있음. <code>BORDER_REFLECT</code>면 주변을 반사해 덜 티 남</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d13-밝기-crop-blur" data-topic="OpenCV" data-sub="증강 · 기하 변환" data-day="13" data-theory="notes/day13.html#augment">
+  <h3>밝기 · Crop · Blur</h3>
+<pre><code>bright = cv2.convertScaleAbs(img, alpha=1.0, beta=30)    # 밝기 +30
+
+h, w = img.shape[:2]
+crop = img[h//10 : h - h//10, w//10 : w - w//10]         # NumPy 자르기 [y, x]
+crop = cv2.resize(crop, (w, h))                          # 원래 크기로
+
+blur = cv2.GaussianBlur(img, (5, 5), 0)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>값 [100, 250]인 uint8 두 칸 · scene.png</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>a + 30   (NumPy 그냥 더하기)</code></td><td><code>[[130  24]]</code></td><td>250+30=280 → 256을 넘겨 24로 돌아감!</td></tr>
+    <tr><td><code>cv2.add(a, 30)</code></td><td><code>[[130 255]]</code></td><td>255에서 멈춤(포화)</td></tr>
+    <tr><td><code>cv2.convertScaleAbs(a, alpha=1.0, beta=30)</code></td><td><code>[[130 255]]</code></td><td>255에서 멈춤</td></tr>
+    <tr><td><code>img[h//10 : h-h//10, w//10 : w-w//10].shape</code></td><td><code>(192, 256, 3)</code></td><td>위아래·좌우 10%씩 잘라냄</td></tr>
+    <tr><td><code>cv2.resize(crop, (w, h)).shape</code></td><td><code>(240, 320, 3)</code></td><td>다시 원래 크기로 → 확대 효과</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>alpha</code></td><td>곱하는 값 (대비)</td><td>1보다 크면 대비↑</td></tr>
+        <tr><td><code>beta</code></td><td>더하는 값 (밝기)</td><td>음수면 어둡게. 결과는 절댓값을 취해 0~255 uint8로 맞춰짐</td></tr>
+        <tr><td><code>img[y1:y2, x1:x2]</code></td><td>잘라내기 (세로 먼저!)</td><td>너무 많이 자르면 물체가 잘려 라벨 뜻이 바뀔 수 있음</td></tr>
+        <tr><td>Crop 후 <code>resize</code></td><td>원래 크기로 되돌림</td><td>모델 입력 크기를 모든 사진에서 같게 맞추기 위해</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>img + 30</code> 대신 convertScaleAbs?</strong> — uint8 배열에 그냥 30을 더하면 250 + 30 = 280이 256을 넘쳐 <b>24로 되돌아가요</b>(가장 밝은 곳이 갑자기 검게). convertScaleAbs는 계산 뒤 0~255로 <b>잘라 맞춰</b> 주니 밝은 곳은 255에서 멈춰요.</div>
+</section>
+
+<section class="cmd" id="d13-sorted-path-glob" data-topic="OpenCV" data-sub="일괄 처리 · 검증" data-day="13" data-theory="notes/day13.html#verify">
+  <h3>폴더 일괄 처리 <code>sorted(Path.glob())</code></h3>
+<pre><code>from pathlib import Path
+import cv2
+
+src_dir = Path("data/images")
+out_dir = Path("outputs/images")
+out_dir.mkdir(parents=True, exist_ok=True)       # 출력 폴더 준비
+for path in sorted(src_dir.glob("*.png")):       # 순서 고정
+    img = cv2.imread(str(path))
+    if img is None:
+        raise RuntimeError(f"read failed: {path}")
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    resized = cv2.resize(gray, (320, 240))
+    if not cv2.imwrite(str(out_dir / path.name), resized):
+        raise OSError(f"save failed: {path}")
+
+print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 → (240, 320)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>data/images 폴더</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>[p.name for p in sorted(Path(&quot;data/images&quot;).glob(&quot;*.png&quot;))]</code></td><td><code>[&#x27;test_06.png&#x27;, &#x27;train_01.png&#x27;, &#x27;train_02.png&#x27;, &#x27;train_03.png&#x27;, &#x27;train_04.png&#x27;, &#x27;valid_05.png&#x27;]</code></td><td>이름 순서로 고정</td></tr>
+    <tr><td><code>cv2.imread(&quot;data/images/test_06.png&quot;).shape</code></td><td><code>(240, 320, 3)</code></td><td>원본</td></tr>
+    <tr><td><code>cv2.imread(&quot;outputs/images/test_06.png&quot;, 0).shape</code></td><td><code>(240, 320)</code></td><td>Gray + (320, 240)으로 저장된 것 확인</td></tr>
+    <tr><td><code>len(list(Path(&quot;outputs/images&quot;).glob(&quot;*.png&quot;)))</code></td><td><code>6</code></td><td>입력 개수와 같아야 함</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>Path.glob("*.png")</code></td><td>패턴에 맞는 파일 경로를 순회</td><td>파일 이름을 손으로 적지 않아도 폴더 전체를 처리</td></tr>
+        <tr><td><code>sorted(...)</code></td><td>파일 순서 고정</td><td>glob 순서는 운영체제마다 달라질 수 있어서, 정렬해야 <b>재현성</b>이 생김</td></tr>
+        <tr><td><code>mkdir(parents=True, exist_ok=True)</code></td><td>상위 폴더까지 만들고, 이미 있어도 OK</td><td>폴더가 없으면 <code>imwrite</code>가 에러 없이 False만 돌려줌</td></tr>
+        <tr><td><code>str(path)</code></td><td>Path를 문자열로</td><td>cv2 함수는 문자열 경로를 받음</td></tr>
+        <tr><td><code>imread(path, 0)</code></td><td>저장 결과를 Gray로 다시 읽기</td><td>저장이 "성공"해도 크기·채널이 의도와 같은지는 <b>다시 읽어 봐야</b> 앎</td></tr>
+      </table>
+</section>

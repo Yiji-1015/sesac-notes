@@ -157,7 +157,8 @@ def main():
         "",
         f"사이트: {SITE_URL}  ·  저장소: {REPO_URL}",
         "강의 PDF를 바탕으로 수강생이 다시 정리한 노트입니다(강의 원본 아님). "
-        "각 Day = 3줄 요약 → 이론 ↔ 명령어 → 필요한 패키지 → 이론별 설명(🤔 왜?) + 명령어·인자 표.",
+        "각 Day = 3줄 요약 → 필요한 패키지 → 이론별 설명(🤔 왜?) + 핵심 코드 한두 줄. "
+        "코드 전체·인자 표·실제 실행 입출력은 각 Day 본문 뒤 '🔧 DayN 명령어'(사이트의 commands.html 명령어 사전)에 있습니다.",
         "",
     ]
     index_lines = []
@@ -169,12 +170,19 @@ def main():
         conv.feed(html)
         body = "\n\n".join(x for x in conv.out if x.strip())
         body = re.sub(r"\n{3,}", "\n\n", body)
+        frag = ROOT / "cmds" / p.name
+        cmd_md = ""
+        if frag.exists():
+            cc = NoteToMd()
+            cc.feed("<article>" + frag.read_text(encoding="utf-8") + "</article>")
+            cmd_md = re.sub(r"\n{3,}", "\n\n", "\n\n".join(x for x in cc.out if x.strip()))
+        cmd_part = [f"\n## 🔧 Day{day} 명령어 (명령어 사전: {SITE_URL}commands.html#day{day})", cmd_md] if cmd_md else []
         terms = [e for e in G if day in e["days"]]
         tl = "\n".join(
             f"- **{e['term']}**" + (f" ({e['full']})" if e.get("full") and e["full"] != e["term"] else "")
             + f": {e['short']}" for e in terms
         )
-        parts += [f"\n---\n\n# {title}", f"_{meta}_  ·  페이지: {SITE_URL}notes/{p.name}", "", body,
+        parts += [f"\n---\n\n# {title}", f"_{meta}_  ·  페이지: {SITE_URL}notes/{p.name}", "", body, *cmd_part,
                   f"\n## 📖 Day{day} 용어 ({len(terms)}개)", tl]
         index_lines.append(f"- [{title}]({SITE_URL}notes/{p.name}): {meta}")
 
@@ -184,14 +192,15 @@ def main():
         "# SeSAC Vision·멀티모달 AI 부트캠프 학습 노트",
         "",
         "> 매일 강의 PDF를 바탕으로 쉽게 다시 정리한 부트캠프 학습 노트. 머신러닝(Day6~8), 딥러닝(Day9~12, 14), "
-        "컴퓨터비전(Day13, 15, 16). 각 Day 페이지는 이론, 대응하는 PyTorch/scikit-learn/OpenCV/Ultralytics 명령어와 인자, "
-        "필요한 패키지, '왜 그런지' 설명, 직접 만든 그림을 담고 있다.",
+        "컴퓨터비전(Day13, 15, 16), LLM·RAG 서비스(Day17~). 각 Day 페이지는 이론, 필요한 패키지, '왜 그런지' 설명, "
+        "직접 만든 그림을 담고, 명령어·인자·실제 실행 입출력은 도구별 명령어 사전(commands.html)에 모여 있다.",
         "",
         "AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가장 쉽다.",
         "",
         "## 전체 본문 (글만)",
         f"- [all-notes.md]({SITE_URL}all-notes.md): 모든 Day 본문 + Day별 용어 설명을 한 파일로",
         f"- [용어 사전]({SITE_URL}glossary.html): 수업 용어 전체 (쉬운 설명·비유)",
+        f"- [명령어 사전]({SITE_URL}commands.html): 도구별 코드·인자·실제 실행 입출력",
         "",
         "## Day별 페이지",
         *index_lines,

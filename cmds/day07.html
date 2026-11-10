@@ -1,0 +1,331 @@
+<!-- Day7 명령어 — tools/split_commands.py 로 notes/day07.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="7">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day07.html#packages">📦 필요한 패키지</a></td><td><code>pip install scikit-learn xgboost</code></td></tr>
+        <tr><td><a href="notes/day07.html#tree">① Decision Tree</a></td><td><code>DecisionTreeClassifier</code> / <code>DecisionTreeRegressor</code>, <code>tree_.threshold</code>, <code>get_depth()</code></td></tr>
+        <tr><td><a href="notes/day07.html#overfit">② 복잡도 · 과적합</a></td><td><code>max_depth=</code>, <code>min_samples_leaf=</code>, <code>min_samples_split=</code>, <code>ccp_alpha=</code></td></tr>
+        <tr><td><a href="notes/day07.html#forest">③ Random Forest</a></td><td><code>RandomForestClassifier(n_estimators=, max_features=)</code>, <code>estimators_</code></td></tr>
+        <tr><td><a href="notes/day07.html#importance">④ 특성 중요도</a></td><td><code>feature_importances_</code>, <code>get_feature_names_out()</code>, <code>permutation_importance()</code></td></tr>
+        <tr><td><a href="notes/day07.html#xgb">⑤ XGBoost</a></td><td><code>XGBClassifier</code> / <code>XGBRegressor(learning_rate=, objective=, tree_method=)</code></td></tr>
+        <tr><td><a href="notes/day07.html#cv">⑥ 교차검증</a></td><td><code>StratifiedKFold</code>, <code>KFold</code>, <code>cross_validate(scoring=, return_train_score=)</code></td></tr>
+        <tr><td><a href="notes/day07.html#checks7">⑦ 입력 검사 · 저장</a></td><td><code>statistics_</code>, <code>transform(new).shape</code>, <code>joblib.dump</code> / <code>joblib.load</code></td></tr>
+      </table>
+</section>
+<section class="cmd" id="d7-decisiontreeclassifier" data-topic="scikit-learn" data-sub="트리 · 복잡도" data-day="7" data-theory="notes/day07.html#tree">
+  <h3><code>DecisionTreeClassifier</code> · <code>DecisionTreeRegressor</code></h3>
+<pre><code>import numpy as np
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+X = np.array([[100], [200], [300], [700], [800], [900]])
+tree = DecisionTreeClassifier(max_depth=1, random_state=42).fit(X, [0, 0, 0, 1, 1, 1])
+print(tree.tree_.threshold[0])                    # 500.0  ← 찾은 질문
+print(tree.predict([[250], [850]]))               # [0 1]
+print(tree.predict_proba([[250], [850]]))         # 잎의 클래스 비율
+print(tree.get_depth(), tree.get_n_leaves())      # 1 2
+
+reg = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, [100, 120, 140, 700, 720, 740])
+print(reg.predict([[250], [850], [1200]]))        # [120. 720. 720.]  ← 잎 평균</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 x=[100 … 900] 6점</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>tree.tree_.threshold[0]</code></td><td><code>500</code></td><td>300과 700의 중간값</td></tr>
+    <tr><td><code>tree.predict([[250], [850]])</code></td><td><code>[0, 1]</code></td><td>≤ 500 → 0, &gt; 500 → 1</td></tr>
+    <tr><td><code>tree.predict_proba([[250], [850]])</code></td><td><code>[[1.0, 0.0], [0.0, 1.0]]</code></td><td>각 잎이 한 클래스뿐이라 1.0 — 학습 비율일 뿐</td></tr>
+    <tr><td><code>tree.get_depth(), tree.get_n_leaves()</code></td><td><code>(1, 2)</code></td><td>질문 1개 · 잎 2개</td></tr>
+    <tr><td><code>reg.predict([[250], [850], [1200]])</code></td><td><code>[120.0, 720.0, 720.0]</code></td><td>잎 평균 120 / 720 — 1200도 720 (외삽 안 함)</td></tr>
+    <tr><td><code>정답이 0·1 번갈아(잡음) + max_depth=None: 깊이 · 잎</code></td><td><code>5 · 6</code></td><td>제한이 없으면 6점을 다 외울 때까지 나눔</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 속성</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>max_depth</code></td><td>질문을 최대 몇 단계까지</td><td>1이면 질문 1개·잎 2개. None이면 잎이 깨끗해질 때까지 계속 나눔 → 과적합 위험</td></tr>
+        <tr><td><code>random_state</code></td><td>난수 고정 (특성 후보 순서·동률 처리 등)</td><td>안 고정하면 같은 점수의 분할 중 무엇을 고를지가 실행마다 달라질 수 있음 → 결과 재현용</td></tr>
+        <tr><td><code>tree_.threshold[0]</code></td><td>루트 질문의 기준값 (500.0)</td><td>300과 700 사이의 <b>중간값</b>을 기준으로 잡아요 — 두 그룹을 가르는 가장 무난한 선이라서</td></tr>
+        <tr><td><code>get_depth()</code> / <code>get_n_leaves()</code></td><td>실제 깊이 / 잎 개수</td><td>복잡도 확인용</td></tr>
+        <tr><td><code>DecisionTreeRegressor</code></td><td>연속값 트리 (기본 기준 <code>squared_error</code>)</td><td>잎의 y <b>평균</b>으로 예측: 왼쪽 (100+120+140)/3 = 120, 오른쪽 720</td></tr>
+      </table>
+      <div class="callout">💡 <code>fit</code>에서 질문을 찾고, <code>predict</code>는 찾은 질문을 따라 잎으로 내려갈 뿐이에요(예측 때 다시 학습하지 않음). 회귀 트리는 학습 범위 밖(1200)도 마지막 잎 평균(720)을 내요 — 선형처럼 직선을 연장하지 않아요.</div>
+      <div class="callout">🤔 <strong>왜 잎에서 "평균"을 내지?</strong> — 회귀 트리는 제곱오차를 줄이는 기준(<code>squared_error</code>)으로 나누는데, 한 묶음의 숫자들과의 제곱오차를 가장 작게 만드는 하나의 값이 바로 <b>평균</b>이에요. 그리고 1200이 들어와도 "글자수 &gt; 500?" → 예 → 오른쪽 잎으로 갈 뿐이라, 잎 바깥의 새 값을 만들어 내지 못해요(<b>외삽 안 함</b>).</div>
+      <div class="callout warn">⚠️ 한 잎에 실패만 있어서 확률 1이 나와도, 그건 그 잎의 <b>학습 비율</b>이지 새 입력의 결과를 보장하는 게 아니에요.</div>
+      <div class="callout">🤔 <strong>왜 확률 1을 믿으면 안 되지?</strong> — <code>predict_proba</code>는 "이 잎에 떨어진 학습 행 중 실패 비율"이에요. 잎에 학습 행이 3개뿐이면 3/3 = 1.0이 쉽게 나오지만, 겨우 3건으로 본 비율이라 새 입력에선 얼마든지 달라질 수 있어요.</div>
+</section>
+
+<section class="cmd" id="d7-복잡도-제한-인자" data-topic="scikit-learn" data-sub="트리 · 복잡도" data-day="7" data-theory="notes/day07.html#overfit">
+  <h3>복잡도 제한 인자</h3>
+<pre><code>model = build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42), scale="none")
+model.fit(X_train, y_train)
+est = model["model"]                       # Pipeline에서 트리만 꺼내기
+print(est.get_depth(), est.get_n_leaves()) # 3 4
+# train F1 0.710 · valid F1 0.333 · FP=4 · FN=4
+
+for depth in [1, 2, 3, 5, None]:           # 다른 조건은 고정, 깊이만 바꿈
+    m = build(DecisionTreeClassifier(max_depth=depth, min_samples_leaf=1,
+                                     random_state=42), scale="none").fit(X_train, y_train)
+    print(depth, m["model"].get_n_leaves(),
+          f1_score(y_train, m.predict(X_train)), f1_score(y_valid, m.predict(X_valid)))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>est.get_depth(), est.get_n_leaves()</code></td><td><code>(3, 4)</code></td><td>깊이 3이면 잎 최대 8개지만 실제 4개 — 더 나눌 이득이 없는 노드에선 멈춤</td></tr>
+    <tr><td><code>train F1 · valid F1 · FP · FN</code></td><td><code>0.710 · 0.333 · 4 · 4</code></td><td>train과 valid 격차가 큼</td></tr>
+    <tr><td><code>leaf_=1, depth 1 / 2 / 3</code></td><td><code>잎 2: 0.500→0.286 / 잎 3: 0.500→0.286 / 잎 4: 0.710→0.333</code></td><td>train → valid F1</td></tr>
+    <tr><td><code>leaf_=1, depth 5 / None</code></td><td><code>잎 9: 0.882→0.500 / 잎 14: 1.000→0.500</code></td><td>깊을수록 train은 1에 가까워지지만 valid는 따라오지 않음</td></tr>
+    <tr><td><code>min_samples_leaf=3 각 잎 행 수</code></td><td><code>[6, 7, 21, 26]</code></td><td>모든 잎이 3행 이상. 이 자료에선 leaf=1로 풀어도 depth 3 트리가 같게 나와(잎 4 · .710→.333) 이 제약이 실제로 바꾼 건 없음</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>max_depth</code></td><td>최대 질문 깊이</td><td>너무 작으면 필요한 규칙도 못 배움 (과소적합, 깊이 1: train .500), 너무 크면 잡음까지 외움</td></tr>
+        <tr><td><code>min_samples_leaf</code></td><td><b>각 잎</b>에 필요한 최소 학습 행 수</td><td>키우면 "행 1~2개짜리 잎"을 못 만들어 작은 조각(잡음) 분할이 억제됨. "잎 5개"라는 뜻 아님!</td></tr>
+        <tr><td><code>min_samples_split</code></td><td>노드를 더 나누는 데 필요한 최소 행 수</td><td>"나눌지 말지"의 조건이라, 나눈 뒤 각 자식 잎의 크기 조건과는 다름</td></tr>
+        <tr><td><code>ccp_alpha</code></td><td>복잡도 비용을 고려한 사후 가지치기</td><td>잎 하나 늘 때마다 alpha만큼 벌점 → 클수록 불순도를 크게 줄이지 못하는 가지가 잘려 더 단순해짐</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 복잡도를 학습 전에 정하지?</strong> — 트리는 내버려 두면 train을 다 외울 때까지 자라요. 깊이·잎 크기 같은 제약은 "얼마나 자세히 외울 수 있게 할지"를 미리 정하는 <b>하이퍼파라미터</b>라, 같은 분할·같은 지표에서 후보를 비교해 골라요. 오늘의 기본 비교 트리는 <code>max_depth=3, min_samples_leaf=3, random_state=42</code>예요.</div>
+      <div class="callout">💡 <code>build(모델)</code>은 <a href="notes/day06.html#scaling">Day6 ⑤</a>에서 만든 "전처리 + 모델" Pipeline 함수예요. 트리·숲·XGB는 수치 스케일링 없이(<code>scale="none"</code>) 결측 대체 + One-hot만 거쳐요(아래 코드에서 <code>build(rf)</code>처럼 줄여 적어도 트리 계열은 스케일링 없음으로 보면 돼요). <code>model["model"]</code>, <code>model["pre"]</code>처럼 단계 이름으로 꺼낼 수 있어요.</div>
+      <div class="callout warn">⚠️ valid에서 틀린 행만 지우면 성능 개선이 아니라 <b>평가 자료를 결과에 맞춘 부당한 비교</b>예요.</div>
+</section>
+
+<section class="cmd" id="d7-randomforestclassifier" data-topic="scikit-learn" data-sub="랜덤 포레스트 · 특성 중요도" data-day="7" data-theory="notes/day07.html#forest">
+  <h3><code>RandomForestClassifier</code> · <code>RandomForestRegressor</code></h3>
+<pre><code>from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+
+rf = RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=2,
+                            max_features="sqrt", random_state=42, n_jobs=1)
+forest = build(rf).fit(X_train, y_train)
+print(len(forest["model"].estimators_))      # 100  ← 학습된 개별 트리 목록
+# train F1 0.800 · valid F1 0.222 · FP=2 · FN=5
+
+rfr = RandomForestRegressor(n_estimators=100, max_depth=4, min_samples_leaf=2,
+                            max_features=1.0, random_state=42, n_jobs=1)
+forest_r = build(rfr).fit(X_train, yr_train)
+# valid MAE 600.34 ms · RMSE 690.37 ms · R² −0.276</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(forest[&quot;model&quot;].estimators_)</code></td><td><code>100</code></td><td>학습된 개별 트리 100개</td></tr>
+    <tr><td><code>forest[&quot;model&quot;].estimators_[0].get_depth()</code></td><td><code>4</code></td><td>개별 트리도 max_depth=4 안</td></tr>
+    <tr><td><code>train F1 · valid F1 · FP · FN</code></td><td><code>0.800 · 0.222 · 2 · 5</code></td><td>단일 Tree(valid .333)보다 낮음 — 노트 설명대로</td></tr>
+    <tr><td><code>valid 실패 확률 &gt; 0.5 인 행 수</code></td><td><code>3 / 20</code></td><td>평균 확률이 0.5 아래로 깎여 실패를 적게 부름</td></tr>
+    <tr><td><code>RandomForestRegressor: valid</code></td><td><code>MAE 600.34 · RMSE 690.37 · R² -0.276</code></td><td>회귀도 Dummy보다 나쁨</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>수업 값</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_estimators</code></td><td>100</td><td>숲의 트리 수</td><td>늘리면 평균이 안정적이지만 계산↑. 같은 실수를 하는 트리가 늘 뿐이면 성능 개선은 보장 안 됨</td></tr>
+        <tr><td><code>max_depth</code>, <code>min_samples_leaf</code></td><td>4, 2</td><td>개별 트리의 복잡도</td><td>트리 수와는 다른 조절 — "몇 명에게 묻나" vs "한 명이 얼마나 자세히 아나"</td></tr>
+        <tr><td><code>max_features</code></td><td>분류 <code>"sqrt"</code> / 회귀 <code>1.0</code></td><td>분할마다 살펴볼 특성 후보 수·비율</td><td>작을수록 트리마다 다른 특성을 보게 되어 더 다양(상관↓), 대신 각 트리는 약해짐. 1.0이면 전체 특성을 후보로</td></tr>
+        <tr><td><code>random_state</code> / <code>n_jobs</code></td><td>42 / 1</td><td>난수 재현 / 병렬 작업 수</td><td>random_state를 안 고정하면 추출·특성 후보가 매번 달라져 점수도 달라짐. <code>n_jobs=-1</code>이면 CPU 전부</td></tr>
+      </table>
+      <div class="callout">💡 이번 자료에서는 단일 Tree(train 0.710 / valid 0.333)보다 Forest(train 0.800 / valid 0.222)가 낮았어요. 앙상블이라는 이름이나 트리 수가 아니라 <b>같은 평가 조건의 결과와 오류</b>로 판단해요.</div>
+      <div class="callout">🤔 <strong>왜 숲이 더 나빴을까? (가능한 이유)</strong> — 숲의 장점은 "트리마다 다른 실수를 평균으로 줄이는 것"인데, 자료가 60건뿐이고 실패가 소수라 각 트리가 볼 실패 사례가 더 적어요. 확률을 평균하면 실패 확률이 0.5 아래로 <b>무난하게 깎이기</b> 쉬워 실패를 덜 예측하게 되고(FN 5), F1이 떨어졌어요. 앙상블은 흔들림을 줄여 줄 뿐, 없는 신호를 만들어 주진 못해요.</div>
+</section>
+
+<section class="cmd" id="d7-feature-importances" data-topic="scikit-learn" data-sub="랜덤 포레스트 · 특성 중요도" data-day="7" data-theory="notes/day07.html#importance">
+  <h3><code>feature_importances_</code> · <code>permutation_importance</code></h3>
+<pre><code>import pandas as pd
+from sklearn.inspection import permutation_importance
+
+names = forest["pre"].get_feature_names_out()            # 전처리 후 실제 열 이름·순서
+mdi = pd.Series(forest["model"].feature_importances_, index=names)
+print(mdi.sort_values(ascending=False))                  # input_chars .5643, allowed_tools .1670 …
+print("합:", round(mdi.sum(), 4))                         # 1.0
+
+perm = permutation_importance(forest, X_valid, y_valid,  # Pipeline 통째 + 원본 4열
+                              scoring="f1", n_repeats=20, random_state=42, n_jobs=1)
+importance = pd.DataFrame({"feature": FEATURES,
+                           "F1_drop_mean": perm.importances_mean,
+                           "repeat_std": perm.importances_std})
+print(importance)    # 기준 F1 0.222 · chars .0649 · tools .0478 · task_type .1396 · priority −.0619</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 · 위 Forest</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(names), names[:2]</code></td><td><code>8, [&#x27;num__input_chars&#x27;, &#x27;num__allowed_tools&#x27;]</code></td><td>원핫으로 4열 → 8열</td></tr>
+    <tr><td><code>mdi 상위 2개</code></td><td><code>input_chars 0.5643 · allowed_tools 0.1670</code></td><td>train에서 분할에 많이 쓰인 열</td></tr>
+    <tr><td><code>mdi.sum()</code></td><td><code>1.0000</code></td><td>MDI는 합이 1로 정규화</td></tr>
+    <tr><td><code>perm.importances_mean (원본 4열)</code></td><td><code>input_chars +0.0649 · allowed_tools +0.0478 · task_type +0.1396 · priority -0.0619</code></td><td>valid F1 감소량 — 1위가 task_type으로 MDI와 다름</td></tr>
+    <tr><td><code>perm.importances_std</code></td><td><code>0.123 · 0.128 · 0.114 · 0.150</code></td><td>평균만큼 큰 흔들림 — valid 20건이라</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 두 방법의 순위가 다르지?</strong> — MDI는 <b>학습 자료</b>에서 "분할에 많이 쓰인" 열(input_chars 1위)을, 순열 중요도는 <b>valid 20건</b>에서 "섞었을 때 F1이 떨어진" 열(task_type 1위)을 봐요. 보는 자료도 질문도 달라서 순위가 다를 수 있어요. priority가 <b>음수</b>(−.0619)라는 건 섞었더니 오히려 F1이 올랐다는 뜻인데, 20행짜리 평가에선 우연히 그럴 수 있어요 → 바로 삭제할 근거도, 인과 효과도 아니에요.</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>get_feature_names_out()</code></td><td>전처리 뒤 실제 열 이름·순서 (8개)</td><td>안 쓰면 중요도 숫자가 어느 열 것인지 모름 — One-hot으로 열이 늘어나 원본 4열과 순서가 달라지니까</td></tr>
+        <tr><td><code>feature_importances_</code></td><td>학습 불순도 기반 기여 (MDI)</td><td>이 숲에선 합이 1. 분기가 전혀 없는 모델이면 모두 0일 수 있음</td></tr>
+        <tr><td><code>scoring="f1"</code></td><td>실패 클래스 F1의 감소량을 봄</td><td>지표가 바뀌면 "무엇이 중요한가"의 기준이 바뀌니 중요도도 바뀜</td></tr>
+        <tr><td><code>n_repeats=20</code></td><td>20번 섞어서 평균·변동 기록</td><td>섞는 방식이 무작위라 한 번만 하면 운에 좌우됨 → 늘리면 안정적, 느려짐</td></tr>
+        <tr><td><code>importances_mean</code> / <code>_std</code></td><td>감소량 평균 / 반복 간 표준편차</td><td>std는 "섞을 때마다의 흔들림"이지 신뢰구간이 아님</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d7-xgbclassifier" data-topic="XGBoost" data-sub="" data-day="7" data-theory="notes/day07.html#xgb">
+  <h3><code>XGBClassifier</code> · <code>XGBRegressor</code></h3>
+<pre><code>from xgboost import XGBClassifier, XGBRegressor
+
+xgb = XGBClassifier(n_estimators=80, learning_rate=0.05, max_depth=2,
+                    min_child_weight=1, subsample=0.8, colsample_bytree=1.0,
+                    reg_lambda=1.0, objective="binary:logistic", eval_metric="logloss",
+                    tree_method="hist", device="cpu", random_state=42, n_jobs=1)
+model = build(xgb).fit(X_train, y_train)           # sklearn Pipeline에 그대로 연결
+# valid F1 0.182 · Precision 0.200 · Recall 0.167 · FP=4 · FN=5
+
+xgr = XGBRegressor(n_estimators=80, learning_rate=0.05, max_depth=2,
+                   min_child_weight=1, subsample=0.8, colsample_bytree=1.0,
+                   reg_lambda=1.0, objective="reg:squarederror", eval_metric="rmse",
+                   tree_method="hist", device="cpu", random_state=42, n_jobs=1)
+model_r = build(xgr).fit(X_train, yr_train)        # X·분할 ID는 동일, 정답 y만 elapsed_ms로
+# valid MAE 609.34 ms · RMSE 700.02 ms · R² −0.312</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model[&quot;model&quot;].get_booster().num_boosted_rounds()</code></td><td><code>80</code></td><td>보정 회차 = n_estimators</td></tr>
+    <tr><td><code>valid F1 · Precision · Recall · FP · FN</code></td><td><code>0.200 · 0.250 · 0.167 · 3 · 5</code></td><td>노트·강의 결과(F1 .182 · P .200 · FP 4)와 조금 달라요 — 같은 버전(XGBoost 3.1.3)인데 이 PC에선 valid 1행의 판정이 바뀜. 그래도 Tree(.333)·Forest(.222)보다 낮은 건 같음</td></tr>
+    <tr><td><code>train F1</code></td><td><code>0.774</code></td><td>강의 결과와 같음 · Forest(.800)보다 조금 낮음</td></tr>
+    <tr><td><code>predict_proba(X_valid)[:, 1] 범위 · 0.5 초과 행 수</code></td><td><code>0.039 ~ 0.661 · 4건</code></td><td>실제 실패는 6건인데 실패라 부르는 행이 적음</td></tr>
+    <tr><td><code>XGBRegressor: valid</code></td><td><code>MAE 610.20 · RMSE 700.41 · R² -0.313</code></td><td>노트(MAE 609.34 · RMSE 700.02)와 소수점 차이 — 위와 같은 환경 차이. R²는 여전히 음수</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_estimators</code></td><td>보정 회차 (트리 수) · 수업 80</td><td>회차마다 train 오차를 더 줄이니, 너무 많으면 잡음까지 보정해 과적합 위험 (RF의 트리 수와 성격이 다름)</td></tr>
+        <tr><td><code>learning_rate</code></td><td>한 회차 보정을 얼마나 반영할지 · 0.05</td><td>줄이면 한 번에 조금만 고쳐 같은 회차에선 보정이 부족할 수 있음 → 회차·복잡도와 함께 비교</td></tr>
+        <tr><td><code>max_depth</code></td><td>각 보정 트리의 깊이 · 2</td><td>보정 트리는 "조금씩 고치는" 역할이라 얕게 둬요. 깊으면 한 회차가 너무 많이 외움</td></tr>
+        <tr><td><code>min_child_weight</code></td><td>자식 노드에 필요한 <b>Hessian 합</b>의 하한 · 1</td><td>min_samples_leaf(행 수)와 <b>다름</b> — 분류(logloss)에선 행마다 Hessian이 p(1−p) ≤ 0.25라, 5라는 값이 "5행"이 아니라 훨씬 많은 행을 뜻할 수 있음</td></tr>
+        <tr><td><code>subsample</code> / <code>colsample_bytree</code></td><td>회차마다 쓸 행 / 트리별 특성 비율 · 0.8 / 1.0</td><td>낮추면 회차마다 다른 일부만 보니 다양성↑·과적합↓, 너무 낮으면 정보 부족</td></tr>
+        <tr><td><code>reg_lambda</code></td><td>잎 가중치 L2 규제 · 1.0</td><td>키우면 잎 값이 작게 눌려 한 번의 보정이 보수적이 됨</td></tr>
+        <tr><td><code>objective</code></td><td><code>"binary:logistic"</code> 이진분류 / <code>"reg:squarederror"</code> 회귀</td><td>학습이 줄이는 손실 자체가 바뀜 — 문제 유형에 맞춰야 함</td></tr>
+        <tr><td><code>eval_metric</code></td><td>학습 진단용 손실 (logloss, rmse)</td><td>모델 선택 지표(F1)와 별개. logloss가 좋아져도 F1이 좋아진다는 보장은 없음</td></tr>
+        <tr><td><code>tree_method</code> / <code>device</code> / <code>n_jobs</code></td><td><code>"hist"</code> 방식 / <code>"cpu"</code> / 1</td><td>hist는 값을 구간으로 묶어 빠르게 분할 탐색. <code>"cuda"</code>는 GPU 필요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "Hessian 합"이지?</strong> — XGBoost는 손실의 기울기(gradient)와 곡률(Hessian)로 보정값을 계산해요. 제곱오차에선 행마다 Hessian이 1이라 "합 = 행 수"처럼 보이지만, logloss에선 확률이 0이나 1에 가까운(이미 확신하는) 행일수록 Hessian이 작아요. 그래서 min_child_weight는 "<b>보정할 정보가 충분히 모였나</b>"를 재는 조건이에요.</div>
+      <div class="callout">💡 <b>조기 종료(early stopping)</b> — 손실 개선이 일정 회차(예: 15회) 동안 없으면 멈추는 방법. 강의 시연에선 train 60을 inner 42 / stop 18로 나눠 최적 회차 64, 실제 학습 79회(15회 개선 없어 종료)였고, 기본 비교의 XGB80과는 별도 실험으로 기록해요. 멈출 지점을 고르는 <b>stop 자료</b>도 모델 선택에 쓰이므로 train 안에서 따로 떼어 쓰고, valid·test를 넣지 않아요. <code>XGBClassifier(early_stopping_rounds=15)</code> + <code>fit(..., eval_set=[(Z_stop, y_stop)])</code> → <code>model.best_iteration</code>(0부터 셈)으로 확인해요.</div>
+      <div class="callout">🤔 <strong>왜 조기 종료가 과적합을 막지?</strong> — 회차가 늘수록 train 손실은 계속 줄지만, 어느 순간부터는 잡음을 보정하기 시작해 안 본 자료(stop)의 손실이 더 이상 줄지 않아요. 그 지점에서 멈추면 "<b>배울 만큼만</b>" 배운 모델이 돼요. 단, stop 자료로 멈출 곳을 골랐으니 그 자료의 점수는 이미 낙관적이에요 → valid·test와 분리.</div>
+      <table>
+        <tr><th>모델</th><th>과적합을 제어하는 것</th><th>진단할 증거</th></tr>
+        <tr><td>Decision Tree</td><td>깊이·잎 크기·가지치기</td><td>train/valid 격차 · 잎 개수</td></tr>
+        <tr><td>Random Forest</td><td>개별 트리 복잡도·특성 후보·트리 수</td><td>반복 결과 · 계산량 · fold별 편차</td></tr>
+        <tr><td>XGBoost</td><td>깊이·규제·학습률·회차·부분 표본</td><td>손실 변화 · stop 자료 · 과도한 학습량</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 이번 자료에서 XGB의 valid F1은 0.182였어요. 학습률을 낮추거나 규제를 강하게 해도 항상 좋아지지 않아요. 규제·단순화도 과소적합과의 균형을 비교로 확인해요.</div>
+</section>
+
+<section class="cmd" id="d7-stratifiedkfold" data-topic="scikit-learn" data-sub="교차검증" data-day="7" data-theory="notes/day07.html#cv">
+  <h3><code>StratifiedKFold</code> · <code>KFold</code> · <code>cross_validate</code></h3>
+<pre><code>from sklearn.model_selection import StratifiedKFold, KFold, cross_validate
+
+CLS_CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)   # 분류: 실패 비율 유지
+REG_CV = KFold(n_splits=5, shuffle=True, random_state=42)             # 회귀: 연속 y
+
+cv = cross_validate(build(rf), X_train, y_train, cv=CLS_CV, scoring="f1",
+                    return_train_score=True, return_estimator=True,
+                    n_jobs=1, error_score="raise")
+print(cv["test_score"])                 # fold별 F1  [.333 .000 .667 .400 .000]
+print(cv["test_score"].mean(), cv["test_score"].std(ddof=0))   # 평균 .280, 편차 .254
+
+print(cv["train_score"].mean())         # train 평균 — fold 점수와의 격차로 과적합 진단
+
+cvr = cross_validate(build(xgr), X_train, yr_train, cv=REG_CV,
+                     scoring="neg_root_mean_squared_error")
+rmse = -cvr["test_score"]               # 부호 되돌리기 → ms
+
+# 각 fold의 중앙값이 그 fold의 학습 48건에서 왔는지 검사 (E16)
+cv = cross_validate(build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42),
+                          scale="none"),
+                    X_train, y_train, cv=CLS_CV, scoring="f1",
+                    return_estimator=True, error_score="raise")
+for (a, b), m in zip(CLS_CV.split(X_train, y_train), cv["estimator"]):   # a=학습 행, b=평가 행
+    actual = m["pre"].named_transformers_["num"]["imputer"].statistics_
+    expected = X_train.iloc[a][NUM].median()
+    assert np.allclose(actual, expected)    # 근사 일치
+    assert not set(a) &amp; set(b)              # 학습·평가 교집합 0
+print("전 fold 중앙값·분할 검사 통과")</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 (fold 학습 48 / 평가 12)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>cv[&quot;test_score&quot;]  (Forest F1)</code></td><td><code>[0.333, 0.000, 0.667, 0.400, 0.000]</code></td><td>실패 몇 건으로 0 ~ 0.667까지 출렁</td></tr>
+    <tr><td><code>mean() · std(ddof=0)</code></td><td><code>0.280 · 0.254</code></td><td>편차가 평균과 비슷할 만큼 큼 — 평균 하나로 요약하면 안 되는 이유</td></tr>
+    <tr><td><code>cv[&quot;train_score&quot;].mean()</code></td><td><code>0.753</code></td><td>fold 평가 점수와 큰 격차 → 과적합 신호</td></tr>
+    <tr><td><code>-cvr[&quot;test_score&quot;]  (XGB 회귀 RMSE)</code></td><td><code>[756.8, 614.7, 721.2, 668.3, 493.4]</code></td><td>부호를 되돌려 ms 단위로</td></tr>
+    <tr><td><code>평가 fold의 실패 수: Stratified vs KFold</code></td><td><code>[4, 4, 4, 3, 3] vs [5, 5, 4, 2, 2]</code></td><td>Stratified는 3~4건으로 고르게</td></tr>
+    <tr><td><code>fold별 중앙값(글자수) · 검사 통과</code></td><td><code>[1309.0, 1303.0, 1315.0, 1315.0, 1338.0] · True</code></td><td>fold마다 자기 학습 48건의 중앙값</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_splits=5</code></td><td>몇 조각으로 나눌지</td><td>늘리면 회차마다 학습 자료↑(평가 조각은 작아져 점수가 더 출렁), 계산↑</td></tr>
+        <tr><td><code>shuffle=True</code>, <code>random_state</code></td><td>섞어서 나누기 + 재현</td><td>안 섞으면 원본 행 순서대로 잘려 한쪽에 특정 유형이 몰릴 수 있음. 모든 후보가 <b>같은 fold</b>를 써야 공정</td></tr>
+        <tr><td><code>scoring</code></td><td>fold 평가 지표</td><td>회귀는 <code>"neg_root_mean_squared_error"</code> — sklearn은 "<b>클수록 좋은</b> 점수"로 통일하기 때문에 RMSE에 −를 붙여 돌려줌 → 다시 −를 붙여 ms로</td></tr>
+        <tr><td><code>return_train_score=True</code></td><td>학습 점수도 함께</td><td>train–fold 격차로 과적합 진단</td></tr>
+        <tr><td><code>return_estimator=True</code></td><td>fold별 학습된 Pipeline 반환</td><td>fold마다 중앙값이 학습 48건에서 왔는지 검사 가능</td></tr>
+        <tr><td><code>error_score="raise"</code></td><td>fold 실패 시 바로 에러</td><td>기본값은 NaN으로 조용히 넘어가서, 실패한 fold를 모르고 평균을 낼 수 있음</td></tr>
+        <tr><td><code>std(ddof=0)</code></td><td>5개 점수의 기술적 편차</td><td>"점수가 얼마나 흩어졌나"의 기록일 뿐 95% 신뢰구간이 아님</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 분류는 StratifiedKFold지?</strong> — 실패는 소수라 그냥 무작위로 12건씩 자르면 어떤 fold엔 실패가 거의 없을 수 있어요. 그러면 그 fold의 F1은 계산 자체가 불안정해져요. Stratified는 <b>모든 fold의 실패 비율을 원본과 비슷하게</b> 맞춰 줘요. 회귀의 연속 정답은 "비율"을 맞출 클래스가 없으니 그냥 KFold를 써요.</div>
+      <div class="callout">🤔 <strong>왜 fold F1이 0 ~ 0.667로 크게 흔들리지?</strong> — 평가 조각이 12건, 그중 실패는 몇 건뿐이라 실패 한두 개를 맞히느냐 마느냐로 F1이 0과 0.667 사이를 오가요. 그래서 평균 하나(.280)로 가리지 말고 fold 점수·평균·편차(.254)를 함께 남겨요.</div>
+      <div class="callout warn">⚠️ <code>cross_validate</code>의 <code>test_score</code>는 "<b>fold 평가 점수</b>"라는 이름일 뿐, 보관한 test 20이 아니에요. 그리고 평균 ± 표준편차는 <b>95% 신뢰구간이 아니에요</b>.</div>
+      <table>
+        <tr><th>상황</th><th>분할 방법</th><th>주의</th></tr>
+        <tr><td>분류 · 독립 요청</td><td><code>StratifiedKFold(5, shuffle=True)</code></td><td>실패 비율 유지</td></tr>
+        <tr><td>회귀 · 독립 요청</td><td><code>KFold(5, shuffle=True)</code></td><td>연속 정답은 그대로 stratify 안 함</td></tr>
+        <tr><td>같은 요청의 여러 단계</td><td>그룹 단위 분할</td><td>같은 ID가 학습·평가를 가로지르지 않게</td></tr>
+        <tr><td>미래 요청 예측</td><td>시간 순서 분할</td><td>미래 정보가 학습에 들어가지 않게</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d7-새-범주-통계-불변-검사" data-topic="scikit-learn" data-sub="입력 검사 · 저장" data-day="7" data-theory="notes/day07.html#checks7">
+  <h3>새 범주 · 통계 불변 검사</h3>
+<pre><code>model = build(new_classifier("Forest")).fit(X_train, y_train)
+imp = model["pre"].named_transformers_["num"]["imputer"]
+before = imp.statistics_.copy()
+new = X_valid.iloc[:2].copy()
+new["task_type"], new["priority"] = "translation", "urgent"   # 학습에 없던 범주
+model.predict(require_features(new))          # require_features: 필수 열이 없으면 오류
+assert np.array_equal(before, imp.statistics_) # 예측해도 학습 통계 불변
+print(model["pre"].transform(new).shape)       # (2, 8)  ← 기존 8열 유지</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 · valid 앞 2행의 범주를 바꿈</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model.predict(require_features(new))</code></td><td><code>[0, 0]</code></td><td>처음 보는 범주여도 예측은 나옴</td></tr>
+    <tr><td><code>model[&quot;pre&quot;].transform(new).shape</code></td><td><code>(2, 8)</code></td><td>기존 8열 유지</td></tr>
+    <tr><td><code>원핫 6열 부분 Zn[:, 2:]</code></td><td><code>[[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]</code></td><td>handle_unknown=&quot;ignore&quot; → 범주 칸이 전부 0</td></tr>
+    <tr><td><code>np.array_equal(before, imp.statistics_)</code></td><td><code>True</code></td><td>예측해도 학습 통계 불변</td></tr>
+    <tr><td><code>require_features(new.drop(columns=&quot;priority&quot;))</code></td><td><code>ValueError: 필수 열 누락: [&#x27;priority&#x27;]</code></td><td>필수 열 누락은 예측 전에 명확한 오류</td></tr>
+    <tr><td><code>검사 없이 model.predict(…priority 없음)</code></td><td><code>ValueError: columns are missing: {&#x27;priority&#x27;}</code></td><td>검사가 없어도 여기선 에러 — 다만 메시지가 덜 친절함</td></tr>
+  </table>
+</div>
+</section>
+
+<section class="cmd" id="d7-저장-복원-대조" data-topic="scikit-learn" data-sub="입력 검사 · 저장" data-day="7" data-theory="notes/day07.html#checks7">
+  <h3>저장 · 복원 대조</h3>
+<pre><code>from pathlib import Path
+import tempfile, joblib
+with tempfile.TemporaryDirectory() as folder:
+    path = Path(folder) / "selected_pipeline.joblib"
+    joblib.dump(model, path)
+    restored = joblib.load(path)              # 자신이 방금 만든 파일만
+    same = np.array_equal(model.predict(X_valid), restored.predict(X_valid))
+    print("복원 예측 동일:", same)             # True</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 · Forest</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>joblib.dump(model, path)</code></td><td><code>파일 약 175 KB</code></td><td>트리 100개를 통째로 저장</td></tr>
+    <tr><td><code>np.array_equal(model.predict(X_valid), restored.predict(X_valid))</code></td><td><code>True</code></td><td>예측 20개 일치</td></tr>
+    <tr><td><code>np.allclose(predict_proba 두 개)</code></td><td><code>True</code></td><td>확률까지 일치</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 함수</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>require_features(df)</code></td><td>강의 코드의 사용자 정의 함수 — 필수 4열 확인</td><td>없으면 누락 열이 imputer까지 가서 엉뚱한 오류가 나거나 조용히 잘못 처리될 수 있음</td></tr>
+        <tr><td><code>transform(new).shape</code></td><td>변환 후 열 수 확인</td><td>8이 아니면 학습 때와 다른 입력 구조라 모델이 받을 수 없음</td></tr>
+        <tr><td><code>joblib.load</code></td><td>직접 만든 신뢰하는 파일만</td><td>버전·입력 스키마도 함께 기록. 다른 환경에서의 호환은 보장 안 됨</td></tr>
+      </table>
+      <div class="callout">💡 "오류 없이 끝났다"와 "요구사항대로 동작했다"는 달라요. 정상 valid 20(20개 예측·ID 순서), 결측·미지 범주(8열·통계 불변), 필수 열 누락(명확한 오류), CV 한 fold(학습 48·평가 12·교집합 0), 저장 모델(복원 후 예측 일치)을 따로 확인해요. 저장·복원의 자세한 설명은 <a href="notes/day06.html#checks">Day6 ⑦</a>.</div>
+</section>

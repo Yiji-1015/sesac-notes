@@ -27,16 +27,10 @@
         </ol>
       </div>
 
-      <h2>이론 ↔ 명령어 한눈에</h2>
-      <table>
-        <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>pip install ultralytics lap opencv-python</code></td></tr>
-        <tr><td><a href="#box">① 박스 좌표</a></td><td><code>cv2.rectangle()</code>, <code>cv2.putText()</code></td></tr>
-        <tr><td><a href="#metrics">② IoU · 평가 지표</a></td><td><code>model.val()</code> → <code>metrics.box.map50</code></td></tr>
-        <tr><td><a href="#yolo">③ YOLO 모델 · 학습</a></td><td><code>YOLO()</code>, <code>model.train()</code></td></tr>
-        <tr><td><a href="#nms">④ confidence · NMS · 추론</a></td><td><code>model.predict(conf=, iou=)</code>, <code>result.boxes</code></td></tr>
-        <tr><td><a href="#track">⑤ 추적</a></td><td><code>model.track(persist=, tracker=)</code></td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Day15 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day15">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="packages">📦 필요한 패키지</h2>
@@ -98,31 +92,17 @@ cy = (y1 + y2) / 2 / H        h = (y2 - y1) / H</code></pre>
       <div class="callout">🤔 <strong>왜 표현이 세 가지나 있어?</strong> — 쓰는 곳마다 편한 형태가 달라서예요. 그리기·겹침 계산은 모서리(xyxy)가 편하고, 모델은 "중심이 어디고 얼마나 큰지(xywh)"로 예측하는 게 자연스럽고, 저장은 크기와 무관한 정규화가 편해요. 그래서 <b>지금 이 숫자가 어떤 형식인지</b> 늘 확인해야 해요.</div>
       <div class="callout warn">⚠️ x는 <b>폭 W</b>로, y는 <b>높이 H</b>로 나눠요. W·H를 바꿔 넣으면 박스 위치와 크기가 엉뚱하게 틀어져요.</div>
 
-      <h3>🔧 명령어: 박스 그리기</h3>
-<pre><code>img = cv2.imread("scene.jpg")
-cv2.rectangle(img, (x1, y1), (x2, y2), color=(255, 0, 0), thickness=2)
-cv2.putText(img, "dog 0.87", (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
-cv2.imwrite("detected.jpg", img)</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th></tr>
-        <tr><td><code>(x1, y1), (x2, y2)</code></td><td>xyxy 좌표 (정수 픽셀)</td></tr>
-        <tr><td><code>color</code></td><td><b>BGR</b> 순서! (255,0,0)은 빨강이 아니라 <b>파랑</b></td></tr>
-        <tr><td><code>thickness</code></td><td>선 두께 (생략하면 1)</td></tr>
-      </table>
-      <div class="callout warn">⚠️ OpenCV 색은 BGR, matplotlib은 RGB. 섞어 쓰면 색이 뒤바뀐다.</div>
-      <div class="callout">🤔 <strong>왜 BGR?</strong> — OpenCV가 처음 만들어질 때 카메라·윈도우 쪽에서 BGR 순서가 흔했고, 호환성 때문에 지금까지 그대로예요. 그래서 OpenCV 안에서는 BGR, 다른 라이브러리로 넘길 땐 RGB로 바꿔 줘요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 박스 그리기 <a href="../commands.html#d15-박스-그리기">명령어 사전에서 자세히 →</a></div>
+<pre><code>cv2.rectangle(img, (x1, y1), (x2, y2), color=(255, 0, 0), thickness=2)
+cv2.putText(img, "dog 0.87", (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)</code></pre>
+      </div>
 
-      <h3>🔧 명령어: 박스 형식 바꾸기 <code>box_convert</code></h3>
-<pre><code>import torch
-from torchvision.ops import box_convert
-
-boxes = torch.tensor([[12, 18, 52, 58]], dtype=torch.float32)       # x1, y1, x2, y2
-cxcywh = box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 박스 형식 바꾸기 <code>box_convert</code> <a href="../commands.html#d15-box-convert">명령어 사전에서 자세히 →</a></div>
+<pre><code>cxcywh = box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
 labels = cxcywh / torch.tensor([160, 128, 160, 128])                # x는 W, y는 H로</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th></tr>
-        <tr><td><code>in_fmt</code> / <code>out_fmt</code></td><td><code>"xyxy"</code>, <code>"xywh"</code>(왼쪽위+크기), <code>"cxcywh"</code>(중심+크기) 중에서</td></tr>
-      </table>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="metrics">② IoU와 평가 지표</h2>
@@ -151,10 +131,10 @@ IoU = 겹친 넓이 / 합친 넓이</code></pre>
       <div class="callout">🤔 <strong>왜 합친 넓이에서 겹친 넓이를 빼?</strong> — 두 넓이를 그냥 더하면 겹친 부분이 두 번 들어가요. 한 번 빼야 "두 박스가 덮는 전체 땅"이 돼요.</div>
       <div class="callout warn">⚠️ IoU는 <b>위치만</b> 봐요. 클래스가 맞는지는 따로 확인해요. 사람 박스와 위치가 딱 맞아도 "개"라고 했으면 틀린 거예요.</div>
 
-      <h3>🔧 명령어: IoU 계산 <code>box_iou</code></h3>
-<pre><code>from torchvision.ops import box_iou
-iou = box_iou(pred_boxes, gt_boxes)   # [예측 수, 정답 수] 겹침 표 (xyxy 형식)
-matched = iou &gt;= 0.5                   # 같은 클래스 + 0.5 이상 → TP 후보</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 IoU 계산 <code>box_iou</code> <a href="../commands.html#d15-box-iou">명령어 사전에서 자세히 →</a></div>
+<pre><code>iou = box_iou(pred_boxes, gt_boxes)   # [예측 수, 정답 수] 겹침 표 (xyxy 형식)</code></pre>
+      </div>
 
       <h3>TP · FP · FN</h3>
       <table>
@@ -192,21 +172,11 @@ matched = iou &gt;= 0.5                   # 같은 클래스 + 0.5 이상 → TP
         <tr><td>train은 좋아지는데 val은 정체</td><td>과적합</td></tr>
       </table>
 
-      <h3>🔧 명령어: 검증 <code>model.val()</code></h3>
-<pre><code>model = YOLO("runs/detect/train/weights/best.pt")
-metrics = model.val(data="dataset.yaml", split="val", imgsz=640, conf=0.001, iou=0.7)
-print(metrics.box.map50)   # mAP50
-print(metrics.box.map)     # mAP50-95</code></pre>
-      <table>
-        <tr><th>인자 / 결과</th><th>뜻</th></tr>
-        <tr><td><code>data</code></td><td>데이터 안내서(yaml) 경로</td></tr>
-        <tr><td><code>split</code></td><td>어느 데이터로 채점할지 (<code>"val"</code> / <code>"test"</code>)</td></tr>
-        <tr><td><code>conf=0.001</code></td><td>검증 땐 점수 낮은 후보까지 거의 다 남김 → <b>왜?</b> PR 곡선을 끝까지(Recall이 높은 쪽까지) 그려야 AP를 제대로 잴 수 있어서</td></tr>
-        <tr><td><code>iou</code></td><td>여기서도 <b>NMS</b> 기준이에요. mAP50의 "50"(평가 IoU)과는 다른 값</td></tr>
-        <tr><td><code>metrics.box.map50</code> / <code>.map</code></td><td>mAP50 / mAP50-95</td></tr>
-        <tr><td><code>metrics.box.mp</code> / <code>.mr</code></td><td>평균 Precision / 평균 Recall</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 test가 아니라 val로 골라?</strong> — conf나 checkpoint를 test 점수 보면서 고르면, 그 test에 <b>맞춰진</b> 선택이 돼서 처음 보는 데이터 성능을 부풀려 말하게 돼요. 그래서 고르는 건 val, test는 마지막에 딱 한 번 확인용으로 남겨요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 검증 <code>model.val()</code> <a href="../commands.html#d15-model-val">명령어 사전에서 자세히 →</a></div>
+<pre><code>metrics = model.val(data="dataset.yaml", split="val", imgsz=640, conf=0.001, iou=0.7)
+print(metrics.box.map50)   # mAP50</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="yolo">③ YOLO 모델과 학습</h2>
@@ -308,30 +278,11 @@ names:
       <div class="callout">🤔 <strong>왜 사진을 일부러 섞고 흔들어?</strong> — 같은 사진만 계속 보면 "그 사진"을 외워 버려요(과적합). 위치·크기·밝기를 조금씩 바꿔 보여주면 실제 현장의 다양한 모습에 강해져요. 단, 사진을 움직이면 <b>박스도 똑같이</b> 움직여야 라벨이 맞아요.</div>
       <div class="callout warn">⚠️ 같은 원본에서 나온 사진(증강본, 연속 프레임)이 train과 val에 나눠 들어가면 안 돼요. 거의 같은 사진으로 채점하는 셈이라 점수가 실제보다 좋게 나와요(누수).</div>
 
-      <h3>🔧 명령어: 모델 만들기 <code>YOLO()</code> · 학습 <code>model.train()</code></h3>
-<pre><code>from ultralytics import YOLO
-
-if __name__ == "__main__":          # Windows: 보조 프로세스가 이 파일을 다시 실행해도 학습이 또 시작되지 않게
-    model = YOLO("yolo26n.pt")       # 학습된 뇌 불러오기 (.yaml이면 빈 뇌)
-    model.train(data="dataset.yaml", epochs=30, imgsz=640,
-                batch=16, device=0, workers=0)</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>data</code> <small>(필수)</small></td><td>dataset.yaml 경로</td><td>모델이 사진·라벨·클래스 이름을 여기서 찾아요</td></tr>
-        <tr><td><code>epochs</code></td><td>데이터 전체를 몇 바퀴 볼지</td><td>적으면 덜 배움. 많으면 train 사진을 외워서 val 점수가 멈추거나 떨어짐(과적합)</td></tr>
-        <tr><td><code>imgsz</code></td><td>사진을 몇 px로 맞춰 넣을지</td><td>크면 작은 물체가 픽셀 몇 개로 뭉개지지 않아 잘 보임. 대신 계산량이 크기²에 비례해 느려지고 메모리↑</td></tr>
-        <tr><td><code>batch</code></td><td>한 번에 넣는 사진 수</td><td>크면 한 번에 더 많이 봐서 학습이 안정적이지만 GPU 메모리를 더 씀 (부족하면 줄이기)</td></tr>
-        <tr><td><code>device</code></td><td><code>0</code> = GPU, <code>"cpu"</code> = CPU</td><td>GPU는 행렬 계산을 동시에 많이 해서 훨씬 빠름</td></tr>
-        <tr><td><code>workers</code></td><td>데이터 읽는 보조 프로세스 수</td><td>많으면 사진 읽기가 빨라짐. Windows에선 보조 프로세스가 파일을 다시 실행하며 오류가 날 수 있어 0 추천</td></tr>
-        <tr><td><code>seed</code></td><td>무작위 순서 고정</td><td>같은 seed면 다시 돌려도 결과가 비슷 → 비교 실험할 때 필요</td></tr>
-      </table>
-      <p><b>학습이 끝나면 생기는 것</b> (<code>runs/detect/train/</code>)</p>
-      <table>
-        <tr><td><code>weights/best.pt</code></td><td>검증 점수가 <b>가장 좋았던</b> epoch의 모델 → 보통 이걸 씀 (마지막 epoch가 꼭 제일 좋은 건 아니라서)</td></tr>
-        <tr><td><code>weights/last.pt</code></td><td><b>마지막</b> epoch의 모델 → 학습 이어하기(resume)용</td></tr>
-        <tr><td><code>results.csv</code> / <code>results.png</code></td><td>epoch별 loss·mAP 기록과 그래프</td></tr>
-        <tr><td><code>confusion_matrix.png</code></td><td>어떤 클래스를 어떤 클래스로 헷갈렸나</td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 모델 만들기 <code>YOLO()</code> · 학습 <code>model.train()</code> <a href="../commands.html#d15-yolo">명령어 사전에서 자세히 →</a></div>
+<pre><code>model = YOLO("yolo26n.pt")       # 학습된 뇌 불러오기 (.yaml이면 빈 뇌)
+model.train(data="dataset.yaml", epochs=30, imgsz=640, batch=16, device=0, workers=0)</code></pre>
+      </div>
       <figure id="fig-train-curves"><img class="smooth" src="img/day15/train_curves.png" alt="epoch별 train/val box loss 곡선과 mAP50, mAP50-95 곡선"><figcaption><b>무엇을 보나:</b> <code>results.csv</code>를 직접 그린 예예요(합성 도형으로 100 epoch 학습한 작은 데모 모델 — 수업 결과가 아니에요). 왼쪽은 loss가 들쭉날쭉하면서도 전체적으로 내려가고, 오른쪽은 한동안 0이다가 50 epoch쯤부터 점수가 생겨요. 초록(mAP50)은 늘 분홍(mAP50-95)보다 위에 있고, 그 <b>간격</b>이 박스가 엉성한 정도예요. 분홍 점은 mAP50-95가 가장 높았던 epoch예요. <b>🤔 왜?</b> 마지막 epoch가 꼭 최고가 아니기 때문에 이렇게 val 점수를 매 epoch 기록해 두고 가장 좋았던 순간을 <code>best.pt</code>로 저장해요(ultralytics 8.4는 val mAP50-95가 가장 높은 epoch를 고르니, 분홍 점이 바로 그 순간이에요).</figcaption></figure>
 
       <!-- ============================================================ -->
@@ -366,34 +317,16 @@ if __name__ == "__main__":          # Windows: 보조 프로세스가 이 파일
       <div class="callout">🤔 <strong>왜 conf를 바꾸면 P와 R이 반대로 움직여?</strong> — 기준을 낮추면 애매한 후보까지 통과해서 진짜도 더 잡히지만(Recall↑) 가짜도 같이 들어와요(Precision↓). 기준을 높이면 그 반대예요. 그래서 "놓치면 큰일"인 일(안전 감시)은 conf를 낮게, "헛알림이 피곤한" 일은 높게 잡아요.</div>
       <figure id="fig-conf-compare"><img class="smooth" src="img/day15/conf_compare.png" alt="같은 사진에 conf 0.05, 0.25, 0.5를 적용해 박스가 3개, 1개, 0개로 줄어드는 비교"><figcaption><b>무엇을 보나:</b> 같은 사진·같은 모델(작은 데모 모델)에서 <code>conf</code>만 0.05 → 0.25 → 0.5로 올렸어요. 박스가 3개 → 1개 → 0개로 줄고, 아래 줄의 R(Recall)은 2/3 → 1/3 → 0/3으로 떨어지지만 FP(주황)는 사라져 P는 2/3 → 1/1로 올라요. <b>🤔 왜?</b> conf는 "이 점수 미만은 안 보여 줌"이라는 커트라인이라, 올릴수록 애매한 후보(맞는 것도, 틀린 것도)가 함께 잘려 나가요. 모델은 그대로이고 <b>어디서 자르느냐</b>만 바뀐 거예요.</figcaption></figure>
 
-      <h3>🔧 명령어: 추론 <code>model.predict()</code></h3>
-<pre><code>model = YOLO("best.pt")
-results = model.predict(source="samples/", conf=0.25, iou=0.7, imgsz=640, save=True)</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th></tr>
-        <tr><td><code>source</code> <small>(필수)</small></td><td>사진 경로, 폴더, 영상, URL, 웹캠 번호(<code>0</code>), OpenCV 배열</td></tr>
-        <tr><td><code>conf</code></td><td>이 점수 미만 후보는 버림 (기본 0.25)</td></tr>
-        <tr><td><code>iou</code></td><td>NMS 겹침 기준 (기본 0.7)</td></tr>
-        <tr><td><code>save=True</code></td><td>박스 그린 이미지를 저장</td></tr>
-        <tr><td><code>stream=True</code></td><td>긴 영상은 이걸로 → 한 프레임씩 처리해 메모리 절약. <b>왜?</b> False면 모든 프레임 결과를 리스트에 다 쌓아 두고 한꺼번에 돌려줘서 메모리가 터질 수 있어요</td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 추론 <code>model.predict()</code> <a href="../commands.html#d15-model-predict">명령어 사전에서 자세히 →</a></div>
+<pre><code>results = model.predict(source="samples/", conf=0.25, iou=0.7, imgsz=640, save=True)</code></pre>
+      </div>
 
-      <h3>🔧 명령어: 결과 꺼내기 <code>result.boxes</code></h3>
-<pre><code>for result in results:                       # 사진 1장 = result 1개
-    for box, score, cls in zip(result.boxes.xyxy.cpu().numpy(),
-                               result.boxes.conf.cpu().numpy(),
-                               result.boxes.cls.cpu().numpy().astype(int)):
-        print(result.names[cls], round(float(score), 2), box)
-    cv2.imwrite("out.jpg", result.plot())    # 박스 그린 그림</code></pre>
-      <table>
-        <tr><th>속성</th><th>내용</th></tr>
-        <tr><td><code>boxes.xyxy</code></td><td>픽셀 좌표 [N, 4]</td></tr>
-        <tr><td><code>boxes.xywhn</code></td><td>정규화 중심 좌표 (라벨 형식)</td></tr>
-        <tr><td><code>boxes.conf</code> / <code>boxes.cls</code></td><td>점수 / 클래스 번호</td></tr>
-        <tr><td><code>result.names</code></td><td>번호 → 이름 사전 (<code>{0: 'helmet', ...}</code>)</td></tr>
-        <tr><td><code>result.plot()</code></td><td>박스 그린 이미지 (BGR 배열)</td></tr>
-      </table>
-      <div class="callout warn">⚠️ GPU 텐서는 <code>.cpu()</code> 후에 <code>.numpy()</code>. <b>왜?</b> numpy는 GPU 메모리를 직접 못 읽어서 먼저 CPU로 옮겨 와야 해요. 그리고 탐지가 없으면 boxes 길이가 0이니 에러가 아니라 정상.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 결과 꺼내기 <code>result.boxes</code> <a href="../commands.html#d15-result-boxes">명령어 사전에서 자세히 →</a></div>
+<pre><code>result.boxes.xyxy.cpu().numpy()          # [N, 4] 픽셀 좌표 (.conf · .cls도 같은 방식)
+cv2.imwrite("out.jpg", result.plot())    # 박스 그린 그림</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="track">⑤ 추적 (Tracking)</h2>
@@ -441,22 +374,11 @@ results = model.predict(source="samples/", conf=0.25, iou=0.7, imgsz=640, save=T
         <figcaption><b>무엇을 보나:</b> 보라(ID 7)와 주황(ID 8)이 서로를 향해 걸어와 엇갈려요. 가운데 프레임에서 7이 8 뒤에 가려져(점선) 탐지가 안 되고, 오른쪽에서 다시 나타났을 땐 <b>ID 9</b>라는 새 번호를 받았어요. <b>🤔 왜?</b> 추적기는 "직전 박스와 많이 겹치는 박스 = 같은 애"로 이어 붙이는데, 가려진 프레임엔 이을 박스가 없고, 다시 나타난 위치는 예상보다 멀어서 같은 애라고 확신하지 못하거든요. 그래서 2명이 지나갔는데 3명으로 세는 일이 생겨요(그림은 원리 설명용).</figcaption>
       </figure>
 
-      <h3>🔧 명령어: 추적 <code>model.track()</code></h3>
-<pre><code>model = YOLO("best.pt")
-for result in model.track(source="traffic.mp4", persist=True,
-                          tracker="botsort.yaml", stream=True):
-    if result.boxes.id is not None:
-        print(result.boxes.id.int().tolist())   # 프레임별 Track ID</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th></tr>
-        <tr><td><code>source</code></td><td>영상, 카메라, 연속 프레임</td></tr>
-        <tr><td><code>persist=True</code></td><td>이전 프레임 기억을 이어감 (같은 영상 안에서만!). <b>왜?</b> 이 기억이 있어야 "아까 7번"과 지금 박스를 이을 수 있어요. 다른 영상에 이어 쓰면 엉뚱한 영상의 기억이 섞여요</td></tr>
-        <tr><td><code>tracker</code></td><td><code>"botsort.yaml"</code>(기본) 또는 <code>"bytetrack.yaml"</code></td></tr>
-        <tr><td><code>result.boxes.id</code></td><td>Track ID (없으면 <code>None</code>)</td></tr>
-      </table>
-      <div class="callout warn">⚠️ 다른 영상으로 넘어갈 땐 <b>새 YOLO 객체</b>를 만들어 기억을 초기화.</div>
-      <div class="callout">🤔 <strong>왜 추적기만 바꿔서는 안 좋아져?</strong> — 추적은 탐지 결과를 <b>이어 붙이는</b> 단계라서, 탐지가 물체를 놓치면 이을 박스 자체가 없어요. 탐지 성능이 추적 품질의 천장이에요.</div>
-      <div class="callout warn">⚠️ 속도를 잴 땐 범위를 같이 적어요. "모델 추론 5ms"를 보고 200 FPS라고 하면 안 돼요. 영상 읽기·전처리·후처리·추적·저장 시간까지 더해야 실제 처리 속도예요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 추적 <code>model.track()</code> <a href="../commands.html#d15-model-track">명령어 사전에서 자세히 →</a></div>
+<pre><code>model.track(source="traffic.mp4", persist=True, tracker="botsort.yaml", stream=True)
+result.boxes.id.int().tolist()   # 프레임별 Track ID (없으면 id가 None)</code></pre>
+      </div>
       <figure id="fig-speed"><img class="smooth" src="img/day15/speed_breakdown.png" alt="사진 1장 처리 시간을 읽기, 전처리, 모델 추론, 후처리로 나눈 가로 막대와 추론만 본 막대 비교"><figcaption><b>무엇을 보나:</b> 작은 데모 모델로 CPU에서 160px 사진을 처리할 때 걸린 시간을 쪼갠 막대예요(<code>result.speed</code>의 preprocess · inference · postprocess + 직접 잰 imread, 여러 장의 중앙값). 위 막대가 실제 전체, 아래 빗금 막대는 "모델 추론"만 잘라 본 것 — 같은 실행인데 FPS 숫자가 달라져요. <b>🤔 왜?</b> 한 장이 결과가 되려면 읽기 → 전처리 → 추론 → 후처리를 <b>모두</b> 거쳐야 하니까 시간은 더해져요. 여기선 추론이 대부분이라 차이가 작지만, 큰 사진·영상 디코딩·추적·저장이 붙으면 추론 밖의 시간이 훨씬 커져요. 그래서 FPS를 말할 땐 "어디부터 어디까지 쟀는지"를 같이 적어요(숫자는 이 PC 기준이라 장비마다 달라요).</figcaption></figure>
 
       <!-- ============================================================ -->

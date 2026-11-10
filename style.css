@@ -420,3 +420,28 @@ a:hover { text-decoration: underline; }
 .zoom-ov img:not(.smooth) { image-rendering: pixelated; }
 .zoom-ov p { color: #fff; max-width: 900px; margin: 0; font-size: 0.95rem; line-height: 1.6; text-align: center; }
 .zoom-ov p b { color: #ffd6ea; }
+
+/* ----- 명령어 사전 연결 (Day 페이지 · commands.html) ----- */
+.cmdref { border: 2px dashed var(--accent-soft); border-radius: var(--radius); padding: 10px 14px; margin: 14px 0; background: var(--surface); }
+.cmdref-head { font-weight: 700; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; }
+.cmdref-head a { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
+.cmdref pre { margin: 8px 0 0; font-size: 0.85rem; }
+.cmd-toc { gap: 6px; }
+.cmd-toc .filter-btn { text-decoration: none; }
+.cmd-topic > h2 { margin-top: 28px; }
+h4.cmd-sub { margin: 22px 0 6px; color: var(--muted); font-size: 0.95rem; letter-spacing: 0.02em; }
+article.cmd { background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--accent); border-radius: var(--radius); padding: 6px 18px 12px; margin: 12px 0; box-shadow: var(--shadow); scroll-margin-top: 16px; }
+article.cmd .cmd-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+article.cmd .cmd-head h3 { margin: 12px 0 6px; }
+article.cmd .cmd-meta { font-size: 0.88rem; display: inline-flex; gap: 8px; align-items: center; }
+article.cmd.flash { animation: cmdflash 1.6s ease-out; }
+@keyframes cmdflash { 0% { box-shadow: 0 0 0 6px var(--accent-soft); } 100% { box-shadow: var(--shadow); } }
+/* 명령어 사전: 실제 실행 입력 → 출력 */
+.io { margin: 12px 0; border: 2px solid var(--cv-soft); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.io-title { font-weight: 800; padding: 8px 14px; background: var(--cv-soft); color: #087f5b; }
+.io-title small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+.note table.io-table { margin: 0; border-radius: 0; box-shadow: none; font-size: 0.86rem; }
+.io-table td:nth-child(2) code { white-space: pre; color: #087f5b; font-weight: 700; }
+.io-table td:nth-child(3) { color: var(--muted); font-size: 0.84rem; }
+[data-theme="night"] .io-title { color: #96f2d7; }
+[data-theme="night"] .io-table td:nth-child(2) code { color: #96f2d7; }

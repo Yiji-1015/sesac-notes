@@ -1,0 +1,388 @@
+<!-- Day10 명령어 — tools/split_commands.py 로 notes/day10.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="10">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day10.html#packages">📦 필요한 패키지</a></td><td><code>torch</code> (Day9 환경 유지) · 기록·그래프용 <code>pandas</code>, <code>matplotlib</code></td></tr>
+        <tr><td><a href="notes/day10.html#optim">① Optimizer</a></td><td><code>torch.optim.SGD(momentum=)</code>, <code>torch.optim.AdamW()</code></td></tr>
+        <tr><td><a href="notes/day10.html#lr">② 학습률 · Scheduler</a></td><td><code>lr=</code>, <code>ReduceLROnPlateau</code>, <code>scheduler.step(valid_loss)</code></td></tr>
+        <tr><td><a href="notes/day10.html#batch">③ Batch · Iteration · Epoch</a></td><td><code>DataLoader(batch_size=, shuffle=, drop_last=)</code>, <code>optimizer.zero_grad()</code> / <code>step()</code></td></tr>
+        <tr><td><a href="notes/day10.html#overfit">④ 과적합 · 학습 곡선</a></td><td><code>history</code> 기록, <code>torch.manual_seed()</code></td></tr>
+        <tr><td><a href="notes/day10.html#dropout">⑤ Dropout · BatchNorm</a></td><td><code>nn.Dropout(p)</code>, <code>nn.BatchNorm1d()</code>, <code>model.train()</code> / <code>model.eval()</code></td></tr>
+        <tr><td><a href="notes/day10.html#early">⑥ Weight Decay · Early Stopping</a></td><td><code>weight_decay=</code>, <code>copy.deepcopy(model.state_dict())</code>, <code>load_state_dict()</code></td></tr>
+      </table>
+</section>
+<section class="cmd" id="d10-optimizer만-바꿔-끼우기" data-topic="PyTorch" data-sub="Optimizer · 규제" data-day="10" data-theory="notes/day10.html#optim">
+  <h3>Optimizer만 바꿔 끼우기</h3>
+<pre><code>model = Net()
+loss_fn = nn.CrossEntropyLoss()
+
+# 선택 1
+optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9)
+# 선택 2
+optimizer = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.01)
+
+for xb, yb in train_loader:          # 학습 루프는 그대로!
+    optimizer.zero_grad()
+    loss = loss_fn(model(xb), yb)
+    loss.backward()
+    optimizer.step()</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>points.csv (train 240 · valid 80) · 2→32→32→2, seed 42, 같은 batch 순서, 20 epoch 뒤 valid</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>SGD(lr=0.05, momentum=0)</code></td><td><code>valid loss 0.3324 · acc 0.863  (epoch 1 train loss 0.6777)</code></td><td>momentum 없으면 20 epoch에 아직 덜 내려감</td></tr>
+    <tr><td><code>SGD(lr=0.05, momentum=0.9)</code></td><td><code>valid loss 0.0791 · acc 0.988  (epoch 1 train loss 0.6589)</code></td><td>이전 방향을 누적해 같은 lr로도 훨씬 빨리 내려감</td></tr>
+    <tr><td><code>AdamW(lr=0.01, weight_decay=0.01)</code></td><td><code>valid loss 0.0438 · acc 0.988  (epoch 1 train loss 0.5556)</code></td><td>파라미터마다 보폭을 조절 — 이 데이터·설정에선 이렇게 나왔을 뿐, 항상 1등은 아님</td></tr>
+    <tr><td><code>sorted(optimizer.state[첫 weight].keys())  (AdamW)</code></td><td><code>[&#x27;exp_avg&#x27;, &#x27;exp_avg_sq&#x27;, &#x27;step&#x27;]</code></td><td>step마다 쌓은 이동평균 — state_dict()에 같이 저장돼요</td></tr>
+  </table>
+</div>
+      <p>교재 설명 예시(같은 split · 40 epochs): SGD valid acc ≈ 0.913, AdamW ≈ 0.925. 초반 수렴 속도와 후반 변동이 달랐지만, 이 그래프 하나로 "항상 AdamW가 우수하다"고 결론 내리지 않아요.</p>
+      <p><code>torch.optim.SGD(params, lr=0.001, momentum=0, dampening=0, weight_decay=0, nesterov=False, ...)</code><br>
+      <code>torch.optim.AdamW(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.01, amsgrad=False, ...)</code></p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>params</code> <small>(필수)</small></td><td>갱신할 Parameter iterable, 보통 <code>model.parameters()</code></td><td>여기 없는 파라미터는 안 바뀜</td></tr>
+        <tr><td><code>lr</code></td><td>학습률 (SGD·AdamW 기본 0.001)</td><td>한 번에 움직이는 기본 크기 → <a href="notes/day10.html#lr">② 학습률과 Scheduler</a> 참고</td></tr>
+        <tr><td><code>momentum</code> <small>(SGD)</small></td><td>이전 방향 누적 비율 (기본 0)</td><td>0.9 정도면 흔들림↓, 같은 방향 가속. 0이면 순수 SGD</td></tr>
+        <tr><td><code>dampening</code> · <code>nesterov</code> <small>(SGD)</small></td><td>momentum 버퍼에 더하는 현재 기울기를 줄이는 계수 / Nesterov 방식 사용</td><td>보통 기본값 그대로</td></tr>
+        <tr><td><code>betas</code> <small>(AdamW)</small></td><td>두 이동평균(1차·2차) 계수 (기본 (0.9, 0.999))</td><td>값이 클수록 과거를 오래 기억해 변화가 느리고 부드러움</td></tr>
+        <tr><td><code>eps</code> <small>(AdamW)</small></td><td>0으로 나누기 방지 (기본 1e-8)</td><td>제곱 평균이 0에 가까울 때 보폭이 폭발하지 않게</td></tr>
+        <tr><td><code>amsgrad</code> · <code>maximize</code></td><td>변형 알고리즘 사용 / 최대화 문제 여부</td><td>보통 False</td></tr>
+        <tr><td><code>weight_decay</code></td><td>큰 가중치 억제 (SGD 기본 0, AdamW 기본 0.01)</td><td>키우면 가중치가 작게 유지 → 과적합↓, 너무 크면 Underfitting (<a href="notes/day10.html#early">⑥ Weight Decay</a>)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Optimizer만 바꿔 끼우고 나머지는 그대로 둬?</strong> — 결과가 달라졌을 때 그게 Optimizer 덕인지, 데이터 분할·seed·epoch가 바뀐 탓인지 구분하려면 <b>바꾼 조건이 하나</b>여야 해요. 학습 루프 구조(zero_grad → forward → loss → backward → step)는 Optimizer와 상관없이 똑같아서 객체만 교체하면 돼요.</div>
+      <div class="callout">💡 AdamW는 step마다 내부 상태(이동평균)를 갱신하고, 그 상태도 <code>optimizer.state_dict()</code>에 들어 있어요. 학습을 이어서 하려면 이것도 저장해요.</div>
+</section>
+
+<section class="cmd" id="d10-학습률-후보-비교" data-topic="PyTorch" data-sub="학습률" data-day="10" data-theory="notes/day10.html#lr">
+  <h3>학습률 후보 비교</h3>
+<pre><code>for lr in [0.0001, 0.01, 0.5]:
+    torch.manual_seed(7)                       # 고정: seed
+    model = Net()                              # 고정: 모델
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    history = train(model, optimizer, train_loader, valid_data, epochs=40)
+    print(lr, min(history["valid_loss"]))      # 바꾼 건 lr 하나뿐</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>points.csv (train 240 · valid 80) · AdamW, 후보마다 seed 7로 새 모델, 40 epoch</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>lr=0.0001 → min(history[&#x27;valid_loss&#x27;])</code></td><td><code>0.5696  (마지막 epoch 0.5696)</code></td><td>3등 — 너무 작아 40 epoch 동안 거의 제자리</td></tr>
+    <tr><td><code>lr=0.01 → min(history[&#x27;valid_loss&#x27;])</code></td><td><code>0.0223  (마지막 epoch 0.0255)</code></td><td>1등 — 가장 낮은 valid loss, 마지막까지 안정</td></tr>
+    <tr><td><code>lr=0.5 → min(history[&#x27;valid_loss&#x27;])</code></td><td><code>0.0230  (마지막 epoch 0.0608)</code></td><td>2등 — 최저값은 0.01과 거의 같지만 마지막엔 다시 올라감 — 큰 보폭으로 흔들림. 이 쉬운 데이터라 버틴 것</td></tr>
+    <tr><td><code>valid 기준으로 고른 lr</code></td><td><code>0.01</code></td><td>test는 고르는 데 쓰지 않아요</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 후보마다 seed를 다시 고정하고 모델을 새로 만들어?</strong> — 같은 초기 가중치에서 출발해야 차이가 오직 lr에서 왔다고 말할 수 있어요. 이전 후보로 학습된 모델을 이어 쓰면 출발점이 달라져 비교가 안 돼요. 그리고 고르는 기준은 valid예요. test는 후보 선택에 쓰지 않아요.</div>
+</section>
+
+<section class="cmd" id="d10-reducelronplateau" data-topic="PyTorch" data-sub="학습률" data-day="10" data-theory="notes/day10.html#lr">
+  <h3><code>ReduceLROnPlateau</code></h3>
+<pre><code>optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode="min", factor=0.5, patience=4, min_lr=1e-4)
+
+for epoch in range(epochs):
+    train_one_epoch(model, train_loader, optimizer)
+    valid_loss = evaluate_loss(model, valid_loader)
+    scheduler.step(valid_loss)                     # valid 후, 감시할 값을 넣어서!
+    current_lr = optimizer.param_groups[0]["lr"]   # 지금 lr 확인</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>가짜 loss 1.0을 계속 넣은 경우 · points.csv (train 240 · valid 80)로 60 epoch 실제 학습한 경우</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>valid_loss = 1.0 을 12번 step → 각 step 뒤 lr</code></td><td><code>0.01, 0.01, 0.01, 0.01, 0.01, 0.005, 0.005, 0.005, 0.005, 0.005, 0.0025, 0.0025</code></td><td>처음 값이 best, 그 뒤 5번째 &#x27;개선 없음&#x27;(patience 4 초과)에서 ×0.5, 다시 5번 뒤 또 ×0.5</td></tr>
+    <tr><td><code>실제 학습: lr이 바뀐 epoch</code></td><td><code>ep38: 0.005, ep51: 0.0025, ep59: 0.00125</code></td><td>valid loss가 정체할 때만 깎임</td></tr>
+    <tr><td><code>optimizer.param_groups[0][&#x27;lr&#x27;]  (학습 끝)</code></td><td><code>0.00125</code></td><td>60 epoch 동안 세 번 절반씩 — min_lr(1e-4)까지는 아직 여유</td></tr>
+    <tr><td><code>scheduler.step()  (값 없이)</code></td><td><code>TypeError: ReduceLROnPlateau.step() missing 1 required positional argument: &#x27;metrics&#x27;</code></td><td>감시할 값(metrics)이 필수 인자라 바로 오류</td></tr>
+  </table>
+</div>
+      <p><code>torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.1, patience=10, threshold=1e-4, cooldown=0, min_lr=0, eps=1e-8)</code></p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>optimizer</code> <small>(필수)</small></td><td>감쌀(lr을 조정할) Optimizer 객체</td><td></td></tr>
+        <tr><td><code>mode</code></td><td><code>"min"</code> = 값이 줄어야 좋음(loss), <code>"max"</code> = 커야 좋음(accuracy·F1)</td><td>감시 값과 방향이 반대면 좋아지고 있는데도 "정체"로 보고 lr을 깎아요</td></tr>
+        <tr><td><code>factor</code></td><td>lr에 곱할 배수 (기본 0.1)</td><td>0.5면 0.01 → 0.005 → 0.0025. 작을수록 한 번에 크게 깎음</td></tr>
+        <tr><td><code>patience</code></td><td>개선 없이 참아 줄 epoch 수 (기본 10)</td><td>작으면 잠깐 흔들려도 빨리 깎고, 크면 오래 기다림</td></tr>
+        <tr><td><code>threshold</code></td><td>"의미 있는 개선"으로 칠 최소 변화 (기본 1e-4)</td><td>키우면 아주 작은 개선은 개선으로 안 쳐요</td></tr>
+        <tr><td><code>cooldown</code>, <code>min_lr</code>, <code>eps</code></td><td>깎은 뒤 쉬는 epoch / lr 하한 / 이보다 작은 lr 변화는 적용 안 함</td><td>min_lr 아래로는 안 내려가요</td></tr>
+      </table>
+      <table>
+        <tr><th>교재 예시 구간</th><th>validation 상황</th><th>learning rate</th><th>해석</th></tr>
+        <tr><td>1~18 epoch</td><td>개선 또는 patience 이내</td><td>0.0100</td><td>기본 학습률 유지</td></tr>
+        <tr><td>19~23 epoch</td><td>의미 있는 개선 없음</td><td>0.0050</td><td>factor=0.5 적용</td></tr>
+        <tr><td>24~25 epoch</td><td>다시 정체</td><td>0.0025</td><td>두 번째 감소</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>ReduceLROnPlateau</code>는 <code>scheduler.step()</code>에 <b>감시할 값</b>(보통 valid loss)을 꼭 넣어야 해요. 값 없이 부르면 잘못된 사용이에요.</div>
+      <div class="callout">🤔 <strong>왜 학습 도중에 lr을 낮춰?</strong> — 처음엔 큰 보폭으로 빨리 내려가는 게 좋지만, 바닥 근처에선 같은 보폭이 오히려 바닥을 계속 넘나들게 해서 더 안 내려가요(정체). 이때 보폭을 줄이면 더 세밀하게 바닥으로 들어갈 수 있어요. "정체했는지"는 valid 결과를 봐야 알 수 있으니, <b>valid 계산 후</b> 그 값을 넣어 <code>step()</code>을 불러요.</div>
+</section>
+
+<section class="cmd" id="d10-dataloader" data-topic="PyTorch" data-sub="DataLoader · Batch" data-day="10" data-theory="notes/day10.html#batch">
+  <h3><code>DataLoader</code> 다시 보기</h3>
+<pre><code>train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, drop_last=False)
+valid_loader = DataLoader(valid_dataset, batch_size=32, shuffle=False)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>points.csv (train 240 · valid 80)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(train_loader), 각 batch 크기</code></td><td><code>8, [32, 32, 32, 32, 32, 32, 32, 16]</code></td><td>240 = 32×7 + 16 → 8 iteration / epoch</td></tr>
+    <tr><td><code>len(DataLoader(train_dataset, 32, drop_last=True))</code></td><td><code>7</code></td><td>16개짜리 마지막 batch를 버림 → 그 16개는 그 epoch에 안 씀</td></tr>
+    <tr><td><code>len(valid_loader), 각 batch 크기</code></td><td><code>3, [32, 32, 16]</code></td><td>80 = 32×2 + 16</td></tr>
+    <tr><td><code>train: epoch 두 번의 첫 샘플이 같나?</code></td><td><code>False</code></td><td>shuffle=True라 epoch마다 순서가 바뀜</td></tr>
+    <tr><td><code>valid: 두 번 돌린 첫 샘플이 같나?</code></td><td><code>True</code></td><td>shuffle=False라 순서 그대로</td></tr>
+  </table>
+</div>
+      <p><code>DataLoader(dataset, batch_size=1, shuffle=False, sampler=None, num_workers=0, collate_fn=None, pin_memory=False, drop_last=False, ...)</code></p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면? / 언제?</th></tr>
+        <tr><td><code>dataset</code> <small>(필수)</small></td><td>Dataset 객체 (또는 호환 dataset)</td><td></td></tr>
+        <tr><td><code>batch_size</code></td><td>batch당 샘플 수 (기본 1)</td><td>키우면 iteration↓·메모리↑·기울기 안정, 줄이면 반대</td></tr>
+        <tr><td><code>shuffle=True</code></td><td>epoch마다 순서 섞기</td><td><b>train</b>에서 — 매번 같은 순서면 순서 패턴의 영향을 받으니 섞어요</td></tr>
+        <tr><td><code>shuffle=False</code></td><td>순서 유지 (기본)</td><td><b>valid/test</b>에서 — 평가 결과와 ID·출력 순서가 매번 같게 유지돼요</td></tr>
+        <tr><td><code>drop_last=True</code></td><td>마지막 작은 batch 버림</td><td>BatchNorm에서 작은 batch가 문제일 때. 대신 그 epoch에 일부 샘플은 안 씀</td></tr>
+        <tr><td><code>num_workers</code>, <code>pin_memory</code></td><td>로딩 subprocess 수, CUDA 전송용 pinned memory</td><td>늘리면 로딩이 빨라질 수 있지만 Windows는 multiprocessing 시작 방식 확인 → 0부터</td></tr>
+        <tr><td><code>sampler</code>, <code>collate_fn</code></td><td>뽑는 방식 / 샘플 합치는 방식</td><td>sampler 쓰면 shuffle과 충돌 (둘 다 "순서"를 정하려 해서)</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d10-optimizer-zero-grad" data-topic="PyTorch" data-sub="DataLoader · Batch" data-day="10" data-theory="notes/day10.html#batch">
+  <h3><code>optimizer.zero_grad()</code> · <code>optimizer.step()</code></h3>
+<pre><code>optimizer.zero_grad(set_to_none=True)    # 이전 iteration의 gradient 제거
+loss = loss_fn(model(xb), yb)
+loss.backward()
+optimizer.step(closure=None)             # 현재 .grad와 optimizer 상태로 갱신</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>points.csv (train 240 · valid 80)의 batch 하나(32개), SGD lr=0.05</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>zero_grad(set_to_none=True) 후 weight.grad</code></td><td><code>None</code></td><td>처음엔 기울기 자체가 없음</td></tr>
+    <tr><td><code>loss.backward() 후 weight.grad.shape</code></td><td><code>(32, 2)</code></td><td>파라미터와 같은 shape로 채워짐</td></tr>
+    <tr><td><code>optimizer.step() 의 반환값 · weight 변화량(평균 절댓값)</code></td><td><code>None · 0.00032</code></td><td>step은 값을 돌려주지 않고 파라미터를 직접 고침</td></tr>
+    <tr><td><code>같은 batch의 loss: step 전 → 후</code></td><td><code>0.6991 → 0.6916</code></td><td>한 번 갱신하니 그 batch loss가 줄어듦</td></tr>
+    <tr><td><code>zero_grad(set_to_none=False) 후 weight.grad</code></td><td><code>0.0 (shape (32, 2))</code></td><td>None 대신 0으로 채운 Tensor</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>set_to_none</code></td><td>기본 True → <code>.grad</code>를 <code>None</code>으로</td><td>False면 0 Tensor로 채움. None과 0은 일부 동작이 달라요(None이면 그 파라미터는 "기울기 없음"으로 취급)</td></tr>
+        <tr><td><code>closure</code></td><td>loss를 다시 계산하는 함수</td><td>일부 특수 Optimizer용, 대부분 생략</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 순서가 언제나 <code>zero_grad → forward → loss → backward → step</code>?</strong> — iteration 하나는 "<b>이번 batch</b>의 기울기로 한 번 갱신"이에요. 지난 기울기를 먼저 지워야 이번 것만 남아요. 일부러 여러 batch의 기울기를 모으고 싶을 때(누적 학습, 예: GPU 메모리 부족 시 gradient accumulation)만 zero_grad 위치를 <b>의도적으로</b> 바꿔요.</div>
+</section>
+
+<section class="cmd" id="d10-epoch별-기록-남기기" data-topic="PyTorch" data-sub="학습 루프" data-day="10" data-theory="notes/day10.html#overfit">
+  <h3>epoch별 기록 남기기</h3>
+<pre><code>history = {"train_loss": [], "valid_loss": [], "train_acc": [], "valid_acc": []}
+for epoch in range(epochs):
+    train_loss, train_acc = train_one_epoch(...)
+    valid_loss, valid_acc = evaluate(...)          # 같은 eval 조건으로
+    history["train_loss"].append(train_loss)
+    history["valid_loss"].append(valid_loss)
+    history["train_acc"].append(train_acc)
+    history["valid_acc"].append(valid_acc)
+
+best_epoch = history["valid_loss"].index(min(history["valid_loss"])) + 1
+pd.DataFrame(history).to_csv("history.csv", index=False)
+plt.plot(history["train_loss"], label="train"); plt.plot(history["valid_loss"], label="valid"); plt.legend()</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>points.csv train 앞 60건만 학습 · valid 80 · 2→64→64→2, AdamW lr=0.01, 200 epoch</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(history[&#x27;valid_loss&#x27;])</code></td><td><code>200</code></td><td>epoch마다 하나씩</td></tr>
+    <tr><td><code>best_epoch</code></td><td><code>150</code></td><td>valid loss가 가장 낮았던 epoch</td></tr>
+    <tr><td><code>min(history[&#x27;valid_loss&#x27;]) → 마지막 valid loss</code></td><td><code>0.0313 → 0.0333</code></td><td>best 뒤로 valid가 조금 다시 올라감 → 마지막 모델 ≠ 최선 모델 (경계가 쉬운 데이터라 과적합은 약하게만 보여요)</td></tr>
+    <tr><td><code>train loss: 1 epoch → 마지막</code></td><td><code>0.7091 → 0.0009</code></td><td>train은 0에 붙도록 계속 내려감 — 60건을 외워 가는 중</td></tr>
+    <tr><td><code>valid acc: best_epoch → 마지막</code></td><td><code>0.988 → 0.988</code></td><td>loss는 올라도 정확도는 그대로 — 둘이 다른 말을 할 수 있어서 따로 기록</td></tr>
+    <tr><td><code>pd.DataFrame(history).shape</code></td><td><code>(200, 3)</code></td><td>CSV로 저장할 표: epoch × 기록 항목</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>기록 요령</th><th>왜?</th></tr>
+        <tr><td>loss와 metric(정확도)을 따로 저장</td><td>둘이 다른 결론을 낼 수 있음</td></tr>
+        <tr><td>epoch 번호, lr도 같이</td><td>Scheduler가 언제 lr을 바꿨는지 확인</td></tr>
+        <tr><td>CSV·그래프로 저장</td><td>다시 실행한 결과와 비교</td></tr>
+        <tr><td>train·valid를 같은 epoch 말, 같은 eval 조건으로</td><td>한쪽만 Dropout이 켜진 상태면 공정한 비교가 아님</td></tr>
+        <tr><td>최저 valid loss epoch 계산</td><td>마지막 모델 ≠ 최선 모델 (예: best_epoch = 13, last_epoch = 80)</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d10-torch-manual-seed" data-topic="PyTorch" data-sub="학습 루프" data-day="10" data-theory="notes/day10.html#overfit">
+  <h3>재현성 <code>torch.manual_seed()</code></h3>
+<pre><code>torch.manual_seed(42)     # PyTorch 난수 순서 고정</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Net() 첫 층 weight · range(10) 섞기</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>seed 42 → Net(), 다시 seed 42 → Net(): weight 같나?</code></td><td><code>True</code></td><td>같은 seed면 같은 초기 가중치</td></tr>
+    <tr><td><code>seed 다시 안 걸고 한 번 더 Net()</code></td><td><code>False</code></td><td>난수 순서가 이어져서 다른 값</td></tr>
+    <tr><td><code>Net()[0].weight[0]  (seed 42)</code></td><td><code>[0.5406, 0.5869]</code></td><td>이 PC·버전에서 실제로 나온 값</td></tr>
+    <tr><td><code>DataLoader(..., generator=Generator().manual_seed(43)) 순서 ×2</code></td><td><code>[5, 0, 7, 6, 4, 3, 2, 8, 9, 1] / [5, 0, 7, 6, 4, 3, 2, 8, 9, 1]</code></td><td>shuffle 순서는 Generator seed로 따로 고정</td></tr>
+  </table>
+</div>
+      <div class="callout warn">⚠️ seed를 고정해도 완전히 같은 결과가 안 나올 수 있어요. DataLoader shuffle에는 별도 Generator나 worker seed가 영향을 주고, GPU 연산·병렬 처리·알고리즘 선택 때문에 완전한 결정론을 얻으려면 속도를 손해 볼 수 있어요. 그래서 보고서에 <b>seed · 버전 · device · batch size · epoch · optimizer 설정</b>을 같이 적어요.</div>
+      <div class="callout">🤔 <strong>왜 seed를 고정해?</strong> — 초기 가중치, Dropout mask, 섞는 순서가 다 난수예요. seed가 매번 다르면 lr을 바꿔서 좋아진 건지 운이 좋았던 건지 알 수 없어요. 같은 seed로 조건을 하나씩 바꿔야 차이의 원인을 말할 수 있어요.</div>
+</section>
+
+<section class="cmd" id="d10-nn-dropout-p" data-topic="PyTorch" data-sub="Dropout · BatchNorm" data-day="10" data-theory="notes/day10.html#dropout">
+  <h3><code>nn.Dropout(p)</code></h3>
+<pre><code>class DropoutNet(nn.Module):
+    def __init__(self, p=0.3):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(2, 64), nn.ReLU(), nn.Dropout(p),
+            nn.Linear(64, 64), nn.ReLU(), nn.Dropout(p),
+            nn.Linear(64, 2))
+    def forward(self, x):
+        return self.net(x)            # (batch, 2) → (batch, 64) → (batch, 64) → (batch, 2)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>nn.Dropout(p=0.3), 입력 torch.ones(1, 10)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>train 모드: dropout(x)</code></td><td><code>[0.0, 0.0, 1.4286, 0.0, 1.4286, 0.0, 1.4286, 1.4286, 1.4286, 1.4286]</code></td><td>꺼진 칸은 0, 남은 칸은 1/(1−0.3) ≈ 1.4286배</td></tr>
+    <tr><td><code>train 모드: 10만 칸 중 0이 된 비율</code></td><td><code>0.3007</code></td><td>정확히 30%가 아니라 확률적으로 약 30%</td></tr>
+    <tr><td><code>train 모드: 10만 칸 평균</code></td><td><code>0.9990</code></td><td>키워 준 덕에 평균이 1 근처로 유지</td></tr>
+    <tr><td><code>eval 모드: dropout(x)</code></td><td><code>[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]</code></td><td>그대로 통과(identity)</td></tr>
+    <tr><td><code>dropout(x).shape</code></td><td><code>(1, 10)</code></td><td>입력 shape와 같음</td></tr>
+  </table>
+</div>
+      <p><code>torch.nn.Dropout(p=0.5, inplace=False)</code> — 필수 인자 없음. 입력과 출력 shape가 같고, eval 모드에선 identity(그대로 통과).</p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>p</code></td><td>원소 하나를 0으로 만들 확률 (기본 0.5)</td><td>p=0.3이어도 매번 정확히 30%가 꺼지는 건 아님(확률). 키우면 규제가 강해지지만, 너무 크면 정보가 너무 많이 사라져 train도 안 오르는 Underfitting (특히 작은 데이터)</td></tr>
+        <tr><td><code>inplace</code></td><td>입력을 직접 수정할지 (기본 False)</td><td>True면 메모리를 조금 아끼지만 원본 값이 사라짐</td></tr>
+      </table>
+      <div class="callout warn">⚠️ Dropout에서 흔한 실수: 평가 전에 <code>model.eval()</code>을 안 불러 예측이 실행마다 달라짐 · p를 너무 크게 · Dropout 추가하면서 다른 조건까지 같이 바꿔 효과를 구분 못 함.</div>
+</section>
+
+<section class="cmd" id="d10-nn-batchnorm1d" data-topic="PyTorch" data-sub="Dropout · BatchNorm" data-day="10" data-theory="notes/day10.html#dropout">
+  <h3><code>nn.BatchNorm1d()</code></h3>
+<pre><code>self.net = nn.Sequential(
+    nn.Linear(2, 64), nn.BatchNorm1d(64), nn.ReLU(),
+    nn.Linear(64, 64), nn.BatchNorm1d(64), nn.ReLU(),
+    nn.Linear(64, 2))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>nn.BatchNorm1d(4), 입력 randn(32, 4) × 3 + 5 (평균 ≈ 5, 표준편차 ≈ 3)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>train: out.mean(0)</code></td><td><code>[0.0, -0.0, -0.0, 0.0]</code></td><td>batch 통계로 정규화 → 특성마다 평균 0</td></tr>
+    <tr><td><code>train: out.std(0)</code></td><td><code>[1.016, 1.016, 1.016, 1.016]</code></td><td>≈ 1 (std()는 n−1로 나눠서 1보다 살짝 큼)</td></tr>
+    <tr><td><code>bn.running_mean  (batch 한 번 본 뒤)</code></td><td><code>[0.44, 0.509, 0.563, 0.551]</code></td><td>0에서 출발해 momentum 0.1만큼만 batch 평균 쪽으로</td></tr>
+    <tr><td><code>eval: out.mean(0)</code></td><td><code>[3.007, 2.97, 3.98, 3.716]</code></td><td>eval은 running 통계를 써서 아직 평균 0이 아님</td></tr>
+    <tr><td><code>train 모드에서 bn(torch.randn(1, 4))</code></td><td><code>ValueError: Expected more than 1 value per channel when training, got input size torch.Size(…</code></td><td>batch가 1이면 분산을 못 구해 오류</td></tr>
+    <tr><td><code>nn.BatchNorm1d(64)에 (32, 32) 입력</code></td><td><code>RuntimeError: running_mean should contain 32 elements not 64</code></td><td>num_features가 앞 Linear out_features와 달라서 오류</td></tr>
+    <tr><td><code>sorted(bn.state_dict().keys())</code></td><td><code>[&#x27;bias&#x27;, &#x27;num_batches_tracked&#x27;, &#x27;running_mean&#x27;, &#x27;running_var&#x27;, &#x27;weight&#x27;]</code></td><td>학습 파라미터 + running 통계가 함께 저장</td></tr>
+  </table>
+</div>
+      <p><code>torch.nn.BatchNorm1d(num_features, eps=1e-5, momentum=0.1, affine=True, track_running_stats=True, device=None, dtype=None)</code> — 흔한 배치: <code>Linear → BatchNorm1d → ReLU</code></p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>num_features</code> <small>(필수)</small></td><td>입력 특성 수 C. 2D 입력이면 (N, C)</td><td><b>앞 Linear의 out_features와 같아야</b> 함. 다르면 shape 오류</td></tr>
+        <tr><td><code>eps</code></td><td>분모에 더하는 작은 값 (기본 1e-5)</td><td>분산이 0에 가까워도 0으로 나누지 않게 하는 안전장치</td></tr>
+        <tr><td><code>momentum</code></td><td>running 통계 갱신 계수 (기본 0.1)</td><td>키우면 최근 batch를 더 많이 반영. Optimizer momentum과 다른 것</td></tr>
+        <tr><td><code>affine</code></td><td>학습되는 scale·bias 사용 (기본 True)</td><td>False면 정규화만 하고 다시 조절할 수 없음</td></tr>
+        <tr><td><code>track_running_stats</code></td><td>running 통계를 저장할지 (기본 True)</td><td>False면 eval에서도 batch 통계를 씀</td></tr>
+      </table>
+      <div class="callout">💡 BatchNorm은 학습되는 weight·bias와 <code>running_mean</code>·<code>running_var</code>를 함께 상태(<code>state_dict</code>)로 저장해요. Dropout과 같이 쓸 때는 목적과 순서를 명시하고 실험으로 확인해요.</div>
+      <div class="callout warn">⚠️ BatchNorm은 batch 통계를 쓰니까 <b>batch_size=1</b>로 학습하면 문제가 생길 수 있어요. 작은 batch는 통계가 불안정하니 batch 크기와 같이 해석해요.</div>
+</section>
+
+<section class="cmd" id="d10-model-train" data-topic="PyTorch" data-sub="Dropout · BatchNorm" data-day="10" data-theory="notes/day10.html#dropout">
+  <h3><code>model.train()</code> · <code>model.eval()</code></h3>
+<pre><code>model.train()                 # 학습 모드 (= train(True))
+...
+model.eval()                  # 평가 모드 (= train(False))
+with torch.no_grad():         # 기울기 기록 끄기는 따로!
+    logits = model(x_valid)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Net(dropout=0.3), valid 앞 5건</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model.train() → model(x) 두 번 같나?</code></td><td><code>False</code></td><td>Dropout이 매번 다른 칸을 꺼서 달라짐</td></tr>
+    <tr><td><code>model.eval() → model(x) 두 번 같나?</code></td><td><code>True</code></td><td>Dropout 꺼짐 → 같은 입력 = 같은 출력</td></tr>
+    <tr><td><code>model.eval() is model</code></td><td><code>True</code></td><td>self를 돌려줘서 이어 쓸 수 있음</td></tr>
+    <tr><td><code>model.training, model[3].training</code></td><td><code>False, False</code></td><td>하위 층(Dropout)까지 한꺼번에 바뀜</td></tr>
+    <tr><td><code>eval()만 하고 no_grad 없이: model(x).requires_grad</code></td><td><code>True</code></td><td>eval은 기울기 기록을 끄지 않음 → no_grad는 따로</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>model.train(mode=True)</code></td><td>Module(과 하위 층 전부)을 training mode로</td><td><code>mode=False</code>면 eval과 같은 상태</td></tr>
+        <tr><td><code>model.eval()</code></td><td>evaluation mode로 (<code>train(False)</code>와 동일)</td><td>Dropout 비활성, BatchNorm은 running 통계 사용</td></tr>
+        <tr><td><code>torch.no_grad()</code> / <code>torch.inference_mode()</code></td><td>gradient 기록 끄기</td><td>eval()과는 별개 스위치 → 평가 땐 함께</td></tr>
+      </table>
+      <div class="callout">💡 <code>eval()</code>은 Dropout·BatchNorm의 <b>동작</b>만 바꿔요. 기울기 계산을 끄는 건 <code>torch.no_grad()</code> 또는 <code>torch.inference_mode()</code>예요. 둘 다 <code>self</code>를 돌려줘서 <code>model.eval()</code>처럼 바로 이어 쓸 수 있어요.</div>
+      <div class="callout">🤔 <strong>왜 eval()을 꼭 불러?</strong> — 안 부르면 평가 중에도 Dropout이 무작위로 뉴런을 끄고, BatchNorm이 평가 batch 통계를 써요(running 통계도 바뀌어요). 그러면 같은 입력의 예측이 실행마다 달라지고, 설정끼리 valid 성능 비교도 불안정해져요. 평가가 끝나고 다시 학습할 땐 <code>model.train()</code>으로 돌려놔요.</div>
+</section>
+
+<section class="cmd" id="d10-파라미터-그룹으로-weight-decay-다르게-주기" data-topic="PyTorch" data-sub="Optimizer · 규제" data-day="10" data-theory="notes/day10.html#early">
+  <h3>파라미터 그룹으로 weight decay 다르게 주기</h3>
+<pre><code>decay, no_decay = [], []
+for layer in model.modules():
+    for name, p in layer.named_parameters(recurse=False):
+        if name == "bias" or isinstance(layer, nn.BatchNorm1d):
+            no_decay.append(p)          # bias·BatchNorm은 감쇠 제외
+        else:
+            decay.append(p)
+
+optimizer = torch.optim.AdamW([
+    {"params": decay, "weight_decay": 0.01},
+    {"params": no_decay, "weight_decay": 0.0},
+], lr=0.001)
+print(len(optimizer.param_groups))      # 2</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Net(width=64, bn=True): Linear 3개 + BatchNorm1d 2개</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(decay), len(no_decay)</code></td><td><code>3, 7</code></td><td>Linear weight 3개 / Linear bias 3 + BN weight·bias 4</td></tr>
+    <tr><td><code>[tuple(p.shape) for p in decay]</code></td><td><code>[(64, 2), (64, 64), (2, 64)]</code></td><td>입력에 곱해지는 가중치만</td></tr>
+    <tr><td><code>len(optimizer.param_groups)</code></td><td><code>2</code></td><td>그룹 2개</td></tr>
+    <tr><td><code>[g[&#x27;weight_decay&#x27;] for g in optimizer.param_groups]</code></td><td><code>[0.01, 0.0]</code></td><td>그룹마다 다른 감쇠</td></tr>
+    <tr><td><code>[g[&#x27;lr&#x27;] for g in optimizer.param_groups]</code></td><td><code>[0.001, 0.001]</code></td><td>그룹에 안 적은 lr은 바깥 기본값을 같이 씀</td></tr>
+    <tr><td><code>파라미터 총수 = decay + no_decay ?</code></td><td><code>True</code></td><td>빠진 파라미터 없음</td></tr>
+  </table>
+</div>
+      <div class="callout">💡 초급 단계에선 전체에 같은 weight_decay를 주는 것부터 시작해도 돼요. 그룹 나누기는 다음 단계 기술이에요. 모듈 유형(<code>isinstance</code>)으로 BatchNorm을 판별하니 Sequential의 숫자 이름(<code>0</code>, <code>1</code> …)에도 그대로 적용돼요.</div>
+      <div class="callout">🤔 <strong>왜 bias·BatchNorm은 감쇠에서 빼기도 해?</strong> — weight decay의 목적은 입력에 곱해지는 가중치가 지나치게 커지는 걸 막는 거예요. bias는 출력 위치만 옮기고, BatchNorm의 scale·shift는 정규화 뒤 범위를 되돌리는 역할이라 0쪽으로 끌어당기면 오히려 그 역할을 방해할 수 있어요.</div>
+</section>
+
+<section class="cmd" id="d10-early-stopping-직접-짜기" data-topic="PyTorch" data-sub="Optimizer · 규제" data-day="10" data-theory="notes/day10.html#early">
+  <h3>Early Stopping 직접 짜기</h3>
+<pre><code>import copy
+best_loss = reference = float("inf")
+wait = 0
+for epoch in range(max_epochs):
+    train_one_epoch(...)
+    valid_loss = evaluate_loss(...)
+    if valid_loss &lt; best_loss:                      # 조금이라도 좋아지면 best 저장
+        best_loss = valid_loss
+        best_state = copy.deepcopy(model.state_dict())
+    if valid_loss &lt; reference - min_delta:          # 충분히 좋아졌나? (patience 기준)
+        reference, wait = valid_loss, 0
+    else:
+        wait += 1
+        if wait &gt;= patience:
+            break
+model.load_state_dict(best_state)                   # 멈춘 시점이 아니라 best로!</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>교재 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>valid loss 1.00, .80, .79, .78, .70 / min_delta=.05, patience=2</code></td><td><code>멈춘 epoch 4, best epoch 4 (loss 0.78)</code></td><td>.79·.78은 충분한 개선이 아니라 대기 1·2 → 4에서 멈춤, best는 .78 (.70은 보지도 못함)</td></tr>
+    <tr><td><code>실제 학습: best epoch → 멈춘 epoch</code></td><td><code>69 → 79</code></td><td>best 뒤 10 epoch 동안 0.001 넘게 좋아지지 않아 중단</td></tr>
+    <tr><td><code>멈춘 시점 valid loss</code></td><td><code>0.0276</code></td><td>그냥 쓰면 best보다 나쁜 모델</td></tr>
+    <tr><td><code>model.load_state_dict(best_state) 후 valid loss</code></td><td><code>0.0265</code></td><td>best epoch의 값(0.0265)으로 정확히 돌아옴</td></tr>
+    <tr><td><code>deepcopy 없이 담은 state_dict()가 학습 후 바뀌었나?</code></td><td><code>True</code></td><td>그냥 담으면 지금 가중치를 가리켜서 같이 바뀜 → deepcopy 필요</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령</th><th>뜻</th><th>주의</th></tr>
+        <tr><td><code>model.state_dict()</code></td><td>모델의 모든 가중치(·BN 통계) 묶음</td><td>그냥 담으면 학습하면서 같이 바뀜</td></tr>
+        <tr><td><code>copy.deepcopy(…)</code></td><td>그 순간 값을 통째로 복사</td><td>best 저장엔 꼭 deepcopy</td></tr>
+        <tr><td><code>model.load_state_dict(best_state)</code></td><td>저장한 상태로 되돌림</td><td>멈춘 뒤 반드시 호출</td></tr>
+        <tr><td><code>patience</code></td><td>개선 없이 기다려 줄 epoch 수</td><td>작으면 잠깐 흔들려도 일찍 멈춤(덜 학습 위험), 크면 오래 더 돌아 시간 낭비</td></tr>
+        <tr><td><code>min_delta</code></td><td>개선으로 인정할 최소 변화량</td><td>키우면 아주 작은 개선은 "개선 아님"으로 쳐서 더 빨리 멈춤</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>best_loss</code>와 <code>reference</code>를 따로 둬?</strong> — 역할이 달라서예요. <code>best_loss</code>는 "가장 좋았던 모델"을 저장하려고 <b>작은 개선도</b> 다 기록하고, <code>reference</code>는 "기다림을 리셋할 만큼 충분히 좋아졌나"를 min_delta 기준으로 판단해요. 교재 예: loss 1.00 → .80 → .79 → .78, min_delta=.05, patience=2 → .79와 .78은 .80보다 0.05 이상 좋아진 게 아니라 대기 1·2회 → 4번째에 중단. 하지만 best는 <b>.78</b>로 저장돼 있어요.<br>
+      🤔 <strong>왜 <code>copy.deepcopy</code>?</strong> — <code>state_dict()</code>는 지금 학습 중인 가중치를 <b>가리키는</b> 묶음이라, 그냥 담아 두면 다음 epoch 학습 때 같이 바뀌어 버려요. 그 순간 값을 통째로 복사해야 best가 보존돼요.</div>
+      <div class="callout">💡 Scheduler와 같이 쓸 땐 순서가 <code>train → valid loss → scheduler.step(valid_loss) → best 저장·patience 확인</code>. 보통 <b>Early Stopping의 patience를 Scheduler보다 길게</b> 둬서, lr을 낮춘 뒤 다시 좋아질 기회를 줘요. (교재 예시: best epoch 13, stop epoch 25 → 최종 모델은 13 epoch 상태)</div>
+      <div class="callout">🤔 <strong>왜 Early Stopping patience가 더 길어야 해?</strong> — 둘 다 "정체"를 보고 반응해요. Early Stopping이 먼저 끝나 버리면 Scheduler가 lr을 낮춰 볼 기회가 없어요. Scheduler가 먼저 lr을 줄이고, 그래도 안 좋아질 때 Early Stopping이 멈추게 하려면 기다리는 시간이 더 길어야 해요.</div>
+</section>

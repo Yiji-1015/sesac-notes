@@ -1,0 +1,364 @@
+<!-- Day6 명령어 — tools/split_commands.py 로 notes/day06.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="6">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day06.html#packages">📦 필요한 패키지</a></td><td><code>pip install numpy pandas scikit-learn</code></td></tr>
+        <tr><td><a href="notes/day06.html#linear">① 선형회귀</a></td><td><code>LinearRegression()</code>, <code>.fit()</code>, <code>.coef_</code>, <code>.intercept_</code></td></tr>
+        <tr><td><a href="notes/day06.html#regmetrics">② 회귀 지표 · 기준선</a></td><td><code>mean_absolute_error</code>, <code>root_mean_squared_error</code>, <code>r2_score</code>, <code>DummyRegressor</code></td></tr>
+        <tr><td><a href="notes/day06.html#logistic">③ 로지스틱회귀 · 분류 지표</a></td><td><code>LogisticRegression(C=, max_iter=)</code>, <code>predict_proba</code>, <code>confusion_matrix</code>, <code>f1_score</code></td></tr>
+        <tr><td><a href="notes/day06.html#knn">④ KNN</a></td><td><code>KNeighborsClassifier</code> / <code>KNeighborsRegressor(n_neighbors=, weights=, p=)</code>, <code>kneighbors()</code></td></tr>
+        <tr><td><a href="notes/day06.html#scaling">⑤ 스케일링 · Pipeline</a></td><td><code>StandardScaler</code>, <code>MinMaxScaler</code>, <code>ColumnTransformer</code>, <code>Pipeline</code></td></tr>
+        <tr><td><a href="notes/day06.html#compare">⑥ 하이퍼파라미터 · 공정한 비교</a></td><td><code>for k in [...]</code> 반복 비교, <code>DummyClassifier</code>, <code>zero_division=0</code></td></tr>
+        <tr><td><a href="notes/day06.html#checks">⑦ 자동 검사 · 저장/복원</a></td><td><code>statistics_</code>, <code>np.array_equal</code>, <code>joblib.dump</code> / <code>joblib.load</code></td></tr>
+      </table>
+</section>
+<section class="cmd" id="d6-linearregression" data-topic="scikit-learn" data-sub="선형회귀" data-day="6" data-theory="notes/day06.html#linear">
+  <h3><code>LinearRegression()</code></h3>
+<pre><code>import numpy as np
+from sklearn.linear_model import LinearRegression
+
+X = np.array([[1], [2], [3], [4], [5]])     # 공부시간 (2차원: 행 5 × 열 1)
+y = np.array([52, 61, 69, 80, 89])          # 점수
+
+model = LinearRegression()
+model.fit(X, y)
+print("기울기:", model.coef_.round(1))        # [9.3]
+print("절편:", round(model.intercept_, 1))    # 42.3
+print("6시간:", model.predict([[6]]).round(1)) # [98.1]</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 공부시간 예제 5행</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>X.shape</code></td><td><code>(5, 1)</code></td><td>행 5(사례) × 열 1(특성) — 2차원</td></tr>
+    <tr><td><code>model.coef_</code></td><td><code>[9.30]</code></td><td>1시간당 약 9.3점 — 특성마다 하나라 배열</td></tr>
+    <tr><td><code>model.intercept_</code></td><td><code>42.30</code></td><td>x=0일 때 높이 42.3</td></tr>
+    <tr><td><code>model.predict([[6]])</code></td><td><code>[98.10]</code></td><td>9.3 × 6 + 42.3</td></tr>
+    <tr><td><code>model.predict([6])</code></td><td><code>ValueError: Expected 2D array, got 1D array instead</code></td><td>1차원을 넣으면 에러 — [[6]]이어야 함</td></tr>
+    <tr><td><code>hasattr(LinearRegression(), &quot;coef_&quot;)</code></td><td><code>False</code></td><td>fit 전엔 _ 속성이 없음</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 속성</th><th>뜻</th><th>주의</th></tr>
+        <tr><td><code>fit(X, y)</code></td><td>계수와 절편을 학습</td><td>X는 항상 <b>2차원</b> (행 × 열). 왜? 행 = 사례, 열 = 특성이라는 약속이라 특성이 1개여도 "열 1개짜리 표"로 줘야 해요</td></tr>
+        <tr><td><code>coef_</code> / <code>intercept_</code></td><td>학습된 기울기 / 절편</td><td>끝에 <code>_</code>가 붙은 건 "학습 후 생기는 값" (fit 전에는 없음)</td></tr>
+        <tr><td><code>predict([[6]])</code></td><td>새 입력 1행 × 1열을 예측</td><td><code>[6]</code>이 아니라 <code>[[6]]</code>. 6시간 → 9.3×6 + 42.3 ≈ 98.1</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 기울기가 9.3이지?</strong> — 점수 [52, 61, 69, 80, 89]는 1시간 늘 때마다 대략 9~11점씩 올라요. 잔차제곱합이 가장 작아지도록 평균적인 증가폭을 고르면 9.3, 그 직선이 x=0에서 만나는 높이가 42.3이에요.</div>
+</section>
+
+<section class="cmd" id="d6-회귀-지표" data-topic="scikit-learn" data-sub="회귀 지표" data-day="6" data-theory="notes/day06.html#regmetrics">
+  <h3>회귀 지표</h3>
+<pre><code>from sklearn.metrics import (mean_absolute_error,
+                             root_mean_squared_error, r2_score)
+from sklearn.dummy import DummyRegressor
+
+y_true = [100, 200, 300]
+y_pred = [120, 180, 360]
+print("MAE:", round(mean_absolute_error(y_true, y_pred), 2))       # 33.33
+print("RMSE:", round(root_mean_squared_error(y_true, y_pred), 2))  # 38.3
+print("R2:", round(r2_score(y_true, y_pred), 2))                   # 0.78
+
+base = DummyRegressor(strategy="mean").fit(X_train, yr_train)      # 기준선</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>작은 배열 3개 + 강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>mean_absolute_error(y_true, y_pred)</code></td><td><code>33.33</code></td><td>(20+20+60)/3</td></tr>
+    <tr><td><code>root_mean_squared_error(y_true, y_pred)</code></td><td><code>38.30</code></td><td>큰 오차 60이 제곱돼 MAE보다 큼</td></tr>
+    <tr><td><code>r2_score(y_true, y_pred)</code></td><td><code>0.78</code></td><td>평균선보다 오차 제곱합이 78% 작음</td></tr>
+    <tr><td><code>r2_score(y_pred, y_true)  (순서 바꿈)</code></td><td><code>0.86</code></td><td>R²는 첫 인자의 평균이 기준이라 값이 달라짐</td></tr>
+    <tr><td><code>Linear: MAE · RMSE · R² (valid)</code></td><td><code>551.8 · 640.0 · -0.097</code></td><td>R²가 음수 — 입력만으론 소요시간 신호가 약함</td></tr>
+    <tr><td><code>DummyRegressor(mean): 같은 지표</code></td><td><code>541.3 · 658.7 · -0.162</code></td><td>train 평균만 말해도 MAE는 Linear보다 작음</td></tr>
+    <tr><td><code>base.predict(X_valid)[:3]</code></td><td><code>[1235.2, 1235.2, 1235.2]</code></td><td>모두 train 평균 1235.2ms</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>y_true, y_pred</code></td><td>순서가 맞는 실제값 / 예측값</td><td>두 인자를 바꿔 넣으면 R²가 달라짐 — R²는 <b>y_true의 평균</b>을 기준으로 삼기 때문 (MAE·RMSE는 차이의 크기만 보니 같음)</td></tr>
+        <tr><td><code>strategy="mean"</code></td><td>train y 평균을 예측</td><td><code>"median"</code>이면 중앙값 — 중앙값은 극단값에 덜 끌려가서 MAE 기준선으로 더 맞음</td></tr>
+      </table>
+      <p>작은 배열이 아니라 공통 자료(전처리 + 선형회귀)로 valid 20건을 예측하면 결과는 <b>MAE 551.8 · RMSE 640.0 · R² −0.097</b>이에요(<code>reg.fit(X_train, yr_train)</code> → <code>reg.predict(X_valid)</code>, fit은 train에만).</p>
+      <div class="callout warn">⚠️ 큰 오류는 <b>지우지 말고</b> 먼저 입력·단위·누수 여부를 확인해요. valid를 보고 임의로 행을 삭제하면 비교가 무너져요. 잔차(실제 − 예측)가 <b>양수</b>면 실제가 더 오래 걸린 것, <b>음수</b>면 실제보다 오래 걸린다고 예측한 것이에요.</div>
+      <div class="callout">🤔 <strong>왜 지우면 안 되지?</strong> — valid를 보고 "틀린 행"을 빼면 점수는 좋아지지만, 그건 모델이 나아진 게 아니라 <b>시험지를 고친 것</b>이에요. 실서비스에서도 그런 요청은 또 들어오니까, 왜 틀렸는지(입력 오류? 단위? 누수?)를 먼저 밝혀야 해요.</div>
+</section>
+
+<section class="cmd" id="d6-logisticregression" data-topic="scikit-learn" data-sub="로지스틱회귀 · 임계값" data-day="6" data-theory="notes/day06.html#logistic">
+  <h3><code>LogisticRegression</code> · <code>predict_proba</code></h3>
+<pre><code>from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score
+
+clf = build(LogisticRegression(C=1.0, max_iter=1000))   # build = 전처리+모델 Pipeline (<a href="notes/day06.html#scaling">⑤ 스케일링과 Pipeline</a> 참고)
+clf.fit(X_train, y_train)
+
+classes = clf.named_steps["model"].classes_             # [0, 1]
+pos = list(classes).index(1)                            # 실패(1)가 몇 번째 열?
+p = clf.predict_proba(X_valid)[:, pos]                  # 실패 확률
+pred = clf.predict(X_valid)                             # 0/1 클래스
+
+print(confusion_matrix(y_valid, pred, labels=[0, 1]))   # [[10 4] [4 2]]
+print("Accuracy:", accuracy_score(y_valid, pred))
+print("F1:", f1_score(y_valid, pred))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>clf.named_steps[&quot;model&quot;].classes_</code></td><td><code>[0, 1]</code></td><td>predict_proba 열 순서 → 실패(1)는 1번 열</td></tr>
+    <tr><td><code>clf.predict_proba(X_valid).shape</code></td><td><code>(20, 2)</code></td><td>행마다 [P(0), P(1)], 합은 1</td></tr>
+    <tr><td><code>p[:4]  (실패 확률)</code></td><td><code>[0.141, 0.185, 0.601, 0.745]</code></td><td>확신 정도가 서로 다름</td></tr>
+    <tr><td><code>clf.predict(X_valid)[:4]</code></td><td><code>[0, 0, 1, 1]</code></td><td>확률을 0.5에서 자른 결과</td></tr>
+    <tr><td><code>confusion_matrix(y_valid, pred, labels=[0, 1])</code></td><td><code>[[10, 4], [4, 2]]</code></td><td>[[TN FP] [FN TP]] = [[10 4] [4 2]]</td></tr>
+    <tr><td><code>accuracy_score · f1_score</code></td><td><code>0.600 · 0.333</code></td><td>Accuracy는 Dummy(0.70)보다도 낮음</td></tr>
+    <tr><td><code>C=0.01일 때 |계수| 합 vs C=1</code></td><td><code>0.205 vs 3.496</code></td><td>C가 작을수록 규제↑ → 계수가 눌림</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>C=1.0</code></td><td>규제 강도의 <b>역수</b></td><td>작게 → 규제↑(계수가 작게 눌려 단순한 모델, 과적합↓·과소적합 위험↑), 크게 → 규제↓(train에 더 바짝 맞춤). "역수"라서 C가 작을수록 규제가 세요</td></tr>
+        <tr><td><code>max_iter=1000</code></td><td>최적화 반복 상한</td><td>너무 작으면 답을 찾다 멈춰 수렴 경고가 남. 크게 해도 <b>반복 횟수 상한</b>일 뿐이라 일반화 성능이 좋아진다는 보장은 없음</td></tr>
+        <tr><td><code>classes_</code></td><td>predict_proba 열의 클래스 순서</td><td>열 순서는 classes_를 따르니, 두 번째 열이 항상 원하는 클래스라고 가정하지 말고 <code>index(1)</code>로 찾기</td></tr>
+        <tr><td><code>labels=[0, 1]</code></td><td>혼동행렬 행·열 순서 고정</td><td>안 주면 데이터에 나타난 값으로 정해져서, 한 클래스가 없을 때 표 모양이 달라질 수 있음</td></tr>
+        <tr><td><code>f1_score(..)</code></td><td>F1 계산</td><td>기본 양성 클래스는 <code>1</code>(=실패) — 그래서 실패 기준 F1이 나옴</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 predict와 predict_proba를 따로 보지?</strong> — 앞 4개 확률이 [0.141, 0.185, 0.601, 0.745]일 때 predict는 [0, 0, 1, 1]이에요. 0.601과 0.745는 둘 다 "1"이지만 확신 정도가 달라요. <b>확률은 정보가 더 많고</b>, 클래스는 그 확률을 0.5에서 잘라 버린 결과라서 임계값을 바꾸고 싶을 땐 확률이 필요해요.</div>
+</section>
+
+<section class="cmd" id="d6-임계값-바꾸기" data-topic="scikit-learn" data-sub="로지스틱회귀 · 임계값" data-day="6" data-theory="notes/day06.html#logistic">
+  <h3>임계값 바꾸기</h3>
+<pre><code>truth = np.array([0, 0, 0, 1, 1, 1])
+p     = np.array([0.10, 0.40, 0.70, 0.35, 0.60, 0.90])
+for threshold in [0.5, 0.3]:
+    pred = (p &gt;= threshold).astype(int)                 # True/False → 1/0
+    tn, fp, fn, tp = confusion_matrix(truth, pred, labels=[0, 1]).ravel()
+    print(f"t={threshold}: FP={fp}, FN={fn}, TP={tp}")
+# t=0.5: FP=1, FN=1, TP=2
+# t=0.3: FP=2, FN=0, TP=3   ← 놓침은 줄고 헛경고는 늘었다</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 6건 (실제 3:3)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>pred = (p &gt;= 0.5).astype(int)</code></td><td><code>[0, 0, 1, 0, 1, 1] → FP=1, FN=1, TP=2</code></td><td>기본 선</td></tr>
+    <tr><td><code>pred = (p &gt;= 0.3).astype(int)</code></td><td><code>[0, 1, 1, 1, 1, 1] → FP=2, FN=0, TP=3</code></td><td>선을 내리면 FN↓ · FP↑</td></tr>
+    <tr><td><code>pred = (p &gt;= 0.8).astype(int)</code></td><td><code>[0, 0, 0, 0, 0, 1] → FP=0, FN=2, TP=1</code></td><td>선을 올리면 FP↓ · FN↑</td></tr>
+  </table>
+</div>
+      <div class="callout">💡 임계값을 낮추면 FN(놓침)은 줄지만 FP(오탐)는 늘 수 있어요. 공짜 개선은 없어요. 임계값도 <b>valid에서만</b> 정해요.</div>
+      <div class="callout">🤔 <strong>왜 하나가 줄면 하나가 늘지?</strong> — 임계값은 "이 확률 이상이면 실패라고 부른다"는 선이에요. 선을 0.5 → 0.3으로 내리면 실제 실패였던 0.35가 새로 잡혀서 FN이 줄지만, 실제 성공인데 0.40이던 것도 같이 넘어와서 FP가 늘어요. 모델은 그대로고 <b>판단 규칙만</b> 바뀐 거예요. 그래서 어느 쪽 오류가 더 비싼지(놓침 vs 헛경고)를 먼저 정해야 해요.</div>
+      <p>이 코드의 6건으로 임계값을 직접 움직여 보는 슬라이더는 <a href="notes/day06.html#logistic">Day6 ③ 로지스틱회귀 본문</a>에 있어요.</p>
+</section>
+
+<section class="cmd" id="d6-kneighborsclassifier" data-topic="scikit-learn" data-sub="KNN" data-day="6" data-theory="notes/day06.html#knn">
+  <h3><code>KNeighborsClassifier</code> · <code>KNeighborsRegressor</code></h3>
+<pre><code>import numpy as np
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+
+X = np.array([[1], [2], [4], [7], [9]])
+knn = KNeighborsClassifier(n_neighbors=3).fit(X, [0, 0, 1, 1, 1])
+distance, index = knn.kneighbors([[3.2]])     # 이웃까지 거리, 학습 행 번호
+print(X[index[0], 0].tolist(), distance[0].round(1).tolist())   # [4, 2, 1] [0.8, 1.2, 2.2]
+print(knn.predict([[3.2]]))                    # [0]
+
+reg = KNeighborsRegressor(n_neighbors=3).fit(X, [10, 20, 40, 70, 90])
+print(reg.predict([[3.2]]))                    # [23.33]  = (40+20+10)/3
+w = KNeighborsRegressor(n_neighbors=3, weights="distance").fit(X, [10, 20, 40, 70, 90])
+print(w.predict([[3.2]]))                      # [28.06]  가까운 40에 더 큰 가중치</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 x=[1, 2, 4, 7, 9] 예제</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>knn.kneighbors([[3.2]])</code></td><td><code>거리 [0.8, 1.2, 2.2], 행 [2, 1, 0]</code></td><td>x=4, 2, 1 순서로 가까움</td></tr>
+    <tr><td><code>knn.predict([[3.2]])</code></td><td><code>[0]</code></td><td>이웃 정답 1·0·0 → 다수결 0</td></tr>
+    <tr><td><code>knn.predict_proba([[3.2]])</code></td><td><code>[0.667, 0.333]</code></td><td>3표 중 0이 2표</td></tr>
+    <tr><td><code>KNeighborsRegressor(3).predict([[3.2]])</code></td><td><code>[23.33]</code></td><td>(40+20+10)/3</td></tr>
+    <tr><td><code>weights=&quot;distance&quot; 일 때</code></td><td><code>[28.06]</code></td><td>가까운 40의 목소리가 커짐</td></tr>
+    <tr><td><code>x=8: LinearRegression vs KNN(K=2)</code></td><td><code>80.0 vs 35.0</code></td><td>직선은 연장, KNN은 본 정답 범위에 갇힘</td></tr>
+    <tr><td><code>KNeighborsClassifier(n_neighbors=6).fit(5행).predict</code></td><td><code>ValueError: Expected n_neighbors &lt;= n_samples_fit</code></td><td>K는 학습 행 수 이하여야 함</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>n_neighbors</code> (K)</td><td>참고할 이웃 수</td><td>작게 → 이웃 한두 개의 잡음에 그대로 휘둘림, 크게 → 멀리 있는 사례까지 투표해서 소수 클래스의 국소 패턴을 놓칠 수 있음. train 행 수 이하여야 함(없는 이웃은 못 고르니까)</td></tr>
+        <tr><td><code>weights</code></td><td><code>"uniform"</code>(똑같이, 기본값) / <code>"distance"</code>(거리의 역수만큼 가중)</td><td>distance면 가까운 이웃 말이 더 커짐 → 회귀 예측이 23.33 → 28.06. 항상 더 낫지는 않음</td></tr>
+        <tr><td><code>p</code></td><td><code>2</code> = 유클리드(직선, 기본값) / <code>1</code> = 맨해튼(가로+세로)</td><td>거리 재는 법이 바뀌니 "누가 가장 가까운가"가 달라질 수 있음 (기본 metric=minkowski일 때)</td></tr>
+        <tr><td><code>kneighbors()</code></td><td>선택된 이웃의 거리·학습 행 인덱스 반환</td><td>왜 그 예측이 나왔는지 설명할 때</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 거리 가중이면 28.06이지?</strong> — 이웃 40·20·10의 거리가 0.8·1.2·2.2라 가중치는 1/거리 = 1.25·0.83·0.45예요. (40×1.25 + 20×0.83 + 10×0.45) ÷ (1.25+0.83+0.45) ≈ 71.2 ÷ 2.54 ≈ <b>28.06</b>. 가장 가까운 40의 목소리가 커져서 균일 평균 23.33보다 올라가요. 회귀 예측의 단위는 정답 y의 단위를 그대로 따라요.</div>
+      <div class="callout warn">⚠️ <b>범위 밖 예측</b> — 학습 x=[1,2,3,4], y=[10,20,30,40]에서 x=8을 물으면 선형회귀는 직선을 연장해 <b>80</b>, KNN(K=2)은 가까운 3·4의 평균 <b>35</b>. 어느 쪽도 외삽 정답을 보장하지 않아요.</div>
+<pre><code>from sklearn.linear_model import LinearRegression
+from sklearn.neighbors import KNeighborsRegressor
+X = [[1], [2], [3], [4]]
+y = [10, 20, 30, 40]
+linear = LinearRegression().fit(X, y)
+knn = KNeighborsRegressor(n_neighbors=2).fit(X, y)
+print("x=8 선형:", linear.predict([[8]]).round(1).tolist())   # [80.0]
+print("x=8 KNN:", knn.predict([[8]]).round(1).tolist())       # [35.0]</code></pre>
+      <div class="callout">🤔 <strong>왜 둘이 이렇게 다르지?</strong> — 선형회귀는 찾은 직선(y = 10x)을 <b>범위 밖까지 그대로 연장</b>해요. KNN은 이미 본 정답들의 평균만 낼 수 있어서, 아무리 먼 x를 넣어도 학습 정답 범위(10~40) 밖의 값을 <b>절대 못 내요</b>. 어느 쪽이 맞는지는 데이터가 없는 구간이라 알 수 없어요.</div>
+      <div class="callout warn">⚠️ K=1이면 train 점수가 거의 완벽하게 나와요. 그래서 꼭 <b>valid</b>로 확인해요. 자료가 커지면 예측할 때마다 이웃을 찾느라 메모리·시간도 커지고, 선택한 <b>모든 특성</b>이 거리에 참여하니 불필요한 특성·단위·범주 가중에 주의해요.</div>
+      <div class="callout">🤔 <strong>왜 K=1의 train 점수는 믿으면 안 되지?</strong> — train 자료로 예측하면 가장 가까운 이웃이 <b>자기 자신</b>(거리 0)이라 자기 정답을 그대로 베껴요. 시험 문제와 정답지가 같은 셈이라 1.000이 나와도 아무것도 증명하지 않아요.</div>
+</section>
+
+<section class="cmd" id="d6-columntransformer" data-topic="scikit-learn" data-sub="스케일링 · Pipeline" data-day="6" data-theory="notes/day06.html#scaling">
+  <h3><code>ColumnTransformer</code> + <code>Pipeline</code></h3>
+<pre><code>from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder
+
+NUM = ["input_chars", "allowed_tools"]       # 수치형
+CAT = ["task_type", "priority"]              # 범주형
+
+from sklearn.base import clone
+SCALERS = {"standard": StandardScaler, "minmax": MinMaxScaler}
+
+def build(estimator, scale="standard"):
+    scaler = SCALERS[scale]() if scale in SCALERS else "passthrough"   # "none" → 스케일링 안 함
+    num = Pipeline([("imputer", SimpleImputer(strategy="median")),
+                    ("scaler", scaler)])
+    cat = Pipeline([("imputer", SimpleImputer(strategy="most_frequent")),
+                    ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=False))])
+    pre = ColumnTransformer([("num", num, NUM), ("cat", cat, CAT)])
+    return Pipeline([("pre", pre), ("model", clone(estimator))])   # clone = 학습 안 된 새 복사본
+
+model = build(KNeighborsClassifier(n_neighbors=5), scale="standard")
+model.fit(X_train, y_train)          # 전처리도 train으로만 학습
+pred = model.predict(X_valid)        # valid는 transform → predict만</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>X_train.isna().sum().sum()</code></td><td><code>12</code></td><td>원본 train에 결측이 있음</td></tr>
+    <tr><td><code>model[&quot;pre&quot;].transform(X_train).shape</code></td><td><code>(60, 8)</code></td><td>수치 2 + 원핫 6 = 8열</td></tr>
+    <tr><td><code>model[&quot;pre&quot;].transform(X_valid).shape</code></td><td><code>(20, 8)</code></td><td>valid도 같은 8열</td></tr>
+    <tr><td><code>np.isnan(Z_train).sum()</code></td><td><code>0</code></td><td>결측이 train 중앙값·최빈값으로 채워짐</td></tr>
+    <tr><td><code>get_feature_names_out()[:3]</code></td><td><code>[&#x27;num__input_chars&#x27;, &#x27;num__allowed_tools&#x27;, &#x27;cat__task_type_qa&#x27;]</code></td><td>num__/cat__ 접두어로 출처 표시</td></tr>
+    <tr><td><code>Z_train[:, :2].mean(0) · std(0)</code></td><td><code>[0.00, 0.00] · [1.00, 1.00]</code></td><td>standard: train 기준 평균 0 · 표준편차 1</td></tr>
+    <tr><td><code>K=5 valid F1: none · standard · minmax</code></td><td><code>0.400 · 0.200 · 0.400</code></td><td>표준화했는데 오히려 낮음 — 노트 설명대로</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>strategy="median"</code></td><td>수치 결측을 train 중앙값으로</td><td><code>"mean"</code>이면 평균 (이상치에 더 흔들림)</td></tr>
+        <tr><td><code>strategy="most_frequent"</code></td><td>범주 결측을 최빈값으로</td><td>범주는 평균·중앙값을 낼 수 없으니 가장 흔한 값으로 채움</td></tr>
+        <tr><td><code>handle_unknown="ignore"</code></td><td>train에 없던 새 범주는 해당 블록 전부 0</td><td>기본값(<code>"error"</code>)이면 새 범주에서 에러 — 실서비스에선 처음 보는 범주가 언제든 올 수 있어서 ignore로 둠</td></tr>
+        <tr><td><code>sparse_output=False</code></td><td>결과를 보기 쉬운 일반(밀집) 배열로</td><td>교육용 작은 배열이라 False. 큰 데이터면 True(희소 행렬)가 메모리 절약</td></tr>
+        <tr><td><code>scale</code></td><td><code>"standard"</code> / <code>"minmax"</code> / <code>"none"</code>(<code>"passthrough"</code> = 그대로 통과)</td><td>스케일러만 바꿔서 공정하게 비교 (K=5 고정 시 valid F1: none 0.400 · standard 0.200 · minmax 0.400)</td></tr>
+      </table>
+      <p>변환 결과 shape는 train <code>(60, 8)</code>, valid <code>(20, 8)</code> — 수치 2열 + 범주 2열을 원핫으로 펼친 6열 = 8개 특성이에요. valid도 <b>같은 8열 구조</b>를 유지해야 모델이 받을 수 있어요.</p>
+      <div class="callout">🤔 <strong>왜 표준화했는데 F1이 오히려 떨어졌지?</strong> — 스케일링은 "단위가 큰 특성의 독주를 막는 것"이지 점수 상승 약속이 아니에요. 이 자료에선 <b>원핫 범주(0/1)도 거리에 참여</b>하는데, 수치 열의 눈금이 바뀌면 수치 vs 범주의 영향력 균형이 바뀌어 이웃이 달라져요. 게다가 valid가 20건이라 이웃 몇 개만 바뀌어도 점수가 크게 흔들려요. 그래서 유리한 결과만 남기지 말고 <b>바꾼 조건과 모든 후보 점수</b>를 기록해요. (다음 K 실험은 standard를 고정 — 그게 전체 조합의 최적이라는 뜻은 아님)</div>
+      <div class="callout warn">⚠️ Pipeline을 써도 <code>fit</code>에 valid·test를 넣으면 누수예요. 누수 방지는 객체 이름이 아니라 <b>학습에 어떤 데이터를 넣느냐</b>의 문제예요. 후보마다 <b>새 Pipeline</b>을 만들고, 학습된 객체를 다른 실험에 재사용하지 않아요.</div>
+</section>
+
+<section class="cmd" id="d6-후보-반복-비교-기준선" data-topic="scikit-learn" data-sub="모델 비교 · 기준선" data-day="6" data-theory="notes/day06.html#compare">
+  <h3>후보 반복 비교 · 기준선</h3>
+<pre><code>from sklearn.dummy import DummyClassifier
+import pandas as pd
+
+for k in [1, 3, 5, 9, 15]:                              # 후보는 미리 정해 둔다
+    model = build(KNeighborsClassifier(n_neighbors=k))   # 매번 새 Pipeline
+    model.fit(X_train, y_train)
+    tr = f1_score(y_train, model.predict(X_train), zero_division=0)
+    va = f1_score(y_valid, model.predict(X_valid), zero_division=0)
+    print(f"k={k:2d}: train={tr:.3f}, valid={va:.3f}")
+
+candidates = {"Dummy": DummyClassifier(strategy="most_frequent"),
+              "Logistic": LogisticRegression(C=1.0, max_iter=1000),
+              "KNN_k3": KNeighborsClassifier(n_neighbors=3)}
+rows = []
+for name, est in candidates.items():
+    pred = build(est).fit(X_train, y_train).predict(X_valid)
+    rows.append({"model": name, "F1": f1_score(y_valid, pred, zero_division=0)})
+print(pd.DataFrame(rows))
+
+# 회귀도 같은 방식: DummyRegressor(strategy="mean") · LinearRegression() · KNeighborsRegressor(n_neighbors=15)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>for k in [1, 3, 5, 9, 15] → train/valid F1</code></td><td><code>k=1: 1.000/0.400 · k=3: 0.571/0.545 · k=5: 0.462/0.200</code></td><td>K=1은 train 1.000 — 자기 자신이 이웃</td></tr>
+    <tr><td><code>(계속)</code></td><td><code>k=9: 0.519/0.000 · k=15: 0.364/0.000</code></td><td>K가 크면 실패를 한 번도 안 불러 F1 0</td></tr>
+    <tr><td><code>Dummy: Accuracy · F1 · FP/FN</code></td><td><code>0.70 · 0.000 · 0/6</code></td><td>다 성공이라 해도 Accuracy 0.70</td></tr>
+    <tr><td><code>Logistic: 같은 지표</code></td><td><code>0.60 · 0.333 · 4/4</code></td><td>헛경고 4 · 놓침 4</td></tr>
+    <tr><td><code>KNN_k3: 같은 지표</code></td><td><code>0.75 · 0.545 · 2/3</code></td><td>F1 최고지만 실패 3건을 놓침</td></tr>
+    <tr><td><code>f1_score(y_valid, [0]*20)  (zero_division 없이)</code></td><td><code>0.0 · 경고 없음</code></td><td>F1 = 2TP/(2TP+FP+FN)의 분모는 FN=6이라 0이 아님 → 이 버전(sklearn 1.8)에선 F1 경고가 안 떠요</td></tr>
+    <tr><td><code>precision_score(y_valid, [0]*20)</code></td><td><code>0.0 · 경고 UndefinedMetricWarning</code></td><td>Precision 분모(TP+FP)는 진짜 0 → 여기서 경고. zero_division=0은 이 규칙을 명시하는 것</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>zero_division=0</code></td><td>양성 예측이 0건이라 Precision 분모가 0이면 0으로 기록</td><td>안 주면 경고가 뜸. K=9·15처럼 실패를 한 번도 예측하지 않을 때 필요</td></tr>
+        <tr><td><code>strategy="most_frequent"</code></td><td>가장 많은 클래스만 예측하는 기준선</td><td>Accuracy 0.70이지만 F1 0 — "아무것도 안 배워도 이만큼은 나온다"는 바닥선</td></tr>
+        <tr><td><code>build(est)</code> 매번 새로</td><td>후보마다 전처리·모델 객체를 새로 생성</td><td>학습된 객체를 재사용하면 앞 실험의 fitted 상태가 덮어써지거나 섞여서 비교가 무너짐</td></tr>
+      </table>
+      <table>
+        <tr><th>분류 모델</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>FP / FN</th></tr>
+        <tr><td>Dummy</td><td>0.700</td><td>0.000</td><td>0.000</td><td>0.000</td><td>0 / 6</td></tr>
+        <tr><td>Logistic · C=1</td><td>0.600</td><td>0.333</td><td>0.333</td><td>0.333</td><td>4 / 4</td></tr>
+        <tr><td>KNN · K=3</td><td>0.750</td><td>0.600</td><td>0.500</td><td><b>0.545</b></td><td>2 / 3</td></tr>
+      </table>
+      <table>
+        <tr><th>회귀 모델</th><th>MAE (ms)</th><th>RMSE (ms)</th><th>R²</th></tr>
+        <tr><td>Dummy · train 평균</td><td>541.26</td><td>658.75</td><td>−0.162</td></tr>
+        <tr><td>LinearRegression</td><td>551.80</td><td><b>640.00</b></td><td>−0.097</td></tr>
+        <tr><td>KNN · K=15</td><td><b>530.06</b></td><td>641.79</td><td>−0.103</td></tr>
+      </table>
+      <div class="callout warn">⚠️ RMSE는 Linear, MAE는 KNN15가 작아요. <b>주 지표를 먼저 정해야 하는 이유</b>예요. 1.79ms 차이는 과장하지 않고, valid 최고 점수는 "후보 선택에 쓴 점수"라 최종 성능이 아니에요. test는 모델·평가 정책을 확정한 뒤 한 번만.</div>
+      <div class="callout">🤔 <strong>왜 valid 최고 점수를 최종 성능이라 부르면 안 되지?</strong> — 여러 후보 중 <b>가장 높게 나온 것</b>을 골랐으니, 그 점수엔 "운 좋게 이 20건에 잘 맞은 몫"이 섞여 있어요(선택 편향). 그래서 고르는 데 쓰지 않은 test로 마지막에 한 번 확인해요. 또 KNN3도 실패 6건 중 3건을 놓치니, "잠정 선택"이지 운영 승인이 아니에요.</div>
+      <div class="callout">💡 <b>재현성</b> — seed만 적으면 끝이 아니에요. 원본 데이터 버전과 행 순서, 실제 분할 ID, 바꾼 조건, train·valid 점수와 오류 수를 함께 기록해요. 모델을 트리로 바꿔도 <b>원본·입력 계약·분할 ID·선택 지표·test 보관 정책</b>은 그대로 남겨요.</div>
+</section>
+
+<section class="cmd" id="d6-학습-통계-불변-검사" data-topic="scikit-learn" data-sub="입력 검사 · 저장" data-day="6" data-theory="notes/day06.html#checks">
+  <h3>학습 통계 불변 검사</h3>
+<pre><code>model = build(KNeighborsClassifier(n_neighbors=3))
+model.fit(X_train, y_train)
+imp = model["pre"].named_transformers_["num"]["imputer"]
+before = imp.statistics_.copy()                 # 중앙값을 따로 복사해 보관
+model.predict(X_valid)
+after = imp.statistics_
+print("통계 불변:", np.array_equal(before, after))                    # True
+print("입력 열 일치:", list(X_train.columns) == FEATURES)              # True
+print("금지 열 없음:", not set(FORBIDDEN) &amp; set(X_train.columns))      # True</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>imp.statistics_</code></td><td><code>[1315.0, 3.0]</code></td><td>train 중앙값: 글자수 · 도구 수 (valid 중앙값 1123.0과 다름)</td></tr>
+    <tr><td><code>np.array_equal(before, after)  (predict 후)</code></td><td><code>True</code></td><td>predict는 다시 학습하지 않음</td></tr>
+    <tr><td><code>before is imp.statistics_ · alias is imp.statistics_</code></td><td><code>False · True</code></td><td>.copy() 없이 담으면 같은 배열을 가리킴</td></tr>
+    <tr><td><code>list(X_train.columns) == FEATURES</code></td><td><code>True</code></td><td>입력 4열 순서까지 일치</td></tr>
+    <tr><td><code>not set(FORBIDDEN) &amp; set(X_train.columns)</code></td><td><code>True</code></td><td>정답·결과 열이 입력에 없음</td></tr>
+  </table>
+</div>
+</section>
+
+<section class="cmd" id="d6-저장-복원-후-예측-대조" data-topic="scikit-learn" data-sub="입력 검사 · 저장" data-day="6" data-theory="notes/day06.html#checks">
+  <h3>저장 · 복원 후 예측 대조</h3>
+<pre><code>from pathlib import Path
+import tempfile, joblib
+
+model = build(KNeighborsClassifier(n_neighbors=3))
+model.fit(X_train, y_train)
+with tempfile.TemporaryDirectory() as folder:
+    path = Path(folder) / "selected_pipeline.joblib"
+    joblib.dump(model, path)                    # 전처리 + 모델을 통째로 저장
+    restored = joblib.load(path)                # 본인이 만든 파일만 읽기
+    before = model.predict(X_valid)
+    after = restored.predict(X_valid)
+    print("복원 예측 동일:", np.array_equal(before, after))   # True</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 · KNN K=3</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>joblib.dump(model, path)</code></td><td><code>파일 약 13 KB</code></td><td>KNN은 train 60행을 통째로 들고 있음</td></tr>
+    <tr><td><code>type(restored).__name__, list(restored.named_steps)</code></td><td><code>Pipeline, [&#x27;pre&#x27;, &#x27;model&#x27;]</code></td><td>전처리 + 모델이 함께 복원</td></tr>
+    <tr><td><code>np.array_equal(model.predict(X_valid), restored.predict(X_valid))</code></td><td><code>True</code></td><td>같은 환경에서 예측 20개 일치</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 함수</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>statistics_.copy()</code></td><td>학습된 중앙값을 별도로 보관</td><td><code>.copy()</code> 없이 담으면 같은 배열을 가리켜서, 값이 제자리에서 바뀌면 before도 같이 바뀌어 비교가 의미 없어짐</td></tr>
+        <tr><td><code>np.array_equal(a, b)</code></td><td>두 배열의 모양·값이 모두 같은지</td><td>하나라도 다르면 False</td></tr>
+        <tr><td><code>joblib.dump(model, path)</code></td><td>전처리와 모델을 함께 저장</td><td>모델만 저장하면 새 입력에 같은 전처리를 다시 못 붙임</td></tr>
+        <tr><td><code>joblib.load(path)</code></td><td>저장한 Pipeline 복원</td><td>남이 준 파일은 load 금지 — 불러오는 순간 안의 코드가 실행될 수 있어요. 같은 환경(버전)에서 대조</td></tr>
+        <tr><td><code>tempfile.TemporaryDirectory()</code></td><td>with 블록이 끝나면 지워지는 임시 폴더</td><td>시연·검사용. 실제로 보관하려면 고정 경로에 저장</td></tr>
+      </table>
+      <div class="callout">💡 경계 상황도 미리 정해 두고 확인해요: 수치 결측·새 범주가 와도 8개 특성 유지, 필수 열이 빠지면 학습/예측 전에 <b>명확한 오류</b>(임의 값 생성 금지), <b>K &gt; train 행 수</b>면 실행 전 설정 오류(1 ≤ K ≤ 60). "에러가 안 났다"가 아니라 기대 출력·단위·행 수를 먼저 정하는 게 테스트예요.</div>
+</section>

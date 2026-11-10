@@ -27,18 +27,10 @@
         </ol>
       </div>
 
-      <h2>이론 ↔ 명령어 한눈에</h2>
-      <table>
-        <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="#packages">📦 필요한 패키지</a></td><td><code>torch</code> (이미 설치된 것 그대로)</td></tr>
-        <tr><td><a href="#seq">① 순서 데이터 · Padding · Mask · Window</a></td><td><code>pad_sequence()</code>, <code>masked_fill()</code>, <code>unfold()</code>, <code>pack_padded_sequence()</code></td></tr>
-        <tr><td><a href="#rnn">② RNN</a></td><td><code>nn.RNN()</code> → <code>output, h_n</code></td></tr>
-        <tr><td><a href="#lstm">③ LSTM</a></td><td><code>nn.LSTM()</code> → <code>output, (h_n, c_n)</code></td></tr>
-        <tr><td><a href="#ae">④ Autoencoder</a></td><td><code>nn.Sequential(nn.Linear …)</code>, <code>nn.MSELoss(reduction="none")</code>, <code>TensorDataset</code></td></tr>
-        <tr><td><a href="#attn">⑤ Attention · Transformer</a></td><td><code>nn.MultiheadAttention()</code>, <code>nn.TransformerEncoderLayer()</code>, <code>nn.TransformerEncoder()</code>, <code>src_key_padding_mask</code></td></tr>
-        <tr><td><a href="#compare">⑥ 아키텍처 비교</a></td><td>같은 분할·지표로 Params·Best Epoch·Valid·시간·메모리 기록</td></tr>
-        <tr><td><a href="#speed">⑦ 길이 T · Padding · 속도 측정</a></td><td><code>perf_counter()</code>, <code>torch.cuda.synchronize()</code>, <code>torch.cuda.max_memory_allocated()</code></td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Day12 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day12">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="packages">📦 필요한 패키지</h2>
@@ -86,57 +78,24 @@
       <div class="callout">🤔 <strong>왜 Padding은 계속 빼라고 해?</strong> — Padding은 길이를 맞추려고 채운 0이라 <b>실제 값이 아니에요</b>. 평균에 섞이면 위처럼 값이 작아지고, "마지막 값"을 꺼내면 진짜 마지막이 아닌 0을 꺼내고, Attention에선 가짜 칸에 비율을 나눠 줘요. 그래서 오늘 모든 모델에서 따로 빼요.</div>
       <figure><img class="smooth" src="img/day12/padding_mask.png" alt="길이 12, 8, 10, 5인 센서 순서 네 개를 12로 맞추며 회색 Padding을 채운 그림과, True/False로 된 4×12 Mask 행렬"><figcaption><b>무엇을 보나:</b> 왼쪽은 길이가 다른 센서 기록 4개를 가장 긴 12에 맞춘 모습이에요. 회색 빗금 칸이 채워 넣은 0(Padding). 오른쪽은 같은 모양의 Mask로, 회색 <b>T</b>(True) 칸이 정확히 왼쪽의 회색 칸과 겹쳐요. 빨간 숫자는 "0까지 넣고 평균"한 값인데, 샘플3은 진짜 평균 0.38이 <b>0.16</b>으로 반 토막 나요. <b>🤔 왜 짧을수록 더 틀려?</b> 짧은 샘플일수록 채운 0이 많아서 평균의 분모(12)에서 가짜 칸 비중이 커져요. 그러면 모델은 "짧다"는 사실을 "값이 작다"로 착각해요. Mask로 회색 칸을 빼고 진짜 길이로 나누면 길이와 상관없이 정직한 평균이 나와요.</figcaption></figure>
 
-      <h3>🔧 명령어: Mask 만들기 · Padding 칸 0으로 · <code>pad_sequence()</code></h3>
-<pre><code>import torch
-x = torch.randn(4, 6, 3)                              # [B=4, T=6, F=3]
-lengths = torch.tensor([6, 4, 5, 3])                  # 샘플별 실제 길이
-mask = torch.arange(6)[None, :] &gt;= lengths[:, None]   # [4, 6], True = Padding 칸
-x = x.masked_fill(mask.unsqueeze(-1), 0.0)            # Padding 칸을 0으로
-print(x.shape, x.dtype, lengths.shape)                # [4, 6, 3] float32 [4]
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Mask 만들기 · Padding 칸 0으로 · <code>pad_sequence()</code> <a href="../commands.html#d12-pad-sequence">명령어 사전에서 자세히 →</a></div>
+<pre><code>mask = torch.arange(6)[None, :] &gt;= lengths[:, None]   # [4, 6], True = Padding 칸
+padded = pad_sequence(seqs, batch_first=True)         # → [3, 5, 3] = [B, T, F]</code></pre>
+      </div>
 
-from torch.nn.utils.rnn import pad_sequence
-seqs = [torch.ones(4, 3), torch.ones(2, 3) * 2, torch.ones(5, 3) * 3]   # 길이 4, 2, 5
-padded = pad_sequence(seqs, batch_first=True)         # → [3, 5, 3] = [B, T, F]
-valid = (~(torch.arange(5)[None, :] &gt;= torch.tensor([4, 2, 5])[:, None])).unsqueeze(-1)
-mean = (padded * valid).sum(1) / valid.sum(1)         # 실제 칸만 평균</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>sequences</code> <small>(필수)</small></td><td>길이가 다른 Tensor들의 리스트 (각각 [T, F])</td><td></td></tr>
-        <tr><td><code>batch_first</code></td><td>True면 [B, T, F], <b>기본 False</b>면 [T, B, F]</td><td>모델 쪽 설정과 다르면 Batch와 Time이 뒤바뀐 채로 계산됨 (오류 없이 틀릴 수 있어 위험)</td></tr>
-        <tr><td><code>padding_value</code></td><td>채울 값 (기본 0.0)</td><td>값을 바꿔도 Mask로 빼면 결과가 같아야 함 → Mask 검사용으로 써먹기 좋음</td></tr>
-        <tr><td><code>arange(T)[None, :] &gt;= lengths[:, None]</code></td><td>Broadcasting으로 [B, T] Mask 생성, <b>True = 제외할 칸</b></td><td>True/False 뜻을 반대로 쓰면 진짜 값이 빠지고 Padding만 남음</td></tr>
-        <tr><td><code>masked_fill(mask, 0.0)</code></td><td>True 칸을 지정 값으로</td><td>Mask를 [B,T,1]로 늘려야 F축 전체에 적용됨 (<code>unsqueeze(-1)</code>)</td></tr>
-      </table>
-
-      <h3>🔧 명령어: 시계열 창 자르기 <code>unfold()</code></h3>
-      <p>긴 시계열 하나를 "과거 12개 → 다음 1개" 문제 여러 개로 잘라요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 시계열 창 자르기 <code>unfold()</code> <a href="../commands.html#d12-unfold">명령어 사전에서 자세히 →</a></div>
 <pre><code>window = train_s.unfold(0, 13, 1)          # [창 개수, 13] = 과거 12 + 정답 1
-x = window[:, :12].unsqueeze(-1)           # [N, 12, 1]  ← F=1 축 추가
-y = window[:, 12:13]                       # [N, 1]
-# 예: 길이 20, size=5, step=1 → Window 20 − 5 + 1 = 16개</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>dimension</code> <small>(필수)</small></td><td>어느 축을 따라 자를지</td><td></td></tr>
-        <tr><td><code>size</code> <small>(필수)</small></td><td>창 길이 (입력 12 + 정답 1)</td><td>크면 더 먼 과거를 보지만 창 개수는 줄어듦 (길이 − size + 1개)</td></tr>
-        <tr><td><code>step</code> <small>(필수)</small></td><td>창 시작점 간격 — 기본값 없음, 꼭 지정</td><td>크면 겹침이 줄고 창 개수도 줄어듦</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 시간으로 먼저 train/valid/test를 나눈 뒤 잘라?</strong> — 통째로 잘라 놓고 섞어 나누면, 겹치는 창 때문에 valid 창의 값이 train 창 안에 그대로 들어 있어요. 모델이 "미래"를 이미 본 셈이라(<b>누수</b>) 점수가 부풀어요. 그리고 <code>unfold</code> 결과는 원본과 메모리를 <b>공유하는 view</b>라, 원본을 고치면 창도 같이 바뀌어요.</div>
+x = window[:, :12].unsqueeze(-1)           # [N, 12, 1]  ← F=1 축 추가</code></pre>
+      </div>
       <figure><img class="smooth" src="img/day12/windows.png" alt="사인파 센서 기록을 train, valid, test 구간으로 시간 순서대로 나누고, 과거 12개 점과 다음 1개 별로 된 창 세 개를 표시한 그림"><figcaption><b>무엇을 보나:</b> 사인파 센서 기록 하나(회색 선)에서 창 3개를 예로 그렸어요. 보라 점 12개 = 모델이 보는 과거, 분홍 별 = 맞혀야 할 다음 값. <code>unfold(0, 13, 1)</code>은 이 13칸짜리 창을 <b>1칸씩 밀며</b> 전부 만들어요. 배경색은 시간 순서로 먼저 자른 train/valid/test 구간이에요. <b>🤔 왜 먼저 자르고 창을 만들어?</b> 창은 서로 12칸씩 겹쳐요. 섞어서 나누면 train 창의 "과거 12개" 안에 valid 창의 정답(별)이 그대로 들어가 버려요. 미래를 미리 본 모델은 시험 점수만 좋고 실전에선 틀려요.</figcaption></figure>
 
-      <h3>🔧 명령어: Padding 건너뛰기 <code>pack_padded_sequence()</code></h3>
-      <p>RNN·LSTM에 "여기까지만 진짜야"라고 알려 주는 포장. 포장하면 RNN이 Padding 칸을 아예 계산하지 않아요(<code>.data</code> 모양은 [Σ길이, F]).</p>
-<pre><code>from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-
-packed = pack_padded_sequence(padded, lengths, batch_first=True, enforce_sorted=False)
-out_packed, h_n = rnn(packed)                     # h_n = 샘플마다 '실제' 마지막 시점
-output, out_lengths = pad_packed_sequence(out_packed, batch_first=True)   # 다시 [B, T, H]로</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>lengths</code> <small>(필수)</small></td><td>샘플별 실제 길이 (CPU Tensor 또는 정수 목록)</td><td>틀리면 진짜 값이 잘리거나 Padding이 섞임. GPU Tensor면 오류</td></tr>
-        <tr><td><code>enforce_sorted</code></td><td>기본 True: 길이 내림차순으로 정렬돼 있어야 함</td><td>False면 내부에서 정렬했다가 원래 순서로 돌려줌 (편하지만 약간의 비용)</td></tr>
-        <tr><td><code>total_length</code> (pad_packed)</td><td>다시 펼 때 맞출 길이</td><td>안 주면 batch 안 최대 실제 길이로 펼쳐져 원래 T보다 짧을 수 있음</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 Pack을 써?</strong> — Padding 칸도 RNN은 한 시점으로 계산해 버려서, 마지막 상태 h_n이 "0을 몇 번 더 읽은 뒤의 상태"가 돼요. Pack하면 샘플마다 실제 길이까지만 계산하니까 h_n이 진짜 마지막 시점 값이고, 쓸데없는 계산도 줄어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Padding 건너뛰기 <code>pack_padded_sequence()</code> <a href="../commands.html#d12-pack-padded-sequence">명령어 사전에서 자세히 →</a></div>
+<pre><code>packed = pack_padded_sequence(padded, lengths, batch_first=True, enforce_sorted=False)
+out_packed, h_n = rnn(packed)                     # h_n = 샘플마다 '실제' 마지막 시점</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="rnn">② RNN — 메모 한 장으로 과거를 요약</h2>
@@ -183,29 +142,11 @@ output, out_lengths = pad_packed_sequence(out_packed, batch_first=True)   # 다�
       <div class="callout">🤔 <strong>h에는 뭐가 들어 있어?</strong> — 지금까지 읽은 입력을 정해진 크기(<code>hidden_size</code>)로 요약한 값이에요. 길이가 4든 50이든 크기가 같으니 <b>다 담지 못하고</b>, 학습하면서 예측에 필요한 것 위주로 남아요.</div>
       <figure><img class="smooth" src="img/day12/rnn_hidden.png" alt="사인파 입력과, nn.RNN의 8칸 Hidden state가 시점마다 바뀌는 색 지도"><figcaption><b>무엇을 보나:</b> 위는 입력 사인파(18~20 시점에 일부러 튀는 값 2를 넣음), 아래는 진짜 <code>nn.RNN(1, 8)</code>에 넣었을 때 나온 <code>output</code> = 시점마다의 Hidden state 8칸이에요(빨강 +, 파랑 −). 줄 하나가 메모의 한 칸이고, 가로로 시간이 흘러요. ※ 학습 전 무작위 가중치라 각 칸의 "뜻"은 아직 없어요. <b>🤔 무엇을 알 수 있어?</b> ① 입력이 오르내리면 h도 같은 주기로 출렁여요 → h는 입력을 따라가는 요약이에요. ② 튀는 구간(18~20)에서 h[4]·h[7]이 크게 변했다가, 이후 몇 시점 동안 <b>여운</b>이 남고 서서히 원래 리듬으로 돌아와요 → 과거가 h를 통해 다음 시점으로 전달된다는 증거이자, 시간이 지나면 흐려진다는 증거예요. ③ 값이 −1~1을 넘지 않는 건 tanh 때문이에요.</figcaption></figure>
 
-      <h3>🔧 명령어: <code>nn.RNN()</code> — 순서 분류</h3>
-<pre><code>class RNNClassifier(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.rnn = nn.RNN(3, 8, batch_first=True)   # F=3 → H=8
-        self.fc = nn.Linear(8, 2)                   # 2클래스 Head
-    def forward(self, x):
-        _, h_n = self.rnn(x)                        # h_n: [1, B, 8]
-        return self.fc(h_n[-1])                     # 마지막 층의 마지막 상태 → [B, 2]
-
-x = torch.randn(4, 6, 3)                            # [B=4, T=6, F=3]
-print(RNNClassifier()(x).shape)                     # torch.Size([4, 2])
-# output, h_n = rnn(x, hx=None)  ← hx(초기 상태)를 생략하면 0에서 시작</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>input_size</code> <small>(필수)</small></td><td>F, 한 시점의 특징 수</td><td>데이터의 F와 다르면 오류 (W_x 모양이 안 맞으니까)</td></tr>
-        <tr><td><code>hidden_size</code> <small>(필수)</small></td><td>H, 메모(요약)의 크기</td><td>크면 더 많이 기억하지만 파라미터가 H²로 늘고 과적합 위험↑</td></tr>
-        <tr><td><code>batch_first</code></td><td>True면 입력·output이 [B, T, F] (기본 False = [T, B, F])</td><td>h_n에는 적용 안 됨 → h_n은 항상 [L×D, B, H]</td></tr>
-        <tr><td><code>num_layers</code></td><td>RNN 층을 몇 개 쌓을지 (기본 1)</td><td>h_n 첫 축이 층 수만큼 늘어나서 <code>h_n[-1]</code>로 마지막 층을 골라야 함</td></tr>
-        <tr><td><code>bidirectional</code></td><td>양방향으로 읽기 (기본 False)</td><td>D=2 → output 마지막 축이 2H, 두 방향을 어떻게 합칠지 정해야 함</td></tr>
-        <tr><td><code>nonlinearity</code>, <code>dropout</code>, <code>bias</code></td><td>활성화(기본 "tanh") · 층 사이 Dropout(기본 0.0) · Bias(기본 True)</td><td>dropout은 층이 2개 이상일 때만 효과 (층 "사이"에 넣으니까)</td></tr>
-      </table>
-      <div class="callout warn">⚠️ 분류는 <code>h_n[-1]</code>, 예측은 <code>output[:, -1]</code>로 마지막 시점을 꺼내요. 1층·단방향·Padding 없음이면 둘은 같은 값. 하지만 <b>Padding이 있으면</b> <code>output[:, -1]</code>은 Padding 칸일 수 있어요 → 실제 길이나 pack을 써야 해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>nn.RNN()</code> — 순서 분류 <a href="../commands.html#d12-nn-rnn">명령어 사전에서 자세히 →</a></div>
+<pre><code>self.rnn = nn.RNN(3, 8, batch_first=True)   # F=3 → H=8
+_, h_n = self.rnn(x)                        # h_n: [1, B, 8]</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="lstm">③ LSTM — 곱하지 말고 더해서 기억을 잇는다</h2>
@@ -293,28 +234,11 @@ o_t : Output gate  — h_t = o_t ⊙ tanh(c_t)  ← 지금 밖으로 꺼낼 부�
       <div class="callout">🤔 <strong>왜 상태가 h와 c 두 개야?</strong> — "오래 보관할 것"과 "지금 내보낼 것"은 달라요. c에는 길게 보관하고, Output gate가 그중 지금 예측에 필요한 부분만 골라 h로 꺼내요. 그래서 보관과 출력을 따로 조절할 수 있어요.</div>
       <div class="callout">💡 같은 hidden이어도 LSTM은 Gate 3개 + 후보 1개 = <b>가중치 네 벌</b>이라 파라미터가 RNN의 4배예요. (F=1, H=16: RNN 16·1 + 16·16 + 2·16 = 304개 vs LSTM 4 × 304 = 1,216개)</div>
 
-      <h3>🔧 명령어: <code>nn.LSTM()</code> — 과거 12개로 다음 1개 예측</h3>
-<pre><code>class LSTMForecaster(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.lstm = nn.LSTM(1, 16, batch_first=True)   # F=1 → H=16
-        self.head = nn.Linear(16, 1)                   # 16차원 → 값 1개
-    def forward(self, x):                              # [B, 12, 1]
-        output, _ = self.lstm(x)                       # [B, 12, 16]
-        return self.head(output[:, -1])                # 마지막 시점 [B, 16] → [B, 1]
-
-x = torch.randn(4, 12, 1)
-print(LSTMForecaster()(x).shape)                       # torch.Size([4, 1])
-# output, (h_n, c_n) = lstm(x, hx=None)   ← hx=(h_0, c_0), 생략하면 둘 다 0
-loss = nn.MSELoss()(pred, y)                           # 예측 [B,1] vs 다음 실제 값 [B,1]</code></pre>
-      <table>
-        <tr><th>인자 / 결과</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>input_size</code>, <code>hidden_size</code>, <code>num_layers</code>, <code>batch_first</code>, <code>bidirectional</code>, <code>dropout</code></td><td>RNN과 똑같음</td><td></td></tr>
-        <tr><td><code>proj_size</code></td><td>출력 h 크기를 줄여 투영 (기본 0 = 안 함)</td><td>0이 아니면 h_n·output 크기가 proj_size로 바뀜 (c_n은 그대로 H)</td></tr>
-        <tr><td><code>(h_n, c_n)</code></td><td>괄호로 묶인 <b>두 상태</b>, 기본 둘 다 [L×D, B, H]</td><td>하나의 Tensor처럼 다루면 오류</td></tr>
-        <tr><td><code>nn.MSELoss()</code></td><td>예측과 정답 차이의 제곱 평균</td><td>분류라면 <code>nn.CrossEntropyLoss()</code> — 정답이 숫자가 아니라 클래스니까</td></tr>
-      </table>
-      <div class="callout warn">⚠️ <b>양방향 LSTM을 미래 예측에 쓸 때</b>는 예측 시점 이후의 관측이 입력 Window에 섞이지 않았는지 확인해요. 과거 Window 안을 거꾸로 읽는 것 자체는 누수가 아니에요. 그리고 Gate 계산은 <code>nn.LSTM</code>이 다 알아서 해요 — 우리가 정하는 건 <code>hidden_size</code>와 층 수 정도.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>nn.LSTM()</code> — 과거 12개로 다음 1개 예측 <a href="../commands.html#d12-nn-lstm">명령어 사전에서 자세히 →</a></div>
+<pre><code>self.lstm = nn.LSTM(1, 16, batch_first=True)   # F=1 → H=16
+output, _ = self.lstm(x)                       # [B, 12, 16]</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="ae">④ Autoencoder — 정답이 입력 자신</h2>
@@ -365,57 +289,27 @@ loss = nn.MSELoss()(pred, y)                           # 예측 [B,1] vs 다음 
       <figure><img class="smooth" src="img/day12/ae_error_hist.png" alt="정상 valid 400개와 이상 60개의 재구성 오차 분포 히스토그램과 99% 분위수 기준선"><figcaption><b>무엇을 보나:</b> 샘플마다 오차 1개(<code>reduction="none"</code> → <code>mean(dim=1)</code>)를 모아 그린 분포예요(가로 로그 눈금). 초록 정상 valid는 0.001 근처에 모이고, 빨강 이상은 0.05~1로 멀리 떨어져 있어요. 보라 점선이 아래 코드의 <code>torch.quantile(valid_err, 0.99)</code> 기준값이에요. <b>🤔 왜 정상도 4개가 넘어가?</b> "valid 오차의 99%"를 기준으로 잡으면 정의상 정상의 약 1%(400개 중 4개)는 기준을 넘어요. 기준을 높이면 놓치는 이상이, 낮추면 헛경보가 늘어요 → 몇 %로 할지는 업무가 정하고, 넘은 것은 "확정"이 아니라 "점검 후보"예요. (여기 이상 샘플은 일부러 티 나게 만든 거라 실제보다 깔끔하게 갈려요.)</figcaption></figure>
       <div class="callout warn">⚠️ 예측 MSE와 재구성 오차는 정답도 단위도 달라요. <b>평균 내거나 한 표에서 순위 매기지 말고</b> 목적별로 표를 따로 만드세요.</div>
 
-      <h3>🔧 명령어: Autoencoder forward와 재구성 오차</h3>
-<pre><code>model = nn.Sequential(
-    nn.Linear(8, 4), nn.ReLU(),        # Encoder
-    nn.Linear(4, 2), nn.ReLU(),        #   → Latent z (2칸)
-    nn.Linear(2, 4), nn.ReLU(),        # Decoder
-    nn.Linear(4, 8))                   #   → x̂ (8칸)
-x = torch.randn(5, 8)
-recon = model(x)
-loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
-score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)
-print(recon.shape, score.shape)            # [5, 8] [5]</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>nn.Linear(in_features, out_features, bias=True)</code></td><td>마지막 차원을 in → out으로 변환</td><td><code>nn.Linear(4, 2)</code>의 2가 Latent 크기 — 1·2·4로 바꿔 압축률과 valid 오차를 비교</td></tr>
-        <tr><td><code>nn.ReLU()</code></td><td>층 사이 비선형</td><td>모두 빼면 선형 변환만 남아 곧은 평면 위의 패턴만 담을 수 있음</td></tr>
-        <tr><td>마지막 <code>nn.Linear(4, 8)</code> 뒤 활성화 없음</td><td>복원 값이 음수도 될 수 있게</td><td>여기에 ReLU를 붙이면 음수 입력을 영영 복원 못 함</td></tr>
-        <tr><td><code>nn.Sequential(*modules)</code></td><td>순서대로 실행</td><td>중간 출력(z)은 자동으로 안 돌려줌 → <code>model[:4](x)</code>처럼 앞부분만 잘라 Encoder로 사용</td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Autoencoder forward와 재구성 오차 <a href="../commands.html#d12-autoencoder-forward와-재구성-오차">명령어 사전에서 자세히 →</a></div>
+<pre><code>loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
+score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)</code></pre>
+      </div>
       <div class="figs">
         <figure><img class="smooth" src="img/day12/ae_latent.png" alt="2칸 Latent z 평면에 정상 샘플이 위상 색깔 순서대로 고리 모양으로 놓이고 이상 샘플은 흩어진 산점도"><figcaption><b>무엇을 보나:</b> 학습된 Encoder(<code>model[:4]</code>)로 뽑은 z 2칸을 좌표로 찍었어요. 정상 점들의 색(사인파 위상)이 <b>무지개처럼 순서대로</b> 고리를 이뤄요. 빨간 ✕(이상)는 고리 안쪽·바깥 등 아무 데나 흩어져요. <b>🤔 왜 고리야?</b> 정상 데이터는 사실 "진폭·위상" 두 가지만 달라요. Autoencoder가 아무도 안 알려 줬는데 이 두 성질을 2칸에 펼쳐 담은 거예요. 다만 z[0]·z[1] 각각이 무슨 뜻인지는 정해져 있지 않아서 이렇게 그려 보며 해석해야 해요.</figcaption></figure>
         <figure><img class="smooth" src="img/day12/latent_size.png" alt="Latent 크기 1, 2, 4, 8에 따른 valid 재구성 MSE 막대. 1에서 0.032, 2부터 0.002 이하"><figcaption><b>무엇을 보나:</b> 가운데 칸 수만 1·2·4·8로 바꿔 학습한 valid 재구성 오차예요(앞뒤 층 16칸, 같은 데이터·epoch, seed 3개 중 최솟값). 1칸이면 0.032로 크고, 2칸부터 0.002 이하로 뚝 떨어져요. <b>🤔 왜 2에서 꺾여?</b> 이 데이터의 본질이 "진폭·위상" 두 숫자라서 2칸이면 거의 다 담겨요. 그보다 줄이면 필요한 정보를 잃고(Underfitting), 늘려도 얻는 게 적고 복사에 가까워져요. 실전에선 이렇게 크기를 바꿔 가며 "꺾이는 지점"을 찾아요.</figcaption></figure>
       </div>
 
-      <h3>🔧 명령어: 샘플별 오차 <code>reduction="none"</code></h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 샘플별 오차 <code>reduction="none"</code> <a href="../commands.html#d12-reduction-none">명령어 사전에서 자세히 →</a></div>
 <pre><code>loss_fn = nn.MSELoss(reduction="none")
 error = loss_fn(recon, x).mean(dim=1)      # [B, F] → [B]  샘플마다 점수 1개</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>input</code>, <code>target</code> <small>(필수)</small></td><td>재구성 결과, 원본 입력 (같은 Shape)</td><td>Shape가 다르면 Broadcasting으로 엉뚱하게 계산되거나 경고</td></tr>
-        <tr><td><code>reduction</code></td><td><code>"none"</code> | <code>"mean"</code>(기본) | <code>"sum"</code></td><td>기본 "mean"이면 숫자 하나로 합쳐져 <b>어느 샘플</b>이 이상한지 못 봄 → 점검엔 "none"</td></tr>
-        <tr><td><code>.mean(dim=1)</code></td><td>특징(F) 축 평균</td><td>dim=0이면 샘플 축을 평균해 특징별 오차가 됨 (목적이 다름)</td></tr>
-        <tr><td><code>size_average</code>, <code>reduce</code></td><td>예전 호환용 인자</td><td>쓰지 말고 <code>reduction</code>만 사용</td></tr>
-      </table>
+      </div>
 
-      <h3>🔧 명령어: 입력 = 정답 Batch · Denoising · 기준값</h3>
-<pre><code>from torch.utils.data import TensorDataset, DataLoader
-loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
-for (xb,) in loader:                       # Tensor 하나면 (x,) 한 개짜리 Tuple로 나옴
-    noisy = xb + 0.1 * torch.randn_like(xb)    # Denoising: 입력만 흔들고
-    loss = nn.MSELoss()(model(noisy), xb)      #            정답은 깨끗한 원본
-
-valid_err = nn.MSELoss(reduction="none")(model(x_valid), x_valid).mean(dim=1)
-threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함
-is_candidate = valid_err &gt; threshold            # True = 점검 후보</code></pre>
-      <table>
-        <tr><th>명령 / 규칙</th><th>뜻</th><th>🤔 왜?</th></tr>
-        <tr><td><code>TensorDataset(*tensors)</code></td><td>첫 차원 길이가 같은 Tensor들을 묶음</td><td>AE는 정답이 x 자신이라 Tensor 하나만 넣어도 됨 → <code>(xb,)</code>로 꺼냄</td></tr>
-        <tr><td>Denoising: 노이즈 입력 → 깨끗한 target</td><td>입력과 정답의 역할을 나눔</td><td>정답까지 흔들면 "노이즈도 그대로 복원"을 배워 버림</td></tr>
-        <tr><td>Scaler·Normalize는 train에서 fit</td><td>valid/test엔 같은 규칙만 적용</td><td>valid 정보로 기준을 정하면 누수</td></tr>
-        <tr><td>기준값(임계값)은 <b>valid</b>에서, test는 마지막에 한 번</td><td>모델 선택 후 test 반복 조회 금지</td><td>test를 보며 기준을 고르면 test에 맞춘 숫자가 돼서 실전 성능을 과대평가</td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 입력 = 정답 Batch · Denoising · 기준값 <a href="../commands.html#d12-입력-정답-batch-denoising-기준값">명령어 사전에서 자세히 →</a></div>
+<pre><code>loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
+threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="attn">⑤ Attention · Transformer — 필요한 위치를 직접 골라 본다</h2>
@@ -500,72 +394,23 @@ is_candidate = valid_err &gt; threshold            # True = 점검 후보</code>
       <figure><img class="smooth" src="img/day12/attention_heatmap.png" alt="실제 4칸과 Padding 2칸으로 된 길이 6 순서의 Self-Attention 가중치 6×6 표. Mask가 없으면 pad 열에 비율이 가고, key_padding_mask를 쓰면 pad 열이 0"><figcaption><b>무엇을 보나:</b> 길이 6 순서(실제 x0~x3 + Padding 2칸)에 <code>softmax(QKᵀ/√d)</code>를 직접 계산한 Attention 가중치 표예요. 행 = 보는 주체(Query), 열 = 보이는 대상(Key), 한 행의 합 = 1. 왼쪽(Mask 없음)은 빨간 점선 안 pad 열에 행마다 0.3~0.6이나 새어 나가요. 오른쪽(<code>key_padding_mask</code>)은 pad 열이 전부 <b>0.00</b>이고 그 몫이 실제 칸으로 재분배돼요. ※ Q·K 투영은 무작위(seed 4)라 어떤 칸이 진한지에는 의미가 없어요. <b>🤔 왜 열만 0이고 pad 행은 남아?</b> Mask는 "이 Key를 보지 마"라는 표시라 <b>열</b>을 막아요. pad 위치도 Query로서 출력은 계속 만들어지니(아래 두 줄), Pooling 때 그 출력을 따로 빼야 해요(<code>masked_mean</code>).</figcaption></figure>
       <figure style="max-width:440px;margin:16px auto"><img class="smooth" src="img/day12/causal_mask.png" alt="6×6 Causal Mask. 대각선과 그 아래는 O(볼 수 있음), 대각선 위는 X(미래라서 차단)"><figcaption><b>무엇을 보나:</b> Causal Mask(<code>attn_mask</code>, [T, T])예요. 행 t3을 보면 t0~t3(초록 O)만 볼 수 있고 t4·t5(회색 X)는 막혀요. 아래로 갈수록 볼 수 있는 칸이 하나씩 늘어 계단(삼각형) 모양이 돼요. <b>🤔 왜 삼각형?</b> "다음 값 맞히기"에서 t3 시점의 예측이 t4를 보면 정답을 베끼는 셈이에요. "자기 자신과 과거만"이라는 규칙을 모든 행에 적용하면 대각선 위가 전부 막힌 삼각형이 돼요. Padding Mask(열 단위)와 달리 <b>위치 쌍</b> 단위로 막아요.</figcaption></figure>
 
-      <h3>🔧 명령어: <code>nn.MultiheadAttention()</code> — Self-Attention</h3>
-<pre><code>x = torch.randn(2, 5, 16)                       # [B, T, E]
-attn = nn.MultiheadAttention(embed_dim=16, num_heads=4, batch_first=True)
-output, weights = attn(x, x, x)                 # Self-Attention: query = key = value = x
-print(output.shape)                             # [2, 5, 16]  문맥이 섞인 표현
-print(weights.shape)                            # [2, 5, 5]   Head 평균 Attention (각 행 합 = 1)
-out, _ = attn(x, x, x, key_padding_mask=mask, need_weights=False)   # mask: [B, T], True = Padding</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>embed_dim</code> <small>(필수)</small></td><td>E, 입력·출력 벡터 크기</td><td><code>num_heads</code>로 나누어떨어져야 함 — E를 Head 수만큼 똑같이 쪼개 쓰니까 (16 ÷ 4 = Head당 4)</td></tr>
-        <tr><td><code>num_heads</code> <small>(필수)</small></td><td>병렬 Attention Head 수</td><td>늘리면 다양한 관계를 보지만 Head당 차원이 작아짐</td></tr>
-        <tr><td><code>batch_first</code></td><td>기본 False = [T, B, E]</td><td>[B, T, E] 데이터를 False로 넣으면 B와 T가 뒤바뀐 Attention</td></tr>
-        <tr><td><code>key_padding_mask</code></td><td>[B, T], <b>bool True = 차단</b> (그 Key를 보지 않음)</td><td>빼면 Padding이 섞임. 뜻을 반대로 넣으면 진짜 값을 차단</td></tr>
-        <tr><td><code>attn_mask</code></td><td>[T, T] 위치 쌍 차단 (Causal Mask 등)</td><td></td></tr>
-        <tr><td><code>need_weights</code></td><td>가중치 반환 여부 (기본 True)</td><td>False면 weights 계산·반환을 생략해 조금 가벼워짐</td></tr>
-        <tr><td><code>dropout</code>, <code>bias</code>, <code>kdim</code>, <code>vdim</code>, <code>add_bias_kv</code>, <code>add_zero_attn</code></td><td>선택 인자 (기본 0.0, True, None, None, False, False)</td><td></td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>nn.MultiheadAttention()</code> — Self-Attention <a href="../commands.html#d12-nn-multiheadattention">명령어 사전에서 자세히 →</a></div>
+<pre><code>attn = nn.MultiheadAttention(embed_dim=16, num_heads=4, batch_first=True)
+output, weights = attn(x, x, x)                 # Self-Attention: query = key = value = x</code></pre>
+      </div>
 
-      <h3>🔧 명령어: <code>nn.TransformerEncoderLayer</code> · <code>nn.TransformerEncoder</code></h3>
-<pre><code>layer = nn.TransformerEncoderLayer(d_model=16, nhead=4, dim_feedforward=32,
-                                   dropout=0.1, batch_first=True)
-x = torch.randn(2, 5, 16)
-print(layer(x).shape)                     # [2, 5, 16]  입력·출력 Shape 유지
-encoder = nn.TransformerEncoder(layer, num_layers=2)   # 같은 Layer를 복제해 2층
-# encoder(src, mask=None, src_key_padding_mask=None, is_causal=None)</code></pre>
-      <table>
-        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>d_model</code>, <code>nhead</code> <small>(필수)</small></td><td>E 크기, Head 수</td><td><code>d_model</code>은 <code>nhead</code>로 나누어떨어져야 함</td></tr>
-        <tr><td><code>dim_feedforward</code></td><td>Feedforward 중간 크기 (<b>기본 2048</b>)</td><td>d_model=16에 2048이면 FFN이 모델 대부분을 차지 → 작은 데이터면 32처럼 줄여야 과적합·계산이 줄어듦</td></tr>
-        <tr><td><code>dropout</code></td><td>기본 0.1</td><td>0.0이면 결과가 결정적이라 검사·비교에 편함</td></tr>
-        <tr><td><code>activation</code>, <code>layer_norm_eps</code>, <code>norm_first</code>, <code>bias</code></td><td>기본 "relu", 1e-5, False, True</td><td><code>norm_first=True</code>면 LayerNorm을 Attention·FFN 앞에 둠</td></tr>
-        <tr><td><code>batch_first</code></td><td>기본 False = [T, B, E]</td><td>True로 맞춰야 [B, T, E] 그대로 넣음</td></tr>
-        <tr><td><code>num_layers</code> <small>(Encoder, 필수)</small></td><td>Layer 반복 수</td><td>늘리면 문맥을 더 깊게 섞지만 파라미터·시간이 층 수에 비례</td></tr>
-        <tr><td><code>norm</code>, <code>enable_nested_tensor</code>, <code>mask_check</code></td><td>최종 LayerNorm(기본 None) · 최적화(기본 True) · Mask 검사(기본 True)</td><td><code>enable_nested_tensor=False</code>면 Padding 건너뛰기 최적화를 끔 → 경고 없이 단순하게 동작</td></tr>
-      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>nn.TransformerEncoderLayer</code> · <code>nn.TransformerEncoder</code> <a href="../commands.html#d12-nn-transformerencoderlayer">명령어 사전에서 자세히 →</a></div>
+<pre><code>layer = nn.TransformerEncoderLayer(d_model=16, nhead=4, dim_feedforward=32, dropout=0.1, batch_first=True)
+encoder = nn.TransformerEncoder(layer, num_layers=2)   # 같은 Layer를 복제해 2층</code></pre>
+      </div>
 
-      <h3>🔧 명령어: Position Embedding + Padding Mask + 실제 위치만 평균</h3>
-<pre><code>class TransformerClassifier(nn.Module):
-    def __init__(self, max_len=64, d_model=16):
-        super().__init__()
-        self.pos = nn.Embedding(max_len, d_model)          # 위치 0~63 → 16칸 벡터
-        layer = nn.TransformerEncoderLayer(d_model, 4, batch_first=True, dropout=0.0)
-        self.encoder = nn.TransformerEncoder(layer, 1, enable_nested_tensor=False)
-        self.head = nn.Linear(d_model, 2)
-
-    def forward(self, x, padding_mask):                    # padding_mask: [B, T], True = Padding
-        pos = torch.arange(x.size(1), device=x.device)     # [T]
-        z = self.encoder(x + self.pos(pos),                # [T, E] → Batch에 Broadcasting
-                         src_key_padding_mask=padding_mask)
-        return self.head(masked_mean(z, padding_mask))     # [B, E] → logits [B, 2]
-
-def masked_mean(x, padding_mask):
-    if bool(padding_mask.all(dim=1).any()):
-        raise ValueError("실제 길이는 1 이상")              # 전부 Padding이면 0으로 나누게 됨
-    valid = (~padding_mask).unsqueeze(-1)                  # [B, T, 1], True = 실제 값
-    summed = x.masked_fill(~valid, 0).sum(dim=1)
-    return summed / valid.sum(dim=1)                       # 분모 = 실제 길이</code></pre>
-      <table>
-        <tr><th>인자 / 규칙</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>nn.Embedding(max_len, d_model)</code></td><td>학습 가능한 Position Embedding</td><td>입력 길이 T가 <code>max_len</code>보다 길면 없는 위치 번호라 오류</td></tr>
-        <tr><td><code>x + self.pos(pos)</code></td><td>입력에 위치 표현을 <b>더함</b></td><td>빼면 순서를 섞어도 결과가 같아짐 (순서를 모르는 모델)</td></tr>
-        <tr><td><code>src_key_padding_mask</code></td><td>[B, T], True = Padding Key 제외</td><td>Mask를 넣어도 Padding <b>위치의 출력</b>은 남아 있음 → Pooling에서 다시 빼야 함</td></tr>
-        <tr><td><code>masked_mean</code> 분모</td><td>실제 길이</td><td>T로 나누면 짧은 순서일수록 평균이 작아져 길이가 점수에 섞임</td></tr>
-        <tr><td>길이 0 검사</td><td>모든 위치가 Padding인 샘플 막기</td><td>검사 없이 나누면 0 ÷ 0 = NaN이 학습 전체로 퍼짐</td></tr>
-      </table>
-      <div class="callout">💡 <strong>제대로 됐는지 확인하는 법</strong> — Padding 칸 값을 99로 바꿔도 출력이 같으면 Mask가 잘 걸린 것(Padding 불변). Position 없이 순서를 섞었는데 결과가 같으면 모델이 순서를 모른다는 뜻.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Position Embedding + Padding Mask + 실제 위치만 평균 <a href="../commands.html#d12-position-embedding-padding-mask-실제-위치만-평균">명령어 사전에서 자세히 →</a></div>
+<pre><code>self.pos = nn.Embedding(max_len, d_model)          # 위치 0~63 → 16칸 벡터
+z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)</code></pre>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="compare">⑥ 아키텍처 비교 — 목표·길이·자원에 맞게 고르기</h2>
@@ -601,33 +446,11 @@ def masked_mean(x, padding_mask):
       <figure><img class="smooth" src="img/day12/length_cost.png" alt="왼쪽은 길이 T에 따른 순차 단계 T와 Attention 점수 칸 T제곱의 로그 그래프, 오른쪽은 CPU에서 실측한 LSTM과 Transformer 순전파 시간"><figcaption><b>무엇을 보나:</b> 왼쪽은 계산량 "개수"예요. 두 선 모두 로그-로그라 직선인데, 보라(T²)가 주황(T)보다 <b>두 배 가파르게</b> 올라가요(T=512면 26만 칸). 오른쪽은 이 노트북 CPU에서 <code>nn.LSTM</code>과 <code>TransformerEncoder</code> 1층(B=32, E=16)을 실제로 잰 순전파 시간이에요. T=128 근처까지는 둘 다 1ms 아래에서 측정 잡음 속에 비슷하다가, 512에서는 Transformer가 약 10ms로 LSTM(약 2.3ms)의 4배쯤이 돼요. <b>🤔 왜 짧을 땐 비슷해?</b> 짧은 길이에선 T² 표가 작아서 계산보다 함수 호출 같은 고정 비용이 시간을 차지해요. 길어질수록 T² 항이 고정 비용을 압도하면서 차이가 벌어져요. 숫자는 장치·버전마다 달라요 → 직접 재 봐야 하는 이유.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 Padding 비율이 높으면 손해야?</strong> — 실제 정보가 없는 칸에도 연산과 메모리를 써요. 길이가 비슷한 것끼리 묶는 Bucket, PackedSequence, Nested Tensor가 상황에 따라 이 낭비를 줄여 줘요.</div>
 
-      <h3>🔧 명령어: 한 Batch 순전파를 반복해 시간 재기</h3>
-<pre><code>import time, torch
-# model(x, lengths) -&gt; logits; 입력·모델 장치는 동일, 호출 전 model.eval()
-with torch.inference_mode():
-    for _ in range(2):                      # 워밍업 (재지 않음)
-        model(x, lengths)
-    if x.device.type == "cuda":
-        torch.cuda.synchronize(x.device)
-        torch.cuda.reset_peak_memory_stats(x.device)
-    start = time.perf_counter()
-    for _ in range(20):
-        model(x, lengths)
-    if x.device.type == "cuda":
-        torch.cuda.synchronize(x.device)
-    seconds = time.perf_counter() - start
-print("samples/s:", len(x) * 20 / seconds)  # B × 20 / seconds
-peak = torch.cuda.max_memory_allocated(x.device) if x.device.type == "cuda" else "N/A"   # byte</code></pre>
-      <table>
-        <tr><th>명령</th><th>뜻</th><th>빼먹으면? (왜)</th></tr>
-        <tr><td>워밍업</td><td>첫 실행의 준비 시간을 빼고 재기</td><td>첫 측정만 유난히 느리게 나옴 (초기화·메모리 할당이 섞이니까)</td></tr>
-        <tr><td><code>torch.cuda.synchronize(device=None)</code></td><td>GPU 계산이 진짜 끝날 때까지 기다림</td><td>CUDA는 비동기라 명령만 던지고 바로 돌아와서, 시간이 실제보다 짧게 찍힘</td></tr>
-        <tr><td><code>torch.cuda.reset_peak_memory_stats()</code></td><td>최대 메모리 기록 초기화</td><td>앞서 돌린 작업의 최대값이 섞임</td></tr>
-        <tr><td><code>torch.cuda.max_memory_allocated()</code></td><td>구간 최대 GPU 메모리 (byte)</td><td>CPU에서는 호출하지 않고 <b>N/A</b>로 기록 (0이라 적으면 오해)</td></tr>
-        <tr><td><code>torch.inference_mode()</code></td><td>기울기 기록 끄기 (forward만 잼)</td><td>역전파용 기록까지 시간·메모리에 섞임</td></tr>
-        <tr><td><code>len(x) * 20 / seconds</code></td><td>초당 처리 샘플 수 (한 epoch가 아닌 20회 순전파)</td><td>반복 수를 안 곱하면 값이 20배 작게 나옴</td></tr>
-      </table>
-      <div class="callout">💡 <strong>공정한 비교 조건</strong> — 같은 길이 분포·Batch size·dtype·Device·Warm-up을 쓰고, 데이터 로딩·Padding 생성·장치 전송 시간을 포함할지 <b>측정 범위</b>를 적어요. 결과엔 평균 시간·samples/s·Peak VRAM·하드웨어·버전·Mask·Padding 비율을 함께 남겨요. 장치(CPU/GPU) 비교는 같은 모델·가중치·입력을 유지하고, 작은 입력에선 Launch·전송 오버헤드가 계산 시간을 지배할 수 있다는 점도 같이 해석해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 한 Batch 순전파를 반복해 시간 재기 <a href="../commands.html#d12-한-batch-순전파를-반복해-시간-재기">명령어 사전에서 자세히 →</a></div>
+<pre><code>torch.cuda.synchronize(x.device)
+seconds = time.perf_counter() - start</code></pre>
+      </div>
 
       <h2>원본 자료</h2>
       <ul>

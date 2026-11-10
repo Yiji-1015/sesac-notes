@@ -1,0 +1,482 @@
+<!-- Day9 명령어 — tools/split_commands.py 로 notes/day09.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="9">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day09.html#packages">📦 필요한 패키지</a></td><td><code>pip install torch</code> (공식 선택기 명령)</td></tr>
+        <tr><td><a href="notes/day09.html#gpu">① GPU·CUDA 환경</a></td><td><code>nvidia-smi</code>, <code>torch.cuda.is_available()</code>, <code>torch.device()</code></td></tr>
+        <tr><td><a href="notes/day09.html#tensor">② Tensor</a></td><td><code>torch.tensor()</code>, <code>torch.randn()</code>, <code>reshape</code> / <code>view</code> / <code>unsqueeze</code>, <code>.to(device)</code></td></tr>
+        <tr><td><a href="notes/day09.html#autograd">③ Autograd · 경사하강</a></td><td><code>requires_grad=True</code>, <code>loss.backward()</code>, <code>.grad.zero_()</code>, <code>torch.no_grad()</code>, <code>detach()</code></td></tr>
+        <tr><td><a href="notes/day09.html#ann">④ ANN (인공신경망)</a></td><td><code>nn.Linear</code>, <code>nn.ReLU</code>, <code>nn.Sequential</code>, <code>nn.Module</code></td></tr>
+        <tr><td><a href="notes/day09.html#loss">⑤ 손실함수 · 데이터 공급</a></td><td><code>nn.CrossEntropyLoss</code>, <code>TensorDataset</code>, <code>DataLoader</code></td></tr>
+        <tr><td><a href="notes/day09.html#loop">⑥ 학습 루프</a></td><td><code>torch.optim.SGD</code>, <code>optimizer.zero_grad()</code>, <code>optimizer.step()</code>, <code>model.train()</code> / <code>model.eval()</code></td></tr>
+      </table>
+</section>
+<section class="cmd" id="d9-nvidia-smi" data-topic="PyTorch" data-sub="GPU · 장치" data-day="9" data-theory="notes/day09.html#gpu">
+  <h3><code>nvidia-smi</code> (터미널)</h3>
+<pre><code>nvidia-smi</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>이 PC 기준 — 다른 PC에선 값이 달라요</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>GPU Name</code></td><td><code>NVIDIA GeForce RTX 5080 Laptop GPU</code></td><td>실제 장치 모델</td></tr>
+    <tr><td><code>Driver Version</code></td><td><code>592.27</code></td><td>설치된 그래픽 드라이버</td></tr>
+    <tr><td><code>CUDA Version (표 오른쪽 위)</code></td><td><code>13.1</code></td><td>드라이버가 지원하는 상한 — PyTorch 빌드 CUDA와 비교해 봐요</td></tr>
+    <tr><td><code>Memory-Usage</code></td><td><code>0 MiB / 16303 MiB</code></td><td>지금 쓰는 VRAM / 전체 VRAM</td></tr>
+    <tr><td><code>GPU-Util</code></td><td><code>0 %</code></td><td>실행 순간 GPU가 얼마나 바쁜지</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>출력 항목</th><th>뜻</th></tr>
+        <tr><td>GPU Name</td><td>실제 장치 모델 (예: RTX …)</td></tr>
+        <tr><td>Driver / KMD Version</td><td>설치된 그래픽 드라이버 버전</td></tr>
+        <tr><td>CUDA (UMD) Version</td><td>드라이버가 지원하는 <b>상한</b>일 수 있음. 설치된 CUDA Toolkit과 항상 같진 않아요 (출력 형식은 버전마다 조금 달라요)</td></tr>
+        <tr><td>Memory-Usage</td><td>사용 중인 VRAM / 전체 VRAM (예: <code>0 / 8192 MiB</code>)</td></tr>
+        <tr><td>GPU-Util</td><td>지금 GPU가 얼마나 바쁜지 (%)</td></tr>
+        <tr><td>Processes</td><td>GPU를 쓰고 있는 프로그램 목록</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>nvidia-smi</code>가 잘 나와도 PyTorch CUDA가 True라는 보장은 없어요. PyTorch 빌드(CPU용인지 CUDA용인지), 가상환경, 드라이버를 모두 확인해야 해요.</div>
+</section>
+
+<section class="cmd" id="d9-pytorch에서-gpu-확인" data-topic="PyTorch" data-sub="GPU · 장치" data-day="9" data-theory="notes/day09.html#gpu">
+  <h3>PyTorch에서 GPU 확인</h3>
+<pre><code>import torch
+print("PyTorch:", torch.__version__)
+print("빌드 CUDA:", torch.version.cuda)          # CPU 빌드면 None
+print("CUDA 사용 가능:", torch.cuda.is_available())
+if torch.cuda.is_available():                    # 꼭 확인한 뒤에 조회!
+    print("GPU:", torch.cuda.get_device_name(0))
+    props = torch.cuda.get_device_properties(0)
+    print("VRAM(GB):", round(props.total_memory / 1024**3, 1))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>이 PC 기준 — 다른 PC에선 값이 달라요</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.__version__</code></td><td><code>2.14.0+cu130</code></td><td>+cu130 = CUDA 13.0용 빌드</td></tr>
+    <tr><td><code>torch.version.cuda</code></td><td><code>&#x27;13.0&#x27;</code></td><td>CPU 빌드였다면 None</td></tr>
+    <tr><td><code>torch.cuda.is_available()</code></td><td><code>True</code></td><td>지금 이 환경에서 실제로 쓸 수 있나</td></tr>
+    <tr><td><code>torch.cuda.get_device_name(0)</code></td><td><code>&#x27;NVIDIA GeForce RTX 5080 Laptop GPU&#x27;</code></td><td>nvidia-smi의 GPU Name과 같아요</td></tr>
+    <tr><td><code>round(props.total_memory / 1024**3, 1)</code></td><td><code>15.9</code></td><td>바이트 → GB (GiB)</td></tr>
+    <tr><td><code>torch.cuda.device_count()</code></td><td><code>1</code></td><td>GPU 1개 → 번호는 0만 유효</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>함수 / 인자</th><th>뜻</th><th>바꾸면? / 주의</th></tr>
+        <tr><td><code>torch.cuda.is_available()</code></td><td>CUDA 런타임과 보이는 장치를 지금 PyTorch가 쓸 수 있나? → <code>True</code>/<code>False</code></td><td>인자 없음. 필수 인자도 없어요</td></tr>
+        <tr><td><code>torch.cuda.get_device_name(device=None)</code></td><td>GPU 이름 문자열(str)</td><td>GPU가 없는데 부르면 오류 → 그래서 <b>available 확인 뒤</b> 호출</td></tr>
+        <tr><td><code>torch.cuda.get_device_properties(device=None)</code></td><td>메모리(<code>total_memory</code>) 등 속성 객체</td><td>바이트 단위라 <code>/ 1024**3</code> 하면 GB</td></tr>
+        <tr><td><code>device</code> 인자</td><td>int · str · <code>torch.device</code> 가능</td><td><code>None</code>이면 현재 장치. 보통 <code>0</code>(첫 번째 GPU), 장치 번호가 다를 수도 있어요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>torch.version.cuda</code>도 따로 봐요?</strong> — 이건 "이 PyTorch가 <b>어떤 CUDA로 빌드</b>됐나"예요. CPU 빌드면 <code>None</code>이라, GPU가 있는데 False가 나오는 이유를 바로 알 수 있어요. 반면 <code>is_available()</code>은 "지금 이 환경에서 <b>실제로</b> 쓸 수 있나"라서 둘은 다른 질문이에요.</div>
+</section>
+
+<section class="cmd" id="d9-cpu-gpu-둘-다-되는-코드-패턴" data-topic="PyTorch" data-sub="GPU · 장치" data-day="9" data-theory="notes/day09.html#gpu">
+  <h3>CPU·GPU 둘 다 되는 코드 패턴</h3>
+<pre><code>device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
+X = X.to(device)</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>이 PC 기준 — 다른 PC에선 값이 달라요 · nn.Linear(2, 1), X = torch.randn(4, 2)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.device(&quot;cuda&quot; if torch.cuda.is_available() else &quot;cpu&quot;)</code></td><td><code>device(type=&#x27;cuda&#x27;)</code></td><td>GPU가 보여서 cuda가 골라짐 (없으면 cpu)</td></tr>
+    <tr><td><code>next(model.parameters()).device  (to 전 → 후)</code></td><td><code>cpu → cuda:0</code></td><td>모델은 to() 한 줄로 파라미터가 전부 이동</td></tr>
+    <tr><td><code>X.to(device).device</code></td><td><code>cuda:0</code></td><td>X 자체는 그대로 cpu — 다시 담아야 해요</td></tr>
+    <tr><td><code>model(X.to(device)).shape</code></td><td><code>(4, 1)</code></td><td>모델과 입력이 같은 장치라 계산됨</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 이 패턴을 써요?</strong> — <code>"cuda"</code>를 코드에 박아 두면 GPU 없는 PC에서 바로 오류가 나요. <code>is_available()</code> 결과로 장치를 고르면 <b>같은 코드</b>가 GPU 있는 곳에선 GPU로, 없는 곳에선 CPU로 돌아가요. <code>False</code>가 나와도 학습은 할 수 있어요.</div>
+</section>
+
+<section class="cmd" id="d9-torch-tensor" data-topic="PyTorch" data-sub="Tensor" data-day="9" data-theory="notes/day09.html#tensor">
+  <h3>Tensor 만들기 <code>torch.tensor()</code></h3>
+<pre><code>import torch
+x = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
+y = torch.tensor([0, 1], dtype=torch.long)
+print(x.shape, x.dtype, x.device)   # torch.Size([2, 2]) torch.float32 cpu
+print(y.shape, y.dtype)             # torch.Size([2]) torch.int64</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트 코드 그대로</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>x.shape, x.dtype, x.device</code></td><td><code>(2, 2), torch.float32, cpu</code></td><td>2×2 실수, CPU에 만들어짐</td></tr>
+    <tr><td><code>y.dtype</code></td><td><code>torch.int64</code></td><td>torch.long = int64 (클래스 번호)</td></tr>
+    <tr><td><code>torch.tensor([0, 1]).dtype   (dtype 생략)</code></td><td><code>torch.int64</code></td><td>정수 list면 알아서 int64</td></tr>
+    <tr><td><code>torch.tensor([0.5, 1]).dtype</code></td><td><code>torch.float32</code></td><td>실수가 섞이면 float32</td></tr>
+    <tr><td><code>a = np.array([1., 2.]); t = torch.tensor(a); a[0] = 99 → t</code></td><td><code>[1., 2.] (dtype torch.float64)</code></td><td>값을 복사해서 원본을 바꿔도 그대로. NumPy float64는 float64로 옴</td></tr>
+    <tr><td><code>torch.tensor(src).requires_grad   (src는 requires_grad=True)</code></td><td><code>False (경고 1개)</code></td><td>다시 감싸면 그래프가 끊기고 UserWarning이 떠요</td></tr>
+  </table>
+</div>
+      <p><code>torch.tensor(data, *, dtype=None, device=None, requires_grad=False, pin_memory=False)</code></p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>data</code> <small>(필수)</small></td><td>list, tuple, NumPy 배열, 스칼라</td><td>값을 <b>복사</b>해 새 Tensor를 만듦 → 원본을 바꿔도 Tensor는 안 바뀜</td></tr>
+        <tr><td><code>dtype</code></td><td><code>torch.float32</code>, <code>torch.long</code> …</td><td>입력 특성은 보통 float, <b>분류 클래스 번호는 long</b>. 틀리면 손실함수에서 오류</td></tr>
+        <tr><td><code>device</code></td><td><code>"cpu"</code> / <code>"cuda"</code></td><td>처음부터 GPU에 만들 수 있음 (나중에 옮기는 복사가 줄어요)</td></tr>
+        <tr><td><code>requires_grad</code></td><td>연산을 미분용으로 기록할지 (기본 False)</td><td>True면 Autograd가 추적 (<a href="notes/day09.html#autograd">③ Autograd</a>). 기록하는 만큼 메모리를 더 씀</td></tr>
+        <tr><td><code>pin_memory</code></td><td>CPU 고정 메모리에 만들지</td><td>GPU로 보내는 복사가 빨라질 수 있음</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 x는 float, y는 long?</strong> — 입력 특성은 곱하고 더하고 미분해야 하니 실수(float)여야 해요. 분류 정답은 "몇 번째 클래스인가"라는 <b>번호(index)</b>라서 정수(long)예요. <code>CrossEntropyLoss</code>가 class index target을 long으로 받기 때문에 맞춰 줘요.</div>
+      <div class="callout warn">⚠️ 이미 있는 Tensor를 <code>torch.tensor(t)</code>로 다시 감싸면 복사 + 그래프 분리(detach)가 일어나요. 의도에 따라 <code>clone()</code> / <code>detach()</code> / <code>torch.as_tensor()</code>를 구분해서 써요.</div>
+</section>
+
+<section class="cmd" id="d9-난수-0-1로-채우기" data-topic="PyTorch" data-sub="Tensor" data-day="9" data-theory="notes/day09.html#tensor">
+  <h3>난수 · 0 · 1로 채우기</h3>
+<pre><code>a = torch.randn(2, 3)                       # 평균 0, 분산 1 정규분포 난수
+b = torch.zeros(2, 3)                       # 0으로 채움
+c = torch.ones(2, 3, dtype=torch.float32)   # 1로 채움
+torch.manual_seed(42)                       # 난수 재현용 seed 고정
+print(a.shape, b.sum().item(), c.mean().item())   # torch.Size([2, 3]) 0.0 1.0</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.manual_seed(42) 직후</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.randn(2, 3)</code></td><td><code>[[ 0.3367,  0.1288,  0.2345],
+ [ 0.2303, -1.1229, -0.1863]]</code></td><td>seed 42에서 이 PC가 실제로 낸 값</td></tr>
+    <tr><td><code>seed 다시 42 → torch.randn(2, 3) 와 같나?</code></td><td><code>True</code></td><td>같은 seed면 같은 난수</td></tr>
+    <tr><td><code>torch.zeros(2, 3).sum().item()</code></td><td><code>0.0</code></td><td></td></tr>
+    <tr><td><code>torch.ones(2, 3).mean().item()</code></td><td><code>1.0</code></td><td></td></tr>
+    <tr><td><code>x = torch.randn(100000) → x.mean(), x.std()</code></td><td><code>0.0069, 1.0027</code></td><td>많이 뽑으면 평균 ≈ 0, 표준편차 ≈ 1</td></tr>
+  </table>
+</div>
+      <p><code>torch.randn(*size, *, generator=None, dtype=None, device=None, requires_grad=False)</code></p>
+      <table>
+        <tr><th>함수 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>size</code> <small>(필수)</small></td><td>만들 shape. <code>2, 3</code> 또는 <code>(2, 3)</code></td><td>shape만 바뀌고 값은 여전히 표준정규 난수</td></tr>
+        <tr><td><code>generator</code></td><td>재현용 난수 생성기</td><td>같은 generator·seed면 같은 난수가 나옴</td></tr>
+        <tr><td><code>dtype</code> · <code>device</code> · <code>requires_grad</code></td><td><code>torch.tensor</code>와 같은 뜻</td><td></td></tr>
+        <tr><td><code>torch.zeros</code> / <code>torch.ones</code></td><td>0 / 1로 채운 Tensor</td><td>모델 입력·초기 상태·테스트 데이터 만들 때</td></tr>
+        <tr><td><code>.item()</code></td><td>원소 1개짜리 Tensor → 파이썬 숫자</td><td>출력·기록할 때 씀</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 seed를 고정해요?</strong> — 난수는 실행할 때마다 달라서, 결과가 바뀐 게 코드를 고쳐서인지 운 때문인지 구분이 안 돼요. seed를 고정하면 같은 환경에서 같은 난수가 나와 <b>비교와 재현</b>이 쉬워져요. 단, 무작위 데이터는 실제 업무 데이터와 다르다는 점은 기억해요.</div>
+</section>
+
+<section class="cmd" id="d9-to-device" data-topic="PyTorch" data-sub="Tensor" data-day="9" data-theory="notes/day09.html#tensor">
+  <h3>장치 옮기기 <code>.to(device)</code></h3>
+<pre><code>from torch import nn
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+X = torch.randn(4, 2).to(device)
+model = nn.Linear(2, 1).to(device)
+output = model(X)
+print(X.device, output.device)       # 둘이 같아야 함</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>이 PC 기준 — 다른 PC에선 값이 달라요 · X = torch.randn(4, 2)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>X.to(device) 후 X.device</code></td><td><code>cpu</code></td><td>원본은 안 바뀜 — 새 Tensor를 돌려줌</td></tr>
+    <tr><td><code>X = X.to(device) → X.device</code></td><td><code>cuda:0</code></td><td>다시 담아야 바뀜</td></tr>
+    <tr><td><code>output = model(X) → output.device</code></td><td><code>cuda:0</code></td><td>입력·모델과 같은 장치</td></tr>
+    <tr><td><code>X.to(&quot;cpu&quot;) is X</code></td><td><code>True</code></td><td>이미 cpu면 복사 없이 자기 자신 (copy=False)</td></tr>
+    <tr><td><code>X.to(torch.float64).dtype</code></td><td><code>torch.float64</code></td><td>dtype만 바꾸기도 가능</td></tr>
+    <tr><td><code>cuda 모델에 cpu Tensor 넣기  model(X_cpu)</code></td><td><code>RuntimeError: Expected all tensors to be on the same device, but got mat1 is on cpu, different from othe…</code></td><td>장치를 섞으면 바로 오류</td></tr>
+  </table>
+</div>
+      <p><code>tensor.to(device=None, dtype=None, non_blocking=False, copy=False)</code> — 명시적 필수 인자는 없지만, 보통 device나 dtype 중 하나를 적어요.</p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>device</code></td><td><code>cpu</code> / <code>cuda</code></td><td>그 장치로 복사한 Tensor를 <b>반환</b> (원본은 그대로)</td></tr>
+        <tr><td><code>dtype</code></td><td>자료형 변경 (예: <code>torch.float32</code>)</td><td>장치는 두고 자료형만 바꿀 수 있음</td></tr>
+        <tr><td><code>non_blocking</code></td><td>가능하면 비동기 복사 요청</td><td>True면 복사하는 동안 다른 일을 할 수 있음 (pin_memory와 함께)</td></tr>
+        <tr><td><code>copy</code></td><td>조건이 같아도 복사할지</td><td>False(기본)면 이미 같은 장치·dtype일 때 <b>원본을 그대로</b> 돌려줄 수 있음</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>X.to(device)</code>만 쓰고 끝내면 안 돼요. 새 Tensor를 <b>돌려주는</b> 거라서 <code>X = X.to(device)</code>처럼 다시 담아야 해요. 그리고 <b>모델 · 입력 · 정답</b>이 모두 같은 device에 있어야 계산돼요. CPU Tensor와 CUDA 모델을 섞으면 오류가 나요.</div>
+      <div class="callout">🤔 <strong>왜 같은 device여야 해?</strong> — CPU 메모리(RAM)와 GPU 메모리(VRAM)는 <b>서로 다른 공간</b>이에요. GPU는 VRAM에 있는 값만 바로 계산할 수 있어서, 가중치(모델)는 VRAM에 있고 입력은 RAM에 있으면 곱셈 자체를 할 수 없어요. <code>.to()</code>는 한쪽에서 다른 쪽으로 <b>복사</b>하는 거라 시간도 들어요. 그래서 소량을 자주 옮기기보다 batch 단위로 한 번에 옮겨요.</div>
+</section>
+
+<section class="cmd" id="d9-backward" data-topic="PyTorch" data-sub="Autograd · 경사하강" data-day="9" data-theory="notes/day09.html#autograd">
+  <h3>자동 미분 <code>backward()</code></h3>
+<pre><code>x = torch.tensor(3.0, requires_grad=True)
+y = x**2 + 2*x + 1
+y.backward()
+print(y.item(), x.grad.item())    # 16.0 8.0</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>x = 3, y = x² + 2x + 1</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>y.item()</code></td><td><code>16.0</code></td><td>9 + 6 + 1</td></tr>
+    <tr><td><code>y.backward() 의 반환값</code></td><td><code>None</code></td><td>값은 안 돌려주고 .grad를 채움</td></tr>
+    <tr><td><code>x.grad.item()</code></td><td><code>8.0</code></td><td>dy/dx = 2x + 2 = 8</td></tr>
+    <tr><td><code>다시 순전파 + backward → x.grad.item()</code></td><td><code>16.0</code></td><td>zero_grad 없이 또 하면 8 + 8 = 16 (누적!)</td></tr>
+    <tr><td><code>y.requires_grad, y.grad_fn</code></td><td><code>True, AddBackward0</code></td><td>y는 x로부터 계산된 값이라 그래프 노드</td></tr>
+  </table>
+</div>
+      <p>함수 형태: <code>torch.autograd.backward(tensors, grad_tensors=None, retain_graph=None, create_graph=False, inputs=None)</code> — 보통은 <code>loss.backward()</code> 메서드로 불러요.</p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td>(없음)</td><td>스칼라 loss면 <code>loss.backward()</code>만 부르면 됨. 반환값은 <code>None</code>, 결과는 leaf Tensor·Parameter의 <code>.grad</code>에</td><td>값이 아니라 <code>.grad</code>가 바뀌어요</td></tr>
+        <tr><td><code>gradient</code> / <code>grad_tensors</code></td><td>출력이 스칼라가 아닐 때 시작 기울기</td><td>비스칼라 출력에서 안 주면 오류</td></tr>
+        <tr><td><code>retain_graph</code></td><td>그래프를 지우지 않고 남겨 둘지</td><td>True면 같은 그래프로 한 번 더 backward 가능 (메모리↑)</td></tr>
+        <tr><td><code>create_graph</code></td><td>고차 미분용 그래프를 만들지</td><td>기울기의 기울기가 필요할 때만</td></tr>
+        <tr><td><code>inputs</code></td><td>특정 입력에 대해서만 기울기 계산</td><td>나머지 <code>.grad</code>는 건드리지 않음</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <strong>기울기는 누적돼요.</strong> 새로 순전파한 뒤 <code>backward()</code>를 또 부르면 이전 기울기에 더해져요(2 → 4). 그래서 일반 학습 루프에선 매 step마다 기울기를 비워요(<code>zero_grad</code>).</div>
+      <p>backward를 여러 번 눌러 기울기가 쌓이는 모습은 <a href="notes/day09.html#autograd">Day9 ③ Autograd의 누적 체험</a>에서 직접 해 볼 수 있어요.</p>
+      <div class="callout">🤔 <strong>왜 PyTorch는 기울기를 덮어쓰지 않고 더해?</strong> — 일부러 여러 번 backward해서 기울기를 모은 뒤 한 번에 갱신하고 싶은 경우(예: GPU 메모리가 부족해서 작은 batch 여러 개를 합칠 때)가 있어서예요. 하지만 일반 학습에선 <b>지금 batch의 기울기</b>만 써야 하니, 안 비우면 지난 batch 기울기까지 섞여 갱신이 엉뚱하게 커져요.</div>
+</section>
+
+<section class="cmd" id="d9-손으로-5번-갱신하기" data-topic="PyTorch" data-sub="Autograd · 경사하강" data-day="9" data-theory="notes/day09.html#autograd">
+  <h3>손으로 5번 갱신하기</h3>
+<pre><code>w = torch.tensor(0.0, requires_grad=True)
+target = torch.tensor(4.0)
+lr = 0.1
+for step in range(5):
+    loss = (w - target) ** 2
+    loss.backward()               # 1. 기울기 계산
+    with torch.no_grad():
+        w -= lr * w.grad          # 2. 기록 없이 값 갱신
+    w.grad.zero_()                # 3. 기울기 비우기
+    print(step + 1, round(w.item(), 4))</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>loss = (w − 4)², w = 0에서 시작</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>lr = 0.1, 5 step의 w</code></td><td><code>0.8 → 1.44 → 1.952 → 2.3616 → 2.6893</code></td><td>남은 거리가 매번 ×0.8</td></tr>
+    <tr><td><code>lr = 0.01</code></td><td><code>0.08 → 0.1584 → 0.2352 → 0.3105 → 0.3843</code></td><td>너무 작으면 거의 안 움직임</td></tr>
+    <tr><td><code>lr = 1.1</code></td><td><code>8.8 → -1.76 → 10.912 → -4.2944 → 13.9533</code></td><td>1보다 크면 4를 넘어가며 점점 멀어짐(발산)</td></tr>
+    <tr><td><code>lr = 0.1인데 w.grad.zero_() 빠뜨림</code></td><td><code>0.8 → 2.24 → 4.032 → 5.8176 → 7.2397</code></td><td>기울기가 쌓여 4를 지나쳐 버림</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>줄</th><th>왜?</th></tr>
+        <tr><td><code>with torch.no_grad():</code></td><td>갱신하는 연산 자체가 다음 계산 그래프에 기록되지 않도록</td></tr>
+        <tr><td><code>w.grad.zero_()</code></td><td>안 비우면 다음 step 기울기에 이번 것이 더해짐</td></tr>
+        <tr><td><code>lr</code></td><td>작게 → 느림, 크게 → 진동·발산 가능</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d9-torch-no-grad" data-topic="PyTorch" data-sub="Autograd · 경사하강" data-day="9" data-theory="notes/day09.html#autograd">
+  <h3><code>torch.no_grad()</code> vs <code>tensor.detach()</code></h3>
+<pre><code>model.eval()
+with torch.no_grad():              # 블록 안 연산은 그래프에 기록 안 함
+    logits = model(X)
+probs = torch.softmax(logits, dim=1).detach().cpu()   # 그래프에서 떼고 CPU로</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>nn.Linear(2, 2), X = torch.randn(4, 2)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model(X).requires_grad  (그냥 호출)</code></td><td><code>True</code></td><td>파라미터가 학습 대상이라 기록됨</td></tr>
+    <tr><td><code>with torch.no_grad(): model(X).requires_grad</code></td><td><code>False</code></td><td>블록 안에선 기록 안 함</td></tr>
+    <tr><td><code>softmax(logits).detach().requires_grad</code></td><td><code>False</code></td><td>그래프에서 떼어 낸 값</td></tr>
+    <tr><td><code>probs.sum(dim=1)</code></td><td><code>[1., 1., 1., 1.]</code></td><td>softmax라 각 행 합이 1</td></tr>
+    <tr><td><code>logits.numpy()  (detach 없이)</code></td><td><code>RuntimeError: Can&#x27;t call numpy() on Tensor that requires grad. Use tensor.detach().numpy() instead.</code></td><td>기록 중인 Tensor는 NumPy로 못 바꿈 → detach 필요</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령</th><th>하는 일</th><th>언제?</th></tr>
+        <tr><td><code>with torch.no_grad():</code></td><td>블록 안 연산을 gradient 그래프에 기록하지 않음</td><td>평가 · 예측 · 수동 파라미터 갱신</td></tr>
+        <tr><td><code>tensor.detach()</code></td><td>현재 그래프에서 분리한 Tensor(view)를 반환</td><td>값만 꺼내 쓰고 싶을 때 (기록·출력·NumPy 변환)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 갱신은 no_grad 안에서 해?</strong> — <code>w -= lr * w.grad</code>도 연산이라, 기록을 켜 두면 "갱신하는 과정" 자체가 다음 계산 그래프에 섞여 들어가요. 파라미터 값 자체를 Autograd가 다시 추적하지 않도록 갱신 구간을 분리하는 거예요. 반대로 학습 중 필요한 기울기까지 실수로 끊지 않도록 <code>no_grad</code>/<code>detach</code>는 <b>위치</b>를 잘 골라야 해요.</div>
+</section>
+
+<section class="cmd" id="d9-2-8-2-ann-만들기" data-topic="PyTorch" data-sub="모델 만들기" data-day="9" data-theory="notes/day09.html#ann">
+  <h3>2→8→2 ANN 만들기</h3>
+<pre><code>import torch
+from torch import nn
+model = nn.Sequential(
+    nn.Linear(2, 8),
+    nn.ReLU(),
+    nn.Linear(8, 2),
+)
+X = torch.randn(4, 2)
+logits = model(X)                 # 순전파: 각 층의 forward를 순서대로 호출
+print(logits.shape)               # torch.Size([4, 2]) ← 확률이 아니라 logits
+print(sum(p.numel() for p in model.parameters()))   # 42</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.manual_seed(0), X = torch.randn(4, 2)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>logits.shape</code></td><td><code>(4, 2)</code></td><td>(batch 4, class 2)</td></tr>
+    <tr><td><code>logits[0]</code></td><td><code>[ 0.0862, -0.0312]</code></td><td>확률이 아니라 원시 점수 — 음수도 나오고 합이 1도 아님</td></tr>
+    <tr><td><code>model[0].weight.shape, model[0].bias.shape</code></td><td><code>(8, 2), (8,)</code></td><td>weight는 (out, in)</td></tr>
+    <tr><td><code>sum(p.numel() for p in model.parameters())</code></td><td><code>42</code></td><td>2×8+8 + 8×2+2</td></tr>
+    <tr><td><code>(model[1](model[0](X)) &gt;= 0).all()</code></td><td><code>True</code></td><td>ReLU 뒤엔 음수가 없음</td></tr>
+    <tr><td><code>model(torch.randn(4, 3))</code></td><td><code>RuntimeError: mat1 and mat2 shapes cannot be multiplied (4x3 and 2x8)</code></td><td>입력 마지막 차원이 in_features(2)와 다르면 오류</td></tr>
+  </table>
+</div>
+      <p><code>nn.Linear(in_features, out_features, bias=True, device=None, dtype=None)</code> · <code>nn.ReLU(inplace=False)</code> · <code>nn.Sequential(*modules)</code></p>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면? / 주의</th></tr>
+        <tr><td><code>in_features</code> <small>(필수)</small></td><td>입력 마지막 차원 크기</td><td>입력의 마지막 차원과 다르면 shape 오류</td></tr>
+        <tr><td><code>out_features</code> <small>(필수)</small></td><td>출력 feature 수 (이 층의 뉴런 수)</td><td>키우면 표현력·파라미터 수↑. weight shape는 <b>(out, in)</b> → Linear(2,8)은 (8, 2)</td></tr>
+        <tr><td><code>bias=True</code></td><td>편향 <code>b</code> 사용 여부 (기본 True)</td><td>False면 bias 파라미터가 없어짐. bias shape는 (out_features,)</td></tr>
+        <tr><td><code>device</code> · <code>dtype</code></td><td>파라미터를 만들 장치·자료형</td><td>보통 생략하고 나중에 <code>model.to(device)</code></td></tr>
+        <tr><td><code>nn.ReLU(inplace=False)</code></td><td>음수를 0으로 (필수 인자 없음)</td><td>inplace=True면 입력을 직접 덮어써 메모리를 아끼지만 원본이 사라짐. 출력 shape는 입력과 같음</td></tr>
+        <tr><td><code>nn.Sequential(*modules)</code></td><td>층을 순서대로 연결해 모델 하나로</td><td>넣은 순서가 곧 모델 구조. 마지막 모듈 출력을 돌려줌. <code>OrderedDict</code>로 이름도 붙일 수 있음</td></tr>
+        <tr><td><code>model.parameters()</code></td><td>학습할 Parameter 반복자 (Optimizer에 넘김)</td><td><code>named_parameters()</code>는 이름까지</td></tr>
+        <tr><td><code>p.numel()</code></td><td>파라미터 안 숫자 개수</td><td>2×8+8 + 8×2+2 = <b>42</b></td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 마지막에 softmax를 안 붙여?</strong> — 출력은 확률이 아니라 <b>logits</b>(원시 점수)예요. <a href="notes/day09.html#loss">⑤ 손실함수</a>에서 쓸 <code>CrossEntropyLoss</code>가 안에서 softmax까지 함께 계산하기 때문에, 모델에서 또 softmax를 하면 두 번 하게 돼요.</div>
+</section>
+
+<section class="cmd" id="d9-nn-module" data-topic="PyTorch" data-sub="모델 만들기" data-day="9" data-theory="notes/day09.html#ann">
+  <h3>직접 모델 클래스 만들기 <code>nn.Module</code></h3>
+<pre><code>class SimpleANN(nn.Module):
+    def __init__(self):
+        super().__init__()                 # 꼭 호출해야 층이 등록됨
+        self.net = nn.Sequential(nn.Linear(2, 8), nn.ReLU(), nn.Linear(8, 2))
+    def forward(self, x):                  # 입력 (batch, 2) → 출력 (batch, 2)
+        return self.net(x)
+
+model = SimpleANN()
+logits = model(X)                          # model(X) 하면 forward가 실행됨</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>SimpleANN() 과 일부러 틀린 두 클래스</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model(X).shape   (X: (4, 2))</code></td><td><code>(4, 2)</code></td><td>model(X)가 forward를 불러 줌</td></tr>
+    <tr><td><code>[n for n, _ in model.named_parameters()]</code></td><td><code>[&#x27;net.0.weight&#x27;, &#x27;net.0.bias&#x27;, &#x27;net.2.weight&#x27;, &#x27;net.2.bias&#x27;]</code></td><td>self.net 아래 층이 자동 등록</td></tr>
+    <tr><td><code>층을 파이썬 list에 넣은 모델의 파라미터 수</code></td><td><code>0</code></td><td>0개! 등록이 안 돼 Optimizer가 못 봐요</td></tr>
+    <tr><td><code>super().__init__() 빼먹은 모델 만들기</code></td><td><code>AttributeError: cannot assign module before Module.__init__() call</code></td><td>층을 등록할 장부가 없어 오류</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>구성</th><th>뜻</th><th>빠뜨리면?</th></tr>
+        <tr><td><code>nn.Module</code> 상속</td><td>모든 신경망의 기본 클래스. 하위 Module·Parameter 등록, device 이동, train/eval 모드 관리</td><td>parameters()·to()·eval()을 못 씀</td></tr>
+        <tr><td><code>super().__init__()</code></td><td>부모 초기화</td><td>층을 등록할 장부가 안 만들어져 오류</td></tr>
+        <tr><td><code>forward(x)</code></td><td>순전파 계산을 정의</td><td><code>model(X)</code> 호출 시 실행할 내용이 없음</td></tr>
+        <tr><td><code>model.to(device)</code></td><td>안의 층·파라미터가 한꺼번에 이동</td><td>하나씩 옮길 필요 없음</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 nn.Module을 상속해?</strong> — <code>self.net = …</code>처럼 속성에 층을 넣으면 Module이 그걸 자동으로 "내 하위 층"으로 등록해요. 덕분에 <code>model.parameters()</code> 한 줄로 모든 가중치를 Optimizer에 넘기고, <code>model.to(device)</code> 한 줄로 전부 옮기고, <code>model.eval()</code> 한 줄로 전부 평가 모드로 바꿀 수 있어요.</div>
+      <div class="callout warn">⚠️ 등록된 파라미터만 Optimizer가 갱신해요. 층을 파이썬 list에 그냥 넣으면 등록이 안 되니 <code>nn.ModuleList</code> 같은 등록 구조를 써요.</div>
+</section>
+
+<section class="cmd" id="d9-nn-crossentropyloss" data-topic="PyTorch" data-sub="손실함수 · 데이터 공급" data-day="9" data-theory="notes/day09.html#loss">
+  <h3>분류 손실 <code>nn.CrossEntropyLoss</code></h3>
+<pre><code>loss_fn = nn.CrossEntropyLoss()
+logits = model(X)                              # (batch, class), softmax 전!
+y = torch.tensor([0, 1, 1, 0], dtype=torch.long)   # (batch,), long
+loss = loss_fn(logits, y)                      # 스칼라, 작을수록 정답에 가까움</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>학습 전 2→8→2 모델(seed 0), X = randn(4, 2), y = [0, 1, 1, 0]</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>loss_fn(logits, y)</code></td><td><code>0.6972</code></td><td>학습 전이라 ln 2 ≈ 0.693 근처 (반반 찍는 수준)</td></tr>
+    <tr><td><code>nn.CrossEntropyLoss(reduction=&#x27;none&#x27;)(logits, y)</code></td><td><code>[0.6362, 0.7467, 0.6825, 0.7234]</code></td><td>샘플별 loss 4개, 평균이 위 값</td></tr>
+    <tr><td><code>loss_fn(torch.tensor([[10., 0.]]), torch.tensor([0]))</code></td><td><code>4.542e-05</code></td><td>정답 점수가 크게 앞서면 거의 0</td></tr>
+    <tr><td><code>loss_fn(torch.tensor([[10., 0.]]), torch.tensor([1]))</code></td><td><code>10</code></td><td>확신하고 틀리면 아주 큼</td></tr>
+    <tr><td><code>loss_fn(torch.softmax(torch.tensor([[10., 0.]]), 1), torch.tensor([0]))</code></td><td><code>0.3133</code></td><td>softmax를 먼저 하면 확실히 맞혀도 0.31에서 더 못 내려감 (원래는 0.00005)</td></tr>
+    <tr><td><code>loss_fn(logits, y.float())</code></td><td><code>RuntimeError: expected target dtype to be Long or Byte, but got Float</code></td><td>(batch,) 정답을 float로 주면 오류 — long이어야 해요</td></tr>
+  </table>
+</div>
+      <p><code>nn.CrossEntropyLoss(weight=None, ignore_index=-100, reduction="mean", label_smoothing=0.0)</code> — 생성자 필수 인자는 없고, 호출할 때 <code>(logits, target)</code>을 넣어요.</p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>weight</code></td><td>클래스별 가중치</td><td>적은 클래스를 틀릴 때 loss가 더 커져 → 그 클래스를 더 신경 써서 학습</td></tr>
+        <tr><td><code>ignore_index</code></td><td>무시할 클래스 번호 (기본 -100)</td><td>그 번호가 정답인 샘플은 loss·기울기에서 빠짐</td></tr>
+        <tr><td><code>reduction</code></td><td><code>"mean"</code>(기본) / <code>"sum"</code> / <code>"none"</code></td><td>mean이면 스칼라(batch 평균), sum이면 합이라 batch가 클수록 커짐, none이면 샘플별 loss</td></tr>
+        <tr><td><code>label_smoothing</code></td><td>정답을 살짝 부드럽게 (기본 0.0)</td><td>키우면 정답에 100% 확신하도록 몰아붙이지 않음</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>CrossEntropyLoss</code>에는 <b>softmax 하기 전 logits</b>를 그대로 넣어요(안에서 softmax를 함께 계산해요). 정답은 클래스 번호, shape (batch,), dtype <b>long</b>. 그래서 모델 마지막에 softmax를 안 붙여요.</div>
+      <div class="callout">🤔 <strong>왜 softmax를 먼저 하면 안 돼?</strong> — 손실 함수가 안에서 softmax를 또 하니까, 미리 하면 <b>softmax를 두 번</b> 하게 돼요. 확률이 0~1 사이로 한 번 눌린 값에 다시 softmax를 하면 클래스 간 차이가 작아져서, 정답을 잘 맞혀도 loss가 잘 안 줄고 기울기도 약해져요. logits를 그대로 넣으면 안에서 한 번에 안정적으로 계산해요.</div>
+</section>
+
+<section class="cmd" id="d9-tensordataset" data-topic="PyTorch" data-sub="손실함수 · 데이터 공급" data-day="9" data-theory="notes/day09.html#loss">
+  <h3><code>TensorDataset</code> · <code>DataLoader</code></h3>
+<pre><code>from torch.utils.data import TensorDataset, DataLoader
+X = torch.randn(200, 2)
+y = ((X[:, 0] + 0.8 * X[:, 1]) &gt; 0).long()
+loader = DataLoader(TensorDataset(X, y), batch_size=32, shuffle=True)
+xb, yb = next(iter(loader))
+print(xb.shape, yb.shape)          # torch.Size([32, 2]) torch.Size([32])</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.manual_seed(42), X = randn(200, 2)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(TensorDataset(X, y))</code></td><td><code>200</code></td><td>샘플 수</td></tr>
+    <tr><td><code>ds[0]</code></td><td><code>([1.9269, 1.4873], 1)</code></td><td>같은 번호의 X와 y가 짝으로 나옴</td></tr>
+    <tr><td><code>y.float().mean()</code></td><td><code>0.52</code></td><td>클래스 1 비율 — 대략 반반</td></tr>
+    <tr><td><code>xb.shape, yb.shape, yb.dtype</code></td><td><code>(32, 2), (32,), torch.int64</code></td><td>batch 하나</td></tr>
+    <tr><td><code>len(loader), 각 batch 크기</code></td><td><code>7, [32, 32, 32, 32, 32, 32, 8]</code></td><td>200 = 32×6 + 8 → 마지막은 8개</td></tr>
+    <tr><td><code>len(DataLoader(ds, batch_size=32, drop_last=True))</code></td><td><code>6</code></td><td>작은 마지막 batch를 버림</td></tr>
+  </table>
+</div>
+      <p><code>DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False, drop_last=False, ...)</code></p>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>dataset</code> <small>(필수)</small></td><td>꺼낼 데이터 묶음 (<code>TensorDataset(X, y)</code>는 X와 y를 같은 번호로 묶고, len = 샘플 수)</td><td></td></tr>
+        <tr><td><code>batch_size</code></td><td>한 번에 꺼낼 샘플 수 (기본 1)</td><td>키우면 step 수↓·메모리↑·기울기 안정, 줄이면 그 반대 (<a href="notes/day10.html#batch">Day10 ③ Batch</a>)</td></tr>
+        <tr><td><code>shuffle</code></td><td>epoch마다 순서 섞기 (기본 False)</td><td>train은 True — 매번 같은 순서로 보면 그 순서 패턴까지 배울 수 있어서 섞어 줘요</td></tr>
+        <tr><td><code>num_workers</code></td><td>데이터 읽는 보조 프로세스 수 (기본 0)</td><td>늘리면 로딩이 빨라질 수 있지만, Windows에선 실행 진입점(<code>if __name__ == "__main__":</code>) 구조에 주의 → 처음엔 0</td></tr>
+        <tr><td><code>pin_memory</code></td><td>GPU 전송용 고정 메모리</td><td>True면 CPU→GPU 복사가 빨라질 수 있음</td></tr>
+        <tr><td><code>drop_last</code></td><td>마지막 작은 batch 버리기 (기본 False)</td><td>True면 모든 batch 크기가 같아지지만 그 epoch엔 일부 샘플을 안 씀</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d9-준비-batch-반복" data-topic="PyTorch" data-sub="학습 루프" data-day="9" data-theory="notes/day09.html#loop">
+  <h3>준비 + batch 반복</h3>
+<pre><code>import torch
+from torch import nn
+from torch.utils.data import TensorDataset, DataLoader
+
+torch.manual_seed(42)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+X = torch.randn(200, 2)
+y = ((X[:, 0] + 0.8 * X[:, 1]) &gt; 0).long()
+loader = DataLoader(TensorDataset(X, y), batch_size=32, shuffle=True)
+model = nn.Sequential(nn.Linear(2, 8), nn.ReLU(), nn.Linear(8, 2)).to(device)
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
+
+for epoch in range(80):
+    model.train()
+    for xb, yb in loader:
+        xb, yb = xb.to(device), yb.to(device)   # batch도 같은 device로
+        optimizer.zero_grad()
+        logits = model(xb)
+        loss = loss_fn(logits, yb)
+        loss.backward()
+        optimizer.step()
+
+model.eval()
+with torch.no_grad():                           # 평가: 기록 끄기
+    pred = model(X.to(device)).argmax(dim=1)
+    acc = (pred.cpu() == y).float().mean().item()</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트 코드 그대로 (seed 42, 직선 경계 데이터 200개, device=cuda)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>학습 전 정확도</code></td><td><code>0.515</code></td><td>무작위 가중치라 찍기 수준</td></tr>
+    <tr><td><code>첫 batch loss → 마지막 batch loss</code></td><td><code>0.7407 → 0.0518</code></td><td>batch마다 step하며 줄어듦</td></tr>
+    <tr><td><code>optimizer.step() 호출 수</code></td><td><code>560</code></td><td>7 batch × 80 epoch</td></tr>
+    <tr><td><code>model[0].weight 가 바뀐 양 (평균 절댓값)</code></td><td><code>0.5693</code></td><td>step이 실제로 가중치를 움직임</td></tr>
+    <tr><td><code>acc (train 데이터 전체)</code></td><td><code>1.000</code></td><td>직선으로 갈리는 쉬운 데이터라 200개 모두 맞힘 — 학습한 데이터로 잰 값이라 일반화 성능은 아님</td></tr>
+    <tr><td><code>pred.device</code></td><td><code>cuda:0</code></td><td>비교 전에 .cpu()로 정답과 장치를 맞춤</td></tr>
+  </table>
+</div>
+      <p><code>torch.optim.SGD(params, lr=0.001, momentum=0, weight_decay=0, ...)</code> · <code>optimizer.zero_grad(set_to_none=True)</code> · <code>optimizer.step(closure=None)</code></p>
+      <table>
+        <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>params</code> <small>(필수)</small></td><td>갱신할 Parameter, 보통 <code>model.parameters()</code></td><td>여기 안 넘긴 파라미터는 학습해도 안 바뀜</td></tr>
+        <tr><td><code>lr</code></td><td>학습률 (기본 0.001, 그래도 <b>명시 권장</b>)</td><td>너무 크면 발산, 너무 작으면 느림 (<a href="notes/day09.html#autograd">③ 경사하강 lr 체험</a> 참고). 강의 예시는 0.1</td></tr>
+        <tr><td><code>momentum</code>, <code>weight_decay</code>, <code>nesterov</code></td><td>이전 방향 누적, 큰 가중치 억제 (기본 0)</td><td><a href="notes/day10.html#optim">Day10 ① Optimizer</a>에서 본격 비교</td></tr>
+        <tr><td><code>optimizer.zero_grad(set_to_none=True)</code></td><td>지난 기울기 비우기</td><td>기본은 <code>.grad</code>를 None으로, False면 0으로 채움</td></tr>
+        <tr><td><code>optimizer.step(closure=None)</code></td><td>현재 <code>.grad</code>로 한 번 갱신 (반환 None)</td><td>closure는 대부분 생략</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d9-epoch-평균-loss를-제대로-내기" data-topic="PyTorch" data-sub="학습 루프" data-day="9" data-theory="notes/day09.html#loop">
+  <h3>epoch 평균 loss를 제대로 내기</h3>
+<pre><code>def train_one_epoch(model, loader, loss_fn, optimizer, device):
+    model.train()
+    total_loss = 0.0
+    for xb, yb in loader:
+        xb, yb = xb.to(device), yb.to(device)
+        optimizer.zero_grad()
+        loss = loss_fn(model(xb), yb)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
+    return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>같은 데이터 200개, batch 32 (마지막 batch 8개)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>epoch 1 batch 크기</code></td><td><code>[32, 32, 32, 32, 32, 32, 8]</code></td><td></td></tr>
+    <tr><td><code>epoch 1 마지막 batch loss</code></td><td><code>0.4449</code></td><td>8개짜리 batch의 평균</td></tr>
+    <tr><td><code>train_one_epoch(...)  (샘플 가중 평균)</code></td><td><code>0.5334</code></td><td>샘플 하나하나의 평균</td></tr>
+    <tr><td><code>batch loss들을 그냥 평균</code></td><td><code>0.5239</code></td><td>8개 batch가 32개와 같은 무게라 살짝 다름</td></tr>
+    <tr><td><code>epoch 2 train_one_epoch(...)</code></td><td><code>0.4788</code></td><td>다음 epoch엔 더 내려감</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 <code>× len(xb)</code>를 해?</strong> — <code>loss</code>는 batch 안의 <b>평균</b>이에요(reduction="mean"). 마지막 batch는 8개처럼 작을 수 있어서, batch 평균들을 그냥 평균 내면 8개짜리 batch가 32개짜리와 같은 무게를 갖게 돼요. 샘플 수를 곱해 합친 뒤 전체 샘플 수로 나누면 "샘플 하나하나의 평균"이 정확히 나와요. 함수 하나가 "epoch 1회 학습"이라는 한 가지 역할만 하게 나누면 읽기도 쉬워요.</div>
+</section>

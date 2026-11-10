@@ -1,0 +1,641 @@
+<!-- Day17 명령어 — tools/split_commands.py 로 notes/day17.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<section class="cmd-overview" data-day="17">
+<table>
+        <tr><th>이론</th><th>대응 명령어</th></tr>
+        <tr><td><a href="notes/day17.html#packages">📦 필요한 패키지</a></td><td><code>python -m pip install fastapi uvicorn</code></td></tr>
+        <tr><td><a href="notes/day17.html#first">① 첫 서버 띄우기</a></td><td><code>FastAPI()</code>, <code>@app.get()</code>, <code>python -m uvicorn main:app --reload</code></td></tr>
+        <tr><td><a href="notes/day17.html#http">② HTTP 요청과 응답</a></td><td>Method · Path · Query · Body · Status, <code>/docs</code>의 Try it out</td></tr>
+        <tr><td><a href="notes/day17.html#storage">③ JSON 파일 저장소</a></td><td><code>json.load()</code>, <code>json.dump()</code>, <code>with LOCK:</code>, <code>temp.replace()</code></td></tr>
+        <tr><td><a href="notes/day17.html#read">④ 조회 (GET)</a></td><td><code>@app.get("/api/knowledge/{knowledge_id}")</code>, <code>raise HTTPException(404)</code></td></tr>
+        <tr><td><a href="notes/day17.html#create">⑤ 등록 (POST) · 입력 검증</a></td><td><code>class KnowledgeWrite(BaseModel)</code>, <code>Field(min_length=, max_length=)</code>, <code>status_code=201</code></td></tr>
+        <tr><td><a href="notes/day17.html#update">⑥ 수정 (PUT)</a></td><td><code>@app.put()</code>, <code>enumerate()</code>, <code>data["entries"][i] = updated</code></td></tr>
+        <tr><td><a href="notes/day17.html#delete">⑦ 삭제 (DELETE) · 상태 코드</a></td><td><code>@app.delete(status_code=204)</code>, <code>Response(status_code=204)</code></td></tr>
+        <tr><td><a href="notes/day17.html#lab">🧪 직접 요청 보내 보기</a></td><td>(브라우저 안에서 CRUD 흉내)</td></tr>
+        <tr><td><a href="notes/day17.html#restart">⑧ 끝까지 추적 · 재시작</a></td><td><kbd>Ctrl+C</kbd> → 같은 명령으로 재실행 → <code>GET</code></td></tr>
+        <tr><td><a href="notes/day17.html#structure">⑨ 역할별로 파일 나누기</a></td><td><code>APIRouter(prefix=, tags=)</code>, <code>app.include_router()</code>, <code>uvicorn app.main:app</code></td></tr>
+        <tr><td><a href="notes/day17.html#next">⑩ 다음 단계와 연결</a></td><td>PostgreSQL · RAG · Agent (오늘은 구현 안 함)</td></tr>
+      </table>
+</section>
+<section class="cmd" id="d17-main-py" data-topic="FastAPI" data-sub="서버 실행" data-day="17" data-theory="notes/day17.html#first">
+  <h3><code>main.py</code> — 첫 JSON 응답</h3>
+<pre><code>from fastapi import FastAPI
+
+app = FastAPI(title="Knowledge API")       # 앱 객체 만들기
+
+@app.get("/health")                        # GET /health 요청이 오면
+def health():                              # 이 함수를 실행해서
+    return {"status": "ok"}                # 이 값을 JSON으로 돌려줌</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 main.py를 TestClient로 호출</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.get(&quot;/health&quot;)</code></td><td><code>200 {&quot;status&quot;:&quot;ok&quot;}</code></td><td>dict를 돌려주면 JSON으로 응답 · 상태 코드 200</td></tr>
+    <tr><td><code>r.headers[&quot;content-type&quot;]</code></td><td><code>application/json</code></td><td>FastAPI가 JSON으로 바꿔 보냄</td></tr>
+    <tr><td><code>app.title</code></td><td><code>&#x27;Knowledge API&#x27;</code></td><td>/docs 맨 위에 보이는 이름</td></tr>
+    <tr><td><code>[r.path for r in app.routes]</code></td><td><code>[&#x27;/openapi.json&#x27;, &#x27;/docs&#x27;, &#x27;/redoc&#x27;, &#x27;/health&#x27;]</code></td><td>@app.get 한 줄로 /health 등록 + 문서 주소는 자동으로 생김</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드</th><th>역할</th></tr>
+        <tr><td><code>FastAPI(title=...)</code></td><td>앱 객체 생성. <code>title</code>은 <code>/docs</code> 맨 위에 보이는 이름(선택)</td></tr>
+        <tr><td><code>@app.get("/health")</code></td><td><b>Route</b> 등록 — "GET 방식 + <code>/health</code> 경로"를 바로 아래 함수에 연결</td></tr>
+        <tr><td><code>def health():</code></td><td><b>요청 처리 함수</b>(View / Handler라고도 불러요). 요청이 올 때마다 실행</td></tr>
+        <tr><td><code>return {...}</code></td><td>파이썬 dict를 돌려주면 FastAPI가 <b>JSON</b>으로 바꿔서 응답 (상태 코드 200)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 함수 위에 <code>@</code>를 붙여?</strong> — <code>@app.get(...)</code>은 <b>데코레이터</b>예요. 함수를 바꾸지 않고 "이 함수를 이 주소에 등록해 둬"라는 표시만 붙여요. 그래서 함수는 평범한 파이썬 함수 그대로고, 언제 실행할지는 FastAPI가 정해요.</div>
+</section>
+
+<section class="cmd" id="d17-서버-실행" data-topic="FastAPI" data-sub="서버 실행" data-day="17" data-theory="notes/day17.html#first">
+  <h3>서버 실행</h3>
+<pre><code># main.py가 있는 폴더에서, .venv 활성화 후
+python -m uvicorn main:app --reload
+
+# 브라우저 주소창에
+http://127.0.0.1:8000/health      → {"status":"ok"}
+http://127.0.0.1:8000/docs        → 자동 API 문서
+
+# 서버 끄기: 실행 중인 터미널에서 Ctrl+C</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 폴더에 main.py를 만들고 빈 포트로 잠깐 띄운 뒤 Ctrl+C 대신 프로세스를 종료</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>python -m uvicorn main:app --reload --port 52551</code></td><td><code>Uvicorn running on http://127.0.0.1:52551 (Press CTRL+C to quit)</code></td><td>포트만 빈 번호로 바꿔 실행 — 기본은 8000</td></tr>
+    <tr><td><code>(같은 터미널 로그)</code></td><td><code>Started reloader process [12512] using StatReload</code></td><td>--reload: 파일 변경을 지켜보는 감시 프로세스가 따로 뜸</td></tr>
+    <tr><td><code>브라우저 http://127.0.0.1:52551/health</code></td><td><code>200 {&quot;status&quot;:&quot;ok&quot;}</code></td><td>주소창 = GET 요청</td></tr>
+    <tr><td><code>브라우저 http://127.0.0.1:52551/docs</code></td><td><code>200 text/html; charset=utf-8 · Swagger UI 페이지</code></td><td>자동 API 문서 (HTML)</td></tr>
+    <tr><td><code>같은 포트로 uvicorn 한 번 더 실행</code></td><td><code>[Errno 10048] error while attempting to bind on address (&#x27;127.0.0.1&#x27;, 52551)</code></td><td>종료 코드 3 — 서버는 한 개만!</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>부분</th><th>뜻</th></tr>
+        <tr><td><code>main</code></td><td><code>main.py</code> 파일(모듈) 이름 — <code>.py</code>는 안 붙임</td></tr>
+        <tr><td><code>:app</code></td><td>그 파일 안의 <b>앱 변수 이름</b> (<code>app = FastAPI()</code>의 <code>app</code>)</td></tr>
+        <tr><td><code>--reload</code></td><td>코드를 저장하면 서버가 알아서 다시 켜짐. <b>개발용</b>이에요</td></tr>
+        <tr><td><code>127.0.0.1</code></td><td>"내 컴퓨터" (= localhost). 다른 PC에서는 이 주소로 못 들어와요</td></tr>
+        <tr><td><code>8000</code></td><td><b>포트</b> — 한 컴퓨터 안에서 프로그램마다 다른 "문 번호". 바꾸면 URL도 같이 바꿔요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 Uvicorn이 따로 있어?</strong> — FastAPI는 "요청이 오면 어떤 함수를 부를지"만 알아요. 네트워크에서 요청을 실제로 <b>받아 오는</b> 일은 Uvicorn(서버 프로그램)이 해요. 식당으로 치면 Uvicorn은 손님을 받는 <b>홀 직원</b>, FastAPI는 주문서를 보고 요리사를 정하는 <b>주방장</b>이에요.</div>
+      <div class="callout warn">⚠️ 서버는 <b>한 개만</b> 띄우세요. 같은 포트로 두 번 실행하면 "이미 사용 중" 오류가 나거나, 예전 코드가 도는 서버에 요청이 가서 헷갈려요. 고쳤는데 안 바뀌면 터미널이 두 개 떠 있지 않은지부터 보세요.</div>
+</section>
+
+<section class="cmd" id="d17-docs" data-topic="FastAPI" data-sub="서버 실행" data-day="17" data-theory="notes/day17.html#first">
+  <h3><code>/docs</code> — 자동 문서에서 요청 보내기</h3>
+      <p>주소창은 기본적으로 <b>GET</b>만 보내요. POST·PUT·DELETE는 <code>/docs</code>(Swagger UI)에서 보내요.</p>
+      <table>
+        <tr><th>순서</th><th>할 일</th><th>확인할 것</th></tr>
+        <tr><td>1</td><td>경로를 펼쳐 입력 약속 읽기</td><td>Path·Query·Body에 무엇이 필요한지</td></tr>
+        <tr><td>2</td><td><b>Try it out</b></td><td>입력 칸이 열림</td></tr>
+        <tr><td>3</td><td><b>Execute</b></td><td>실제 요청이 서버로 감</td></tr>
+        <tr><td>4</td><td><b>Server response</b></td><td>실제 Code(상태 코드)와 Response body</td></tr>
+      </table>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>/docs 화면이 읽어 가는 openapi.json · Execute와 같은 요청</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.get(&quot;/docs&quot;)</code></td><td><code>200 text/html; charset=utf-8</code></td><td>사람이 보는 화면 (HTML)</td></tr>
+    <tr><td><code>client.get(&quot;/openapi.json&quot;).json()[&quot;paths&quot;]</code></td><td><code>{&quot;/health&quot;: [&quot;get&quot;], &quot;/api/knowledge&quot;: [&quot;get&quot;, &quot;post&quot;], &quot;/api/knowledge/{knowledge_id}&quot;: [&quot;delete&quot;, &quot;get&quot;, &quot;put&quot;]}</code></td><td>Route마다 열 수 있는 Method 목록 = /docs의 줄들</td></tr>
+    <tr><td><code>… [&quot;/api/knowledge/{knowledge_id}&quot;][&quot;get&quot;][&quot;responses&quot;]</code></td><td><code>[&#x27;200&#x27;, &#x27;422&#x27;]</code></td><td>문서상 Responses에는 404가 없음!</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge/9999&quot;)</code></td><td><code>404 {&quot;detail&quot;:&quot;Knowledge not found&quot;}</code></td><td>그래도 실제 Server response는 404 — 진짜는 이쪽</td></tr>
+    <tr><td><code>… [&quot;/api/knowledge&quot;][&quot;post&quot;][&quot;responses&quot;]</code></td><td><code>[&#x27;201&#x27;, &#x27;422&#x27;]</code></td><td>response_model · status_code에서 자동으로 만든 예시</td></tr>
+    <tr><td><code>Execute = POST /api/knowledge (Body 세 필드)</code></td><td><code>201 {&quot;title&quot;:&quot;실습 환경 안내&quot;,&quot;content&quot;:&quot;Python 3.10 이상을 사용한다.&quot;,&quot;category&quot;:&quot;setup&quot;,&quot;id&quot;:4}</code></td><td>Try it out → Execute가 보내는 진짜 요청</td></tr>
+  </table>
+</div>
+      <div class="callout warn">⚠️ 아래쪽 <b>Responses</b> 칸은 "이런 응답이 나올 수 있다"는 <b>문서상 예시</b>예요. 진짜 결과는 <b>Server response</b>의 Code·Body로 확인해요.</div>
+</section>
+
+<section class="cmd" id="d17-storage-py" data-topic="FastAPI" data-sub="파일 저장" data-day="17" data-theory="notes/day17.html#storage">
+  <h3><code>storage.py</code> — 읽기·쓰기 보조 함수</h3>
+<pre><code>import json
+from pathlib import Path
+from threading import Lock
+
+BASE = Path(__file__).resolve().parent         # 이 파일(storage.py)이 있는 폴더
+DATA = BASE / "data" / "knowledge.json"
+LOCK = Lock()
+
+def read_data():                                 # 파일 → dict
+    with DATA.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+def write_data(data):                            # dict → 파일
+    temp = DATA.with_suffix(".tmp")
+    try:
+        with temp.open("w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기
+    finally:
+        temp.unlink(missing_ok=True)             # 남은 임시 파일 정리</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 폴더의 storage.py + data/knowledge.json (처음 3건)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>storage.BASE.name, storage.DATA.relative_to(BASE)</code></td><td><code>&#x27;single&#x27;, &#x27;data/knowledge.json&#x27;</code></td><td>storage.py가 있는 폴더 기준 경로</td></tr>
+    <tr><td><code>data = read_data(); type(data), list(data)</code></td><td><code>dict, [&#x27;next_id&#x27;, &#x27;entries&#x27;]</code></td><td>JSON 글자 → 파이썬 dict</td></tr>
+    <tr><td><code>data[&quot;entries&quot;][0][&quot;title&quot;]</code></td><td><code>&#x27;가상환경&#x27;</code></td><td>utf-8로 읽어 한글 그대로</td></tr>
+    <tr><td><code>write_data(data) 후 파일 2~3번째 줄</code></td><td><code>  &quot;next_id&quot;: 4, |   &quot;entries&quot;: [</code></td><td>indent=2 줄바꿈</td></tr>
+    <tr><td><code>&quot;가상환경&quot; in 파일 내용</code></td><td><code>True</code></td><td>ensure_ascii=False → 한글 그대로 저장</td></tr>
+    <tr><td><code>json.dumps(&quot;가상환경&quot;)  (ensure_ascii 기본값)</code></td><td><code>&quot;\uac00\uc0c1\ud658\uacbd&quot;</code></td><td>기본값이면 \uXXXX 코드로 바뀜</td></tr>
+    <tr><td><code>DATA.with_suffix(&quot;.tmp&quot;).exists()</code></td><td><code>False</code></td><td>성공 후 임시 파일은 안 남음</td></tr>
+    <tr><td><code>write_data({… set 값 …})  (저장 실패)</code></td><td><code>TypeError: Object of type set is not JSON serializable</code></td><td>json.dump가 중간에 실패</td></tr>
+    <tr><td><code>실패 후 원본 bytes == 실패 전</code></td><td><code>True</code></td><td>임시 파일에서 실패해서 원본은 그대로</td></tr>
+    <tr><td><code>실패 후 DATA.with_suffix(&quot;.tmp&quot;).exists()</code></td><td><code>False</code></td><td>finally에서 반쯤 쓴 임시 파일 정리</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드</th><th>뜻</th></tr>
+        <tr><td><code>Path(__file__).resolve().parent</code></td><td>"<b>이 코드 파일이 있는 폴더</b>". 어느 폴더에서 서버를 켜든 같은 data 파일을 찾게 해 줘요</td></tr>
+        <tr><td><code>encoding="utf-8"</code></td><td>한글이 깨지지 않게 (Windows 기본값은 cp949라 꼭 적어요)</td></tr>
+        <tr><td><code>json.load(f)</code> / <code>json.dump(data, f)</code></td><td>JSON 글자 ↔ 파이썬 dict·list 변환</td></tr>
+        <tr><td><code>ensure_ascii=False</code></td><td>한글을 <code>가</code> 같은 코드 대신 그대로 저장</td></tr>
+        <tr><td><code>indent=2</code></td><td>사람이 읽기 좋게 줄바꿈·들여쓰기</td></tr>
+        <tr><td><code>with_suffix(".tmp")</code></td><td>같은 폴더에 <code>knowledge.tmp</code> 경로 만들기</td></tr>
+      </table>
+</section>
+
+<section class="cmd" id="d17-with-lock" data-topic="FastAPI" data-sub="파일 저장" data-day="17" data-theory="notes/day17.html#storage">
+  <h3><code>with LOCK:</code> — 읽기부터 저장까지 한 번에 잠그기</h3>
+<pre><code>from storage import LOCK, read_data, write_data
+
+with LOCK:                       # 이 블록은 한 번에 한 요청만
+    data = read_data()           # 1. 읽고
+    ...                          # 2. 바꾸고
+    write_data(data)             # 3. 저장</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>빈 파일에서 스레드 20개가 동시에 &#x27;읽기 → 0.01초 → 추가 → 저장&#x27;</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>read_data() … with LOCK: write_data()  (저장만 잠금)</code></td><td><code>20건 보냄 → 파일에 1건 · next_id 2</code></td><td>모두 빈 파일을 읽은 채 차례로 저장 → 서로 덮어씀</td></tr>
+    <tr><td><code>with LOCK: read_data() … write_data()</code></td><td><code>20건 보냄 → 파일에 20건 · next_id 21</code></td><td>앞 요청이 끝날 때까지 기다리니 전부 남음</td></tr>
+    <tr><td><code>with LOCK: 안에서 LOCK.locked()</code></td><td><code>True</code></td><td>누가 잡고 있는 중</td></tr>
+    <tr><td><code>블록을 나온 뒤 LOCK.locked()</code></td><td><code>False</code></td><td>with가 끝나면 자동으로 풀림</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 쓰기 한 줄만 잠그면 안 돼?</strong> — 문제는 "<b>예전 내용을 읽은 채로</b> 저장하는 것"이에요. 쓰기만 잠그면 두 요청이 같은 옛날 내용을 읽은 뒤 차례로 저장해서 결국 덮어써요. 그래서 <b>읽기 → 변경 → 저장</b>을 하나의 <code>with LOCK</code> 안에 둬요. FastAPI는 <code>def</code> 함수도 여러 요청을 동시에 처리할 수 있어서 이게 필요해요.</div>
+      <div class="callout warn">⚠️ 이 Lock은 <b>서버 프로세스 하나 안에서만</b> 지켜 줘요. 서버를 여러 개 띄우거나, 실행 중에 편집기로 파일을 직접 고치거나, 여러 표를 한꺼번에 바꾸는 경우는 못 막아요. 그건 데이터베이스의 <b>트랜잭션</b>이 하는 일이에요(다음 수업).</div>
+      <div class="callout warn">⚠️ 파일 읽기에 실패하면 "빈 목록이겠지" 하고 <b>빈 데이터로 덮어쓰면 안 돼요</b>. 그 순간 지식이 전부 사라져요. 원인(경로·JSON 문법)을 먼저 확인해요.</div>
+</section>
+
+<section class="cmd" id="d17-목록-조회" data-topic="FastAPI" data-sub="조회 (GET)" data-day="17" data-theory="notes/day17.html#read">
+  <h3>목록 조회</h3>
+<pre><code>@app.get("/api/knowledge")
+def list_knowledge():
+    with LOCK:
+        data = read_data()          # 요청마다 파일을 새로 읽음
+    return data["entries"]          # list를 돌려주면 JSON 배열</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>처음 3건 파일</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge&quot;)</code></td><td><code>200 · 3건 · id [1, 2, 3]</code></td><td>list → JSON 배열</td></tr>
+    <tr><td><code>r.json()[0]</code></td><td><code>{&quot;id&quot;: 1, &quot;title&quot;: &quot;가상환경&quot;, &quot;category&quot;: &quot;setup&quot;, &quot;content&quot;: &quot;프로젝트별 패키지를 분리한다.&quot;}</code></td><td>파일의 항목 그대로</td></tr>
+    <tr><td><code>GET 전후 파일 bytes 같음?</code></td><td><code>True</code></td><td>GET은 읽기만 함</td></tr>
+    <tr><td><code>빈 파일에서 client.get(&quot;/api/knowledge&quot;)</code></td><td><code>200 []</code></td><td>없는 건 오류가 아니라 빈 배열</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>요청</th><th>결과</th></tr>
+        <tr><td><code>GET /api/knowledge</code></td><td><code>200</code> + 지식 3개 배열</td></tr>
+        <tr><td>목록이 비어 있을 때</td><td><code>200</code> + <code>[]</code> (없는 게 오류는 아니에요)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 요청마다 파일을 다시 읽어?</strong> — 한 번 읽어 변수에 들고 있으면, 다른 요청이 파일을 바꿔도 옛날 값을 보여 줘요. 매번 읽으면 항상 파일이 <b>진짜 기준</b>이 돼요. GET은 읽기만 하고 파일을 <b>절대 바꾸지 않아요</b>.</div>
+</section>
+
+<section class="cmd" id="d17-상세-조회-404" data-topic="FastAPI" data-sub="조회 (GET)" data-day="17" data-theory="notes/day17.html#read">
+  <h3>상세 조회 + 404</h3>
+<pre><code>from fastapi import HTTPException
+
+@app.get("/api/knowledge/{knowledge_id}")
+def get_knowledge(knowledge_id: int):            # {knowledge_id} 자리 값을 int로 받음
+    with LOCK:
+        data = read_data()
+    for entry in data["entries"]:
+        if entry["id"] == knowledge_id:
+            return entry                         # 찾으면 200
+    raise HTTPException(404, "Knowledge not found")   # 끝까지 없으면 404</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>처음 3건 파일</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge/2&quot;)</code></td><td><code>200 {&quot;id&quot;:2,&quot;title&quot;:&quot;서버 실행&quot;,&quot;category&quot;:&quot;api&quot;,&quot;content&quot;:&quot;uvicorn으로 개발 서버를 켠다.&quot;}</code></td><td>찾으면 200 + 그 항목</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge/9999&quot;)</code></td><td><code>404 {&quot;detail&quot;:&quot;Knowledge not found&quot;}</code></td><td>Route는 맞는데 그 ID가 없음</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge/foo&quot;)</code></td><td><code>422 {&quot;detail&quot;:[{&quot;type&quot;:&quot;int_parsing&quot;,&quot;loc&quot;:[&quot;path&quot;,&quot;knowledge_id&quot;],&quot;msg&quot;:&quot;Input should be a va …</code></td><td>int로 못 바꿔 함수 실행 전에 422</td></tr>
+    <tr><td><code>client.get(&quot;/nope&quot;)</code></td><td><code>404 {&quot;detail&quot;:&quot;Not Found&quot;}</code></td><td>Route 자체가 없음 — detail 문구가 다름</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>코드 조각</th><th>API에서의 역할</th></tr>
+        <tr><td><code>@app.get(".../{knowledge_id}")</code></td><td><b>Route</b> — 어떤 요청을 받나 (중괄호 = Path Parameter 자리)</td></tr>
+        <tr><td><code>get_knowledge(...)</code></td><td><b>Function</b> — 요청을 받으면 무엇을 하나</td></tr>
+        <tr><td><code>knowledge_id: int</code></td><td><b>Parameter</b> — 어떤 값을 받나 (이름이 중괄호 안 이름과 같아야 해요)</td></tr>
+        <tr><td><code>entry["id"]</code></td><td><b>Field</b> — 어떤 자료와 비교하나</td></tr>
+      </table>
+      <p>강의 코드를 그대로 돌려 받은 실제 응답이에요 (FastAPI 0.162 · Pydantic 2.14):</p>
+<pre><code>GET /api/knowledge/2     → 200 {"id":2,"title":"서버 실행","category":"api","content":"uvicorn으로 개발 서버를 켠다."}
+GET /api/knowledge/9999  → 404 {"detail":"Knowledge not found"}
+GET /api/knowledge/foo   → 422 {"detail":[{"type":"int_parsing","loc":["path","knowledge_id"],
+                                 "msg":"Input should be a valid integer, unable to parse string as an integer","input":"foo"}]}
+GET /nope                → 404 {"detail":"Not Found"}      ← 경로 자체가 없을 때</code></pre>
+      <div class="callout">🤔 <strong>왜 오류는 <code>return</code>이 아니라 <code>raise</code>?</strong> — <code>return {"error": ...}</code>을 하면 상태 코드가 <b>200(성공)</b>으로 나가요. 받는 프로그램은 성공인 줄 알고 그 dict를 지식으로 써 버려요. <code>raise HTTPException(404)</code>은 함수를 즉시 멈추고 "실패, 이유는 이것"을 <b>상태 코드로</b> 알려요.</div>
+      <div class="callout">💡 404가 두 종류예요. <code>{"detail":"Not Found"}</code>는 <b>그런 주소(Route)가 아예 없음</b>(오타), <code>{"detail":"Knowledge not found"}</code>는 <b>주소는 맞는데 그 ID의 지식이 없음</b>. detail 문구로 구분해요.</div>
+</section>
+
+<section class="cmd" id="d17-query로-목록-거르기" data-topic="FastAPI" data-sub="조회 (GET)" data-day="17" data-theory="notes/day17.html#read">
+  <h3>Query로 목록 거르기</h3>
+<pre><code>@app.get("/api/knowledge")
+def list_knowledge(category: str | None = None):     # 기본값이 있으면 → Query, 생략 가능
+    with LOCK:
+        data = read_data()
+    result = []
+    for entry in data["entries"]:
+        if category is None or entry["category"] == category:
+            result.append(entry)
+    return result</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>처음 3건 파일 (category: setup 1건, api 2건)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge&quot;)</code></td><td><code>200 · id [1, 2, 3]</code></td><td>category 생략 → None → 전체</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge?category=api&quot;)</code></td><td><code>200 · id [2, 3]</code></td><td>같은 분류만</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge?category=zzz&quot;)</code></td><td><code>200 · id []</code></td><td>맞는 게 없으면 빈 배열</td></tr>
+    <tr><td><code>q 버전: get(&quot;/api/knowledge?q=서버&quot;)</code></td><td><code>200 · id [2]</code></td><td>제목 &#x27;서버 실행&#x27;에 글자가 들어 있음</td></tr>
+    <tr><td><code>q 버전: get(&quot;…?q=uvicorn&quot;)</code></td><td><code>200 · id [2]</code></td><td>본문에서 찾음</td></tr>
+    <tr><td><code>q 버전: get(&quot;…?q=Uvicorn&quot;)</code></td><td><code>200 · id []</code></td><td>대소문자가 다르면 못 찾음</td></tr>
+    <tr><td><code>q 버전: get(&quot;…?q=개발 서버 켜는 법&quot;)</code></td><td><code>200 · id []</code></td><td>뜻이 같아도 글자가 그대로 없으면 0건</td></tr>
+    <tr><td><code>q 버전: get(&quot;…?q=&quot; + &quot;가&quot; * 81)</code></td><td><code>422 {&quot;detail&quot;:[{&quot;type&quot;:&quot;string_too_long&quot;,&quot;loc&quot;:[&quot;query&quot;,&quot;q&quot;],&quot;msg&quot;:&quot;String should ha …</code></td><td>max_length=80 넘으면 422</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>요청</th><th>실제 결과</th></tr>
+        <tr><td><code>GET /api/knowledge</code></td><td>전체 3건</td></tr>
+        <tr><td><code>GET /api/knowledge?category=api</code></td><td>id 2, 3 — 2건</td></tr>
+        <tr><td><code>GET /api/knowledge?category=zzz</code></td><td><code>200</code> + <code>[]</code></td></tr>
+      </table>
+      <div class="callout">🤔 <strong>FastAPI는 Path와 Query를 어떻게 구분해?</strong> — 함수 매개변수 이름이 경로의 <code>{중괄호}</code>에 있으면 <b>Path</b>, 없으면 <b>Query</b>로 봐요. <code>= None</code>처럼 기본값을 주면 "안 보내도 되는" 선택 조건이 돼요. 이 함수는 기존 목록 Route를 <b>교체</b>하는 거라, 같은 경로를 두 번 등록하지 않아요.</div>
+      <p>제목·본문에 특정 글자가 들어간 것을 찾는 방법도 있어요:</p>
+<pre><code>from fastapi import Query
+
+@app.get("/api/knowledge")
+def list_knowledge(q: str = Query("", max_length=80)):
+    ...
+        if q in entry["title"] or q in entry["content"]:    # "포함하나?" 단순 비교
+            result.append(entry)</code></pre>
+      <div class="callout warn">⚠️ <code>?q=서버</code>는 글자가 <b>그대로 들어 있는지</b>만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 <b>의미 기반 검색(RAG·벡터 검색)</b>은 이후 수업에서 배워요.</div>
+</section>
+
+<section class="cmd" id="d17-pydantic으로-입력-모양-정하기" data-topic="FastAPI" data-sub="등록 · 검증 (POST)" data-day="17" data-theory="notes/day17.html#create">
+  <h3>Pydantic으로 입력 모양 정하기</h3>
+<pre><code>from pydantic import BaseModel, Field
+
+class KnowledgeWrite(BaseModel):                          # POST·PUT 입력
+    title: str = Field(min_length=1, max_length=80)
+    content: str = Field(min_length=1, max_length=2000)
+    category: str = Field(min_length=1, max_length=30)
+
+class Knowledge(KnowledgeWrite):                          # 응답 = 입력 + id
+    id: int</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>main.py의 KnowledgeWrite · Knowledge를 직접 만들어 보기 — NEW = {&quot;title&quot;: &quot;실습 환경 안내&quot;, &quot;content&quot;: &quot;Python 3.10 이상을 사용한다.&quot;, &quot;category&quot;: &quot;setup&quot;}</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>KnowledgeWrite(**NEW).model_dump()</code></td><td><code>{&quot;title&quot;: &quot;실습 환경 안내&quot;, &quot;content&quot;: &quot;Python 3.10 이상을 사용한다.&quot;, &quot;category&quot;: &quot;setup&quot;}</code></td><td>검사를 통과한 값 → dict</td></tr>
+    <tr><td><code>KnowledgeWrite(**NEW, id=1).model_dump()</code></td><td><code>[&#x27;category&#x27;, &#x27;content&#x27;, &#x27;title&#x27;]</code></td><td>보낸 id는 버려짐 — 번호는 서버가 정함</td></tr>
+    <tr><td><code>KnowledgeWrite(title=&quot;&quot;, …)</code></td><td><code>ValidationError: type=&#x27;string_too_short&#x27;, loc=(&#x27;title&#x27;,)</code></td><td>min_length=1 위반</td></tr>
+    <tr><td><code>KnowledgeWrite(title=&quot;가&quot; * 81, …)</code></td><td><code>ValidationError: type=&#x27;string_too_long&#x27;, loc=(&#x27;title&#x27;,)</code></td><td>max_length=80 위반</td></tr>
+    <tr><td><code>KnowledgeWrite(title=123, …)</code></td><td><code>ValidationError: type=&#x27;string_type&#x27;, loc=(&#x27;title&#x27;,)</code></td><td>숫자를 문자열로 바꿔 주지 않음</td></tr>
+    <tr><td><code>KnowledgeWrite(content=…, category=…)  (title 없음)</code></td><td><code>ValidationError: type=&#x27;missing&#x27;, loc=(&#x27;title&#x27;,)</code></td><td>기본값이 없으니 필수</td></tr>
+    <tr><td><code>Knowledge(**NEW, id=4).model_dump()</code></td><td><code>[&#x27;title&#x27;, &#x27;content&#x27;, &#x27;category&#x27;, &#x27;id&#x27;]</code></td><td>응답 모델 = 입력 세 필드 + id</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자 / 표현</th><th>뜻</th></tr>
+        <tr><td><code>BaseModel</code></td><td>상속하면 "이 모양의 데이터만 받겠다"는 검사 틀이 됨</td></tr>
+        <tr><td><code>title: str</code></td><td>문자열이어야 함. 기본값이 없으니 <b>필수</b> 필드</td></tr>
+        <tr><td><code>Field(min_length=1)</code></td><td>최소 1글자 — 빈 문자열 <code>""</code> 거부</td></tr>
+        <tr><td><code>Field(max_length=80)</code></td><td>최대 길이. title 80 · content 2,000 · category 30자</td></tr>
+        <tr><td><code>class Knowledge(KnowledgeWrite)</code></td><td>입력 모델을 물려받고 <code>id</code>만 추가한 <b>응답 모델</b></td></tr>
+        <tr><td><code>payload.model_dump()</code></td><td>검증된 모델 → 파이썬 dict (파일 저장은 안 함)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 입력 모델과 응답 모델을 나눠?</strong> — 입력할 땐 <code>id</code>가 없어야 하고(서버가 정하니까), 응답할 땐 있어야 해요. 하나로 쓰면 사용자가 <code>"id": 1</code>을 보내 남의 번호를 흉내 낼 수 있어요. 그리고 이 모델은 <b>DB 테이블이 아니에요</b> — 모양 검사만 하고, 저장은 다른 코드가 해요.</div>
+</section>
+
+<section class="cmd" id="d17-등록-함수" data-topic="FastAPI" data-sub="등록 · 검증 (POST)" data-day="17" data-theory="notes/day17.html#create">
+  <h3>등록 함수</h3>
+<pre><code>@app.post("/api/knowledge", status_code=201, response_model=Knowledge)
+def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite로 검사
+    with LOCK:
+        data = read_data()                            # 1. 현재 파일 읽기
+        entry = payload.model_dump()                  # 2. 새 항목 dict 만들기
+        entry["id"] = data["next_id"]                 #    + 새 ID
+        data["entries"].append(entry)                 # 3. 목록에 추가
+        data["next_id"] += 1                          # 4. 다음 번호 올리기
+        write_data(data)                              # 5. 파일 저장
+    return entry                                      # 6. 만든 항목 응답</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>처음 3건 파일에 POST — NEW = {&quot;title&quot;: &quot;실습 환경 안내&quot;, &quot;content&quot;: &quot;Python 3.10 이상을 사용한다.&quot;, &quot;category&quot;: &quot;setup&quot;}</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.post(&quot;/api/knowledge&quot;, json=NEW)</code></td><td><code>201 {&quot;title&quot;:&quot;실습 환경 안내&quot;,&quot;content&quot;:&quot;Python 3.10 이상을 사용한다.&quot;,&quot;category&quot;:&quot;setup&quot;,&quot;id&quot;:4}</code></td><td>201 Created + 새 id</td></tr>
+    <tr><td><code>sorted(r.json())</code></td><td><code>[&#x27;category&#x27;, &#x27;content&#x27;, &#x27;id&#x27;, &#x27;title&#x27;]</code></td><td>response_model 덕분에 next_id는 응답에 안 섞임</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge/4&quot;)</code></td><td><code>200</code></td><td>받은 ID로 다시 조회</td></tr>
+    <tr><td><code>목록 개수</code></td><td><code>3 → 4</code></td><td></td></tr>
+    <tr><td><code>파일 직접 확인</code></td><td><code>항목 4개 [1, 2, 3, 4] · next_id 5</code></td><td>파일에도 저장됨</td></tr>
+    <tr><td><code>같은 POST 한 번 더</code></td><td><code>201 · id 5 · 항목 5개 [1, 2, 3, 4, 5] · next_id 6</code></td><td>POST는 보낼 때마다 새로 만듦</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th></tr>
+        <tr><td><code>status_code=201</code></td><td>성공 시 200 대신 <b>201 Created</b>(새로 만들었음)</td></tr>
+        <tr><td><code>response_model=Knowledge</code></td><td>응답 모양을 검사·정리하고 <code>/docs</code>에 표시. <code>next_id</code> 같은 내부 값이 새지 않게 걸러 줘요</td></tr>
+        <tr><td><code>payload: KnowledgeWrite</code></td><td>매개변수 타입이 BaseModel이면 → <b>Body</b>로 받아요</td></tr>
+      </table>
+      <p><b>생성 확인은 응답 한 번으로 끝내지 않아요.</b></p>
+      <table>
+        <tr><th>순서</th><th>확인</th><th>초기 3건에서 한 번 등록했을 때</th></tr>
+        <tr><td>1</td><td>POST 응답</td><td><code>201</code>, <code>id = 4</code></td></tr>
+        <tr><td>2</td><td>그 ID로 상세 재조회</td><td><code>GET /api/knowledge/4</code> → 200</td></tr>
+        <tr><td>3</td><td>목록 개수</td><td>3개 → 4개</td></tr>
+        <tr><td>4</td><td>파일 직접 열기</td><td>id 4 항목 있음, <code>next_id: 5</code></td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>/docs</code>에서 Execute를 <b>또 누르면 또 하나</b> 생겨요(POST는 누를 때마다 새로 만듦). 응답에서 받은 실제 ID를 적어 두고 그걸로 확인해요.</div>
+</section>
+
+<section class="cmd" id="d17-422-잘못된-입력은-저장-전에-막힘" data-topic="FastAPI" data-sub="등록 · 검증 (POST)" data-day="17" data-theory="notes/day17.html#create">
+  <h3>422 — 잘못된 입력은 저장 전에 막힘</h3>
+      <table>
+        <tr><th>보낸 입력</th><th>실제 결과</th><th><code>detail</code>에서 볼 곳</th></tr>
+        <tr><td>정상 세 필드</td><td><code>201</code></td><td>새 ID가 붙은 항목</td></tr>
+        <tr><td>title 빠짐</td><td><code>422</code></td><td><code>"type":"missing", "loc":["body","title"]</code></td></tr>
+        <tr><td>content가 <code>""</code></td><td><code>422</code></td><td><code>"type":"string_too_short", "loc":["body","content"]</code></td></tr>
+        <tr><td>JSON 문법 오류 (끝에 쉼표)</td><td><code>422</code></td><td><code>"type":"json_invalid"</code></td></tr>
+      </table>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>항목 4건 · next_id 5 파일에 잘못된 POST 세 번</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>시작 상태</code></td><td><code>항목 4개 [1, 2, 3, 4] · next_id 5</code></td><td></td></tr>
+    <tr><td><code>post(json={&quot;content&quot;: &quot;x&quot;, &quot;category&quot;: &quot;setup&quot;})</code></td><td><code>422 type=&#x27;missing&#x27; loc=[&#x27;body&#x27;, &#x27;title&#x27;]</code></td><td>title 빠짐</td></tr>
+    <tr><td><code>post(json={**NEW, &quot;content&quot;: &quot;&quot;})</code></td><td><code>422 type=&#x27;string_too_short&#x27; loc=[&#x27;body&#x27;, &#x27;content&#x27;]</code></td><td>빈 문자열 — min_length=1</td></tr>
+    <tr><td><code>post(content=&#x27;{&quot;title&quot;: &quot;a&quot;,}&#x27;)</code></td><td><code>422 type=&#x27;json_invalid&#x27; loc=[&#x27;body&#x27;, 13]</code></td><td>JSON 문법 오류 (끝에 쉼표)</td></tr>
+    <tr><td><code>e.json()[&quot;detail&quot;][0][&quot;msg&quot;]  (content &quot;&quot;)</code></td><td><code>String should have at least 1 character</code></td><td>고칠 곳을 알려 주는 문장</td></tr>
+    <tr><td><code>세 번 뒤 파일</code></td><td><code>항목 4개 [1, 2, 3, 4] · next_id 5 · bytes 같음 True</code></td><td>함수 본문 전에 막혀 저장 코드가 안 돎</td></tr>
+  </table>
+</div>
+      <p>세 번 다 422가 난 뒤 파일을 확인하니 항목 4개 · <code>next_id</code> 5 <b>그대로</b>였어요. 검증은 함수 본문이 실행되기 <b>전에</b> 일어나서, 저장 코드까지 가지도 않아요.</p>
+      <div class="callout">🤔 <strong><code>loc</code>은 어떻게 읽어?</strong> — <b>어디서</b> 틀렸는지 알려 주는 주소예요. 첫 칸이 <code>"path"</code> / <code>"query"</code> / <code>"body"</code> 중 하나고, 다음 칸이 필드 이름이에요. 422가 나면 <code>loc</code>과 <code>msg</code>부터 보면 고칠 곳이 바로 나와요.</div>
+      <table>
+        <tr><th>검사 종류</th><th>질문</th><th>누가 막나</th></tr>
+        <tr><td><b>형식</b></td><td>세 필드가 있나? 길이가 맞나?</td><td>Pydantic → 자동 422 (오늘)</td></tr>
+        <tr><td><b>내용</b></td><td>안내 내용이 맞나? 오래된 절차 아닌가?</td><td>사람의 검토 — 코드가 못 막아요</td></tr>
+        <tr><td><b>권한</b></td><td>아무나 고치고 지워도 되나?</td><td>인증·권한 설계 (오늘은 로컬 학습용이라 없음)</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>형식 통과 ≠ 사실 · 권한 보장.</b> <code>"content": "Python 2.7을 쓴다"</code>도 1~2,000자라 통과해요. <code>response_model</code>도 응답 <b>모양</b>만 검사해요. 잘못된 입력(형식)과 부정확한 원문(내용)을 구분해야 나중에 Agent가 믿을 수 있는 자료를 써요.</div>
+</section>
+
+<section class="cmd" id="d17-수정-함수" data-topic="FastAPI" data-sub="수정 · 삭제" data-day="17" data-theory="notes/day17.html#update">
+  <h3>수정 함수</h3>
+<pre><code>@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
+def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Body 둘 다
+    with LOCK:
+        data = read_data()
+        for i, entry in enumerate(data["entries"]):      # i = 위치, entry = 항목
+            if entry["id"] == knowledge_id:
+                updated = payload.model_dump()
+                updated["id"] = knowledge_id             # ID는 그대로
+                data["entries"][i] = updated             # 그 위치에 덮어씀 (append 아님!)
+                write_data(data)
+                return updated
+    raise HTTPException(404, "Knowledge not found")     # 못 찾으면 저장 없이 404</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>항목 4건(id 4 = 실습 환경 안내) · next_id 5 — UPD = NEW에서 content만 &quot;프로젝트별 가상환경을 사용한다.&quot;</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.put(&quot;/api/knowledge/4&quot;, json=UPD)</code></td><td><code>200 {&quot;title&quot;:&quot;실습 환경 안내&quot;,&quot;content&quot;:&quot;프로젝트별 가상환경을 사용한다.&quot;,&quot;category&quot;:&quot;setup&quot;,&quot;id&quot;:4}</code></td><td>그 자리만 교체</td></tr>
+    <tr><td><code>PUT 뒤 파일</code></td><td><code>항목 4개 [1, 2, 3, 4] · next_id 5</code></td><td>개수·next_id 그대로 (append 아님)</td></tr>
+    <tr><td><code>같은 PUT 다시 → 파일 bytes 같음?</code></td><td><code>200 · True</code></td><td>몇 번 보내도 결과가 같음</td></tr>
+    <tr><td><code>put(&quot;/api/knowledge/4&quot;, json={title, content})</code></td><td><code>422 type=&#x27;missing&#x27; loc=[&#x27;body&#x27;, &#x27;category&#x27;]</code></td><td>PUT은 세 필드 다 — category 빠지면 422</td></tr>
+    <tr><td><code>put(&quot;/api/knowledge/9999&quot;, json=UPD)</code></td><td><code>404 {&quot;detail&quot;:&quot;Knowledge not found&quot;}</code></td><td>새로 만들지 않고 404</td></tr>
+    <tr><td><code>404 뒤 파일</code></td><td><code>항목 4개 [1, 2, 3, 4] · next_id 5</code></td><td>새 항목 안 생김</td></tr>
+    <tr><td><code>client.patch(&quot;/api/knowledge/2&quot;, …)</code></td><td><code>405 {&quot;detail&quot;:&quot;Method Not Allowed&quot;}</code></td><td>PATCH Route는 없음 → 405</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>표현</th><th>뜻</th></tr>
+        <tr><td><code>enumerate(list)</code></td><td>(위치, 값)을 같이 꺼내 줌 — 바꿀 <b>위치</b>가 필요해서</td></tr>
+        <tr><td><code>data["entries"][i] = updated</code></td><td>그 자리 항목을 교체. <code>append()</code>를 쓰면 수정이 아니라 <b>추가</b>가 돼요</td></tr>
+      </table>
+      <table>
+        <tr><th>요청</th><th>실제 결과</th><th>파일</th></tr>
+        <tr><td>있는 ID + 세 필드</td><td><code>200</code> + 수정된 항목</td><td>그 항목만 교체, 개수 4 · next_id 5 그대로</td></tr>
+        <tr><td>같은 PUT 다시</td><td><code>200</code></td><td>변화 없음 (몇 번 보내도 결과 같음)</td></tr>
+        <tr><td>category 빼고</td><td><code>422</code> <code>missing</code></td><td>기존 항목 그대로</td></tr>
+        <tr><td>없는 ID + 정상 Body</td><td><code>404</code></td><td>새 항목이 <b>생기지 않음</b></td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 없는 ID로 PUT 하면 새로 만들지 않고 404?</strong> — "수정하라"고 했는데 몰래 만들어 버리면, ID를 잘못 적은 실수가 조용히 새 지식으로 쌓여요. 만드는 건 POST, 고치는 건 PUT으로 <b>역할을 나눠야</b> 실수가 드러나요.</div>
+      <div class="callout">💡 <b>PUT vs PATCH</b> — PUT은 전체 교체(세 필드 다), PATCH는 바꿀 필드만 보내는 부분 수정이에요. PATCH는 <code>payload.model_dump(exclude_unset=True)</code>로 "보낸 필드만" 꺼낼 수 있지만, "안 보냄"과 "null로 보냄"을 구분하는 규칙을 따로 정해야 해서 오늘은 PUT만 써요. 이 API에 PATCH를 보내면 <code>405 Method Not Allowed</code>가 나와요.</div>
+</section>
+
+<section class="cmd" id="d17-삭제-함수" data-topic="FastAPI" data-sub="수정 · 삭제" data-day="17" data-theory="notes/day17.html#delete">
+  <h3>삭제 함수</h3>
+<pre><code>from fastapi import Response
+
+@app.delete("/api/knowledge/{knowledge_id}", status_code=204)
+def delete_knowledge(knowledge_id: int):
+    with LOCK:
+        data = read_data()
+        for i, entry in enumerate(data["entries"]):
+            if entry["id"] == knowledge_id:
+                data["entries"].pop(i)                 # 그 위치 한 건 제거
+                write_data(data)
+                return Response(status_code=204)       # 본문 없는 성공
+    raise HTTPException(404, "Knowledge not found")</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>항목 4건 · next_id 5 에서 id 4 삭제</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.delete(&quot;/api/knowledge/4&quot;)</code></td><td><code>204 · r.content = b&#x27;&#x27;</code></td><td>본문 없는 성공</td></tr>
+    <tr><td><code>삭제 뒤 파일</code></td><td><code>항목 3개 [1, 2, 3] · next_id 5</code></td><td>그 한 건만 빠지고 next_id는 그대로</td></tr>
+    <tr><td><code>r.json()  (204 응답에)</code></td><td><code>JSONDecodeError</code></td><td>빈 본문은 JSON으로 못 읽음 → 상태 코드로 판단</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge/4&quot;)</code></td><td><code>404 {&quot;detail&quot;:&quot;Knowledge not found&quot;}</code></td><td>재조회 404</td></tr>
+    <tr><td><code>client.delete(&quot;/api/knowledge/4&quot;)  (또)</code></td><td><code>404 {&quot;detail&quot;:&quot;Knowledge not found&quot;}</code></td><td>이미 없음</td></tr>
+    <tr><td><code>삭제 뒤 새로 POST</code></td><td><code>201 · id 5</code></td><td>지운 4를 다시 쓰지 않고 5</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>표현</th><th>뜻</th></tr>
+        <tr><td><code>list.pop(i)</code></td><td>i번째 위치의 원소 하나를 빼냄</td></tr>
+        <tr><td><code>Response(status_code=204)</code></td><td><b>본문 없는</b> HTTP 응답. JSON을 같이 보내지 않아요</td></tr>
+      </table>
+<pre><code>DELETE /api/knowledge/4   → 204  (빈 본문)
+GET    /api/knowledge/4   → 404  {"detail":"Knowledge not found"}
+DELETE /api/knowledge/4   → 404  (이미 없음)</code></pre>
+      <div class="callout">🤔 <strong>왜 204엔 <code>{"message":"deleted"}</code>를 안 붙여?</strong> — 204는 이름부터 "<b>No Content</b>(보낼 내용 없음)"예요. 성공했다는 건 숫자 204가 이미 말해 줘요. 받는 쪽 코드도 빈 204에 <code>response.json()</code>을 호출하면 오류가 나니까, 상태 코드만 보고 판단해요.</div>
+</section>
+
+<section class="cmd" id="d17-app-main-py" data-topic="FastAPI" data-sub="구조 · 테스트" data-day="17" data-theory="notes/day17.html#structure">
+  <h3><code>app/main.py</code> — 조립</h3>
+<pre><code>from fastapi import FastAPI
+from app.routers.knowledge import router
+
+app = FastAPI(title="Knowledge API")
+app.include_router(router)                 # Router에 모아 둔 경로들을 앱에 연결
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 fastapi_knowledge/ 폴더 (app/ 패키지 + data/knowledge.json 3건)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>from app.main import app  (프로젝트 최상위에서)</code></td><td><code>성공</code></td><td>app 폴더를 패키지로 찾음</td></tr>
+    <tr><td><code>client.get(&quot;/openapi.json&quot;).json()[&quot;paths&quot;]</code></td><td><code>{&quot;/api/knowledge&quot;: [&quot;get&quot;, &quot;post&quot;], &quot;/api/knowledge/{knowledge_id}&quot;: [&quot;delete&quot;, &quot;get&quot;, &quot;put&quot;], &quot;/health&quot;: [&quot;get&quot;]}</code></td><td>include_router로 Router의 Route들이 붙음</td></tr>
+    <tr><td><code>client.get(&quot;/health&quot;)</code></td><td><code>200 {&quot;status&quot;:&quot;ok&quot;}</code></td><td>앱만 대답하면 200</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge&quot;)</code></td><td><code>200 · 3건</code></td><td>Router 쪽 Route도 동작</td></tr>
+    <tr><td><code>app/ 안에서 python -m uvicorn app.main:app</code></td><td><code>ModuleNotFoundError: No module named &#x27;app&#x27;</code></td><td>종료 코드 1 — 실행 위치는 최상위</td></tr>
+  </table>
+</div>
+<pre><code># 프로젝트 최상위(fastapi_knowledge/)에서, 한 줄로
+python -m uvicorn app.main:app --reload</code></pre>
+      <table>
+        <tr><th>부분</th><th>뜻</th></tr>
+        <tr><td><code>app.main</code></td><td><code>app/main.py</code> (폴더는 점으로 이어요)</td></tr>
+        <tr><td><code>:app</code></td><td>그 파일 안의 앱 변수</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 실행 위치는 <b>프로젝트 최상위</b>예요. <code>app/</code> 안에 들어가서 실행하면 <code>from app.routers ...</code>를 못 찾아요(ModuleNotFoundError). 그리고 <code>/health</code>가 200이라고 데이터 파일까지 준비됐다는 뜻은 아니에요 — 서버가 대답만 하는지 보는 단순 점검이에요.</div>
+</section>
+
+<section class="cmd" id="d17-apirouter" data-topic="FastAPI" data-sub="구조 · 테스트" data-day="17" data-theory="notes/day17.html#structure">
+  <h3><code>APIRouter</code> — 관련 경로 묶기</h3>
+<pre><code># app/routers/knowledge.py
+from fastapi import APIRouter
+from app.schemas import Knowledge, KnowledgeWrite
+from app.repositories import json_knowledge as repo
+
+router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+
+@router.post("", status_code=201, response_model=Knowledge)
+def create_knowledge(payload: KnowledgeWrite):
+    return repo.create(payload.model_dump())       # 저장은 Repository에 맡김</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>app/routers/knowledge.py의 router</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>router.prefix, router.tags</code></td><td><code>&#x27;/api/knowledge&#x27;, [&#x27;knowledge&#x27;]</code></td><td></td></tr>
+    <tr><td><code>[r.path for r in router.routes]</code></td><td><code>[&#x27;/api/knowledge&#x27;, &#x27;/api/knowledge/{knowledge_id}&#x27;]</code></td><td>prefix + &quot;&quot; / prefix + &quot;/{knowledge_id}&quot;</td></tr>
+    <tr><td><code>openapi[&quot;paths&quot;][&quot;/api/knowledge&quot;][&quot;post&quot;][&quot;tags&quot;]</code></td><td><code>[&#x27;knowledge&#x27;]</code></td><td>/docs에서 묶어 보여 줄 그룹 이름</td></tr>
+    <tr><td><code>client.post(&quot;/api/knowledge&quot;, json=NEW)</code></td><td><code>201 {&quot;title&quot;:&quot;실습 환경 안내&quot;,&quot;content&quot;:&quot;Python 3.10 이상을 사용한다.&quot;,&quot;category&quot;:&quot;setup&quot;,&quot;id&quot;:4}</code></td><td>Router → repo.create → 201</td></tr>
+    <tr><td><code>옛 @app.post를 지우지 않고 include_router → POST</code></td><td><code>200 {&quot;from&quot;:&quot;main.py에 남은 옛 코드&quot;}</code></td><td>먼저 등록된 옛 함수가 받음 (201도 아님)</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th></tr>
+        <tr><td><code>prefix="/api/knowledge"</code></td><td>이 Router의 모든 경로 앞에 붙는 공통 부분. <code>prefix + ""</code> → <code>/api/knowledge</code>, <code>prefix + "/{knowledge_id}"</code> → <code>/api/knowledge/{knowledge_id}</code></td></tr>
+        <tr><td><code>tags=["knowledge"]</code></td><td><code>/docs</code>에서 묶어 보여 줄 <b>그룹 이름</b>일 뿐. 인증·권한과 무관</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 옮긴 뒤에는 <code>main.py</code>에 남아 있던 같은 <code>@app.post("/api/knowledge")</code>를 <b>지워야</b> 해요. 같은 Route가 두 번 등록되면 먼저 등록된 쪽이 받아서, 고친 코드가 안 도는 것처럼 보여요.</div>
+</section>
+
+<section class="cmd" id="d17-repository-저장-로직-그대로-옮기기" data-topic="FastAPI" data-sub="구조 · 테스트" data-day="17" data-theory="notes/day17.html#structure">
+  <h3>Repository — 저장 로직 그대로 옮기기</h3>
+<pre><code># app/repositories/json_knowledge.py (일부)
+# LOCK · read_data · write_data 도 이 파일에서 정의
+BASE = Path(__file__).resolve().parents[2]       # 프로젝트 루트 (repositories → app → 루트)
+DATA = BASE / "data" / "knowledge.json"
+
+def create(fields: dict) -&gt; dict:
+    with LOCK:
+        data = read_data()
+        entry = dict(fields)
+        entry["id"] = data["next_id"]
+        data["entries"].append(entry)
+        data["next_id"] += 1
+        write_data(data)
+    return entry</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>app/repositories/json_knowledge.py</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>Path(__file__).resolve().parents[0].name</code></td><td><code>&#x27;repositories&#x27;</code></td><td></td></tr>
+    <tr><td><code>Path(__file__).resolve().parents[1].name</code></td><td><code>&#x27;app&#x27;</code></td><td></td></tr>
+    <tr><td><code>Path(__file__).resolve().parents[2].name</code></td><td><code>&#x27;fastapi_knowledge&#x27;</code></td><td>프로젝트 루트</td></tr>
+    <tr><td><code>repo.DATA.relative_to(repo.BASE)</code></td><td><code>&#x27;data/knowledge.json&#x27;</code></td><td>루트 아래 data 파일을 그대로 가리킴</td></tr>
+    <tr><td><code>repo.create({title, content, category})</code></td><td><code>{&quot;title&quot;: &quot;실습 환경 안내&quot;, &quot;content&quot;: &quot;Python 3.10 이상을 사용한다.&quot;, &quot;category&quot;: &quot;setup&quot;, &quot;id&quot;: 4}</code></td><td>HTTP 없이 저장만 — 순서는 main.py 때와 같음</td></tr>
+    <tr><td><code>파일 확인</code></td><td><code>항목 4개 [1, 2, 3, 4] · next_id 5</code></td><td>id 4 · next_id 5</td></tr>
+  </table>
+</div>
+      <div class="callout">🤔 <strong>왜 <code>parent</code>가 <code>parents[2]</code>로 바뀌어?</strong> — 코드가 놓인 파일이 <code>app/repositories/</code> 안으로 두 단계 깊어졌으니까요. <code>parents[0]</code>=repositories, <code>[1]</code>=app, <code>[2]</code>=프로젝트 루트. <b>바뀐 건 파일 위치뿐</b>이고 ID 발급·추가·저장 순서는 똑같아요.</div>
+      <div class="callout">💡 나중에 RAG를 붙이면 "질의 Router → RAG 처리 함수 → 검색 + LLM" 길이 따로 생겨요. Repository에는 DB·파일 접근만 남겨요. 오늘은 Service 계층을 새로 만들지 않아요 — 책임이 다른 기능이 실제로 생길 때 나눠요.</div>
+</section>
+
+<section class="cmd" id="d17-같은-데이터를-html-화면으로-template" data-topic="FastAPI" data-sub="구조 · 테스트" data-day="17" data-theory="notes/day17.html#structure">
+  <h3>같은 데이터를 HTML 화면으로 (Template)</h3>
+<pre><code>from fastapi import Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates      # pip install jinja2
+
+templates = Jinja2Templates(directory=BASE / "templates")
+
+@app.get("/web/knowledge", response_class=HTMLResponse)
+def knowledge_page(request: Request):
+    with LOCK:
+        data = read_data()
+    return templates.TemplateResponse(
+        request=request, name="knowledge.html",
+        context={"entries": data["entries"]})</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>main.py + templates/knowledge.html, 처음 3건 파일</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>client.get(&quot;/web/knowledge&quot;).headers[&quot;content-type&quot;]</code></td><td><code>200 text/html; charset=utf-8</code></td><td>사람이 보는 화면</td></tr>
+    <tr><td><code>응답 본문의 &lt;li&gt; 내용</code></td><td><code>[&#x27;가상환경&#x27;, &#x27;서버 실행&#x27;, &#x27;입력 오류&#x27;]</code></td><td>{% for %}가 entries 3건만큼 반복</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge&quot;).headers[&quot;content-type&quot;]</code></td><td><code>200 application/json</code></td><td>같은 파일, 프로그램용 JSON</td></tr>
+    <tr><td><code>client.get(&quot;/api/knowledge&quot;).json()[0][&quot;title&quot;]</code></td><td><code>&#x27;가상환경&#x27;</code></td><td>값을 바로 꺼내 쓸 수 있음</td></tr>
+  </table>
+</div>
+<pre><code>&lt;!-- templates/knowledge.html --&gt;
+{% for entry in entries %}
+  &lt;li&gt;{{ entry.title }}&lt;/li&gt;
+{% endfor %}</code></pre>
+      <table>
+        <tr><th></th><th>JSON API</th><th>HTML Template</th></tr>
+        <tr><td>주소</td><td><code>GET /api/knowledge</code></td><td><code>GET /web/knowledge</code></td></tr>
+        <tr><td>Content-Type</td><td><code>application/json</code></td><td><code>text/html</code></td></tr>
+        <tr><td>누가 쓰나</td><td>프로그램 (다른 서버·Agent·관리 화면)</td><td>사람 (브라우저 화면)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 둘 다 있어?</strong> — 둘은 <b>같은 파일</b>을 읽어요. 다만 프로그램은 값을 꺼내 쓰기 쉬운 JSON이 필요하고, 사람은 보기 좋은 화면이 필요해요. 오늘 만드는 건 JSON API이고, Template은 비교용이에요.</div>
+</section>
+
+<section class="cmd" id="d17-자동-테스트-실제-지식-파일은-건드리지-않게" data-topic="FastAPI" data-sub="구조 · 테스트" data-day="17" data-theory="notes/day17.html#structure">
+  <h3>자동 테스트 — 실제 지식 파일은 건드리지 않게</h3>
+<pre><code># tests/test_knowledge.py      (pip install pytest httpx)
+from fastapi.testclient import TestClient
+from app.main import app
+from app.repositories import json_knowledge as repo
+
+def test_missing(tmp_path, monkeypatch):
+    test_file = tmp_path / "knowledge.json"
+    test_file.write_text('{"next_id":1,"entries":[]}', encoding="utf-8")
+    monkeypatch.setattr(repo, "DATA", test_file)       # 저장 경로만 임시 파일로 바꿔치기
+    before = test_file.read_bytes()
+    with TestClient(app) as client:
+        r = client.delete("/api/knowledge/9999")
+    assert r.status_code == 404
+    assert test_file.read_bytes() == before            # 실패 후 파일이 그대로인지</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 fastapi_knowledge/ 에 tests/test_knowledge.py를 만들고 실행</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>python -m pytest -q  (프로젝트 최상위)</code></td><td><code>1 passed, 1 warning in …s</code></td><td>종료 코드 0 — 테스트 통과</td></tr>
+    <tr><td><code>테스트 뒤 실제 data/knowledge.json bytes 같음?</code></td><td><code>True</code></td><td>monkeypatch로 임시 파일만 썼음</td></tr>
+    <tr><td><code>실제 파일</code></td><td><code>항목 3개 [1, 2, 3] · next_id 4</code></td><td>처음 3건 그대로</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>표현</th><th>뜻</th></tr>
+        <tr><td><code>TestClient(app)</code></td><td>서버를 띄우지 않고 앱에 바로 요청을 보내는 가짜 클라이언트</td></tr>
+        <tr><td><code>tmp_path</code></td><td>pytest가 테스트마다 만들어 주는 빈 임시 폴더</td></tr>
+        <tr><td><code>monkeypatch.setattr(repo, "DATA", ...)</code></td><td>테스트하는 동안만 <code>repo.DATA</code> 값을 바꿈 (끝나면 원래대로)</td></tr>
+        <tr><td><code>assert</code></td><td>조건이 거짓이면 테스트 실패</td></tr>
+      </table>
+<pre><code>python -m pytest -q</code></pre>
+      <div class="callout">🤔 <strong>왜 임시 파일로 바꿔?</strong> — 테스트는 일부러 등록·삭제를 마구 해요. 실제 <code>knowledge.json</code>으로 돌리면 테스트할 때마다 진짜 지식이 지워지고 섞여요. 저장 위치를 Repository 한 곳(<code>DATA</code>)에 모아 둔 덕분에 그 한 줄만 바꿔치기하면 돼요. 단, 서버 <b>재시작</b> 확인은 테스트가 대신 못 해서 따로 해요.</div>
+</section>
