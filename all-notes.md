@@ -4312,6 +4312,103 @@ Day9~10의 ANN은 입력을 한 줄로 펴서 모든 칸을 모든 뉴런에 연
 
 🤔 왜 CNN은 사진이 커져도 파라미터가 그대로야? — ANN은 픽셀 하나하나마다 자기 전용 가중치가 있어서 픽셀 수만큼 늘어나요. Conv는 3×3짜리 Kernel 하나를 모든 위치에 돌려 써요(가중치 공유). "세로선"은 왼쪽 위에 있든 오른쪽 아래에 있든 같은 모양이니, 위치마다 따로 배울 필요가 없거든요. 그래서 개수는 16·3·3·3 + 16 = 448로 고정이에요.
 
+## ⓪ PyTorch 한 장 정리 — 데이터 → 예측 → 손실 → 기울기 → 갱신
+
+CNN으로 넘어가기 전에 Day9~10의 학습 흐름을 한 장으로 다시 묶어요. 모델이 ANN이든 CNN이든 이 다섯 단계는 똑같고, 바뀌는 건 "모델 칸" 안쪽뿐이에요. 예시는 PyTorch 공식 한국어 튜토리얼 「파이토치 기본 익히기」의 FashionMNIST(옷 사진 28×28 흑백, 10개 클래스, 학습용 60,000장)예요.
+
+[그림: train_ds[i], DataLoader, model(X), loss_fn, backward(), step() 여섯 칸에 각 단계의 shape를 적고 step에서 다음 배치로 돌아가는 화살표를 그린 흐름도] 무엇을 보나: 배치 하나가 왼쪽에서 오른쪽으로 지나가요. 샘플 1개 (1, 28, 28)가 DataLoader에서 64개씩 묶여 (64, 1, 28, 28)이 되고, 모델을 지나면 클래스 10개 점수(로짓) (64, 10), 손실 함수를 지나면 숫자 하나 ()가 돼요. backward()는 가중치마다 같은 모양의 기울기를 채우고(첫 층 (512, 784)), step()이 가중치를 옮긴 뒤 다음 배치로 돌아가요. shape는 같은 모양의 텐서를 실제로 모델에 넣어 확인했어요. 🤔 왜 이렇게 나눠 봐? 에러의 대부분은 "칸과 칸 사이 shape가 안 맞아서" 나요. 각 칸의 입·출력 모양을 알면 어디서 틀렸는지 바로 짚을 수 있어요.
+
+🤔 왜 1 epoch가 938번 step이야? — epoch는 "학습 데이터를 한 바퀴", step은 "배치 하나로 가중치를 한 번 갱신"이에요. 60,000장을 64장씩 나누면 937.5묶음이고, 남은 32장도 마지막 묶음으로 쓰니까 올림해서 938번(drop_last=False일 때). batch_size를 키우면 step 수는 줄고, 줄이면 늘어요.
+
+🔧 전체 흐름: 학습 루프 한 장 명령어 사전에서 자세히 →
+
+```
+pred = model(X); loss = loss_fn(pred, y)          # ① 예측 ② 손실
+optimizer.zero_grad(); loss.backward(); optimizer.step()   # ③ 초기화 ④ 기울기 ⑤ 갱신
+```
+
+### shape 맞추기 — dim에 적은 축이 사라진다
+
+텐서를 다룰 땐 shape부터 확인해요. 2×3 텐서 [[1, 2, 3], [4, 5, 6]]로 보면:
+
+| 계산 | 어느 방향으로 더하나 | 결과 | 남는 shape |
+|---|---|---|---|
+| sum(dim=0) | ↓ 세로로 (줄 축이 사라짐) | [5, 7, 9] | (3,) |
+| sum(dim=1) | → 가로로 (칸 축이 사라짐) | [6, 15] | (2,) |
+
+🤔 왜 예측 클래스는 argmax(dim=1)? — 로짓은 (64, 10) = "64장 × 클래스 10개 점수"예요. 사진마다 10개 점수 중 가장 큰 곳을 골라야 하니 클래스 축(dim=1)을 없애야 해요. 그러면 (64,) — 사진마다 답 하나가 남아요. dim=0으로 하면 거꾸로 "클래스마다 가장 높은 사진 번호"가 나와 엉뚱한 값이 돼요.
+
+🔧 shape 확인·바꾸기 reshape · flatten(1) · sum(dim) · argmax(dim=1) 명령어 사전에서 자세히 →
+
+```
+x.flatten(1)            # (N, 1, 28, 28) → (N, 784)
+pred.argmax(dim=1)      # (N, 10) → (N,)
+```
+
+### 데이터 · 모델 · 손실 · 갱신 · 평가 · 저장
+
+| 단계 | 하는 일 | 🤔 왜 이렇게? |
+|---|---|---|
+| Dataset | "몇 개인지(__len__)"와 "i번째 샘플 1개(__getitem__)"만 알려 줌 | DataLoader가 이 두 가지만 알면 섞기·묶기를 알아서 해 줘요. 데이터 형식이 달라도 이 두 칸만 맞추면 돼요 |
+| DataLoader | 64개씩 묶고, 학습 데이터는 epoch마다 섞음 | 한 장씩은 느리고 기울기가 들쭉날쭉, 전부 한 번에는 메모리가 부족 → 미니배치가 중간 |
+| 모델 | Flatten → Linear(784, 512) → ReLU → Linear(512, 10) | 앞 층의 출력 수 = 다음 층의 입력 수. ReLU가 없으면 Linear를 여러 층 쌓아도 Linear 하나와 같아요 |
+| 손실 | 분류는 CrossEntropyLoss(로짓 + 정수 정답), 회귀는 MSELoss | "얼마나 틀렸나"를 숫자 하나로 만들어야 그걸 줄이는 방향(기울기)을 구할 수 있어요 |
+| 갱신 | SGD: p ← p − lr × p.grad / Adam: 가중치마다 보폭 조절 | Adam은 처음 시도하기 무난하고, SGD는 규칙이 단순해서 동작을 이해하기 좋아요(Day10) |
+| 평가 | model.eval() + torch.no_grad()로 안 본 데이터 정확도 | 학습 손실은 내려가는데 평가 정확도가 떨어지면 과적합 → epoch 줄이기, Dropout 추가 |
+| 저장 | state_dict()(가중치 묶음)만 저장하고, 불러올 땐 같은 구조의 모델에 넣음 | 모델 객체 통째보다 가볍고, 코드가 조금 바뀌어도 불러오기 쉬워요 |
+
+🔧 직접 만드는 Dataset + DataLoader 명령어 사전에서 자세히 →
+
+```
+class MyDS(Dataset):  # __len__ · __getitem__ 두 개만
+DataLoader(ds, batch_size=64, shuffle=True)
+```
+
+🔧 nn.Module로 모델 정의 명령어 사전에서 자세히 →
+
+```
+self.layers = nn.Sequential(nn.Flatten(), nn.Linear(28*28, 512), nn.ReLU(), nn.Linear(512, 10))
+def forward(self, x): return self.layers(x)
+```
+
+🔧 손실 · 최적화 CrossEntropyLoss · SGD · Adam 명령어 사전에서 자세히 →
+
+```
+loss_fn = nn.CrossEntropyLoss()                        # 로짓 그대로 넣기
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+```
+
+🔧 평가 함수 test() · 저장 state_dict 명령어 사전에서 자세히 →
+
+```
+with torch.no_grad(): hit = model(X).argmax(1) == y     # model.eval() 먼저
+torch.save(model.state_dict(), "model.pth")
+```
+
+### 자주 하는 실수 4가지
+
+| 실수 | 무슨 일이 생기나 | 🤔 왜? |
+|---|---|---|
+| zero_grad()를 빠뜨림 | 기울기가 배치마다 계속 쌓여 갱신이 점점 커짐 | backward()는 p.grad에 더하는 동작이라, 지우지 않으면 지난 배치 기울기가 남아요 |
+| CrossEntropyLoss에 softmax 값을 넣음 | 손실이 잘 안 줄고 이상한 값이 나옴 | 이 손실은 안에서 softmax를 한 번 더 해요. 이미 0~1로 눌린 값에 또 softmax를 하니 차이가 뭉개져요 → 로짓 그대로 넣기 |
+| 모델과 데이터의 장치가 다름 | RuntimeError: Expected all tensors to be on the same device | GPU에 있는 가중치와 CPU에 있는 데이터는 곱할 수 없어요 → 둘 다 .to(device) |
+| 평가 때 eval()·no_grad()를 빠뜨림 | 점수가 실행할 때마다 흔들리고 메모리를 더 씀 | Dropout이 켜진 채라 매번 다른 칸을 끄고, 쓰지도 않을 기울기 기록까지 남겨요 |
+
+실수 1·2·3을 실제로 저질러 본 결과는 명령어 사전의 "실제로 돌려 보면" 표에 있어요.
+
+### 파라미터 두 종류
+
+가중치(model.parameters())는 학습이 바꾸는 값, 하이퍼파라미터는 학습 전에 사람이 정하는 값이에요.
+
+| 하이퍼파라미터 | 키우면 | 줄이면 |
+|---|---|---|
+| lr (학습률) | 빨리 움직이지만 발산 위험 | 안정적이지만 느림 |
+| batch_size | step 수 ↓, 메모리 ↑ | step 수 ↑, 기울기가 들쭉날쭉 |
+| epochs | 과적합 위험 ↑ | 덜 학습 |
+| 은닉 크기 (예: 512) | 표현력 ↑, 과적합 ↑ | 단순한 패턴만 |
+
+🤔 왜 "키우면 좋다"가 없어? — 하이퍼파라미터는 거의 다 맞바꾸기예요. 빠르면 불안정하고, 크면 과적합하기 쉬워요. 그래서 valid 점수를 보며 하나씩 바꿔 비교해요(Day10 학습률 비교와 같은 방식).
+
 ## ① 이미지 Tensor — [N, C, H, W]
 
 | 축 | 뜻 | 예 |
@@ -4570,7 +4667,11 @@ seconds = time.perf_counter() - start
 
 - ⚠️ Day11 강의 본편 PDF는 받지 못했어요. 이 페이지는 Day11_개념지도.pdf(1쪽, 강의 PDF 쪽수 표기 포함)를 기준으로, 그 범위에 맞는 표준 CNN 이론으로 정리했어요. 본편 PDF가 생기면 다시 대조할 예정이에요.
 
-- 개념지도의 개념 정의 출처: Prince, Understanding Deep Learning (MIT Press, 2023) 10장(합성곱)·9.3(전이학습·증강)·11.4(BatchNorm) · 명령어 참고: PyTorch_치트시트.pdf
+- 개념지도의 개념 정의 출처: Prince, Understanding Deep Learning (MIT Press, 2023) 10장(합성곱)·9.3(전이학습·증강)·11.4(BatchNorm)
+
+- ⓪ PyTorch 한 장 정리: PyTorch_치트시트.pdf(1쪽, PyTorch 한국어 튜토리얼 「파이토치 기본 익히기」 기준, 2026-11-02). 그림·사전의 숫자는 FashionMNIST와 같은 모양의 합성 데이터로 직접 실행한 값이에요(데이터 내려받기 없음).
+
+- 참고: 같은 날짜의 20261102_2.pdf(104쪽)는 Day12(순서 모델) 강의 자료라 Day12에 반영돼 있어요.
 
 - 공식 문서: nn.Conv2d · nn.BatchNorm2d · ImageFolder · ResNet18 · 가중치 · 전처리 · 전이학습 튜토리얼
 
@@ -4578,12 +4679,230 @@ seconds = time.perf_counter() - start
 | 이론 | 대응 명령어 |
 |---|---|
 | 📦 필요한 패키지 | torch, torchvision, pillow |
+| ⓪ PyTorch 한 장 정리 | Dataset · DataLoader · nn.Module · CrossEntropyLoss · SGD/Adam · eval()+no_grad() · state_dict |
 | ① 이미지 Tensor [N, C, H, W] | torch.rand(), permute(), unsqueeze(0) |
 | ② 합성곱 Conv2d | nn.Conv2d(in, out, kernel_size, stride=, padding=), F.conv2d() |
 | ③ Pooling · BatchNorm · CNN 조립 | nn.MaxPool2d(), nn.BatchNorm2d(), nn.AdaptiveAvgPool2d(1), torch.flatten(x, 1) |
 | ④ 이미지 읽기 · 증강 · 학습 · 평가 · 저장 | datasets.ImageFolder(), transforms.Compose(), nn.CrossEntropyLoss(), torch.inference_mode(), torch.save() |
 | ⑤ 전이학습 (Head-only · Partial) | resnet18(weights=), weights.transforms(), requires_grad = False, model.fc = nn.Linear() |
 | ⑥ CPU·GPU 속도 비교 · 성능표 | time.perf_counter(), torch.cuda.synchronize(), torch.cuda.max_memory_allocated() |
+
+### 전체 흐름: 학습 루프 한 장 (FashionMNIST)
+
+```
+import torch
+from torch import nn, optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import datasets, transforms
+
+device = ("cuda" if torch.cuda.is_available()
+          else "mps" if torch.backends.mps.is_available()     # Apple Silicon GPU
+          else "cpu")
+lr, batch_size, epochs = 1e-3, 64, 5                          # 사람이 정함 (하이퍼파라미터)
+
+tf = transforms.ToTensor()
+train_ds = datasets.FashionMNIST("data", train=True, download=True, transform=tf)
+train_dl = DataLoader(train_ds, shuffle=True, batch_size=batch_size)
+model = Net().to(device)                                      # 아래 nn.Module 항목
+loss_fn = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=lr)
+
+for epoch in range(epochs):            # 에폭 반복
+    model.train()                      # 학습 모드
+    for X, y in train_dl:              # 배치 반복
+        X, y = X.to(device), y.to(device)
+        pred = model(X)                # ① 예측
+        loss = loss_fn(pred, y)        # ② 손실
+        optimizer.zero_grad()          # ③ 초기화
+        loss.backward()                # ④ 기울기
+        optimizer.step()               # ⑤ 갱신
+    test(model)                        # 평가 (아래 test 항목)
+torch.save(model.state_dict(), "model.pth")
+```
+
+▶ 실제로 돌려 보면 FashionMNIST와 같은 모양의 합성 데이터 (학습 1,280 · 평가 256장, 클래스마다 밝은 띠 위치가 다름) · lr 0.1
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| device | cuda | 이 PC는 NVIDIA GPU가 있어서 cuda (PC마다 달라요) |
+| len(DataLoader(60,000개, batch_size=64)) | 938 | FashionMNIST 한 epoch = 938번 step |
+| len(train_dl) (1,280장) | 20 | 1,280 ÷ 64 = 20 묶음 |
+| 학습 전 test(model) | 0.004 | 학습 전이라 찍기 수준 (이번 무작위 시작값에선 기대값 0.1보다도 낮게 나왔어요) |
+| epoch 1·2·3 (학습 손실, 평가 정확도) | [(1.407, 1.0), (0.243, 1.0), (0.077, 1.0)] | 손실은 계속 줄고, 정확도는 첫 epoch부터 1.0 — 규칙이 쉬운 합성 데이터라서예요(실제 FashionMNIST는 이렇게 안 돼요) |
+
+| 줄 | 뜻 | 🤔 왜? |
+|---|---|---|
+| device = ("cuda" if ... else "mps" if ... else "cpu") | NVIDIA GPU → Apple GPU → CPU 순서로 고름 | 같은 코드를 어느 컴퓨터에서 돌려도 쓸 수 있는 장치를 자동으로 고르려고 |
+| datasets.FashionMNIST(..., download=True) | 옷 사진 데이터를 data/에 받아 Dataset으로 | 공식 튜토리얼의 연습용 데이터. 처음 한 번만 내려받아요 |
+| model.train() | Dropout·BatchNorm을 학습 동작으로 | test() 안에서 eval()로 바꿨으니 epoch마다 다시 켜야 해요 |
+| X.to(device), y.to(device) | 배치를 모델과 같은 장치로 | 모델은 한 번만 옮기면 되지만 배치는 새로 꺼낼 때마다 옮겨야 해요 |
+| ③ → ④ → ⑤ 순서 | 지우고 → 계산하고 → 갱신 | 순서를 바꾸면 지난 기울기가 섞이거나 기울기 없이 갱신해요 (Day9) |
+
+⚠️ download=True는 인터넷으로 데이터를 내려받아요(약 30MB). 이미 받은 폴더가 있으면 다시 받지 않아요.
+
+### shape 확인·바꾸기 reshape · flatten(1) · sum(dim) · argmax(dim=1)
+
+```
+x.shape                       # 가장 먼저 확인
+x.to(device)                  # 모델과 같은 장치로
+x.reshape(64, -1)             # -1 자리는 자동 계산
+x.flatten(1)                  # (N, 1, 28, 28) → (N, 784)  1번 축부터 펴기
+t = torch.tensor([[1, 2, 3], [4, 5, 6]])
+t.sum(dim=0)                  # [5, 7, 9]  세로로 더함
+t.sum(dim=1)                  # [6, 15]    가로로 더함
+pred.argmax(dim=1)            # (N, 10) → (N,)  사진마다 점수가 가장 큰 클래스
+```
+
+▶ 실제로 돌려 보면 무작위 배치 (64, 1, 28, 28) · 2×3 텐서
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| x.reshape(64, -1).shape | (64, 784) | -1 자리 = 1×28×28 = 784 자동 계산 |
+| x.flatten(1).shape | (64, 784) | 배치 축은 두고 나머지만 펴기 |
+| x.flatten().shape | (50176,) | 0번부터 펴면 배치까지 한 줄로 — 보통 실수 |
+| t.sum(dim=0) | [5, 7, 9] | 줄 축(0)이 사라짐 |
+| t.sum(dim=1) | [6, 15] | 칸 축(1)이 사라짐 |
+| t.sum(dim=1, keepdim=True).shape | (2, 1) | 축을 길이 1로 남김 |
+| pred.argmax(dim=1).shape, [:5] | (64,), [7, 0, 7, 3, 5] | 사진마다 클래스 번호 하나 |
+| x.reshape(100, -1) | shape '[100, -1]' is invalid for input of size 50176 | 50,176개를 100줄로 못 나눠요 |
+
+| 표현 | 뜻 | 바꾸면? |
+|---|---|---|
+| reshape(64, -1) | 원소 수는 그대로, 모양만 바꿈. -1은 "나머지로 알아서" | -1은 한 곳에만 쓸 수 있어요. 원소 수가 안 나눠떨어지면 에러 |
+| flatten(1) | 1번 축부터 끝까지를 한 줄로 | flatten()(0부터)이면 배치 축까지 펴져서 (N×784,) 한 줄이 돼요 |
+| sum(dim=k) | k번 축을 따라 더하고 그 축은 사라짐 | keepdim=True면 축을 길이 1로 남겨요 |
+| argmax(dim=1) | 1번 축에서 가장 큰 값의 위치 | 값이 아니라 번호(클래스 id)를 돌려줘요 |
+
+### 직접 만드는 Dataset + DataLoader
+
+```
+from torch.utils.data import Dataset, DataLoader
+
+class MyDS(Dataset):
+    def __init__(self, X, y):
+        self.X, self.y = X, y
+    def __len__(self):            # 샘플 수
+        return len(self.X)
+    def __getitem__(self, i):     # 샘플 1개
+        return self.X[i], self.y[i]
+
+train_dl = DataLoader(MyDS(X, y), batch_size=64, shuffle=True)   # 64개씩, epoch마다 섞기
+X, y = next(iter(train_dl))       # 배치 하나 꺼내 shape 확인
+```
+
+▶ 실제로 돌려 보면 합성 사진 150장
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| len(ds) | 150 | __len__ 이 돌려준 값 |
+| ds[0][0].shape, ds[0][1] | (1, 28, 28), 8 | __getitem__(0): 샘플 1개 |
+| X, y = next(iter(dl)) → shape | (64, 1, 28, 28), (64,) | 64개가 앞에 붙은 배치 |
+| len(dl), 배치 크기들 | 3, [64, 64, 22] | 150 = 64 + 64 + 22 → 마지막은 남는 만큼 |
+| y.dtype | torch.int64 | CrossEntropyLoss가 원하는 정수(long) |
+
+| 부분 | 뜻 | 🤔 왜? |
+|---|---|---|
+| __len__ | 전체 샘플 수 | DataLoader가 몇 묶음을 만들지, 언제 epoch가 끝나는지 알려고 |
+| __getitem__(i) | i번째 샘플 하나를 (입력, 정답)으로 | DataLoader가 번호만 골라 부르고 묶는 건 자기가 해요 |
+| shuffle=True | epoch마다 순서를 섞음 (학습 데이터만) | 같은 순서를 반복하면 순서까지 외워요. 평가 데이터는 섞을 필요가 없어요 |
+| next(iter(dl)) | 배치 하나만 꺼내 보기 | 학습 전에 shape·dtype·값 범위를 눈으로 확인하는 첫 점검 |
+
+### nn.Module로 모델 정의 (Flatten → Linear → ReLU → Linear)
+
+```
+from torch import nn
+
+class Net(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(28*28, 512), nn.ReLU(),
+            nn.Linear(512, 10))
+    def forward(self, x):         # model(x) 하면 이게 실행
+        return self.layers(x)
+
+model = Net().to(device)
+```
+
+▶ 실제로 돌려 보면 무작위 배치 (64, 1, 28, 28)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| model(x).shape | (64, 10) | 클래스 10개 점수(로짓) |
+| [p.shape for p in model.parameters()] | [(512, 784), (512,), (10, 512), (10,)] | Linear마다 weight (out, in) + bias (out,) |
+| sum(p.numel() for p in model.parameters()) | 407,050 | 784×512 + 512 + 512×10 + 10 |
+| model.layers[0](x).shape | (64, 784) | Flatten 지난 직후 |
+
+| 부분 | 뜻 | 바꾸면? |
+|---|---|---|
+| super().__init__() | nn.Module 기본 준비 (꼭 맨 앞) | 빼면 층을 등록할 수 없어 에러 |
+| nn.Linear(in_features, out_features) | (N, in) → (N, out) | 앞 층의 out = 다음 층의 in 이 어긋나면 shape 에러 |
+| nn.ReLU() | 음수를 0으로 (비선형) | 빼면 Linear 두 층이 Linear 하나와 같아져요 |
+| forward(self, x) | 입력이 지나가는 순서 | model.forward(x) 대신 model(x)로 불러요 |
+
+### 손실 · 최적화 CrossEntropyLoss · MSELoss · SGD · Adam
+
+```
+loss_fn = nn.CrossEntropyLoss()     # 분류: 로짓 (N, C) + 정답 (N,) long
+loss_fn = nn.MSELoss()              # 회귀: 예측과 정답의 제곱 오차
+loss.backward()                     # 모든 가중치의 p.grad 에 기울기를 '더함' → 매번 zero_grad()
+optimizer = optim.SGD(model.parameters(), lr=lr)       # p ← p − lr × p.grad
+optimizer = optim.Adam(model.parameters(), lr=1e-3)    # 가중치마다 보폭 조절. 처음 시도하기 무난
+```
+
+▶ 실제로 돌려 보면 작은 예제 (로짓 2개 · Linear(3, 1))
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| CrossEntropyLoss()(로짓, y) | 0.052 | 정답 점수가 가장 커서 손실이 작아요 |
+| CrossEntropyLoss()(softmax(로짓), y) ← 실수 | 0.584 | 같은 예측인데 손실이 커져요 — softmax가 두 번 들어가 차이가 뭉개짐 |
+| softmax 값이 완벽한 [1, 0, 0]이어도 | 0.551 | 0이 못 돼요 → 아무리 맞혀도 손실이 이 아래로 안 내려감 |
+| zero_grad 없이 backward 3번 → 기울기 크기 | [2.735, 5.47, 8.205] | 더해져서 1배·2배·3배로 쌓여요 |
+| SGD step 후 p == p − lr × p.grad ? | True | SGD 한 번 = 정확히 이 식 |
+| 모델은 cuda, 입력은 cpu → model(x) | Expected all tensors to be on the same device, but got mat1 is on cpu, different | 장치가 다르면 바로 에러 |
+
+| 인자 | 뜻 | 주의 |
+|---|---|---|
+| CrossEntropyLoss()(logits, y) | 안에서 softmax + 정답 클래스 확률의 −log | softmax를 미리 하지 않기. 정답은 클래스 번호(정수, long) |
+| MSELoss()(pred, y) | (예측 − 정답)² 의 평균 | pred와 y의 shape를 같게 (예: 둘 다 (N, 1)) |
+| model.parameters() | 학습할 가중치 목록 | optimizer는 여기 넘긴 것만 갱신해요 |
+| lr | 한 번에 움직이는 크기 | Adam은 보통 1e-3부터 |
+
+### 평가 함수 test() · 저장 state_dict
+
+```
+def test(model):
+    model.eval(); correct = 0          # Dropout 끔
+    with torch.no_grad():              # 기울기 기록 끔
+        for X, y in test_dl:           # 안 본 데이터
+            X, y = X.to(device), y.to(device)
+            hit = model(X).argmax(1) == y
+            correct += hit.sum().item()
+    return correct / len(test_dl.dataset)
+
+torch.save(model.state_dict(), "model.pth")
+model.load_state_dict(torch.load("model.pth"))
+```
+
+▶ 실제로 돌려 보면 위 '전체 흐름'에서 3 epoch 학습한 모델 · 평가 256장
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| test(model) | 1.000 | eval() + no_grad() 로 잰 정확도 |
+| len(test_dl), len(test_dl.dataset) | 4, 256 | 배치 수로 나누면 정확도가 64배 커져요 |
+| list(model.state_dict().keys()) | ['layers.1.weight', 'layers.1.bias', 'layers.3.weight', 'layers.3.bias'] | 층 번호.weight / .bias |
+| state_dict 저장 크기 | 1,592 KB | 가중치 407,050개 × 4바이트 |
+| 새 Net()에 load_state_dict → test | <All keys matched successfully> · 같은 정확도: True | 구조는 코드로, 값만 채워 넣기 |
+| Dropout 모델 train() 두 번 / eval() 두 번 | 0.797, 0.264 / 0.112, 0.112 | eval()을 빠뜨리면 평가할 때마다 값이 흔들려요 |
+
+| 표현 | 뜻 | 🤔 왜? |
+|---|---|---|
+| hit.sum().item() | 맞힌 개수 → 파이썬 숫자 | .item()으로 꺼내야 GPU 텐서가 아닌 보통 숫자로 더해져요 |
+| len(test_dl.dataset) | 전체 샘플 수 (배치 수 아님) | len(test_dl)은 배치 개수라 나누면 정확도가 틀려요 |
+| state_dict() | 층 이름 → 가중치 텐서 사전 | 구조는 코드(Net())로 다시 만들고 값만 채워 넣는 방식 |
+
+💡 학습 손실은 내려가는데 평가 정확도가 떨어지면 과적합이에요 → epochs 줄이기, nn.Dropout(p=0.5) 추가.
 
 ### 축 순서 바꾸기 · 개수 축 붙이기
 

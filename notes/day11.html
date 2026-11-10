@@ -72,6 +72,84 @@ python -c "import torch, torchvision; print(torch.__version__, torchvision.__ver
       <div class="callout">🤔 <strong>왜 CNN은 사진이 커져도 파라미터가 그대로야?</strong> — ANN은 픽셀 하나하나마다 <b>자기 전용 가중치</b>가 있어서 픽셀 수만큼 늘어나요. Conv는 3×3짜리 Kernel 하나를 <b>모든 위치에 돌려 써요</b>(가중치 공유). "세로선"은 왼쪽 위에 있든 오른쪽 아래에 있든 같은 모양이니, 위치마다 따로 배울 필요가 없거든요. 그래서 개수는 <code>16·3·3·3 + 16 = 448</code>로 고정이에요.</div>
 
       <!-- ============================================================ -->
+      <h2 id="cheat">⓪ PyTorch 한 장 정리 — 데이터 → 예측 → 손실 → 기울기 → 갱신</h2>
+      <p>CNN으로 넘어가기 전에 Day9~10의 학습 흐름을 한 장으로 다시 묶어요. 모델이 ANN이든 CNN이든 <b>이 다섯 단계는 똑같고</b>, 바뀌는 건 "모델 칸" 안쪽뿐이에요. 예시는 PyTorch 공식 한국어 튜토리얼 「파이토치 기본 익히기」의 <b>FashionMNIST</b>(옷 사진 28×28 흑백, 10개 클래스, 학습용 60,000장)예요.</p>
+      <figure id="fig-batch-flow"><img class="smooth" src="img/day11/batch_flow.png" alt="train_ds[i], DataLoader, model(X), loss_fn, backward(), step() 여섯 칸에 각 단계의 shape를 적고 step에서 다음 배치로 돌아가는 화살표를 그린 흐름도"><figcaption><b>무엇을 보나:</b> 배치 하나가 왼쪽에서 오른쪽으로 지나가요. 샘플 1개 <code>(1, 28, 28)</code>가 DataLoader에서 64개씩 묶여 <code>(64, 1, 28, 28)</code>이 되고, 모델을 지나면 클래스 10개 점수(로짓) <code>(64, 10)</code>, 손실 함수를 지나면 <b>숫자 하나</b> <code>()</code>가 돼요. <code>backward()</code>는 가중치마다 <b>같은 모양</b>의 기울기를 채우고(첫 층 <code>(512, 784)</code>), <code>step()</code>이 가중치를 옮긴 뒤 다음 배치로 돌아가요. shape는 같은 모양의 텐서를 실제로 모델에 넣어 확인했어요. <b>🤔 왜 이렇게 나눠 봐?</b> 에러의 대부분은 "칸과 칸 사이 shape가 안 맞아서" 나요. 각 칸의 입·출력 모양을 알면 어디서 틀렸는지 바로 짚을 수 있어요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 1 epoch가 938번 step이야?</strong> — epoch는 "학습 데이터를 한 바퀴", step은 "배치 하나로 가중치를 한 번 갱신"이에요. 60,000장을 64장씩 나누면 937.5묶음이고, 남은 32장도 마지막 묶음으로 쓰니까 <b>올림해서 938번</b>(<code>drop_last=False</code>일 때). batch_size를 키우면 step 수는 줄고, 줄이면 늘어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 전체 흐름: 학습 루프 한 장 <a href="../commands.html#d11-cheat-flow">명령어 사전에서 자세히 →</a></div>
+<pre><code>pred = model(X); loss = loss_fn(pred, y)          # ① 예측 ② 손실
+optimizer.zero_grad(); loss.backward(); optimizer.step()   # ③ 초기화 ④ 기울기 ⑤ 갱신</code></pre>
+      </div>
+
+      <h3>shape 맞추기 — <code>dim</code>에 적은 축이 사라진다</h3>
+      <p>텐서를 다룰 땐 <b>shape부터</b> 확인해요. 2×3 텐서 <code>[[1, 2, 3], [4, 5, 6]]</code>로 보면:</p>
+      <table>
+        <tr><th>계산</th><th>어느 방향으로 더하나</th><th>결과</th><th>남는 shape</th></tr>
+        <tr><td><code>sum(dim=0)</code></td><td>↓ 세로로 (줄 축이 사라짐)</td><td><code>[5, 7, 9]</code></td><td>(3,)</td></tr>
+        <tr><td><code>sum(dim=1)</code></td><td>→ 가로로 (칸 축이 사라짐)</td><td><code>[6, 15]</code></td><td>(2,)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 예측 클래스는 <code>argmax(dim=1)</code>?</strong> — 로짓은 <code>(64, 10)</code> = "64장 × 클래스 10개 점수"예요. 사진마다 10개 점수 중 가장 큰 곳을 골라야 하니 <b>클래스 축(dim=1)을 없애야</b> 해요. 그러면 <code>(64,)</code> — 사진마다 답 하나가 남아요. <code>dim=0</code>으로 하면 거꾸로 "클래스마다 가장 높은 사진 번호"가 나와 엉뚱한 값이 돼요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 shape 확인·바꾸기 <code>reshape</code> · <code>flatten(1)</code> · <code>sum(dim)</code> · <code>argmax(dim=1)</code> <a href="../commands.html#d11-tensor-shape">명령어 사전에서 자세히 →</a></div>
+<pre><code>x.flatten(1)            # (N, 1, 28, 28) → (N, 784)
+pred.argmax(dim=1)      # (N, 10) → (N,)</code></pre>
+      </div>
+
+      <h3>데이터 · 모델 · 손실 · 갱신 · 평가 · 저장</h3>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>🤔 왜 이렇게?</th></tr>
+        <tr><td><b>Dataset</b></td><td>"몇 개인지(<code>__len__</code>)"와 "i번째 샘플 1개(<code>__getitem__</code>)"만 알려 줌</td><td>DataLoader가 이 두 가지만 알면 섞기·묶기를 알아서 해 줘요. 데이터 형식이 달라도 이 두 칸만 맞추면 돼요</td></tr>
+        <tr><td><b>DataLoader</b></td><td>64개씩 묶고, 학습 데이터는 epoch마다 섞음</td><td>한 장씩은 느리고 기울기가 들쭉날쭉, 전부 한 번에는 메모리가 부족 → 미니배치가 중간</td></tr>
+        <tr><td><b>모델</b></td><td><code>Flatten → Linear(784, 512) → ReLU → Linear(512, 10)</code></td><td>앞 층의 출력 수 = 다음 층의 입력 수. ReLU가 없으면 Linear를 여러 층 쌓아도 Linear 하나와 같아요</td></tr>
+        <tr><td><b>손실</b></td><td>분류는 <code>CrossEntropyLoss</code>(로짓 + 정수 정답), 회귀는 <code>MSELoss</code></td><td>"얼마나 틀렸나"를 숫자 하나로 만들어야 그걸 줄이는 방향(기울기)을 구할 수 있어요</td></tr>
+        <tr><td><b>갱신</b></td><td><code>SGD</code>: p ← p − lr × p.grad / <code>Adam</code>: 가중치마다 보폭 조절</td><td>Adam은 처음 시도하기 무난하고, SGD는 규칙이 단순해서 동작을 이해하기 좋아요(Day10)</td></tr>
+        <tr><td><b>평가</b></td><td><code>model.eval()</code> + <code>torch.no_grad()</code>로 안 본 데이터 정확도</td><td>학습 손실은 내려가는데 평가 정확도가 떨어지면 <b>과적합</b> → epoch 줄이기, Dropout 추가</td></tr>
+        <tr><td><b>저장</b></td><td><code>state_dict()</code>(가중치 묶음)만 저장하고, 불러올 땐 같은 구조의 모델에 넣음</td><td>모델 객체 통째보다 가볍고, 코드가 조금 바뀌어도 불러오기 쉬워요</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 직접 만드는 <code>Dataset</code> + <code>DataLoader</code> <a href="../commands.html#d11-dataset-class">명령어 사전에서 자세히 →</a></div>
+<pre><code>class MyDS(Dataset):  # __len__ · __getitem__ 두 개만
+DataLoader(ds, batch_size=64, shuffle=True)</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>nn.Module</code>로 모델 정의 <a href="../commands.html#d11-net-module">명령어 사전에서 자세히 →</a></div>
+<pre><code>self.layers = nn.Sequential(nn.Flatten(), nn.Linear(28*28, 512), nn.ReLU(), nn.Linear(512, 10))
+def forward(self, x): return self.layers(x)</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 손실 · 최적화 <code>CrossEntropyLoss</code> · <code>SGD</code> · <code>Adam</code> <a href="../commands.html#d11-loss-optim">명령어 사전에서 자세히 →</a></div>
+<pre><code>loss_fn = nn.CrossEntropyLoss()                        # 로짓 그대로 넣기
+optimizer = optim.Adam(model.parameters(), lr=1e-3)</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 평가 함수 <code>test()</code> · 저장 <code>state_dict</code> <a href="../commands.html#d11-test-save">명령어 사전에서 자세히 →</a></div>
+<pre><code>with torch.no_grad(): hit = model(X).argmax(1) == y     # model.eval() 먼저
+torch.save(model.state_dict(), "model.pth")</code></pre>
+      </div>
+
+      <h3>자주 하는 실수 4가지</h3>
+      <table>
+        <tr><th>실수</th><th>무슨 일이 생기나</th><th>🤔 왜?</th></tr>
+        <tr><td><code>zero_grad()</code>를 빠뜨림</td><td>기울기가 배치마다 <b>계속 쌓여</b> 갱신이 점점 커짐</td><td><code>backward()</code>는 <code>p.grad</code>에 <b>더하는</b> 동작이라, 지우지 않으면 지난 배치 기울기가 남아요</td></tr>
+        <tr><td><code>CrossEntropyLoss</code>에 softmax 값을 넣음</td><td>손실이 잘 안 줄고 이상한 값이 나옴</td><td>이 손실은 <b>안에서 softmax를 한 번 더</b> 해요. 이미 0~1로 눌린 값에 또 softmax를 하니 차이가 뭉개져요 → 로짓 그대로 넣기</td></tr>
+        <tr><td>모델과 데이터의 장치가 다름</td><td><code>RuntimeError: Expected all tensors to be on the same device</code></td><td>GPU에 있는 가중치와 CPU에 있는 데이터는 곱할 수 없어요 → 둘 다 <code>.to(device)</code></td></tr>
+        <tr><td>평가 때 <code>eval()</code>·<code>no_grad()</code>를 빠뜨림</td><td>점수가 실행할 때마다 흔들리고 메모리를 더 씀</td><td>Dropout이 켜진 채라 매번 다른 칸을 끄고, 쓰지도 않을 기울기 기록까지 남겨요</td></tr>
+      </table>
+      <p>실수 1·2·3을 실제로 저질러 본 결과는 <a href="../commands.html#d11-loss-optim">명령어 사전</a>의 "실제로 돌려 보면" 표에 있어요.</p>
+
+      <h3>파라미터 두 종류</h3>
+      <p><b>가중치</b>(<code>model.parameters()</code>)는 학습이 바꾸는 값, <b>하이퍼파라미터</b>는 학습 전에 사람이 정하는 값이에요.</p>
+      <table>
+        <tr><th>하이퍼파라미터</th><th>키우면</th><th>줄이면</th></tr>
+        <tr><td><code>lr</code> (학습률)</td><td>빨리 움직이지만 <b>발산</b> 위험</td><td>안정적이지만 느림</td></tr>
+        <tr><td><code>batch_size</code></td><td>step 수 ↓, 메모리 ↑</td><td>step 수 ↑, 기울기가 들쭉날쭉</td></tr>
+        <tr><td><code>epochs</code></td><td>과적합 위험 ↑</td><td>덜 학습</td></tr>
+        <tr><td>은닉 크기 (예: 512)</td><td>표현력 ↑, 과적합 ↑</td><td>단순한 패턴만</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 "키우면 좋다"가 없어?</strong> — 하이퍼파라미터는 거의 다 <b>맞바꾸기</b>예요. 빠르면 불안정하고, 크면 과적합하기 쉬워요. 그래서 valid 점수를 보며 하나씩 바꿔 비교해요(Day10 학습률 비교와 같은 방식).</div>
+
+      <!-- ============================================================ -->
       <h2 id="tensor">① 이미지 Tensor — [N, C, H, W]</h2>
       <table>
         <tr><th>축</th><th>뜻</th><th>예</th></tr>
@@ -353,7 +431,9 @@ seconds = time.perf_counter() - start</code></pre>
       <h2>원본 자료</h2>
       <ul>
         <li>⚠️ Day11 <b>강의 본편 PDF는 받지 못했어요.</b> 이 페이지는 <code>Day11_개념지도.pdf</code>(1쪽, 강의 PDF 쪽수 표기 포함)를 기준으로, 그 범위에 맞는 표준 CNN 이론으로 정리했어요. 본편 PDF가 생기면 다시 대조할 예정이에요.</li>
-        <li>개념지도의 개념 정의 출처: Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 10장(합성곱)·9.3(전이학습·증강)·11.4(BatchNorm) · 명령어 참고: <code>PyTorch_치트시트.pdf</code></li>
+        <li>개념지도의 개념 정의 출처: Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 10장(합성곱)·9.3(전이학습·증강)·11.4(BatchNorm)</li>
+        <li>⓪ PyTorch 한 장 정리: <code>PyTorch_치트시트.pdf</code>(1쪽, PyTorch 한국어 튜토리얼 「파이토치 기본 익히기」 기준, 2026-11-02). 그림·사전의 숫자는 FashionMNIST와 같은 모양의 합성 데이터로 직접 실행한 값이에요(데이터 내려받기 없음).</li>
+        <li>참고: 같은 날짜의 <code>20261102_2.pdf</code>(104쪽)는 Day12(순서 모델) 강의 자료라 <a href="day12.html">Day12</a>에 반영돼 있어요.</li>
         <li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html" target="_blank">nn.Conv2d</a> · <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.BatchNorm2d.html" target="_blank">nn.BatchNorm2d</a> · <a href="https://docs.pytorch.org/vision/stable/generated/torchvision.datasets.ImageFolder.html" target="_blank">ImageFolder</a> · <a href="https://docs.pytorch.org/vision/stable/models/generated/torchvision.models.resnet18.html" target="_blank">ResNet18 · 가중치 · 전처리</a> · <a href="https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html" target="_blank">전이학습 튜토리얼</a></li>
       </ul>
     </article>

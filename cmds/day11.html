@@ -3,6 +3,7 @@
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
         <tr><td><a href="notes/day11.html#packages">📦 필요한 패키지</a></td><td><code>torch</code>, <code>torchvision</code>, <code>pillow</code></td></tr>
+        <tr><td><a href="notes/day11.html#cheat">⓪ PyTorch 한 장 정리</a></td><td><code>Dataset</code> · <code>DataLoader</code> · <code>nn.Module</code> · <code>CrossEntropyLoss</code> · <code>SGD</code>/<code>Adam</code> · <code>eval()</code>+<code>no_grad()</code> · <code>state_dict</code></td></tr>
         <tr><td><a href="notes/day11.html#tensor">① 이미지 Tensor [N, C, H, W]</a></td><td><code>torch.rand()</code>, <code>permute()</code>, <code>unsqueeze(0)</code></td></tr>
         <tr><td><a href="notes/day11.html#conv">② 합성곱 Conv2d</a></td><td><code>nn.Conv2d(in, out, kernel_size, stride=, padding=)</code>, <code>F.conv2d()</code></td></tr>
         <tr><td><a href="notes/day11.html#pool">③ Pooling · BatchNorm · CNN 조립</a></td><td><code>nn.MaxPool2d()</code>, <code>nn.BatchNorm2d()</code>, <code>nn.AdaptiveAvgPool2d(1)</code>, <code>torch.flatten(x, 1)</code></td></tr>
@@ -10,6 +11,215 @@
         <tr><td><a href="notes/day11.html#transfer">⑤ 전이학습 (Head-only · Partial)</a></td><td><code>resnet18(weights=)</code>, <code>weights.transforms()</code>, <code>requires_grad = False</code>, <code>model.fc = nn.Linear()</code></td></tr>
         <tr><td><a href="notes/day11.html#bench">⑥ CPU·GPU 속도 비교 · 성능표</a></td><td><code>time.perf_counter()</code>, <code>torch.cuda.synchronize()</code>, <code>torch.cuda.max_memory_allocated()</code></td></tr>
       </table>
+</section>
+<section class="cmd" id="d11-cheat-flow" data-topic="PyTorch" data-sub="기본 흐름 (치트시트)" data-day="11" data-theory="notes/day11.html#cheat">
+  <h3>전체 흐름: 학습 루프 한 장 (FashionMNIST)</h3>
+<pre><code>import torch
+from torch import nn, optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import datasets, transforms
+
+device = ("cuda" if torch.cuda.is_available()
+          else "mps" if torch.backends.mps.is_available()     # Apple Silicon GPU
+          else "cpu")
+lr, batch_size, epochs = 1e-3, 64, 5                          # 사람이 정함 (하이퍼파라미터)
+
+tf = transforms.ToTensor()
+train_ds = datasets.FashionMNIST("data", train=True, download=True, transform=tf)
+train_dl = DataLoader(train_ds, shuffle=True, batch_size=batch_size)
+model = Net().to(device)                                      # 아래 nn.Module 항목
+loss_fn = nn.CrossEntropyLoss()
+optimizer = optim.SGD(model.parameters(), lr=lr)
+
+for epoch in range(epochs):            # 에폭 반복
+    model.train()                      # 학습 모드
+    for X, y in train_dl:              # 배치 반복
+        X, y = X.to(device), y.to(device)
+        pred = model(X)                # ① 예측
+        loss = loss_fn(pred, y)        # ② 손실
+        optimizer.zero_grad()          # ③ 초기화
+        loss.backward()                # ④ 기울기
+        optimizer.step()               # ⑤ 갱신
+    test(model)                        # 평가 (아래 test 항목)
+torch.save(model.state_dict(), "model.pth")</code></pre>
+<div class="io io-cheat">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>FashionMNIST와 같은 모양의 합성 데이터 (학습 1,280 · 평가 256장, 클래스마다 밝은 띠 위치가 다름) · lr 0.1</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>device</code></td><td><code>cuda</code></td><td>이 PC는 NVIDIA GPU가 있어서 cuda (PC마다 달라요)</td></tr>
+    <tr><td><code>len(DataLoader(60,000개, batch_size=64))</code></td><td><code>938</code></td><td>FashionMNIST 한 epoch = 938번 step</td></tr>
+    <tr><td><code>len(train_dl)  (1,280장)</code></td><td><code>20</code></td><td>1,280 ÷ 64 = 20 묶음</td></tr>
+    <tr><td><code>학습 전 test(model)</code></td><td><code>0.004</code></td><td>학습 전이라 찍기 수준 (이번 무작위 시작값에선 기대값 0.1보다도 낮게 나왔어요)</td></tr>
+    <tr><td><code>epoch 1·2·3 (학습 손실, 평가 정확도)</code></td><td><code>[(1.407, 1.0), (0.243, 1.0), (0.077, 1.0)]</code></td><td>손실은 계속 줄고, 정확도는 첫 epoch부터 1.0 — 규칙이 쉬운 합성 데이터라서예요(실제 FashionMNIST는 이렇게 안 돼요)</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>줄</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>device = ("cuda" if ... else "mps" if ... else "cpu")</code></td><td>NVIDIA GPU → Apple GPU → CPU 순서로 고름</td><td>같은 코드를 어느 컴퓨터에서 돌려도 쓸 수 있는 장치를 자동으로 고르려고</td></tr>
+        <tr><td><code>datasets.FashionMNIST(..., download=True)</code></td><td>옷 사진 데이터를 <code>data/</code>에 받아 Dataset으로</td><td>공식 튜토리얼의 연습용 데이터. 처음 한 번만 내려받아요</td></tr>
+        <tr><td><code>model.train()</code></td><td>Dropout·BatchNorm을 학습 동작으로</td><td><code>test()</code> 안에서 <code>eval()</code>로 바꿨으니 epoch마다 다시 켜야 해요</td></tr>
+        <tr><td><code>X.to(device), y.to(device)</code></td><td>배치를 모델과 같은 장치로</td><td>모델은 한 번만 옮기면 되지만 배치는 새로 꺼낼 때마다 옮겨야 해요</td></tr>
+        <tr><td>③ → ④ → ⑤ 순서</td><td>지우고 → 계산하고 → 갱신</td><td>순서를 바꾸면 지난 기울기가 섞이거나 기울기 없이 갱신해요 (Day9)</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <code>download=True</code>는 인터넷으로 데이터를 내려받아요(약 30MB). 이미 받은 폴더가 있으면 다시 받지 않아요.</div>
+</section>
+<section class="cmd" id="d11-tensor-shape" data-topic="PyTorch" data-sub="기본 흐름 (치트시트)" data-day="11" data-theory="notes/day11.html#cheat">
+  <h3>shape 확인·바꾸기 <code>reshape</code> · <code>flatten(1)</code> · <code>sum(dim)</code> · <code>argmax(dim=1)</code></h3>
+<pre><code>x.shape                       # 가장 먼저 확인
+x.to(device)                  # 모델과 같은 장치로
+x.reshape(64, -1)             # -1 자리는 자동 계산
+x.flatten(1)                  # (N, 1, 28, 28) → (N, 784)  1번 축부터 펴기
+t = torch.tensor([[1, 2, 3], [4, 5, 6]])
+t.sum(dim=0)                  # [5, 7, 9]  세로로 더함
+t.sum(dim=1)                  # [6, 15]    가로로 더함
+pred.argmax(dim=1)            # (N, 10) → (N,)  사진마다 점수가 가장 큰 클래스</code></pre>
+<div class="io io-cheat">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>무작위 배치 (64, 1, 28, 28) · 2×3 텐서</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>x.reshape(64, -1).shape</code></td><td><code>(64, 784)</code></td><td>-1 자리 = 1×28×28 = 784 자동 계산</td></tr>
+    <tr><td><code>x.flatten(1).shape</code></td><td><code>(64, 784)</code></td><td>배치 축은 두고 나머지만 펴기</td></tr>
+    <tr><td><code>x.flatten().shape</code></td><td><code>(50176,)</code></td><td>0번부터 펴면 배치까지 한 줄로 — 보통 실수</td></tr>
+    <tr><td><code>t.sum(dim=0)</code></td><td><code>[5, 7, 9]</code></td><td>줄 축(0)이 사라짐</td></tr>
+    <tr><td><code>t.sum(dim=1)</code></td><td><code>[6, 15]</code></td><td>칸 축(1)이 사라짐</td></tr>
+    <tr><td><code>t.sum(dim=1, keepdim=True).shape</code></td><td><code>(2, 1)</code></td><td>축을 길이 1로 남김</td></tr>
+    <tr><td><code>pred.argmax(dim=1).shape, [:5]</code></td><td><code>(64,), [7, 0, 7, 3, 5]</code></td><td>사진마다 클래스 번호 하나</td></tr>
+    <tr><td><code>x.reshape(100, -1)</code></td><td><code>shape &#x27;[100, -1]&#x27; is invalid for input of size 50176</code></td><td>50,176개를 100줄로 못 나눠요</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>표현</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>reshape(64, -1)</code></td><td>원소 수는 그대로, 모양만 바꿈. <code>-1</code>은 "나머지로 알아서"</td><td><code>-1</code>은 한 곳에만 쓸 수 있어요. 원소 수가 안 나눠떨어지면 에러</td></tr>
+        <tr><td><code>flatten(1)</code></td><td>1번 축부터 끝까지를 한 줄로</td><td><code>flatten()</code>(0부터)이면 배치 축까지 펴져서 <code>(N×784,)</code> 한 줄이 돼요</td></tr>
+        <tr><td><code>sum(dim=k)</code></td><td>k번 축을 따라 더하고 그 축은 사라짐</td><td><code>keepdim=True</code>면 축을 길이 1로 남겨요</td></tr>
+        <tr><td><code>argmax(dim=1)</code></td><td>1번 축에서 가장 큰 값의 <b>위치</b></td><td>값이 아니라 번호(클래스 id)를 돌려줘요</td></tr>
+      </table>
+</section>
+<section class="cmd" id="d11-dataset-class" data-topic="PyTorch" data-sub="기본 흐름 (치트시트)" data-day="11" data-theory="notes/day11.html#cheat">
+  <h3>직접 만드는 <code>Dataset</code> + <code>DataLoader</code></h3>
+<pre><code>from torch.utils.data import Dataset, DataLoader
+
+class MyDS(Dataset):
+    def __init__(self, X, y):
+        self.X, self.y = X, y
+    def __len__(self):            # 샘플 수
+        return len(self.X)
+    def __getitem__(self, i):     # 샘플 1개
+        return self.X[i], self.y[i]
+
+train_dl = DataLoader(MyDS(X, y), batch_size=64, shuffle=True)   # 64개씩, epoch마다 섞기
+X, y = next(iter(train_dl))       # 배치 하나 꺼내 shape 확인</code></pre>
+<div class="io io-cheat">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>합성 사진 150장</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>len(ds)</code></td><td><code>150</code></td><td>__len__ 이 돌려준 값</td></tr>
+    <tr><td><code>ds[0][0].shape, ds[0][1]</code></td><td><code>(1, 28, 28), 8</code></td><td>__getitem__(0): 샘플 1개</td></tr>
+    <tr><td><code>X, y = next(iter(dl)) → shape</code></td><td><code>(64, 1, 28, 28), (64,)</code></td><td>64개가 앞에 붙은 배치</td></tr>
+    <tr><td><code>len(dl), 배치 크기들</code></td><td><code>3, [64, 64, 22]</code></td><td>150 = 64 + 64 + 22 → 마지막은 남는 만큼</td></tr>
+    <tr><td><code>y.dtype</code></td><td><code>torch.int64</code></td><td>CrossEntropyLoss가 원하는 정수(long)</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>부분</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>__len__</code></td><td>전체 샘플 수</td><td>DataLoader가 몇 묶음을 만들지, 언제 epoch가 끝나는지 알려고</td></tr>
+        <tr><td><code>__getitem__(i)</code></td><td>i번째 샘플 하나를 (입력, 정답)으로</td><td>DataLoader가 번호만 골라 부르고 묶는 건 자기가 해요</td></tr>
+        <tr><td><code>shuffle=True</code></td><td>epoch마다 순서를 섞음 (학습 데이터만)</td><td>같은 순서를 반복하면 순서까지 외워요. 평가 데이터는 섞을 필요가 없어요</td></tr>
+        <tr><td><code>next(iter(dl))</code></td><td>배치 하나만 꺼내 보기</td><td>학습 전에 shape·dtype·값 범위를 눈으로 확인하는 첫 점검</td></tr>
+      </table>
+</section>
+<section class="cmd" id="d11-net-module" data-topic="PyTorch" data-sub="기본 흐름 (치트시트)" data-day="11" data-theory="notes/day11.html#cheat">
+  <h3><code>nn.Module</code>로 모델 정의 (Flatten → Linear → ReLU → Linear)</h3>
+<pre><code>from torch import nn
+
+class Net(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(28*28, 512), nn.ReLU(),
+            nn.Linear(512, 10))
+    def forward(self, x):         # model(x) 하면 이게 실행
+        return self.layers(x)
+
+model = Net().to(device)</code></pre>
+<div class="io io-cheat">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>무작위 배치 (64, 1, 28, 28)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model(x).shape</code></td><td><code>(64, 10)</code></td><td>클래스 10개 점수(로짓)</td></tr>
+    <tr><td><code>[p.shape for p in model.parameters()]</code></td><td><code>[(512, 784), (512,), (10, 512), (10,)]</code></td><td>Linear마다 weight (out, in) + bias (out,)</td></tr>
+    <tr><td><code>sum(p.numel() for p in model.parameters())</code></td><td><code>407,050</code></td><td>784×512 + 512 + 512×10 + 10</td></tr>
+    <tr><td><code>model.layers[0](x).shape</code></td><td><code>(64, 784)</code></td><td>Flatten 지난 직후</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>부분</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>super().__init__()</code></td><td>nn.Module 기본 준비 (꼭 맨 앞)</td><td>빼면 층을 등록할 수 없어 에러</td></tr>
+        <tr><td><code>nn.Linear(in_features, out_features)</code></td><td><code>(N, in) → (N, out)</code></td><td>앞 층의 out = 다음 층의 in 이 어긋나면 shape 에러</td></tr>
+        <tr><td><code>nn.ReLU()</code></td><td>음수를 0으로 (비선형)</td><td>빼면 Linear 두 층이 Linear 하나와 같아져요</td></tr>
+        <tr><td><code>forward(self, x)</code></td><td>입력이 지나가는 순서</td><td><code>model.forward(x)</code> 대신 <code>model(x)</code>로 불러요</td></tr>
+      </table>
+</section>
+<section class="cmd" id="d11-loss-optim" data-topic="PyTorch" data-sub="기본 흐름 (치트시트)" data-day="11" data-theory="notes/day11.html#cheat">
+  <h3>손실 · 최적화 <code>CrossEntropyLoss</code> · <code>MSELoss</code> · <code>SGD</code> · <code>Adam</code></h3>
+<pre><code>loss_fn = nn.CrossEntropyLoss()     # 분류: 로짓 (N, C) + 정답 (N,) long
+loss_fn = nn.MSELoss()              # 회귀: 예측과 정답의 제곱 오차
+loss.backward()                     # 모든 가중치의 p.grad 에 기울기를 '더함' → 매번 zero_grad()
+optimizer = optim.SGD(model.parameters(), lr=lr)       # p ← p − lr × p.grad
+optimizer = optim.Adam(model.parameters(), lr=1e-3)    # 가중치마다 보폭 조절. 처음 시도하기 무난</code></pre>
+<div class="io io-cheat">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>작은 예제 (로짓 2개 · Linear(3, 1))</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>CrossEntropyLoss()(로짓, y)</code></td><td><code>0.052</code></td><td>정답 점수가 가장 커서 손실이 작아요</td></tr>
+    <tr><td><code>CrossEntropyLoss()(softmax(로짓), y)  ← 실수</code></td><td><code>0.584</code></td><td>같은 예측인데 손실이 커져요 — softmax가 두 번 들어가 차이가 뭉개짐</td></tr>
+    <tr><td><code>softmax 값이 완벽한 [1, 0, 0]이어도</code></td><td><code>0.551</code></td><td>0이 못 돼요 → 아무리 맞혀도 손실이 이 아래로 안 내려감</td></tr>
+    <tr><td><code>zero_grad 없이 backward 3번 → 기울기 크기</code></td><td><code>[2.735, 5.47, 8.205]</code></td><td>더해져서 1배·2배·3배로 쌓여요</td></tr>
+    <tr><td><code>SGD step 후 p == p − lr × p.grad ?</code></td><td><code>True</code></td><td>SGD 한 번 = 정확히 이 식</td></tr>
+    <tr><td><code>모델은 cuda, 입력은 cpu → model(x)</code></td><td><code>Expected all tensors to be on the same device, but got mat1 is on cpu, different</code></td><td>장치가 다르면 바로 에러</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>인자</th><th>뜻</th><th>주의</th></tr>
+        <tr><td><code>CrossEntropyLoss()(logits, y)</code></td><td>안에서 softmax + 정답 클래스 확률의 −log</td><td><b>softmax를 미리 하지 않기</b>. 정답은 클래스 번호(정수, long)</td></tr>
+        <tr><td><code>MSELoss()(pred, y)</code></td><td>(예측 − 정답)² 의 평균</td><td>pred와 y의 shape를 같게 (예: 둘 다 <code>(N, 1)</code>)</td></tr>
+        <tr><td><code>model.parameters()</code></td><td>학습할 가중치 목록</td><td>optimizer는 여기 넘긴 것만 갱신해요</td></tr>
+        <tr><td><code>lr</code></td><td>한 번에 움직이는 크기</td><td>Adam은 보통 <code>1e-3</code>부터</td></tr>
+      </table>
+</section>
+<section class="cmd" id="d11-test-save" data-topic="PyTorch" data-sub="기본 흐름 (치트시트)" data-day="11" data-theory="notes/day11.html#cheat">
+  <h3>평가 함수 <code>test()</code> · 저장 <code>state_dict</code></h3>
+<pre><code>def test(model):
+    model.eval(); correct = 0          # Dropout 끔
+    with torch.no_grad():              # 기울기 기록 끔
+        for X, y in test_dl:           # 안 본 데이터
+            X, y = X.to(device), y.to(device)
+            hit = model(X).argmax(1) == y
+            correct += hit.sum().item()
+    return correct / len(test_dl.dataset)
+
+torch.save(model.state_dict(), "model.pth")
+model.load_state_dict(torch.load("model.pth"))</code></pre>
+<div class="io io-cheat">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>위 &#x27;전체 흐름&#x27;에서 3 epoch 학습한 모델 · 평가 256장</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>test(model)</code></td><td><code>1.000</code></td><td>eval() + no_grad() 로 잰 정확도</td></tr>
+    <tr><td><code>len(test_dl), len(test_dl.dataset)</code></td><td><code>4, 256</code></td><td>배치 수로 나누면 정확도가 64배 커져요</td></tr>
+    <tr><td><code>list(model.state_dict().keys())</code></td><td><code>[&#x27;layers.1.weight&#x27;, &#x27;layers.1.bias&#x27;, &#x27;layers.3.weight&#x27;, &#x27;layers.3.bias&#x27;]</code></td><td>층 번호.weight / .bias</td></tr>
+    <tr><td><code>state_dict 저장 크기</code></td><td><code>1,592 KB</code></td><td>가중치 407,050개 × 4바이트</td></tr>
+    <tr><td><code>새 Net()에 load_state_dict → test</code></td><td><code>&lt;All keys matched successfully&gt; · 같은 정확도: True</code></td><td>구조는 코드로, 값만 채워 넣기</td></tr>
+    <tr><td><code>Dropout 모델 train() 두 번 / eval() 두 번</code></td><td><code>0.797, 0.264 / 0.112, 0.112</code></td><td>eval()을 빠뜨리면 평가할 때마다 값이 흔들려요</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>표현</th><th>뜻</th><th>🤔 왜?</th></tr>
+        <tr><td><code>hit.sum().item()</code></td><td>맞힌 개수 → 파이썬 숫자</td><td><code>.item()</code>으로 꺼내야 GPU 텐서가 아닌 보통 숫자로 더해져요</td></tr>
+        <tr><td><code>len(test_dl.dataset)</code></td><td>전체 샘플 수 (배치 수 아님)</td><td><code>len(test_dl)</code>은 배치 개수라 나누면 정확도가 틀려요</td></tr>
+        <tr><td><code>state_dict()</code></td><td>층 이름 → 가중치 텐서 사전</td><td>구조는 코드(<code>Net()</code>)로 다시 만들고 값만 채워 넣는 방식</td></tr>
+      </table>
+      <div class="callout">💡 학습 손실은 내려가는데 평가 정확도가 떨어지면 과적합이에요 → epochs 줄이기, <code>nn.Dropout(p=0.5)</code> 추가.</div>
 </section>
 <section class="cmd" id="d11-축-순서-바꾸기-개수-축-붙이기" data-topic="PyTorch" data-sub="Tensor" data-day="11" data-theory="notes/day11.html#tensor">
   <h3>축 순서 바꾸기 · 개수 축 붙이기</h3>
