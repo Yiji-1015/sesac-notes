@@ -405,3 +405,24 @@ if device.type == "cuda":
       <div class="callout">🤔 <strong>왜 GPU가 항상 빠르진 않아?</strong> — GPU는 "한 번에 많이" 계산할 때 강해요. 작은 모델·작은 batch에선 데이터를 GPU로 옮기는 시간과 명령을 띄우는 오버헤드가 계산 시간보다 커질 수 있어요. 그래서 측정 범위(디스크 로딩 포함인지 등)도 같이 적어요.</div>
       <div class="callout">💡 최종 성능표엔 <b>모델 · 학습 범위 · valid 지표 · 시간 · VRAM</b>을 함께 남기고, test는 모든 선택이 끝난 뒤 한 번만 봐요.</div>
 </section>
+<section class="cmd" id="d11-transforms-compose" data-topic="torchvision" data-sub="데이터 · 증강" data-day="11" data-theory="notes/day11.html#data">
+  <h3>증강 <code>transforms.Compose</code> (train만)</h3>
+<pre><code>train_tf = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.RandomHorizontalFlip(),          # 좌우 반전 (확률 0.5)
+    transforms.RandomRotation(10),              # ±10도 회전
+    transforms.ColorJitter(brightness=0.15),    # 밝기 조금 흔들기
+    transforms.ToTensor(),
+])
+valid_tf = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>100×80 합성 그라데이션 사진 한 장</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>train_tf(img).shape, dtype</code></td><td><code>(3, 64, 64), torch.float32</code></td><td>[C, H, W], 0~1 실수 (ToTensor)</td></tr>
+    <tr><td><code>train_tf(img) 두 번이 같나?</code></td><td><code>False</code></td><td>부를 때마다 무작위로 다르게 변형</td></tr>
+    <tr><td><code>valid_tf(img) 두 번이 같나?</code></td><td><code>True</code></td><td>평가용은 항상 똑같이</td></tr>
+    <tr><td><code>valid_tf(img).min(), max()</code></td><td><code>0.000, 0.698</code></td><td>ToTensor가 0~255를 0~1로</td></tr>
+  </table>
+</div>
+</section>

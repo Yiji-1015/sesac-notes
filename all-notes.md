@@ -275,19 +275,11 @@ KNN은 거리로 판단하니까 단위가 결과를 바꿔요.
 
 [그림: 원래 단위와 표준화 후 A, B, Q의 위치와 거리 비교] 무엇을 보나: 두 축을 같은 눈금으로 그렸어요. 왼쪽(원래 단위)에선 도구수 1→4 차이가 너무 작아 세 점이 한 줄로 납작해지고 Q는 A에 붙어 있어요. 오른쪽(표준화)에선 세로 차이가 살아나 Q가 B에 더 가까워져요. 🤔 왜? 거리는 축마다 차이를 제곱해 더하는데, 글자수 차이(100~300)에 비하면 도구수 차이(3)는 티끌이에요. 표준화로 두 축을 "표준편차 몇 개만큼"이라는 같은 단위로 바꾸면 도구수도 거리에 제 몫을 하게 돼요.
 
+🔧 KNN 스케일링 전후 비교 StandardScaler 명령어 사전에서 자세히 →
+
 ```
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
 X = np.array([[1000, 1], [1400, 4]])
 y = np.array([0, 1])
-q = np.array([[1100, 4]])
-raw = KNeighborsClassifier(n_neighbors=1).fit(X, y)
-s = StandardScaler().fit(X)                       # train 평균·표준편차 저장
-scaled = KNeighborsClassifier(n_neighbors=1)
-scaled.fit(s.transform(X), y)
-print("원단위:", raw.predict(q).tolist())          # [0]
-print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규칙으로 q도 변환
 ```
 
 | 용어 | 무엇을 바꾸나 | 대표 예 |
@@ -305,15 +297,11 @@ print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규
 
 - 스케일링은 단위의 과도한 영향을 줄이는 것이지, 점수 상승을 보장하지 않아요.
 
+🔧 StandardScaler · MinMaxScaler 값 확인 명령어 사전에서 자세히 →
+
 ```
-import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 X = np.array([[100], [200], [300]])
 a = StandardScaler().fit(X)
-b = MinMaxScaler().fit(X)
-print("표준화:", a.transform(X).ravel().round(3).tolist())   # [-1.225, 0.0, 1.225]
-print("MinMax:", b.transform(X).ravel().tolist())            # [0.0, 0.5, 1.0]
-print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
 ```
 
 🤔 왜 이런 숫자가 나오지? — 표준화: 평균 200, 표준편차 약 81.6 → (100−200)/81.6 ≈ −1.225. MinMax: (x − 최소 100) / (최대 300 − 최소 100) → 500이면 400/200 = 2.0. 최소·최대는 train에서 정한 값을 고정해서 쓰니, 그 범위를 넘는 새 값은 0~1 밖으로 나가요. 둘 다 "빼고 나누기"만 하는 선형 변환이라 분포 모양(치우침 등)은 그대로예요.
@@ -808,6 +796,54 @@ with tempfile.TemporaryDirectory() as folder:
 
 💡 경계 상황도 미리 정해 두고 확인해요: 수치 결측·새 범주가 와도 8개 특성 유지, 필수 열이 빠지면 학습/예측 전에 명확한 오류(임의 값 생성 금지), K > train 행 수면 실행 전 설정 오류(1 ≤ K ≤ 60). "에러가 안 났다"가 아니라 기대 출력·단위·행 수를 먼저 정하는 게 테스트예요.
 
+### KNN 스케일링 전후 비교 StandardScaler
+
+```
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+X = np.array([[1000, 1], [1400, 4]])
+y = np.array([0, 1])
+q = np.array([[1100, 4]])
+raw = KNeighborsClassifier(n_neighbors=1).fit(X, y)
+s = StandardScaler().fit(X)                       # train 평균·표준편차 저장
+scaled = KNeighborsClassifier(n_neighbors=1)
+scaled.fit(s.transform(X), y)
+print("원단위:", raw.predict(q).tolist())          # [0]
+print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규칙으로 q도 변환
+```
+
+▶ 실제로 돌려 보면 노트의 A·B·Q 세 요청 (글자수, 도구수)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| raw.predict([[1100, 4]]) | [0] | 원래 단위: 글자수 차이가 거리를 지배 → A(0) |
+| s.mean_, s.scale_ | [1200.0, 2.5], [200.0, 1.5] | train 두 행의 평균·표준편차를 기억 |
+| s.transform([[1100, 4]]) | [[-0.5 1. ]] | Q도 같은 규칙으로 변환 |
+| scaled.predict(s.transform(q)) | [1] | 표준화 후엔 도구수 차이도 반영 → B(1) |
+
+### StandardScaler · MinMaxScaler 값 확인
+
+```
+import numpy as np
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+X = np.array([[100], [200], [300]])
+a = StandardScaler().fit(X)
+b = MinMaxScaler().fit(X)
+print("표준화:", a.transform(X).ravel().round(3).tolist())   # [-1.225, 0.0, 1.225]
+print("MinMax:", b.transform(X).ravel().tolist())            # [0.0, 0.5, 1.0]
+print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
+```
+
+▶ 실제로 돌려 보면 train 값 100·200·300
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| StandardScaler().fit(X).transform(X) | [-1.225, 0.0, 1.225] | 평균 200, 표준편차 81.6 |
+| MinMaxScaler().fit(X).transform(X) | [0.0, 0.5, 1.0] | 최소 100 → 0, 최대 300 → 1 |
+| b.transform([[500]]) | [2.0] | train 범위 밖이라 1을 넘어요 |
+| a.transform([[500]]) | [3.674] | 표준화도 범위 제한이 없어요 |
+
 ## 📖 Day6 용어 (76개)
 - **머신러닝** (Machine Learning (기계학습)): 사람이 규칙을 직접 짜는 대신, 데이터(입력과 정답)를 보여 주고 컴퓨터가 규칙을 스스로 찾게 하는 방법. 그렇게 학습된 결과물을 '모델'이라고 불러요.
 - **회귀** (Regression (회귀)): 정답이 연속적인 숫자인 예측 문제. 예: 이 요청은 몇 ms 걸릴까? 지표는 MAE·RMSE처럼 '얼마나 빗나갔나'를 재요.
@@ -1112,15 +1148,11 @@ y        = [100, 120, 200, 220]
 보정 후  = 처음 + 0.5 × 보정 = [135, 135, 185, 185]      MSE 725
 ```
 
+🔧 부스팅 한 회차 직접 계산 DecisionTreeRegressor 명령어 사전에서 자세히 →
+
 ```
 X = np.array([[1], [2], [3], [4]])
 y = np.array([100., 120., 200., 220.])
-initial = np.full(4, y.mean())                       # 처음 예측: 모두 160
-residual = y - initial                               # 제곱오차에서의 보정 목표
-correction = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, residual)
-updated = initial + 0.5 * correction.predict(X)      # 학습률 0.5 = 보정량의 절반만
-print(updated.tolist())                              # [135.0, 135.0, 185.0, 185.0]
-print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0
 ```
 
 🤔 왜 MSE가 2600 → 725로 줄지? — 처음엔 모두 평균 160이라 오차가 (−60, −40, 40, 60), 제곱 평균 2600. 깊이 1 트리는 잔차를 "x ≤ 2.5 → −50, 아니면 +50"(각 쪽 잔차 평균)으로 배워요. 학습률 0.5라 그 절반(±25)만 더하니 135·135·185·185, 새 오차 (−35, −15, 15, 35)의 제곱 평균은 725. 틀린 방향으로 조금씩 당겨 주는 게 부스팅이에요.
@@ -1601,6 +1633,29 @@ with tempfile.TemporaryDirectory() as folder:
 
 💡 "오류 없이 끝났다"와 "요구사항대로 동작했다"는 달라요. 정상 valid 20(20개 예측·ID 순서), 결측·미지 범주(8열·통계 불변), 필수 열 누락(명확한 오류), CV 한 fold(학습 48·평가 12·교집합 0), 저장 모델(복원 후 예측 일치)을 따로 확인해요. 저장·복원의 자세한 설명은 Day6 ⑦.
 
+### 부스팅 한 회차 직접 계산 DecisionTreeRegressor
+
+```
+X = np.array([[1], [2], [3], [4]])
+y = np.array([100., 120., 200., 220.])
+initial = np.full(4, y.mean())                       # 처음 예측: 모두 160
+residual = y - initial                               # 제곱오차에서의 보정 목표
+correction = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, residual)
+updated = initial + 0.5 * correction.predict(X)      # 학습률 0.5 = 보정량의 절반만
+print(updated.tolist())                              # [135.0, 135.0, 185.0, 185.0]
+print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0
+```
+
+▶ 실제로 돌려 보면 노트의 4개 예제
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| residual = y - initial | [-60.0, -40.0, 40.0, 60.0] | 처음 예측 160에서 얼마나 틀렸나 |
+| correction.predict(X) | [-50.0, -50.0, 50.0, 50.0] | 깊이 1 트리: x ≤ 2.5면 −50, 아니면 +50 |
+| initial + 0.5 * correction.predict(X) | [135.0, 135.0, 185.0, 185.0] | 보정을 절반(학습률 0.5)만 반영 |
+| MSE 전 → 후 | 2600 → 725 | 한 회차 만에 오차가 줄어요 |
+| initial + 1.0 * correction.predict(X) | [110.0, 110.0, 210.0, 210.0] | 학습률 1이면 MSE 100 — 이 4개엔 더 맞지만 잡음까지 따라갈 위험 |
+
 ## 📖 Day7 용어 (47개)
 - **과적합** (Overfitting (과적합)): 학습 자료의 우연한 잡음까지 외워서 train 점수만 높고 새 자료(valid) 점수는 낮은 상태. 두 점수 격차가 핵심 신호예요.
 - **Decision Tree** (Decision Tree (결정 트리)): "글자수 ≤ 500?" 같은 예/아니오 질문을 이어 가며 자료를 나누고, 마지막 잎에서 예측하는 모델. 질문은 학습 자료로 자동 선택돼요.
@@ -1811,14 +1866,11 @@ RMSE = √ mean((y − ŷ)²)      오차 → 제곱 → 평균 → 제곱근 ·
 
 💡 MAE는 평균적인 절대 오차, RMSE는 큰 오차에 더 민감해요. 평균만 보지 말고 큰 잔차의 실제값·예측값·ID를 확인해요. 회귀 점수와 분류 F1은 합쳐서 평균 내지 않아요.
 
+🔧 MAE · RMSE 계산 mean_absolute_error · root_mean_squared_error 명령어 사전에서 자세히 →
+
 ```
-from sklearn.metrics import mean_absolute_error, root_mean_squared_error
-y = [100, 200, 300, 400]
-a = [100, 200, 300, 480]
-b = [130, 230, 330, 430]
 for name, pred in [("A", a), ("B", b)]:
     print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))
-# A 20.0 40.0  /  B 30.0 30.0
 ```
 
 🤔 왜 A는 MAE로 이기고 RMSE로 지지? — A의 오차는 (0, 0, 0, 80): MAE = 80/4 = 20, RMSE = √(80²/4) = √1600 = 40. B는 (30, 30, 30, 30): 둘 다 30. 제곱하면 큰 오차 80이 6400으로 커져 혼자 평균을 끌어올리니, "한 번 크게 틀리는" A가 RMSE에서 불리해요.
@@ -2351,6 +2403,27 @@ check_input(new_requests.drop(columns="priority"))         # ← ValueError가 �
 
 🤔 왜 AUC 0.786인데 실패는 절반만 찾았지? — AUC는 "실패·성공 쌍에서 실패 점수가 더 높은 비율"이라 순위가 꽤 괜찮다는 뜻이에요. 하지만 실제로 경고를 낼지는 임계값 0.5가 정해요. 순위상 위쪽에 있어도 확률이 0.5를 못 넘은 실패는 놓쳐요(Recall 0.5). 좋은 순위와 좋은 운영 기준은 따로 점검해야 하는 이유예요.
 
+### MAE · RMSE 계산 mean_absolute_error · root_mean_squared_error
+
+```
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+y = [100, 200, 300, 400]
+a = [100, 200, 300, 480]
+b = [130, 230, 330, 430]
+for name, pred in [("A", a), ("B", b)]:
+    print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))
+# A 20.0 40.0  /  B 30.0 30.0
+```
+
+▶ 실제로 돌려 보면 실제 100·200·300·400
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| mean_absolute_error(y, A) | 20 | A 오차 (0, 0, 0, 80) → 평균 20 |
+| root_mean_squared_error(y, A) | 40 | 80이 제곱돼 6400 → 큰 오차에 민감 |
+| mean_absolute_error(y, B) | 30 | B 오차는 고르게 30 |
+| root_mean_squared_error(y, B) | 30 | 고른 오차는 MAE = RMSE |
+
 ## 📖 Day8 용어 (36개)
 - **Precision** (Precision (정밀도)): 양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP). 헛경고가 늘면 낮아져요.
 - **Recall** (Recall (재현율)): 실제 양성 중 모델이 찾아낸 비율. TP ÷ (TP + FN). 놓침이 늘면 낮아져요.
@@ -2735,17 +2808,12 @@ total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
 return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss
 ```
 
-### train · eval · no_grad는 서로 다른 스위치
+🔧 model.train() · model.eval() · torch.no_grad() 명령어 사전에서 자세히 →
 
-| 명령 | 하는 일 | 안 하는 일 |
-|---|---|---|
-| model.train() | Dropout·BatchNorm 같은 층을 학습 동작으로 | 기울기를 켜고 끄진 않음 |
-| model.eval() | 평가 동작으로 전환 | 기울기 계산을 끄지 않음! |
-| with torch.no_grad(): | 그래프 기록을 끔 → 메모리 절약 | 모드는 안 바꿈 |
-
-💡 평가할 땐 model.eval() + torch.no_grad()를 세트로 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 probs.detach().cpu()처럼 CPU로 옮겨요.
-
-🤔 왜 둘 다 필요해? — 둘은 다른 스위치예요. eval()은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 예측이 매번 같고 공정하게 만들어요. no_grad()는 평가 땐 backward를 안 하니 그래프를 안 만들어 메모리·시간을 아껴요. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.
+```
+model.eval()                 # 평가 동작으로 (기울기는 그대로)
+with torch.no_grad():        # 기울기 기록 끄기
+```
 
 💡 학습 곡선의 loss가 매 epoch 꼭 줄어드는 건 아니에요. 전체 추세를 보고, loss와 accuracy는 따로 읽어요.
 
@@ -3273,6 +3341,27 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device):
 | epoch 2 train_one_epoch(...) | 0.4788 | 다음 epoch엔 더 내려감 |
 
 🤔 왜 × len(xb)를 해? — loss는 batch 안의 평균이에요(reduction="mean"). 마지막 batch는 8개처럼 작을 수 있어서, batch 평균들을 그냥 평균 내면 8개짜리 batch가 32개짜리와 같은 무게를 갖게 돼요. 샘플 수를 곱해 합친 뒤 전체 샘플 수로 나누면 "샘플 하나하나의 평균"이 정확히 나와요. 함수 하나가 "epoch 1회 학습"이라는 한 가지 역할만 하게 나누면 읽기도 쉬워요.
+
+### model.train() · model.eval() · torch.no_grad()
+
+| 명령 | 하는 일 | 안 하는 일 |
+|---|---|---|
+| model.train() | Dropout·BatchNorm 같은 층을 학습 동작으로 | 기울기를 켜고 끄진 않음 |
+| model.eval() | 평가 동작으로 전환 | 기울기 계산을 끄지 않음! |
+| with torch.no_grad(): | 그래프 기록을 끔 → 메모리 절약 | 모드는 안 바꿈 |
+
+▶ 실제로 돌려 보면 Dropout(0.5)가 든 작은 모델 · 같은 입력 두 번
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| model.train(); model(x) 두 번 | 0.4557, 0.5273 | 학습 모드: Dropout이 매번 다른 칸을 꺼서 값이 달라요 |
+| model.eval(); model(x) 두 번 | 0.4728, 0.4728 | 평가 모드: 매번 같아요 |
+| model.eval() 후 model(x).requires_grad | True | eval()만으로는 기울기 기록이 안 꺼져요! |
+| with torch.no_grad(): model(x).requires_grad | False | 기울기 기록은 no_grad가 끔 |
+
+💡 평가할 땐 model.eval() + torch.no_grad()를 세트로 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 probs.detach().cpu()처럼 CPU로 옮겨요.
+
+🤔 왜 둘 다 필요해? — 둘은 다른 스위치예요. eval()은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 예측이 매번 같고 공정하게 만들어요. no_grad()는 평가 땐 backward를 안 하니 그래프를 안 만들어 메모리·시간을 아껴요. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.
 
 ## 📖 Day9 용어 (70개)
 - **특성** (Feature (특성, 입력 열)): 모델에 넣는 입력 정보 한 가지. 표에서 열 하나가 특성 하나예요(예: 글자수, 허용 도구수). 행 = 사례, 열 = 특성.
@@ -4370,15 +4459,11 @@ train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
 
 뒤집기·살짝 회전·밝기 변화처럼 라벨이 안 바뀌는 변환으로 데이터를 늘려서 과적합을 줄여요.
 
+🔧 증강 transforms.Compose (train만) 명령어 사전에서 자세히 →
+
 ```
 train_tf = transforms.Compose([
     transforms.Resize((64, 64)),
-    transforms.RandomHorizontalFlip(),          # 좌우 반전 (확률 0.5)
-    transforms.RandomRotation(10),              # ±10도 회전
-    transforms.ColorJitter(brightness=0.15),    # 밝기 조금 흔들기
-    transforms.ToTensor(),
-])
-valid_tf = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])
 ```
 
 🤔 왜 증강이 과적합을 줄여? — 모델이 "이 사진의 이 픽셀 배치"를 외우지 못하게, 매 epoch 조금씩 다른 모습을 보여 줘요. 그러면 뒤집혀도·밝기가 달라도 같은 정답인 본질적인 특징을 배우게 돼요. 🤔 왜 valid엔 안 해? — valid는 모델을 고르는 잣대라서 매번 같은 결과가 나와야 해요. 무작위 변환을 넣으면 같은 모델도 실행마다 점수가 흔들려 공정하게 비교할 수 없어요.
@@ -4897,6 +4982,28 @@ if device.type == "cuda":
 🤔 왜 GPU가 항상 빠르진 않아? — GPU는 "한 번에 많이" 계산할 때 강해요. 작은 모델·작은 batch에선 데이터를 GPU로 옮기는 시간과 명령을 띄우는 오버헤드가 계산 시간보다 커질 수 있어요. 그래서 측정 범위(디스크 로딩 포함인지 등)도 같이 적어요.
 
 💡 최종 성능표엔 모델 · 학습 범위 · valid 지표 · 시간 · VRAM을 함께 남기고, test는 모든 선택이 끝난 뒤 한 번만 봐요.
+
+### 증강 transforms.Compose (train만)
+
+```
+train_tf = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.RandomHorizontalFlip(),          # 좌우 반전 (확률 0.5)
+    transforms.RandomRotation(10),              # ±10도 회전
+    transforms.ColorJitter(brightness=0.15),    # 밝기 조금 흔들기
+    transforms.ToTensor(),
+])
+valid_tf = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])
+```
+
+▶ 실제로 돌려 보면 100×80 합성 그라데이션 사진 한 장
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| train_tf(img).shape, dtype | (3, 64, 64), torch.float32 | [C, H, W], 0~1 실수 (ToTensor) |
+| train_tf(img) 두 번이 같나? | False | 부를 때마다 무작위로 다르게 변형 |
+| valid_tf(img) 두 번이 같나? | True | 평가용은 항상 똑같이 |
+| valid_tf(img).min(), max() | 0.000, 0.698 | ToTensor가 0~255를 0~1로 |
 
 ## 📖 Day11 용어 (47개)
 - **가중합** (Weighted sum (가중합)): 각 입력에 가중치(계수)를 곱해 모두 더한 값. w₁x₁ + w₂x₂ + … + b.
@@ -6131,16 +6238,11 @@ read() Frame 한 장 읽기→ process_frame() Gray · Resize · Edge→ write()
 
 ### 모든 Frame을 처리할까, 일부만 할까?
 
+🔧 Frame 건너뛰며 처리 frame_idx % step 명령어 사전에서 자세히 →
+
 ```
-step = 5
-frame_idx = 0
-while True:
     ok, frame = cap.read()
-    if not ok:
-        break
-    if frame_idx % step == 0:          # 5장마다 1장만 처리
         result = process_frame(frame)
-    frame_idx += 1
 ```
 
 🤔 왜 건너뛰어? 왜 조심해? — 옆 Frame끼리는 거의 똑같아서, 건너뛰면 처리량이 크게 줄어요. 하지만 그 사이에 지나간 빠른 사건을 놓칠 수 있고, 줄어든 Frame을 원래 FPS로 저장하면 재생시간도 짧아져요. 시간 기준이 필요하면 CAP_PROP_POS_MSEC이나 FPS로 Timestamp를 계산해요.
@@ -6712,6 +6814,29 @@ print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 �
 | str(path) | Path를 문자열로 | cv2 함수는 문자열 경로를 받음 |
 | imread(path, 0) | 저장 결과를 Gray로 다시 읽기 | 저장이 "성공"해도 크기·채널이 의도와 같은지는 다시 읽어 봐야 앎 |
 
+### Frame 건너뛰며 처리 frame_idx % step
+
+```
+# cap · process_frame 은 위 VideoCapture 항목과 같아요
+step = 5
+frame_idx = 0
+while True:
+    ok, frame = cap.read()
+    if not ok:
+        break
+    if frame_idx % step == 0:          # 5장마다 1장만 처리
+        result = process_frame(frame)
+    frame_idx += 1
+```
+
+▶ 실제로 돌려 보면 data/sample.avi (48 Frame, 12 FPS)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 읽은 Frame 수 | 48 |  |
+| step = 5 로 처리한 Frame 번호 | [0, 5, 10, 15, 20, 25, 30, 35, 40, 45] | 10장만 처리 — 계산량 약 1/5 |
+| 처리 간격(초) | 0.417 | 12 FPS에서 5장 = 약 0.42초마다 한 번 → 그 사이 빠른 사건은 놓칠 수 있어요 |
+
 ## 📖 Day13 용어 (39개)
 - **임계값** (Threshold (판단 기준값)): 확률이 이 값 이상(또는 초과)이면 양성(실패)이라고 부르는 선. 낮추면 놓침(FN)은 줄고 헛경고(FP)는 늘어요. valid에서만 정해요.
 - **seed** (random_state (난수 고정값)): 무작위 과정(추출, 특성 후보, 분할 섞기 등)을 매번 같게 만드는 번호. 결과를 재현하려고 고정해요(예: 42).
@@ -7161,22 +7286,12 @@ cam = torch.relu((alpha[:, None, None] * acts).sum(0))
 
 🤔 왜 한 번에 하나만 바꿔? — lr과 Sampler를 동시에 바꿨는데 좋아졌다면, 어느 쪽 덕분인지 알 수 없어요. 나머지 조건을 고정해야 차이를 그 변경 하나의 효과로 해석할 수 있어요. 결과를 본 뒤 규칙을 바꾸면 "좋아 보이는 쪽"을 고르게 되니 규칙은 미리 정해요.
 
+🔧 재현 · 저장 torch.manual_seed() · torch.save() · torch.load() 명령어 사전에서 자세히 →
+
 ```
 torch.manual_seed(14)                         # 맨 앞에서 무작위 시작값 고정
-
 torch.save({"weights": best_state, "classes": train_set.classes,
-            "lr": 0.01, "epochs": 8, "seed": 14, "test_used": False}, "model.pt")
-
-saved = torch.load("model.pt", map_location="cpu", weights_only=True)
-model.load_state_dict(saved["weights"]); model.eval()
 ```
-
-| 명령어 / 인자 | 뜻 | 바꾸면? |
-|---|---|---|
-| torch.manual_seed(n) | 무작위 시작값 고정 | seed만 바꿔도 결과가 꽤 흔들림 → 한 번 결과로 결론 내지 않고 seed를 바꿔 여러 번 확인 |
-| torch.save(dict, path) | 가중치 + 만든 방법(클래스·lr·epoch·seed·test 사용 여부)을 함께 저장 | 가중치만 저장하면 다시 만들 수도, 클래스 번호를 해석할 수도 없음 |
-| map_location="cpu" | GPU에서 저장한 걸 CPU로 불러오기 | 빼면 GPU가 없는 컴퓨터에서 에러 |
-| weights_only=True | 텐서 같은 안전한 값만 불러옴 | False면 파일 안의 임의 코드가 실행될 수 있음 → 믿을 수 없는 checkpoint는 torch.load 하지 않기 |
 
 | 상황 | 기대 결과 | 확인 근거 |
 |---|---|---|
@@ -7657,6 +7772,36 @@ cam = torch.nn.functional.interpolate(cam[None, None], size=image_hw,
 
 간단히 쓰면 hook 대신 torch.autograd.grad(score[0, target], features)[0]로 특징 지도에 대한 gradient를 바로 받을 수도 있어요.
 
+### 재현 · 저장 torch.manual_seed() · torch.save() · torch.load()
+
+```
+torch.manual_seed(14)                         # 맨 앞에서 무작위 시작값 고정
+
+torch.save({"weights": best_state, "classes": train_set.classes,
+            "lr": 0.01, "epochs": 8, "seed": 14, "test_used": False}, "model.pt")
+
+saved = torch.load("model.pt", map_location="cpu", weights_only=True)
+model.load_state_dict(saved["weights"]); model.eval()
+```
+
+▶ 실제로 돌려 보면 작은 Linear(4, 3) 모델로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| torch.manual_seed(14); torch.rand(3) | [0.5695 0.0047 0.9303] |  |
+| 다시 manual_seed(14); torch.rand(3) | [0.5695 0.0047 0.9303] | seed가 같으면 똑같은 난수 |
+| 이어서 torch.rand(3) 한 번 더 | [0.7257 0.8295 0.7683] | seed를 다시 안 정하면 다음 난수로 넘어가요 |
+| list(saved.keys()) | ['weights', 'classes', 'lr', 'epochs', 'seed', 'test_used'] | 가중치 + 만든 방법을 함께 저장 |
+| model.load_state_dict(saved['weights']) | <All keys matched successfully> | missing·unexpected 둘 다 비면 정상 |
+| 저장 전후 가중치가 같나? | True |  |
+
+| 명령어 / 인자 | 뜻 | 바꾸면? |
+|---|---|---|
+| torch.manual_seed(n) | 무작위 시작값 고정 | seed만 바꿔도 결과가 꽤 흔들림 → 한 번 결과로 결론 내지 않고 seed를 바꿔 여러 번 확인 |
+| torch.save(dict, path) | 가중치 + 만든 방법(클래스·lr·epoch·seed·test 사용 여부)을 함께 저장 | 가중치만 저장하면 다시 만들 수도, 클래스 번호를 해석할 수도 없음 |
+| map_location="cpu" | GPU에서 저장한 걸 CPU로 불러오기 | 빼면 GPU가 없는 컴퓨터에서 에러 |
+| weights_only=True | 텐서 같은 안전한 값만 불러옴 | False면 파일 안의 임의 코드가 실행될 수 있음 → 믿을 수 없는 checkpoint는 torch.load 하지 않기 |
+
 ## 📖 Day14 용어 (39개)
 - **혼동행렬** (Confusion Matrix (혼동행렬)): 실제(행) × 예측(열)으로 맞힘·틀림을 네 칸(TN, FP, FN, TP)에 세어 둔 표. 어떤 종류의 오류인지 나눠 볼 수 있어요.
 - **Precision** (Precision (정밀도)): 양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP). 헛경고가 늘면 낮아져요.
@@ -8029,16 +8174,12 @@ result.boxes.id.int().tolist()   # 프레임별 Track ID (없으면 id가 None)
 
 [그림: 사진 1장 처리 시간을 읽기, 전처리, 모델 추론, 후처리로 나눈 가로 막대와 추론만 본 막대 비교] 무엇을 보나: 작은 데모 모델로 CPU에서 160px 사진을 처리할 때 걸린 시간을 쪼갠 막대예요(result.speed의 preprocess · inference · postprocess + 직접 잰 imread, 여러 장의 중앙값). 위 막대가 실제 전체, 아래 빗금 막대는 "모델 추론"만 잘라 본 것 — 같은 실행인데 FPS 숫자가 달라져요. 🤔 왜? 한 장이 결과가 되려면 읽기 → 전처리 → 추론 → 후처리를 모두 거쳐야 하니까 시간은 더해져요. 여기선 추론이 대부분이라 차이가 작지만, 큰 사진·영상 디코딩·추적·저장이 붙으면 추론 밖의 시간이 훨씬 커져요. 그래서 FPS를 말할 땐 "어디부터 어디까지 쟀는지"를 같이 적어요(숫자는 이 PC 기준이라 장비마다 달라요).
 
-## 🔧 같은 걸 터미널(CLI)로
+🔧 같은 걸 터미널(CLI)로 yolo detect ... 명령어 사전에서 자세히 →
 
 ```
 yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
-yolo detect val     model=best.pt data=dataset.yaml
 yolo detect predict model=best.pt source=samples/ conf=0.25
-yolo detect track   model=best.pt source=traffic.mp4
 ```
-
-⚠️ CLI는 epochs=30 형식. --epochs 30 아님!
 
 ## 원본 자료
 
@@ -8289,6 +8430,17 @@ for result in model.track(source="traffic.mp4", persist=True,
 🤔 왜 추적기만 바꿔서는 안 좋아져? — 추적은 탐지 결과를 이어 붙이는 단계라서, 탐지가 물체를 놓치면 이을 박스 자체가 없어요. 탐지 성능이 추적 품질의 천장이에요.
 
 ⚠️ 속도를 잴 땐 범위를 같이 적어요. "모델 추론 5ms"를 보고 200 FPS라고 하면 안 돼요. 영상 읽기·전처리·후처리·추적·저장 시간까지 더해야 실제 처리 속도예요.
+
+### 같은 걸 터미널(CLI)로 yolo detect ...
+
+```
+yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
+yolo detect val     model=best.pt data=dataset.yaml
+yolo detect predict model=best.pt source=samples/ conf=0.25
+yolo detect track   model=best.pt source=traffic.mp4
+```
+
+⚠️ CLI는 epochs=30 형식. --epochs 30 아님!
 
 ## 📖 Day15 용어 (33개)
 - **라벨** (Label (정답 라벨)): 사람이 미리 붙여 둔 정답 값. 분류에서는 각 사례가 어느 클래스인지(예: 0=성공, 1=실패)를 뜻해요.

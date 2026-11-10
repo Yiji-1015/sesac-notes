@@ -449,3 +449,32 @@ cam = torch.nn.functional.interpolate(cam[None, None], size=image_hw,
       </table>
       <p><small>간단히 쓰면 hook 대신 <code>torch.autograd.grad(score[0, target], features)[0]</code>로 특징 지도에 대한 gradient를 바로 받을 수도 있어요.</small></p>
 </section>
+<section class="cmd" id="d14-torch-manual-seed" data-topic="PyTorch" data-sub="저장 · 재현" data-day="14" data-theory="notes/day14.html#repro">
+  <h3>재현 · 저장 <code>torch.manual_seed()</code> · <code>torch.save()</code> · <code>torch.load()</code></h3>
+<pre><code>torch.manual_seed(14)                         # 맨 앞에서 무작위 시작값 고정
+
+torch.save({"weights": best_state, "classes": train_set.classes,
+            "lr": 0.01, "epochs": 8, "seed": 14, "test_used": False}, "model.pt")
+
+saved = torch.load("model.pt", map_location="cpu", weights_only=True)
+model.load_state_dict(saved["weights"]); model.eval()</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>작은 Linear(4, 3) 모델로</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.manual_seed(14); torch.rand(3)</code></td><td><code>[0.5695 0.0047 0.9303]</code></td><td></td></tr>
+    <tr><td><code>다시 manual_seed(14); torch.rand(3)</code></td><td><code>[0.5695 0.0047 0.9303]</code></td><td>seed가 같으면 똑같은 난수</td></tr>
+    <tr><td><code>이어서 torch.rand(3) 한 번 더</code></td><td><code>[0.7257 0.8295 0.7683]</code></td><td>seed를 다시 안 정하면 다음 난수로 넘어가요</td></tr>
+    <tr><td><code>list(saved.keys())</code></td><td><code>[&#x27;weights&#x27;, &#x27;classes&#x27;, &#x27;lr&#x27;, &#x27;epochs&#x27;, &#x27;seed&#x27;, &#x27;test_used&#x27;]</code></td><td>가중치 + 만든 방법을 함께 저장</td></tr>
+    <tr><td><code>model.load_state_dict(saved[&#x27;weights&#x27;])</code></td><td><code>&lt;All keys matched successfully&gt;</code></td><td>missing·unexpected 둘 다 비면 정상</td></tr>
+    <tr><td><code>저장 전후 가중치가 같나?</code></td><td><code>True</code></td><td></td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령어 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>torch.manual_seed(n)</code></td><td>무작위 시작값 고정</td><td>seed만 바꿔도 결과가 꽤 흔들림 → 한 번 결과로 결론 내지 않고 seed를 바꿔 여러 번 확인</td></tr>
+        <tr><td><code>torch.save(dict, path)</code></td><td>가중치 + <b>만든 방법</b>(클래스·lr·epoch·seed·test 사용 여부)을 함께 저장</td><td>가중치만 저장하면 다시 만들 수도, 클래스 번호를 해석할 수도 없음</td></tr>
+        <tr><td><code>map_location="cpu"</code></td><td>GPU에서 저장한 걸 CPU로 불러오기</td><td>빼면 GPU가 없는 컴퓨터에서 에러</td></tr>
+        <tr><td><code>weights_only=True</code></td><td>텐서 같은 안전한 값만 불러옴</td><td>False면 파일 안의 임의 코드가 실행될 수 있음 → 믿을 수 없는 checkpoint는 <code>torch.load</code> 하지 않기</td></tr>
+      </table>
+</section>

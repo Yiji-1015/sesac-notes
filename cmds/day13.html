@@ -449,3 +449,25 @@ print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 �
         <tr><td><code>imread(path, 0)</code></td><td>저장 결과를 Gray로 다시 읽기</td><td>저장이 "성공"해도 크기·채널이 의도와 같은지는 <b>다시 읽어 봐야</b> 앎</td></tr>
       </table>
 </section>
+<section class="cmd" id="d13-frame-idx-step" data-topic="OpenCV" data-sub="영상" data-day="13" data-theory="notes/day13.html#video">
+  <h3>Frame 건너뛰며 처리 <code>frame_idx % step</code></h3>
+<pre><code># cap · process_frame 은 위 VideoCapture 항목과 같아요
+step = 5
+frame_idx = 0
+while True:
+    ok, frame = cap.read()
+    if not ok:
+        break
+    if frame_idx % step == 0:          # 5장마다 1장만 처리
+        result = process_frame(frame)
+    frame_idx += 1</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>data/sample.avi (48 Frame, 12 FPS)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>읽은 Frame 수</code></td><td><code>48</code></td><td></td></tr>
+    <tr><td><code>step = 5 로 처리한 Frame 번호</code></td><td><code>[0, 5, 10, 15, 20, 25, 30, 35, 40, 45]</code></td><td>10장만 처리 — 계산량 약 1/5</td></tr>
+    <tr><td><code>처리 간격(초)</code></td><td><code>0.417</code></td><td>12 FPS에서 5장 = 약 0.42초마다 한 번 → 그 사이 빠른 사건은 놓칠 수 있어요</td></tr>
+  </table>
+</div>
+</section>

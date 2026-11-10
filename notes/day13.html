@@ -326,15 +326,11 @@ opened = cv2.morphologyEx(binary, op=cv2.MORPH_OPEN, kernel=kernel, iterations=1
       <div class="callout">💡 저장 <b>FPS</b>(재생 빈도)와 연산 <b>처리속도</b>(초당 몇 장 계산했나)는 다른 것. 🤔 <b>왜 구분?</b> — 처리가 느려도 저장 FPS가 30이면 영상은 30FPS로 재생돼요. 반대로 같은 Frame 수인데 저장 FPS를 절반으로 하면 재생시간이 2배가 되어 <b>느리게</b> 보여요.</div>
 
       <h3>모든 Frame을 처리할까, 일부만 할까?</h3>
-<pre><code>step = 5
-frame_idx = 0
-while True:
-    ok, frame = cap.read()
-    if not ok:
-        break
-    if frame_idx % step == 0:          # 5장마다 1장만 처리
-        result = process_frame(frame)
-    frame_idx += 1</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Frame 건너뛰며 처리 <code>frame_idx % step</code> <a href="../commands.html#d13-frame-idx-step">명령어 사전에서 자세히 →</a></div>
+<pre><code>    ok, frame = cap.read()
+        result = process_frame(frame)</code></pre>
+      </div>
       <div class="callout">🤔 <strong>왜 건너뛰어? 왜 조심해?</strong> — 옆 Frame끼리는 거의 똑같아서, 건너뛰면 <b>처리량이 크게 줄어요</b>. 하지만 그 사이에 지나간 <b>빠른 사건을 놓칠 수 있고</b>, 줄어든 Frame을 원래 FPS로 저장하면 재생시간도 짧아져요. 시간 기준이 필요하면 <code>CAP_PROP_POS_MSEC</code>이나 FPS로 Timestamp를 계산해요.</div>
       <figure><img class="smooth" src="img/day13/video_timeline.png" alt="48개 Frame 타임라인에서 5장마다 처리하는 Frame과 놓친 빠른 사건을 표시한 그림"><figcaption><b>무엇을 보나:</b> 수업 예제 영상(48장, 12FPS = 4초)의 Frame을 한 칸씩 늘어놓았어요. 진보라 10칸이 <code>step=5</code>로 처리하는 Frame이고, 아래 썸네일처럼 옆 Frame끼리는 거의 같아요. 빨간 테두리 #12~14에만 있는 빠른 사건은 처리 Frame(#10, #15) 사이에 끼어 <b>한 장도 안 뽑혀요</b>. <b>🤔 왜?</b> 건너뛰기는 "옆 Frame은 비슷하다"는 가정에 기대요. 그 가정 덕에 처리량이 1/5로 줄지만, step보다 짧게 지나가는 사건에서는 가정이 깨져서 놓쳐요. 그래서 step은 잡아야 할 사건의 길이(초 × FPS)보다 작게 정해요.</figcaption></figure>
 

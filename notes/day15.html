@@ -382,12 +382,11 @@ result.boxes.id.int().tolist()   # 프레임별 Track ID (없으면 id가 None)<
       <figure id="fig-speed"><img class="smooth" src="img/day15/speed_breakdown.png" alt="사진 1장 처리 시간을 읽기, 전처리, 모델 추론, 후처리로 나눈 가로 막대와 추론만 본 막대 비교"><figcaption><b>무엇을 보나:</b> 작은 데모 모델로 CPU에서 160px 사진을 처리할 때 걸린 시간을 쪼갠 막대예요(<code>result.speed</code>의 preprocess · inference · postprocess + 직접 잰 imread, 여러 장의 중앙값). 위 막대가 실제 전체, 아래 빗금 막대는 "모델 추론"만 잘라 본 것 — 같은 실행인데 FPS 숫자가 달라져요. <b>🤔 왜?</b> 한 장이 결과가 되려면 읽기 → 전처리 → 추론 → 후처리를 <b>모두</b> 거쳐야 하니까 시간은 더해져요. 여기선 추론이 대부분이라 차이가 작지만, 큰 사진·영상 디코딩·추적·저장이 붙으면 추론 밖의 시간이 훨씬 커져요. 그래서 FPS를 말할 땐 "어디부터 어디까지 쟀는지"를 같이 적어요(숫자는 이 PC 기준이라 장비마다 달라요).</figcaption></figure>
 
       <!-- ============================================================ -->
-      <h2>🔧 같은 걸 터미널(CLI)로</h2>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 같은 걸 터미널(CLI)로 <code>yolo detect ...</code> <a href="../commands.html#d15-yolo-detect">명령어 사전에서 자세히 →</a></div>
 <pre><code>yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
-yolo detect val     model=best.pt data=dataset.yaml
-yolo detect predict model=best.pt source=samples/ conf=0.25
-yolo detect track   model=best.pt source=traffic.mp4</code></pre>
-      <div class="callout warn">⚠️ CLI는 <code>epochs=30</code> 형식. <code>--epochs 30</code> 아님!</div>
+yolo detect predict model=best.pt source=samples/ conf=0.25</code></pre>
+      </div>
 
       <h2>원본 자료</h2>
       <ul>

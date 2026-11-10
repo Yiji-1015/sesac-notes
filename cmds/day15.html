@@ -235,3 +235,11 @@ for result in model.track(source="traffic.mp4", persist=True,
       <div class="callout">🤔 <strong>왜 추적기만 바꿔서는 안 좋아져?</strong> — 추적은 탐지 결과를 <b>이어 붙이는</b> 단계라서, 탐지가 물체를 놓치면 이을 박스 자체가 없어요. 탐지 성능이 추적 품질의 천장이에요.</div>
       <div class="callout warn">⚠️ 속도를 잴 땐 범위를 같이 적어요. "모델 추론 5ms"를 보고 200 FPS라고 하면 안 돼요. 영상 읽기·전처리·후처리·추적·저장 시간까지 더해야 실제 처리 속도예요.</div>
 </section>
+<section class="cmd" id="d15-yolo-detect" data-topic="YOLO" data-sub="CLI" data-day="15" data-theory="notes/day15.html#track">
+  <h3>같은 걸 터미널(CLI)로 <code>yolo detect ...</code></h3>
+<pre><code>yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
+yolo detect val     model=best.pt data=dataset.yaml
+yolo detect predict model=best.pt source=samples/ conf=0.25
+yolo detect track   model=best.pt source=traffic.mp4</code></pre>
+      <div class="callout warn">⚠️ CLI는 <code>epochs=30</code> 형식. <code>--epochs 30</code> 아님!</div>
+</section>

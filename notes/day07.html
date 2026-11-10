@@ -225,14 +225,11 @@ perm = permutation_importance(forest, X_valid, y_valid, scoring="f1", n_repeats=
 처음     = [160, 160, 160, 160]         (평균)          MSE 2600
 잔차     = [-60, -40,  40,  60]         ← 깊이1 트리가 이걸 학습
 보정 후  = 처음 + 0.5 × 보정 = [135, 135, 185, 185]      MSE 725</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 부스팅 한 회차 직접 계산 <code>DecisionTreeRegressor</code> <a href="../commands.html#d7-decisiontreeregressor">명령어 사전에서 자세히 →</a></div>
 <pre><code>X = np.array([[1], [2], [3], [4]])
-y = np.array([100., 120., 200., 220.])
-initial = np.full(4, y.mean())                       # 처음 예측: 모두 160
-residual = y - initial                               # 제곱오차에서의 보정 목표
-correction = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, residual)
-updated = initial + 0.5 * correction.predict(X)      # 학습률 0.5 = 보정량의 절반만
-print(updated.tolist())                              # [135.0, 135.0, 185.0, 185.0]
-print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0</code></pre>
+y = np.array([100., 120., 200., 220.])</code></pre>
+      </div>
       <div class="callout">🤔 <strong>왜 MSE가 2600 → 725로 줄지?</strong> — 처음엔 모두 평균 160이라 오차가 (−60, −40, 40, 60), 제곱 평균 2600. 깊이 1 트리는 잔차를 "x ≤ 2.5 → −50, 아니면 +50"(각 쪽 잔차 평균)으로 배워요. 학습률 0.5라 그 절반(±25)만 더하니 135·135·185·185, 새 오차 (−35, −15, 15, 35)의 제곱 평균은 725. <b>틀린 방향으로 조금씩 당겨 주는</b> 게 부스팅이에요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day07/boosting_one_step.png" alt="부스팅 한 회차 전후의 예측과 잔차 화살표 비교"><figcaption><b>무엇을 보나:</b> 막대가 실제 y, 주황 마름모가 예측, 분홍 화살표가 잔차(실제 - 예측)예요. 왼쪽(모두 160)보다 오른쪽(보정 1회 후)에서 화살표가 <b>모두 짧아졌어요</b>. <b>🤔 왜?</b> 깊이 1 보정 트리가 "x ≤ 2.5면 -50, 아니면 +50"이라는 잔차의 방향을 배웠고, 학습률 0.5만큼(±25)만 예측을 그쪽으로 옮겼어요. 잔차가 60 → 35, 40 → 15로 줄어 제곱 평균이 2600 → 725가 돼요.</figcaption></figure></div>
       <div class="callout">🤔 <strong>왜 보정을 절반(학습률)만 반영하지?</strong> — 보정 트리도 작은 자료에서 배운 것이라 잡음이 섞여 있어요. 한 번에 100% 믿고 반영하면 그 잡음까지 따라가 과적합되기 쉬워요. 조금씩 여러 번 고치면 여러 트리의 의견이 쌓여 더 안정적이에요. 대신 학습률이 작으면 회차가 더 필요해요.</div>

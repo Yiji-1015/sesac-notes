@@ -154,13 +154,11 @@ print(roc_auc_score(y, p))                      # 0.75</code></pre>
         <tr><td>B</td><td>130, 230, 330, 430 (고르게)</td><td>30 ms</td><td><b>30 ms</b></td></tr>
       </table>
       <div class="callout">💡 MAE는 평균적인 절대 오차, RMSE는 큰 오차에 더 민감해요. 평균만 보지 말고 큰 잔차의 실제값·예측값·ID를 확인해요. 회귀 점수와 분류 F1은 합쳐서 평균 내지 않아요.</div>
-<pre><code>from sklearn.metrics import mean_absolute_error, root_mean_squared_error
-y = [100, 200, 300, 400]
-a = [100, 200, 300, 480]
-b = [130, 230, 330, 430]
-for name, pred in [("A", a), ("B", b)]:
-    print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))
-# A 20.0 40.0  /  B 30.0 30.0</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 MAE · RMSE 계산 <code>mean_absolute_error</code> · <code>root_mean_squared_error</code> <a href="../commands.html#d8-mean-absolute-error">명령어 사전에서 자세히 →</a></div>
+<pre><code>for name, pred in [("A", a), ("B", b)]:
+    print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))</code></pre>
+      </div>
       <div class="callout">🤔 <strong>왜 A는 MAE로 이기고 RMSE로 지지?</strong> — A의 오차는 (0, 0, 0, 80): MAE = 80/4 = 20, RMSE = √(80²/4) = √1600 = 40. B는 (30, 30, 30, 30): 둘 다 30. 제곱하면 큰 오차 80이 6400으로 커져 혼자 평균을 끌어올리니, "한 번 크게 틀리는" A가 RMSE에서 불리해요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day08/mae_rmse_ab.png" alt="모델 A와 B의 요청별 오차와 MAE, RMSE 비교"><figcaption><b>무엇을 보나:</b> 왼쪽은 실제값별 오차예요. A는 마지막 요청에서만 80 틀렸고, B는 매번 30씩 틀렸어요. 오른쪽에서 MAE는 A(20) &lt; B(30), RMSE는 A(40) &gt; B(30)로 <b>순위가 뒤집혀요</b>. <b>🤔 왜?</b> RMSE는 제곱 평균이라 80이 6400으로 부풀어 혼자 평균을 끌어올려요. "가끔 크게 틀리는" 모델과 "늘 조금씩 틀리는" 모델 중 무엇이 더 나쁜지는 업무가 정할 일이라, 주 지표를 미리 고르고 큰 잔차의 행을 따로 확인해요.</figcaption></figure></div>
       <table>

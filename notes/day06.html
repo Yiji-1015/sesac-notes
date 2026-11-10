@@ -266,18 +266,11 @@ distance, index = knn.kneighbors([[3.2]])     # 이웃까지 거리, 학습 행 
       <p>원래 단위로는 글자수 차이(100 vs 300)가 거리를 지배해서 Q는 <b>A</b>에 가까워요. train 기준으로 표준화하면 도구수 차이도 반영돼 <b>B</b>에 가까워져요.</p>
       <div class="callout">🤔 <strong>왜 스케일이 KNN을 바꾸지?</strong> — 거리는 각 특성 차이를 제곱해서 더해요. 원래 단위로 Q–A = √(100² + 3²) ≈ <b>100</b>, Q–B = √(300² + 0²) = <b>300</b> → 도구수 3개 차이는 글자수 100 앞에서 티도 안 나요. 표준화(글자수 평균 1200·표준편차 200, 도구수 평균 2.5·표준편차 1.5)를 하면 Q=(−0.5, 1), A=(−1, −1), B=(1, 1)이 되어 Q–A ≈ <b>2.06</b>, Q–B = <b>1.5</b> → 이제 B가 더 가까워요. 단위가 큰 특성이 거리를 <b>독차지</b>하지 못하게 "같은 눈금"으로 맞추는 게 스케일링이에요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day06/scaling_distance.png" alt="원래 단위와 표준화 후 A, B, Q의 위치와 거리 비교"><figcaption><b>무엇을 보나:</b> 두 축을 <b>같은 눈금</b>으로 그렸어요. 왼쪽(원래 단위)에선 도구수 1→4 차이가 너무 작아 세 점이 한 줄로 납작해지고 Q는 A에 붙어 있어요. 오른쪽(표준화)에선 세로 차이가 살아나 Q가 B에 더 가까워져요. <b>🤔 왜?</b> 거리는 축마다 차이를 제곱해 더하는데, 글자수 차이(100~300)에 비하면 도구수 차이(3)는 티끌이에요. 표준화로 두 축을 "표준편차 몇 개만큼"이라는 같은 단위로 바꾸면 도구수도 거리에 제 몫을 하게 돼요.</figcaption></figure></div>
-<pre><code>import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.neighbors import KNeighborsClassifier
-X = np.array([[1000, 1], [1400, 4]])
-y = np.array([0, 1])
-q = np.array([[1100, 4]])
-raw = KNeighborsClassifier(n_neighbors=1).fit(X, y)
-s = StandardScaler().fit(X)                       # train 평균·표준편차 저장
-scaled = KNeighborsClassifier(n_neighbors=1)
-scaled.fit(s.transform(X), y)
-print("원단위:", raw.predict(q).tolist())          # [0]
-print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규칙으로 q도 변환</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 KNN 스케일링 전후 비교 <code>StandardScaler</code> <a href="../commands.html#d6-knn-standardscaler">명령어 사전에서 자세히 →</a></div>
+<pre><code>X = np.array([[1000, 1], [1400, 4]])
+y = np.array([0, 1])</code></pre>
+      </div>
       <table>
         <tr><th>용어</th><th>무엇을 바꾸나</th><th>대표 예</th></tr>
         <tr><td><b>표준화</b></td><td>각 특성에서 평균을 빼고 표준편차로 나눔</td><td><code>StandardScaler</code></td></tr>
@@ -292,14 +285,11 @@ print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규
           <li>스케일링은 단위의 과도한 영향을 줄이는 것이지, 점수 상승을 보장하지 않아요.</li>
         </ul>
       </div>
-<pre><code>import numpy as np
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-X = np.array([[100], [200], [300]])
-a = StandardScaler().fit(X)
-b = MinMaxScaler().fit(X)
-print("표준화:", a.transform(X).ravel().round(3).tolist())   # [-1.225, 0.0, 1.225]
-print("MinMax:", b.transform(X).ravel().tolist())            # [0.0, 0.5, 1.0]
-print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>StandardScaler</code> · <code>MinMaxScaler</code> 값 확인 <a href="../commands.html#d6-standardscaler">명령어 사전에서 자세히 →</a></div>
+<pre><code>X = np.array([[100], [200], [300]])
+a = StandardScaler().fit(X)</code></pre>
+      </div>
       <div class="callout">🤔 <strong>왜 이런 숫자가 나오지?</strong> — 표준화: 평균 200, 표준편차 약 81.6 → (100−200)/81.6 ≈ −1.225. MinMax: (x − 최소 100) / (최대 300 − 최소 100) → 500이면 400/200 = <b>2.0</b>. 최소·최대는 <b>train에서 정한 값을 고정</b>해서 쓰니, 그 범위를 넘는 새 값은 0~1 밖으로 나가요. 둘 다 "빼고 나누기"만 하는 선형 변환이라 분포 모양(치우침 등)은 그대로예요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day06/scaler_numberline.png" alt="원래 값, StandardScaler, MinMaxScaler 결과를 숫자선에 비교"><figcaption><b>무엇을 보나:</b> train 100·200·300(보라)과 새 값 500(주황 마름모)을 세 가지 눈금에 올렸어요. 세 줄 모두 점들의 <b>간격 비율과 순서는 그대로</b>이고, 위치와 눈금 크기만 바뀌었어요. <b>🤔 왜?</b> 두 스케일러 모두 "빼고 나누기"만 하는 선형 변환이라 모양을 바꾸지 않아요. MinMax의 0~1(초록 띠)은 train 최소·최대로 정한 범위라, 그보다 큰 새 값 500은 띠 밖의 2.0으로 나가요.</figcaption></figure></div>
 

@@ -480,3 +480,24 @@ with torch.no_grad():                           # 평가: 기록 끄기
 </div>
       <div class="callout">🤔 <strong>왜 <code>× len(xb)</code>를 해?</strong> — <code>loss</code>는 batch 안의 <b>평균</b>이에요(reduction="mean"). 마지막 batch는 8개처럼 작을 수 있어서, batch 평균들을 그냥 평균 내면 8개짜리 batch가 32개짜리와 같은 무게를 갖게 돼요. 샘플 수를 곱해 합친 뒤 전체 샘플 수로 나누면 "샘플 하나하나의 평균"이 정확히 나와요. 함수 하나가 "epoch 1회 학습"이라는 한 가지 역할만 하게 나누면 읽기도 쉬워요.</div>
 </section>
+<section class="cmd" id="d9-model-train" data-topic="PyTorch" data-sub="학습 루프" data-day="9" data-theory="notes/day09.html#loop">
+  <h3><code>model.train()</code> · <code>model.eval()</code> · <code>torch.no_grad()</code></h3>
+      <table>
+        <tr><th>명령</th><th>하는 일</th><th>안 하는 일</th></tr>
+        <tr><td><code>model.train()</code></td><td>Dropout·BatchNorm 같은 층을 학습 동작으로</td><td>기울기를 켜고 끄진 않음</td></tr>
+        <tr><td><code>model.eval()</code></td><td>평가 동작으로 전환</td><td><b>기울기 계산을 끄지 않음!</b></td></tr>
+        <tr><td><code>with torch.no_grad():</code></td><td>그래프 기록을 끔 → 메모리 절약</td><td>모드는 안 바꿈</td></tr>
+      </table>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Dropout(0.5)가 든 작은 모델 · 같은 입력 두 번</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model.train(); model(x) 두 번</code></td><td><code>0.4557, 0.5273</code></td><td>학습 모드: Dropout이 매번 다른 칸을 꺼서 값이 달라요</td></tr>
+    <tr><td><code>model.eval(); model(x) 두 번</code></td><td><code>0.4728, 0.4728</code></td><td>평가 모드: 매번 같아요</td></tr>
+    <tr><td><code>model.eval() 후 model(x).requires_grad</code></td><td><code>True</code></td><td>eval()만으로는 기울기 기록이 안 꺼져요!</td></tr>
+    <tr><td><code>with torch.no_grad(): model(x).requires_grad</code></td><td><code>False</code></td><td>기울기 기록은 no_grad가 끔</td></tr>
+  </table>
+</div>
+      <div class="callout">💡 평가할 땐 <code>model.eval()</code> + <code>torch.no_grad()</code>를 <b>세트로</b> 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 <code>probs.detach().cpu()</code>처럼 CPU로 옮겨요.</div>
+      <div class="callout">🤔 <strong>왜 둘 다 필요해?</strong> — 둘은 다른 스위치예요. <code>eval()</code>은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 <b>예측이 매번 같고 공정</b>하게 만들어요. <code>no_grad()</code>는 평가 땐 backward를 안 하니 <b>그래프를 안 만들어 메모리·시간을 아껴요</b>. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.</div>
+</section>

@@ -443,20 +443,11 @@ cam = torch.relu((alpha[:, None, None] * acts).sum(0))</code></pre>
       </table>
       <p>주 지표는 <b>Macro F1</b>, 보조 지표는 Accuracy·클래스별 Recall·시간·학습 파라미터 수. 후보 선택 규칙(예: Macro F1 → valid loss 순)도 <b>미리</b> 정하고, 결과를 본 뒤 기준을 바꾸지 않아요. 순차 학습(Head-only → Partial)이면 앞 단계의 학습량도 기록해요.</p>
       <div class="callout">🤔 <strong>왜 한 번에 하나만 바꿔?</strong> — lr과 Sampler를 동시에 바꿨는데 좋아졌다면, 어느 쪽 덕분인지 <b>알 수 없어요</b>. 나머지 조건을 고정해야 차이를 그 변경 하나의 효과로 해석할 수 있어요. 결과를 본 뒤 규칙을 바꾸면 "좋아 보이는 쪽"을 고르게 되니 규칙은 미리 정해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 재현 · 저장 <code>torch.manual_seed()</code> · <code>torch.save()</code> · <code>torch.load()</code> <a href="../commands.html#d14-torch-manual-seed">명령어 사전에서 자세히 →</a></div>
 <pre><code>torch.manual_seed(14)                         # 맨 앞에서 무작위 시작값 고정
-
-torch.save({"weights": best_state, "classes": train_set.classes,
-            "lr": 0.01, "epochs": 8, "seed": 14, "test_used": False}, "model.pt")
-
-saved = torch.load("model.pt", map_location="cpu", weights_only=True)
-model.load_state_dict(saved["weights"]); model.eval()</code></pre>
-      <table>
-        <tr><th>명령어 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>torch.manual_seed(n)</code></td><td>무작위 시작값 고정</td><td>seed만 바꿔도 결과가 꽤 흔들림 → 한 번 결과로 결론 내지 않고 seed를 바꿔 여러 번 확인</td></tr>
-        <tr><td><code>torch.save(dict, path)</code></td><td>가중치 + <b>만든 방법</b>(클래스·lr·epoch·seed·test 사용 여부)을 함께 저장</td><td>가중치만 저장하면 다시 만들 수도, 클래스 번호를 해석할 수도 없음</td></tr>
-        <tr><td><code>map_location="cpu"</code></td><td>GPU에서 저장한 걸 CPU로 불러오기</td><td>빼면 GPU가 없는 컴퓨터에서 에러</td></tr>
-        <tr><td><code>weights_only=True</code></td><td>텐서 같은 안전한 값만 불러옴</td><td>False면 파일 안의 임의 코드가 실행될 수 있음 → 믿을 수 없는 checkpoint는 <code>torch.load</code> 하지 않기</td></tr>
-      </table>
+torch.save({"weights": best_state, "classes": train_set.classes,</code></pre>
+      </div>
       <table>
         <tr><th>상황</th><th>기대 결과</th><th>확인 근거</th></tr>
         <tr><td>정상 3클래스 폴더</td><td>Batch·라벨·학습 정상</td><td>class_to_idx · Shape</td></tr>

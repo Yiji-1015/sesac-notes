@@ -19,7 +19,7 @@
       <input id="q" type="search" placeholder="명령어 검색 (예: resize, threshold, VideoWriter)…">
     </div>
     <div class="toolbar cmd-days"><button class="filter-btn active" data-day="all">전체 Day</button><button class="filter-btn" data-day="6">Day6</button><button class="filter-btn" data-day="7">Day7</button><button class="filter-btn" data-day="8">Day8</button><button class="filter-btn" data-day="9">Day9</button><button class="filter-btn" data-day="10">Day10</button><button class="filter-btn" data-day="11">Day11</button><button class="filter-btn" data-day="12">Day12</button><button class="filter-btn" data-day="13">Day13</button><button class="filter-btn" data-day="14">Day14</button><button class="filter-btn" data-day="15">Day15</button><button class="filter-btn" data-day="16">Day16</button><button class="filter-btn" data-day="17">Day17</button></div>
-    <nav class="toolbar cmd-toc"><a class="filter-btn" href="#topic-scikit-learn">🤖 scikit-learn <small>23</small></a><a class="filter-btn" href="#topic-xgboost">🌲 XGBoost <small>1</small></a><a class="filter-btn" href="#topic-pytorch">🔥 PyTorch <small>53</small></a><a class="filter-btn" href="#topic-torchvision">🧩 torchvision <small>8</small></a><a class="filter-btn" href="#topic-opencv">🖼️ OpenCV <small>18</small></a><a class="filter-btn" href="#topic-yolo">🎯 YOLO <small>8</small></a><a class="filter-btn" href="#topic-ocr-문서">📄 OCR · 문서 <small>7</small></a><a class="filter-btn" href="#topic-vlm-transformers">🧠 VLM · Transformers <small>4</small></a><a class="filter-btn" href="#topic-배포-최적화">🚀 배포 · 최적화 <small>2</small></a><a class="filter-btn" href="#topic-fastapi">⚡ FastAPI <small>18</small></a></nav>
+    <nav class="toolbar cmd-toc"><a class="filter-btn" href="#topic-scikit-learn">🤖 scikit-learn <small>26</small></a><a class="filter-btn" href="#topic-xgboost">🌲 XGBoost <small>2</small></a><a class="filter-btn" href="#topic-pytorch">🔥 PyTorch <small>55</small></a><a class="filter-btn" href="#topic-torchvision">🧩 torchvision <small>9</small></a><a class="filter-btn" href="#topic-opencv">🖼️ OpenCV <small>19</small></a><a class="filter-btn" href="#topic-yolo">🎯 YOLO <small>9</small></a><a class="filter-btn" href="#topic-ocr-문서">📄 OCR · 문서 <small>7</small></a><a class="filter-btn" href="#topic-vlm-transformers">🧠 VLM · Transformers <small>4</small></a><a class="filter-btn" href="#topic-배포-최적화">🚀 배포 · 최적화 <small>2</small></a><a class="filter-btn" href="#topic-fastapi">⚡ FastAPI <small>18</small></a></nav>
     <p id="count" style="color:var(--muted);font-size:0.9rem"></p>
 
     <article class="note cmd-list">
@@ -32,7 +32,7 @@
         <tr><td><a href="notes/day06.html#regmetrics">📖 ② 회귀 지표 · 기준선</a></td><td><code>mean_absolute_error</code>, <code>root_mean_squared_error</code>, <code>r2_score</code>, <code>DummyRegressor</code> <a href="#d6-회귀-지표" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day06.html#logistic">📖 ③ 로지스틱회귀 · 분류 지표</a></td><td><code>LogisticRegression(C=, max_iter=)</code>, <code>predict_proba</code>, <code>confusion_matrix</code>, <code>f1_score</code> <a href="#d6-logisticregression" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day06.html#knn">📖 ④ KNN</a></td><td><code>KNeighborsClassifier</code> / <code>KNeighborsRegressor(n_neighbors=, weights=, p=)</code>, <code>kneighbors()</code> <a href="#d6-kneighborsclassifier" class="ov-go">🔧 1개 보기</a></td></tr>
-        <tr><td><a href="notes/day06.html#scaling">📖 ⑤ 스케일링 · Pipeline</a></td><td><code>StandardScaler</code>, <code>MinMaxScaler</code>, <code>ColumnTransformer</code>, <code>Pipeline</code> <a href="#d6-columntransformer" class="ov-go">🔧 1개 보기</a></td></tr>
+        <tr><td><a href="notes/day06.html#scaling">📖 ⑤ 스케일링 · Pipeline</a></td><td><code>StandardScaler</code>, <code>MinMaxScaler</code>, <code>ColumnTransformer</code>, <code>Pipeline</code> <a href="#d6-columntransformer" class="ov-go">🔧 3개 보기</a></td></tr>
         <tr><td><a href="notes/day06.html#compare">📖 ⑥ 하이퍼파라미터 · 공정한 비교</a></td><td><code>for k in [...]</code> 반복 비교, <code>DummyClassifier</code>, <code>zero_division=0</code> <a href="#d6-후보-반복-비교-기준선" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day06.html#checks">📖 ⑦ 자동 검사 · 저장/복원</a></td><td><code>statistics_</code>, <code>np.array_equal</code>, <code>joblib.dump</code> / <code>joblib.load</code> <a href="#d6-학습-통계-불변-검사" class="ov-go">🔧 2개 보기</a></td></tr>
       </table>
@@ -46,7 +46,7 @@
         <tr><td><a href="notes/day07.html#overfit">📖 ② 복잡도 · 과적합</a></td><td><code>max_depth=</code>, <code>min_samples_leaf=</code>, <code>min_samples_split=</code>, <code>ccp_alpha=</code> <a href="#d7-복잡도-제한-인자" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day07.html#forest">📖 ③ Random Forest</a></td><td><code>RandomForestClassifier(n_estimators=, max_features=)</code>, <code>estimators_</code> <a href="#d7-randomforestclassifier" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day07.html#importance">📖 ④ 특성 중요도</a></td><td><code>feature_importances_</code>, <code>get_feature_names_out()</code>, <code>permutation_importance()</code> <a href="#d7-feature-importances" class="ov-go">🔧 1개 보기</a></td></tr>
-        <tr><td><a href="notes/day07.html#xgb">📖 ⑤ XGBoost</a></td><td><code>XGBClassifier</code> / <code>XGBRegressor(learning_rate=, objective=, tree_method=)</code> <a href="#d7-xgbclassifier" class="ov-go">🔧 1개 보기</a></td></tr>
+        <tr><td><a href="notes/day07.html#xgb">📖 ⑤ XGBoost</a></td><td><code>XGBClassifier</code> / <code>XGBRegressor(learning_rate=, objective=, tree_method=)</code> <a href="#d7-xgbclassifier" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day07.html#cv">📖 ⑥ 교차검증</a></td><td><code>StratifiedKFold</code>, <code>KFold</code>, <code>cross_validate(scoring=, return_train_score=)</code> <a href="#d7-stratifiedkfold" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day07.html#checks7">📖 ⑦ 입력 검사 · 저장</a></td><td><code>statistics_</code>, <code>transform(new).shape</code>, <code>joblib.dump</code> / <code>joblib.load</code> <a href="#d7-새-범주-통계-불변-검사" class="ov-go">🔧 2개 보기</a></td></tr>
       </table>
@@ -58,7 +58,7 @@
         <tr><td><a href="notes/day08.html#packages">📖 📦 필요한 패키지</a></td><td><code>pip install numpy pandas scikit-learn</code></td></tr>
         <tr><td><a href="notes/day08.html#clsmetrics">📖 ① 분류 지표</a></td><td><code>confusion_matrix(labels=)</code>, <code>precision_score</code>, <code>recall_score</code>, <code>f1_score(zero_division=)</code> <a href="#d8-혼동행렬과-네-지표" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day08.html#roc">📖 ② ROC-AUC · 임계값</a></td><td><code>predict_proba</code>, <code>roc_curve</code>, <code>roc_auc_score</code>, <code>(p &gt; t).astype(int)</code> <a href="#d8-roc-curve" class="ov-go">🔧 1개 보기</a></td></tr>
-        <tr><td><a href="notes/day08.html#cvagg">📖 ③ RMSE · CV 점수 집계</a></td><td><code>root_mean_squared_error</code>, <code>cross_validate(scoring={...})</code> <a href="#d8-cross-validate" class="ov-go">🔧 1개 보기</a></td></tr>
+        <tr><td><a href="notes/day08.html#cvagg">📖 ③ RMSE · CV 점수 집계</a></td><td><code>root_mean_squared_error</code>, <code>cross_validate(scoring={...})</code> <a href="#d8-cross-validate" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day08.html#features">📖 ④ 특성 설계</a></td><td><code>np.log1p</code>, <code>FunctionTransformer(validate=False)</code>, <code>pipe[:-1]</code> <a href="#d8-np-log1p" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day08.html#kmeans">📖 ⑤ K-Means</a></td><td><code>KMeans(n_clusters=, n_init=)</code>, <code>inertia_</code>, <code>silhouette_score</code>, <code>predict</code> <a href="#d8-kmeans" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day08.html#final">📖 ⑥ 최종 평가 흐름</a></td><td><code>clone()</code>, <code>pd.concat</code>, <code>json.dumps</code>, <code>joblib.dump/load</code>, 입력 검사(<code>ValueError</code>) <a href="#d8-clone" class="ov-go">🔧 2개 보기</a></td></tr>
@@ -74,7 +74,7 @@
         <tr><td><a href="notes/day09.html#autograd">📖 ③ Autograd · 경사하강</a></td><td><code>requires_grad=True</code>, <code>loss.backward()</code>, <code>.grad.zero_()</code>, <code>torch.no_grad()</code>, <code>detach()</code> <a href="#d9-backward" class="ov-go">🔧 3개 보기</a></td></tr>
         <tr><td><a href="notes/day09.html#ann">📖 ④ ANN (인공신경망)</a></td><td><code>nn.Linear</code>, <code>nn.ReLU</code>, <code>nn.Sequential</code>, <code>nn.Module</code> <a href="#d9-2-8-2-ann-만들기" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day09.html#loss">📖 ⑤ 손실함수 · 데이터 공급</a></td><td><code>nn.CrossEntropyLoss</code>, <code>TensorDataset</code>, <code>DataLoader</code> <a href="#d9-nn-crossentropyloss" class="ov-go">🔧 2개 보기</a></td></tr>
-        <tr><td><a href="notes/day09.html#loop">📖 ⑥ 학습 루프</a></td><td><code>torch.optim.SGD</code>, <code>optimizer.zero_grad()</code>, <code>optimizer.step()</code>, <code>model.train()</code> / <code>model.eval()</code> <a href="#d9-준비-batch-반복" class="ov-go">🔧 2개 보기</a></td></tr>
+        <tr><td><a href="notes/day09.html#loop">📖 ⑥ 학습 루프</a></td><td><code>torch.optim.SGD</code>, <code>optimizer.zero_grad()</code>, <code>optimizer.step()</code>, <code>model.train()</code> / <code>model.eval()</code> <a href="#d9-준비-batch-반복" class="ov-go">🔧 3개 보기</a></td></tr>
       </table>
 </section>
 <section class="cmd-overview" data-day="10" hidden>
@@ -98,7 +98,7 @@
         <tr><td><a href="notes/day11.html#tensor">📖 ① 이미지 Tensor [N, C, H, W]</a></td><td><code>torch.rand()</code>, <code>permute()</code>, <code>unsqueeze(0)</code> <a href="#d11-축-순서-바꾸기-개수-축-붙이기" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day11.html#conv">📖 ② 합성곱 Conv2d</a></td><td><code>nn.Conv2d(in, out, kernel_size, stride=, padding=)</code>, <code>F.conv2d()</code> <a href="#d11-nn-conv2d" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day11.html#pool">📖 ③ Pooling · BatchNorm · CNN 조립</a></td><td><code>nn.MaxPool2d()</code>, <code>nn.BatchNorm2d()</code>, <code>nn.AdaptiveAvgPool2d(1)</code>, <code>torch.flatten(x, 1)</code> <a href="#d11-smallcnn-만들기" class="ov-go">🔧 2개 보기</a></td></tr>
-        <tr><td><a href="notes/day11.html#data">📖 ④ 이미지 읽기 · 증강 · 학습 · 평가 · 저장</a></td><td><code>datasets.ImageFolder()</code>, <code>transforms.Compose()</code>, <code>nn.CrossEntropyLoss()</code>, <code>torch.inference_mode()</code>, <code>torch.save()</code> <a href="#d11-imagefolder" class="ov-go">🔧 3개 보기</a></td></tr>
+        <tr><td><a href="notes/day11.html#data">📖 ④ 이미지 읽기 · 증강 · 학습 · 평가 · 저장</a></td><td><code>datasets.ImageFolder()</code>, <code>transforms.Compose()</code>, <code>nn.CrossEntropyLoss()</code>, <code>torch.inference_mode()</code>, <code>torch.save()</code> <a href="#d11-imagefolder" class="ov-go">🔧 4개 보기</a></td></tr>
         <tr><td><a href="notes/day11.html#transfer">📖 ⑤ 전이학습 (Head-only · Partial)</a></td><td><code>resnet18(weights=)</code>, <code>weights.transforms()</code>, <code>requires_grad = False</code>, <code>model.fc = nn.Linear()</code> <a href="#d11-resnet18-head-only-전이학습" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day11.html#bench">📖 ⑥ CPU·GPU 속도 비교 · 성능표</a></td><td><code>time.perf_counter()</code>, <code>torch.cuda.synchronize()</code>, <code>torch.cuda.max_memory_allocated()</code> <a href="#d11-한-epoch-시간-재기" class="ov-go">🔧 1개 보기</a></td></tr>
       </table>
@@ -126,7 +126,7 @@
         <tr><td><a href="notes/day13.html#color">📖 ② 색공간 · 크기</a></td><td><code>cv2.cvtColor()</code>, <code>cv2.resize()</code> <a href="#d13-cv2-cvtcolor" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day13.html#filter">📖 ③ Filter · Edge</a></td><td><code>cv2.GaussianBlur()</code>, <code>cv2.medianBlur()</code>, <code>cv2.bilateralFilter()</code>, <code>cv2.Canny()</code> <a href="#d13-cv2-gaussianblur" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day13.html#thresh">📖 ④ Threshold · 형태학</a></td><td><code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getStructuringElement()</code>, <code>cv2.morphologyEx()</code> <a href="#d13-cv2-threshold" class="ov-go">🔧 2개 보기</a></td></tr>
-        <tr><td><a href="notes/day13.html#video">📖 ⑤ 영상 Frame 처리</a></td><td><code>cv2.VideoCapture()</code>, <code>cv2.VideoWriter()</code>, <code>cap.get(CAP_PROP_FPS)</code> <a href="#d13-cv2-videocapture" class="ov-go">🔧 1개 보기</a></td></tr>
+        <tr><td><a href="notes/day13.html#video">📖 ⑤ 영상 Frame 처리</a></td><td><code>cv2.VideoCapture()</code>, <code>cv2.VideoWriter()</code>, <code>cap.get(CAP_PROP_FPS)</code> <a href="#d13-cv2-videocapture" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day13.html#augment">📖 ⑥ 데이터 증강</a></td><td><code>cv2.flip()</code>, <code>cv2.getRotationMatrix2D()</code> + <code>cv2.warpAffine()</code>, <code>cv2.convertScaleAbs()</code> <a href="#d13-cv2-flip" class="ov-go">🔧 3개 보기</a></td></tr>
         <tr><td><a href="notes/day13.html#verify">📖 ⑦ 일괄 처리 · 검증</a></td><td><code>sorted(Path.glob())</code>, <code>imread(path, 0)</code> 재읽기, 검증표 <a href="#d13-sorted-path-glob" class="ov-go">🔧 1개 보기</a></td></tr>
       </table>
@@ -142,7 +142,7 @@
         <tr><td><a href="notes/day14.html#imbalance">📖 ④ 클래스 불균형</a></td><td><code>CrossEntropyLoss(weight=)</code>, <code>WeightedRandomSampler</code> <a href="#d14-nn-crossentropyloss-weight" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day14.html#eval">📖 ⑤ 평가 · 오류 분석</a></td><td><code>confusion_matrix()</code>, <code>classification_report()</code>, <code>f1_score(average=)</code>, <code>softmax</code> <a href="#d14-confusion-matrix" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day14.html#gradcam">📖 ⑥ Grad-CAM</a></td><td><code>register_forward_hook()</code>, <code>register_hook()</code>, <code>interpolate()</code> <a href="#d14-hook으로-activation-gradient-기록" class="ov-go">🔧 2개 보기</a></td></tr>
-        <tr><td><a href="notes/day14.html#repro">📖 ⑦ 비교 · 저장 · 재현</a></td><td><code>torch.manual_seed()</code>, <code>torch.save()</code>, <code>torch.load(weights_only=True)</code></td></tr>
+        <tr><td><a href="notes/day14.html#repro">📖 ⑦ 비교 · 저장 · 재현</a></td><td><code>torch.manual_seed()</code>, <code>torch.save()</code>, <code>torch.load(weights_only=True)</code> <a href="#d14-torch-manual-seed" class="ov-go">🔧 1개 보기</a></td></tr>
       </table>
 </section>
 <section class="cmd-overview" data-day="15" hidden>
@@ -154,7 +154,7 @@
         <tr><td><a href="notes/day15.html#metrics">📖 ② IoU · 평가 지표</a></td><td><code>model.val()</code> → <code>metrics.box.map50</code> <a href="#d15-box-iou" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day15.html#yolo">📖 ③ YOLO 모델 · 학습</a></td><td><code>YOLO()</code>, <code>model.train()</code> <a href="#d15-yolo" class="ov-go">🔧 1개 보기</a></td></tr>
         <tr><td><a href="notes/day15.html#nms">📖 ④ confidence · NMS · 추론</a></td><td><code>model.predict(conf=, iou=)</code>, <code>result.boxes</code> <a href="#d15-model-predict" class="ov-go">🔧 2개 보기</a></td></tr>
-        <tr><td><a href="notes/day15.html#track">📖 ⑤ 추적</a></td><td><code>model.track(persist=, tracker=)</code> <a href="#d15-model-track" class="ov-go">🔧 1개 보기</a></td></tr>
+        <tr><td><a href="notes/day15.html#track">📖 ⑤ 추적</a></td><td><code>model.track(persist=, tracker=)</code> <a href="#d15-model-track" class="ov-go">🔧 2개 보기</a></td></tr>
       </table>
 </section>
 <section class="cmd-overview" data-day="16" hidden>
@@ -540,6 +540,53 @@ with tempfile.TemporaryDirectory() as folder:
         <tr><td><code>tempfile.TemporaryDirectory()</code></td><td>with 블록이 끝나면 지워지는 임시 폴더</td><td>시연·검사용. 실제로 보관하려면 고정 경로에 저장</td></tr>
       </table>
       <div class="callout">💡 경계 상황도 미리 정해 두고 확인해요: 수치 결측·새 범주가 와도 8개 특성 유지, 필수 열이 빠지면 학습/예측 전에 <b>명확한 오류</b>(임의 값 생성 금지), <b>K &gt; train 행 수</b>면 실행 전 설정 오류(1 ≤ K ≤ 60). "에러가 안 났다"가 아니라 기대 출력·단위·행 수를 먼저 정하는 게 테스트예요.</div>
+</article>
+<h4 class="cmd-sub">스케일링 · Pipeline</h4>
+<article class="cmd" id="d6-knn-standardscaler" data-day="6">
+  <div class="cmd-head"><h3>KNN 스케일링 전후 비교 <code>StandardScaler</code></h3><span class="cmd-meta"><span class="tag">Day6</span> <a href="notes/day06.html#scaling">📖 이론 보기</a></span></div>
+<pre><code>import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
+X = np.array([[1000, 1], [1400, 4]])
+y = np.array([0, 1])
+q = np.array([[1100, 4]])
+raw = KNeighborsClassifier(n_neighbors=1).fit(X, y)
+s = StandardScaler().fit(X)                       # train 평균·표준편차 저장
+scaled = KNeighborsClassifier(n_neighbors=1)
+scaled.fit(s.transform(X), y)
+print("원단위:", raw.predict(q).tolist())          # [0]
+print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규칙으로 q도 변환</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 A·B·Q 세 요청 (글자수, 도구수)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>raw.predict([[1100, 4]])</code></td><td><code>[0]</code></td><td>원래 단위: 글자수 차이가 거리를 지배 → A(0)</td></tr>
+    <tr><td><code>s.mean_, s.scale_</code></td><td><code>[1200.0, 2.5], [200.0, 1.5]</code></td><td>train 두 행의 평균·표준편차를 기억</td></tr>
+    <tr><td><code>s.transform([[1100, 4]])</code></td><td><code>[[-0.5  1. ]]</code></td><td>Q도 같은 규칙으로 변환</td></tr>
+    <tr><td><code>scaled.predict(s.transform(q))</code></td><td><code>[1]</code></td><td>표준화 후엔 도구수 차이도 반영 → B(1)</td></tr>
+  </table>
+</div>
+</article>
+<article class="cmd" id="d6-standardscaler" data-day="6">
+  <div class="cmd-head"><h3><code>StandardScaler</code> · <code>MinMaxScaler</code> 값 확인</h3><span class="cmd-meta"><span class="tag">Day6</span> <a href="notes/day06.html#scaling">📖 이론 보기</a></span></div>
+<pre><code>import numpy as np
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+X = np.array([[100], [200], [300]])
+a = StandardScaler().fit(X)
+b = MinMaxScaler().fit(X)
+print("표준화:", a.transform(X).ravel().round(3).tolist())   # [-1.225, 0.0, 1.225]
+print("MinMax:", b.transform(X).ravel().tolist())            # [0.0, 0.5, 1.0]
+print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>train 값 100·200·300</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>StandardScaler().fit(X).transform(X)</code></td><td><code>[-1.225, 0.0, 1.225]</code></td><td>평균 200, 표준편차 81.6</td></tr>
+    <tr><td><code>MinMaxScaler().fit(X).transform(X)</code></td><td><code>[0.0, 0.5, 1.0]</code></td><td>최소 100 → 0, 최대 300 → 1</td></tr>
+    <tr><td><code>b.transform([[500]])</code></td><td><code>[2.0]</code></td><td>train 범위 밖이라 1을 넘어요</td></tr>
+    <tr><td><code>a.transform([[500]])</code></td><td><code>[3.674]</code></td><td>표준화도 범위 제한이 없어요</td></tr>
+  </table>
+</div>
 </article>
 <h4 class="cmd-sub">트리 · 복잡도</h4>
 <article class="cmd" id="d7-decisiontreeclassifier" data-day="7">
@@ -1127,6 +1174,27 @@ check_input(new_requests.drop(columns="priority"))         # ← ValueError가 �
       </div>
       <div class="callout">🤔 <strong>왜 AUC 0.786인데 실패는 절반만 찾았지?</strong> — AUC는 "실패·성공 쌍에서 실패 점수가 더 높은 비율"이라 순위가 꽤 괜찮다는 뜻이에요. 하지만 실제로 경고를 낼지는 <b>임계값 0.5</b>가 정해요. 순위상 위쪽에 있어도 확률이 0.5를 못 넘은 실패는 놓쳐요(Recall 0.5). 좋은 순위와 좋은 운영 기준은 따로 점검해야 하는 이유예요.</div>
 </article>
+<h4 class="cmd-sub">회귀 지표</h4>
+<article class="cmd" id="d8-mean-absolute-error" data-day="8">
+  <div class="cmd-head"><h3>MAE · RMSE 계산 <code>mean_absolute_error</code> · <code>root_mean_squared_error</code></h3><span class="cmd-meta"><span class="tag">Day8</span> <a href="notes/day08.html#cvagg">📖 이론 보기</a></span></div>
+<pre><code>from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+y = [100, 200, 300, 400]
+a = [100, 200, 300, 480]
+b = [130, 230, 330, 430]
+for name, pred in [("A", a), ("B", b)]:
+    print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))
+# A 20.0 40.0  /  B 30.0 30.0</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 100·200·300·400</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>mean_absolute_error(y, A)</code></td><td><code>20</code></td><td>A 오차 (0, 0, 0, 80) → 평균 20</td></tr>
+    <tr><td><code>root_mean_squared_error(y, A)</code></td><td><code>40</code></td><td>80이 제곱돼 6400 → 큰 오차에 민감</td></tr>
+    <tr><td><code>mean_absolute_error(y, B)</code></td><td><code>30</code></td><td>B 오차는 고르게 30</td></tr>
+    <tr><td><code>root_mean_squared_error(y, B)</code></td><td><code>30</code></td><td>고른 오차는 MAE = RMSE</td></tr>
+  </table>
+</div>
+</article>
 </section>
 <section class="cmd-topic" id="topic-xgboost">
 <h2>🌲 XGBoost</h2>
@@ -1180,6 +1248,28 @@ model_r = build(xgr).fit(X_train, yr_train)        # X·분할 ID는 동일, 정
         <tr><td>XGBoost</td><td>깊이·규제·학습률·회차·부분 표본</td><td>손실 변화 · stop 자료 · 과도한 학습량</td></tr>
       </table>
       <div class="callout warn">⚠️ 이번 자료에서 XGB의 valid F1은 0.182였어요. 학습률을 낮추거나 규제를 강하게 해도 항상 좋아지지 않아요. 규제·단순화도 과소적합과의 균형을 비교로 확인해요.</div>
+</article>
+<article class="cmd" id="d7-decisiontreeregressor" data-day="7">
+  <div class="cmd-head"><h3>부스팅 한 회차 직접 계산 <code>DecisionTreeRegressor</code></h3><span class="cmd-meta"><span class="tag">Day7</span> <a href="notes/day07.html#xgb">📖 이론 보기</a></span></div>
+<pre><code>X = np.array([[1], [2], [3], [4]])
+y = np.array([100., 120., 200., 220.])
+initial = np.full(4, y.mean())                       # 처음 예측: 모두 160
+residual = y - initial                               # 제곱오차에서의 보정 목표
+correction = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, residual)
+updated = initial + 0.5 * correction.predict(X)      # 학습률 0.5 = 보정량의 절반만
+print(updated.tolist())                              # [135.0, 135.0, 185.0, 185.0]
+print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 4개 예제</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>residual = y - initial</code></td><td><code>[-60.0, -40.0, 40.0, 60.0]</code></td><td>처음 예측 160에서 얼마나 틀렸나</td></tr>
+    <tr><td><code>correction.predict(X)</code></td><td><code>[-50.0, -50.0, 50.0, 50.0]</code></td><td>깊이 1 트리: x ≤ 2.5면 −50, 아니면 +50</td></tr>
+    <tr><td><code>initial + 0.5 * correction.predict(X)</code></td><td><code>[135.0, 135.0, 185.0, 185.0]</code></td><td>보정을 절반(학습률 0.5)만 반영</td></tr>
+    <tr><td><code>MSE 전 → 후</code></td><td><code>2600 → 725</code></td><td>한 회차 만에 오차가 줄어요</td></tr>
+    <tr><td><code>initial + 1.0 * correction.predict(X)</code></td><td><code>[110.0, 110.0, 210.0, 210.0]</code></td><td>학습률 1이면 MSE 100 — 이 4개엔 더 맞지만 잡음까지 따라갈 위험</td></tr>
+  </table>
+</div>
 </article>
 </section>
 <section class="cmd-topic" id="topic-pytorch">
@@ -1644,6 +1734,27 @@ with torch.no_grad():                           # 평가: 기록 끄기
   </table>
 </div>
       <div class="callout">🤔 <strong>왜 <code>× len(xb)</code>를 해?</strong> — <code>loss</code>는 batch 안의 <b>평균</b>이에요(reduction="mean"). 마지막 batch는 8개처럼 작을 수 있어서, batch 평균들을 그냥 평균 내면 8개짜리 batch가 32개짜리와 같은 무게를 갖게 돼요. 샘플 수를 곱해 합친 뒤 전체 샘플 수로 나누면 "샘플 하나하나의 평균"이 정확히 나와요. 함수 하나가 "epoch 1회 학습"이라는 한 가지 역할만 하게 나누면 읽기도 쉬워요.</div>
+</article>
+<article class="cmd" id="d9-model-train" data-day="9">
+  <div class="cmd-head"><h3><code>model.train()</code> · <code>model.eval()</code> · <code>torch.no_grad()</code></h3><span class="cmd-meta"><span class="tag">Day9</span> <a href="notes/day09.html#loop">📖 이론 보기</a></span></div>
+      <table>
+        <tr><th>명령</th><th>하는 일</th><th>안 하는 일</th></tr>
+        <tr><td><code>model.train()</code></td><td>Dropout·BatchNorm 같은 층을 학습 동작으로</td><td>기울기를 켜고 끄진 않음</td></tr>
+        <tr><td><code>model.eval()</code></td><td>평가 동작으로 전환</td><td><b>기울기 계산을 끄지 않음!</b></td></tr>
+        <tr><td><code>with torch.no_grad():</code></td><td>그래프 기록을 끔 → 메모리 절약</td><td>모드는 안 바꿈</td></tr>
+      </table>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Dropout(0.5)가 든 작은 모델 · 같은 입력 두 번</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>model.train(); model(x) 두 번</code></td><td><code>0.4557, 0.5273</code></td><td>학습 모드: Dropout이 매번 다른 칸을 꺼서 값이 달라요</td></tr>
+    <tr><td><code>model.eval(); model(x) 두 번</code></td><td><code>0.4728, 0.4728</code></td><td>평가 모드: 매번 같아요</td></tr>
+    <tr><td><code>model.eval() 후 model(x).requires_grad</code></td><td><code>True</code></td><td>eval()만으로는 기울기 기록이 안 꺼져요!</td></tr>
+    <tr><td><code>with torch.no_grad(): model(x).requires_grad</code></td><td><code>False</code></td><td>기울기 기록은 no_grad가 끔</td></tr>
+  </table>
+</div>
+      <div class="callout">💡 평가할 땐 <code>model.eval()</code> + <code>torch.no_grad()</code>를 <b>세트로</b> 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 <code>probs.detach().cpu()</code>처럼 CPU로 옮겨요.</div>
+      <div class="callout">🤔 <strong>왜 둘 다 필요해?</strong> — 둘은 다른 스위치예요. <code>eval()</code>은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 <b>예측이 매번 같고 공정</b>하게 만들어요. <code>no_grad()</code>는 평가 땐 backward를 안 하니 <b>그래프를 안 만들어 메모리·시간을 아껴요</b>. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.</div>
 </article>
 <h4 class="cmd-sub">Optimizer · 규제</h4>
 <article class="cmd" id="d10-optimizer만-바꿔-끼우기" data-day="10">
@@ -2983,6 +3094,36 @@ cam = torch.nn.functional.interpolate(cam[None, None], size=image_hw,
       </table>
       <p><small>간단히 쓰면 hook 대신 <code>torch.autograd.grad(score[0, target], features)[0]</code>로 특징 지도에 대한 gradient를 바로 받을 수도 있어요.</small></p>
 </article>
+<h4 class="cmd-sub">저장 · 재현</h4>
+<article class="cmd" id="d14-torch-manual-seed" data-day="14">
+  <div class="cmd-head"><h3>재현 · 저장 <code>torch.manual_seed()</code> · <code>torch.save()</code> · <code>torch.load()</code></h3><span class="cmd-meta"><span class="tag">Day14</span> <a href="notes/day14.html#repro">📖 이론 보기</a></span></div>
+<pre><code>torch.manual_seed(14)                         # 맨 앞에서 무작위 시작값 고정
+
+torch.save({"weights": best_state, "classes": train_set.classes,
+            "lr": 0.01, "epochs": 8, "seed": 14, "test_used": False}, "model.pt")
+
+saved = torch.load("model.pt", map_location="cpu", weights_only=True)
+model.load_state_dict(saved["weights"]); model.eval()</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>작은 Linear(4, 3) 모델로</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>torch.manual_seed(14); torch.rand(3)</code></td><td><code>[0.5695 0.0047 0.9303]</code></td><td></td></tr>
+    <tr><td><code>다시 manual_seed(14); torch.rand(3)</code></td><td><code>[0.5695 0.0047 0.9303]</code></td><td>seed가 같으면 똑같은 난수</td></tr>
+    <tr><td><code>이어서 torch.rand(3) 한 번 더</code></td><td><code>[0.7257 0.8295 0.7683]</code></td><td>seed를 다시 안 정하면 다음 난수로 넘어가요</td></tr>
+    <tr><td><code>list(saved.keys())</code></td><td><code>[&#x27;weights&#x27;, &#x27;classes&#x27;, &#x27;lr&#x27;, &#x27;epochs&#x27;, &#x27;seed&#x27;, &#x27;test_used&#x27;]</code></td><td>가중치 + 만든 방법을 함께 저장</td></tr>
+    <tr><td><code>model.load_state_dict(saved[&#x27;weights&#x27;])</code></td><td><code>&lt;All keys matched successfully&gt;</code></td><td>missing·unexpected 둘 다 비면 정상</td></tr>
+    <tr><td><code>저장 전후 가중치가 같나?</code></td><td><code>True</code></td><td></td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>명령어 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
+        <tr><td><code>torch.manual_seed(n)</code></td><td>무작위 시작값 고정</td><td>seed만 바꿔도 결과가 꽤 흔들림 → 한 번 결과로 결론 내지 않고 seed를 바꿔 여러 번 확인</td></tr>
+        <tr><td><code>torch.save(dict, path)</code></td><td>가중치 + <b>만든 방법</b>(클래스·lr·epoch·seed·test 사용 여부)을 함께 저장</td><td>가중치만 저장하면 다시 만들 수도, 클래스 번호를 해석할 수도 없음</td></tr>
+        <tr><td><code>map_location="cpu"</code></td><td>GPU에서 저장한 걸 CPU로 불러오기</td><td>빼면 GPU가 없는 컴퓨터에서 에러</td></tr>
+        <tr><td><code>weights_only=True</code></td><td>텐서 같은 안전한 값만 불러옴</td><td>False면 파일 안의 임의 코드가 실행될 수 있음 → 믿을 수 없는 checkpoint는 <code>torch.load</code> 하지 않기</td></tr>
+      </table>
+</article>
 </section>
 <section class="cmd-topic" id="topic-torchvision">
 <h2>🧩 torchvision</h2>
@@ -3054,6 +3195,28 @@ optimizer = torch.optim.AdamW([
         <tr><td><code>model.layer4</code></td><td>ResNet18의 마지막 큰 블록 (512ch)</td><td>layer3까지 열면 더 유연하지만 학습 파라미터·과적합 위험이 커짐</td></tr>
       </table>
       <div class="callout warn">⚠️ SmallCNN(처음부터)과 ResNet18(전이학습)은 입력 크기·lr·학습 범위가 달라서, 성능 차이를 "순수한 구조 차이"라고 단정하지 말고 조건을 같이 적어요.</div>
+</article>
+<h4 class="cmd-sub">데이터 · 증강</h4>
+<article class="cmd" id="d11-transforms-compose" data-day="11">
+  <div class="cmd-head"><h3>증강 <code>transforms.Compose</code> (train만)</h3><span class="cmd-meta"><span class="tag">Day11</span> <a href="notes/day11.html#data">📖 이론 보기</a></span></div>
+<pre><code>train_tf = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.RandomHorizontalFlip(),          # 좌우 반전 (확률 0.5)
+    transforms.RandomRotation(10),              # ±10도 회전
+    transforms.ColorJitter(brightness=0.15),    # 밝기 조금 흔들기
+    transforms.ToTensor(),
+])
+valid_tf = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor()])</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>100×80 합성 그라데이션 사진 한 장</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>train_tf(img).shape, dtype</code></td><td><code>(3, 64, 64), torch.float32</code></td><td>[C, H, W], 0~1 실수 (ToTensor)</td></tr>
+    <tr><td><code>train_tf(img) 두 번이 같나?</code></td><td><code>False</code></td><td>부를 때마다 무작위로 다르게 변형</td></tr>
+    <tr><td><code>valid_tf(img) 두 번이 같나?</code></td><td><code>True</code></td><td>평가용은 항상 똑같이</td></tr>
+    <tr><td><code>valid_tf(img).min(), max()</code></td><td><code>0.000, 0.698</code></td><td>ToTensor가 0~255를 0~1로</td></tr>
+  </table>
+</div>
 </article>
 <h4 class="cmd-sub">데이터셋 · 분할</h4>
 <article class="cmd" id="d14-imagefolder" data-day="14">
@@ -3699,6 +3862,29 @@ print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 �
         <tr><td><code>imread(path, 0)</code></td><td>저장 결과를 Gray로 다시 읽기</td><td>저장이 "성공"해도 크기·채널이 의도와 같은지는 <b>다시 읽어 봐야</b> 앎</td></tr>
       </table>
 </article>
+<h4 class="cmd-sub">영상</h4>
+<article class="cmd" id="d13-frame-idx-step" data-day="13">
+  <div class="cmd-head"><h3>Frame 건너뛰며 처리 <code>frame_idx % step</code></h3><span class="cmd-meta"><span class="tag">Day13</span> <a href="notes/day13.html#video">📖 이론 보기</a></span></div>
+<pre><code># cap · process_frame 은 위 VideoCapture 항목과 같아요
+step = 5
+frame_idx = 0
+while True:
+    ok, frame = cap.read()
+    if not ok:
+        break
+    if frame_idx % step == 0:          # 5장마다 1장만 처리
+        result = process_frame(frame)
+    frame_idx += 1</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>data/sample.avi (48 Frame, 12 FPS)</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>읽은 Frame 수</code></td><td><code>48</code></td><td></td></tr>
+    <tr><td><code>step = 5 로 처리한 Frame 번호</code></td><td><code>[0, 5, 10, 15, 20, 25, 30, 35, 40, 45]</code></td><td>10장만 처리 — 계산량 약 1/5</td></tr>
+    <tr><td><code>처리 간격(초)</code></td><td><code>0.417</code></td><td>12 FPS에서 5장 = 약 0.42초마다 한 번 → 그 사이 빠른 사건은 놓칠 수 있어요</td></tr>
+  </table>
+</div>
+</article>
 <h4 class="cmd-sub">문서 전처리</h4>
 <article class="cmd" id="d16-cv2-imread" data-day="16">
   <div class="cmd-head"><h3>읽기 · Gray 변환 <code>cv2.imread()</code> · <code>cv2.cvtColor()</code></h3><span class="cmd-meta"><span class="tag">Day16</span> <a href="notes/day16.html#prep">📖 이론 보기</a></span></div>
@@ -4061,6 +4247,15 @@ for result in model.track(source="traffic.mp4", persist=True,
       <div class="callout warn">⚠️ 다른 영상으로 넘어갈 땐 <b>새 YOLO 객체</b>를 만들어 기억을 초기화.</div>
       <div class="callout">🤔 <strong>왜 추적기만 바꿔서는 안 좋아져?</strong> — 추적은 탐지 결과를 <b>이어 붙이는</b> 단계라서, 탐지가 물체를 놓치면 이을 박스 자체가 없어요. 탐지 성능이 추적 품질의 천장이에요.</div>
       <div class="callout warn">⚠️ 속도를 잴 땐 범위를 같이 적어요. "모델 추론 5ms"를 보고 200 FPS라고 하면 안 돼요. 영상 읽기·전처리·후처리·추적·저장 시간까지 더해야 실제 처리 속도예요.</div>
+</article>
+<h4 class="cmd-sub">CLI</h4>
+<article class="cmd" id="d15-yolo-detect" data-day="15">
+  <div class="cmd-head"><h3>같은 걸 터미널(CLI)로 <code>yolo detect ...</code></h3><span class="cmd-meta"><span class="tag">Day15</span> <a href="notes/day15.html#track">📖 이론 보기</a></span></div>
+<pre><code>yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
+yolo detect val     model=best.pt data=dataset.yaml
+yolo detect predict model=best.pt source=samples/ conf=0.25
+yolo detect track   model=best.pt source=traffic.mp4</code></pre>
+      <div class="callout warn">⚠️ CLI는 <code>epochs=30</code> 형식. <code>--epochs 30</code> 아님!</div>
 </article>
 </section>
 <section class="cmd-topic" id="topic-ocr-문서">

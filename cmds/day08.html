@@ -334,3 +334,23 @@ check_input(new_requests.drop(columns="priority"))         # ← ValueError가 �
       </div>
       <div class="callout">🤔 <strong>왜 AUC 0.786인데 실패는 절반만 찾았지?</strong> — AUC는 "실패·성공 쌍에서 실패 점수가 더 높은 비율"이라 순위가 꽤 괜찮다는 뜻이에요. 하지만 실제로 경고를 낼지는 <b>임계값 0.5</b>가 정해요. 순위상 위쪽에 있어도 확률이 0.5를 못 넘은 실패는 놓쳐요(Recall 0.5). 좋은 순위와 좋은 운영 기준은 따로 점검해야 하는 이유예요.</div>
 </section>
+<section class="cmd" id="d8-mean-absolute-error" data-topic="scikit-learn" data-sub="회귀 지표" data-day="8" data-theory="notes/day08.html#cvagg">
+  <h3>MAE · RMSE 계산 <code>mean_absolute_error</code> · <code>root_mean_squared_error</code></h3>
+<pre><code>from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+y = [100, 200, 300, 400]
+a = [100, 200, 300, 480]
+b = [130, 230, 330, 430]
+for name, pred in [("A", a), ("B", b)]:
+    print(name, mean_absolute_error(y, pred), root_mean_squared_error(y, pred))
+# A 20.0 40.0  /  B 30.0 30.0</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 100·200·300·400</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>mean_absolute_error(y, A)</code></td><td><code>20</code></td><td>A 오차 (0, 0, 0, 80) → 평균 20</td></tr>
+    <tr><td><code>root_mean_squared_error(y, A)</code></td><td><code>40</code></td><td>80이 제곱돼 6400 → 큰 오차에 민감</td></tr>
+    <tr><td><code>mean_absolute_error(y, B)</code></td><td><code>30</code></td><td>B 오차는 고르게 30</td></tr>
+    <tr><td><code>root_mean_squared_error(y, B)</code></td><td><code>30</code></td><td>고른 오차는 MAE = RMSE</td></tr>
+  </table>
+</div>
+</section>

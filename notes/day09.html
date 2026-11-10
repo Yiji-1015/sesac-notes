@@ -369,15 +369,11 @@ optimizer.step()</code></pre>
 return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss</code></pre>
       </div>
 
-      <h3>train · eval · no_grad는 서로 다른 스위치</h3>
-      <table>
-        <tr><th>명령</th><th>하는 일</th><th>안 하는 일</th></tr>
-        <tr><td><code>model.train()</code></td><td>Dropout·BatchNorm 같은 층을 학습 동작으로</td><td>기울기를 켜고 끄진 않음</td></tr>
-        <tr><td><code>model.eval()</code></td><td>평가 동작으로 전환</td><td><b>기울기 계산을 끄지 않음!</b></td></tr>
-        <tr><td><code>with torch.no_grad():</code></td><td>그래프 기록을 끔 → 메모리 절약</td><td>모드는 안 바꿈</td></tr>
-      </table>
-      <div class="callout">💡 평가할 땐 <code>model.eval()</code> + <code>torch.no_grad()</code>를 <b>세트로</b> 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 <code>probs.detach().cpu()</code>처럼 CPU로 옮겨요.</div>
-      <div class="callout">🤔 <strong>왜 둘 다 필요해?</strong> — 둘은 다른 스위치예요. <code>eval()</code>은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 <b>예측이 매번 같고 공정</b>하게 만들어요. <code>no_grad()</code>는 평가 땐 backward를 안 하니 <b>그래프를 안 만들어 메모리·시간을 아껴요</b>. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>model.train()</code> · <code>model.eval()</code> · <code>torch.no_grad()</code> <a href="../commands.html#d9-model-train">명령어 사전에서 자세히 →</a></div>
+<pre><code>model.eval()                 # 평가 동작으로 (기울기는 그대로)
+with torch.no_grad():        # 기울기 기록 끄기</code></pre>
+      </div>
       <div class="callout">💡 학습 곡선의 loss가 매 epoch 꼭 줄어드는 건 아니에요. 전체 추세를 보고, loss와 accuracy는 따로 읽어요.</div>
 
       <!-- ============================================================ -->

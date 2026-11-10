@@ -329,3 +329,25 @@ with tempfile.TemporaryDirectory() as folder:
       </table>
       <div class="callout">💡 "오류 없이 끝났다"와 "요구사항대로 동작했다"는 달라요. 정상 valid 20(20개 예측·ID 순서), 결측·미지 범주(8열·통계 불변), 필수 열 누락(명확한 오류), CV 한 fold(학습 48·평가 12·교집합 0), 저장 모델(복원 후 예측 일치)을 따로 확인해요. 저장·복원의 자세한 설명은 <a href="notes/day06.html#checks">Day6 ⑦</a>.</div>
 </section>
+<section class="cmd" id="d7-decisiontreeregressor" data-topic="XGBoost" data-sub="" data-day="7" data-theory="notes/day07.html#xgb">
+  <h3>부스팅 한 회차 직접 계산 <code>DecisionTreeRegressor</code></h3>
+<pre><code>X = np.array([[1], [2], [3], [4]])
+y = np.array([100., 120., 200., 220.])
+initial = np.full(4, y.mean())                       # 처음 예측: 모두 160
+residual = y - initial                               # 제곱오차에서의 보정 목표
+correction = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, residual)
+updated = initial + 0.5 * correction.predict(X)      # 학습률 0.5 = 보정량의 절반만
+print(updated.tolist())                              # [135.0, 135.0, 185.0, 185.0]
+print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0</code></pre>
+<div class="io io-extra">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 4개 예제</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>residual = y - initial</code></td><td><code>[-60.0, -40.0, 40.0, 60.0]</code></td><td>처음 예측 160에서 얼마나 틀렸나</td></tr>
+    <tr><td><code>correction.predict(X)</code></td><td><code>[-50.0, -50.0, 50.0, 50.0]</code></td><td>깊이 1 트리: x ≤ 2.5면 −50, 아니면 +50</td></tr>
+    <tr><td><code>initial + 0.5 * correction.predict(X)</code></td><td><code>[135.0, 135.0, 185.0, 185.0]</code></td><td>보정을 절반(학습률 0.5)만 반영</td></tr>
+    <tr><td><code>MSE 전 → 후</code></td><td><code>2600 → 725</code></td><td>한 회차 만에 오차가 줄어요</td></tr>
+    <tr><td><code>initial + 1.0 * correction.predict(X)</code></td><td><code>[110.0, 110.0, 210.0, 210.0]</code></td><td>학습률 1이면 MSE 100 — 이 4개엔 더 맞지만 잡음까지 따라갈 위험</td></tr>
+  </table>
+</div>
+</section>
