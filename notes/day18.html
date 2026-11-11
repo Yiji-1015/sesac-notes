@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day18 · PostgreSQL 입문 · 지식 관리 DB | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag llm">LLM·RAG</span>
+      <h1>Day18 · PostgreSQL 입문 · 지식 관리 DB</h1>
+      <div class="meta">2026-11-11(수) · PostgreSQL · SQL · PK/FK · JOIN · 집계 · 제약조건 · 트랜잭션 · 인덱스</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>어제 JSON 파일 하나에 넣던 지식을 <b>PostgreSQL</b>의 표 두 개(<code>categories</code> 분류 · <code>knowledge</code> 지식)로 나누고, <b>PK·FK</b>로 관계를 묶어요.</li>
+          <li><b>SQL</b>로 읽고(<code>SELECT</code>·<code>WHERE</code>·<code>JOIN</code>·<code>GROUP BY</code>) 바꿔요(<code>INSERT</code>·<code>UPDATE</code>·<code>DELETE</code> + <code>RETURNING</code>).</li>
+          <li>잘못된 값은 <b>제약조건</b>이 거부하고, 여러 변경은 <b>트랜잭션</b>(<code>BEGIN</code> → <code>COMMIT</code> 또는 <code>ROLLBACK</code>)으로 묶어 확정하거나 없던 일로 해요.</li>
+        </ol>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Day18 명령어 한눈에 — 이론 구역별 SQL·인자 설명 <a href="../commands.html#day18">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 SQL 한두 줄만 남겼어요. 명령어 사전의 결과값은 같은 S0 데이터를 실제로 실행해 얻은 거예요.</p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 프로그램</h2>
+      <p>오늘은 <code>pip install</code>이 없어요. 파이썬이 아니라 <b>DB 서버 프로그램</b>을 설치하고, 그 서버에 SQL을 보내는 <b>접속 도구</b>를 써요.</p>
+      <table>
+        <tr><th>프로그램</th><th>뭐 하는 애?</th><th>어디서 써?</th></tr>
+        <tr><td><b>PostgreSQL 18</b> (Server)</td><td>데이터를 실제로 저장하고 SQL·규칙을 처리하는 <b>DBMS</b>. 수업 기준은 18 계열</td><td>설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요</td></tr>
+        <tr><td><b>pgAdmin 4</b></td><td>창(GUI)으로 서버에 접속해 SQL을 보내고 결과를 보는 <b>클라이언트</b></td><td>Query Tool에서 SQL 실행 → Data Output·Messages 확인</td></tr>
+        <tr><td><b>psql</b> (Command Line Tools)</td><td>터미널에서 쓰는 클라이언트</td><td>PowerShell에서 <code>psql -U postgres -d knowledge_lab</code></td></tr>
+        <tr><td><code>psycopg</code> 등 (내일)</td><td>파이썬(FastAPI)에서 PostgreSQL에 접속하는 드라이버</td><td>오늘은 안 씀 — 11/12 연동 때</td></tr>
+      </table>
+      <h3>🔧 설치 · 확인 (PowerShell)</h3>
+<pre><code># 공식 Windows 안내 → EDB 설치 프로그램 (Server · pgAdmin · Command Line Tools 선택)
+psql --version                         # 클라이언트(psql) 버전
+Get-Service postgresql*                # 서버가 서비스로 Running 인지
+psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → postgres=# 프롬프트</code></pre>
+      <div class="callout warn">⚠️ <b>서버 비밀번호는 비밀이에요.</b> 소스 코드·Git·제출물·스크린샷에 실제 값을 남기지 않아요. 그리고 <b>pgAdmin 창을 닫는 것 ≠ PostgreSQL 서버를 끄는 것</b> — 서버는 서비스로 계속 돌아요.</div>
+      <div class="callout">🤔 <strong>왜 <code>psql --version</code>과 <code>SELECT version()</code>이 따로 있어?</strong> — 앞의 것은 <b>내 컴퓨터의 접속 도구</b> 버전, 뒤의 것은 <b>접속한 서버</b>의 버전이에요. 다른 컴퓨터의 서버에 붙으면 둘이 다를 수 있어요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>신입이 "개발환경 설정 절차 알려 주세요"라고 물으면 나중엔 <b>AI Agent</b>가 지식 조회 도구로 안내문을 찾아 답해요. 그런데 안내문이 바뀌었는데 예전 내용을 읽어 가면 안 되죠. 그래서 검색·생성 <b>이전에</b>, 사람이 관리하는 <b>원본 지식</b>이 정확하고 추적 가능해야 해요. 오늘은 그 원본을 <b>표와 규칙</b>으로 관리해요.</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🗂️</div><strong>원본 지식 저장</strong><span>제목·본문·분류를 규칙과 함께 보관</span></div>
+        <div class="usecase"><div class="emoji">🔗</div><strong>관계 관리</strong><span>분류 이름을 한 곳에서 관리하고 번호로 연결</span></div>
+        <div class="usecase"><div class="emoji">🛡️</div><strong>안전한 변경</strong><span>잘못된 값 거부 · 실패하면 통째로 취소</span></div>
+        <div class="usecase"><div class="emoji">🔎</div><strong>추적</strong><span>Agent가 어떤 ID의 안내를 참고했는지 남길 근거</span></div>
+      </div>
+      <figure id="fig-zoom"><img class="smooth" src="img/day18/zoom_map.png" alt="AI Agent 서비스, FastAPI, PostgreSQL 서버, knowledge_lab·public, categories·knowledge 두 테이블, 한 행의 category_id 값까지 왼쪽에서 오른쪽으로 확대해 가는 그림. 가운데 세 칸이 오늘 다루는 곳으로 초록 점선 안에 있다"><figcaption><b>무엇을 보나:</b> 왼쪽 서비스에서 오른쪽 <b>값 하나</b>까지 점점 확대했어요. 초록 점선 안(서버 → DB·스키마 → 테이블)이 오늘 SQL로 직접 만지는 곳이에요. 아래 회색 점선의 검색·RAG·Agent는 이 원본을 <b>읽어 가는</b> 별도 계층이고 이후 수업이에요. <b>🤔 왜 이렇게 나눠 봐?</b> 문제가 생겼을 때 "서버에 못 붙은 건지, 다른 DB에 붙은 건지, 표가 없는 건지, 값이 틀린 건지"를 층별로 좁힐 수 있어요.</figcaption></figure>
+      <table>
+        <tr><th></th><th>오늘 · PostgreSQL SQL / Index</th><th>이후 · Embedding / Vector Search</th></tr>
+        <tr><td>찾는 방법</td><td><code>WHERE category_id = 1</code>처럼 <b>조건이 정확히 맞는</b> 행</td><td>질문과 <b>뜻이 가까운</b> 문서 조각</td></tr>
+        <tr><td>인덱스</td><td>B-tree 인덱스 — 조건에 맞는 행을 빨리 찾는 길</td><td>벡터 인덱스 — 가까운 벡터를 빨리 찾는 길</td></tr>
+        <tr><td>책임</td><td>원본의 저장 규칙·관계·변경 확정</td><td>근거 후보를 골라 LLM에 전달</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>B-tree 인덱스를 만들었다고 의미 검색이 되는 건 아니에요.</b> <code>LIKE '%실행%'</code>도 글자 포함 검색일 뿐이라 "구동"은 못 찾아요. 그리고 원본을 고치거나 지워도 나중의 <b>벡터 인덱스는 자동으로 안 바뀌어요</b>.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="connect">① DB · DBMS · 접속 도구</h2>
+      <table>
+        <tr><th>용어</th><th>오늘의 예</th><th>역할</th></tr>
+        <tr><td><b>Database</b></td><td><code>knowledge_lab</code></td><td>지식·분류의 구조와 데이터를 담는 업무 공간</td></tr>
+        <tr><td><b>DBMS</b> / RDBMS</td><td>PostgreSQL</td><td>표 형태의 데이터를 관리하고 SQL·규칙을 처리하는 프로그램</td></tr>
+        <tr><td><b>Client</b></td><td>pgAdmin / psql</td><td>서버에 SQL을 보내고 결과를 받는 도구</td></tr>
+        <tr><td><b>SQL</b></td><td><code>SELECT</code> · <code>INSERT</code> …</td><td>구조를 정의하고 데이터를 읽고 바꾸는 언어</td></tr>
+      </table>
+      <p>이름 공간은 <b>Server ⊃ Database ⊃ Schema ⊃ Table</b>이에요. <code>knowledge_lab</code>에 접속하면 <code>public</code> 스키마의 <code>knowledge</code> 표를 <code>public.knowledge</code>(줄여서 <code>knowledge</code>)로 불러요. <b>Schema</b>는 같은 DB 안에서 표 이름을 묶는 이름표지 디스크 폴더가 아니에요.</p>
+      <table>
+        <tr><th>접속 값</th><th>예시</th><th>뜻</th></tr>
+        <tr><td><b>Host</b></td><td><code>localhost</code></td><td>지금 이 컴퓨터의 서버</td></tr>
+        <tr><td><b>Port</b></td><td><code>5432</code></td><td>설치할 때 정한 서버 포트 (기본값)</td></tr>
+        <tr><td><b>Database</b></td><td><code>knowledge_lab</code></td><td>오늘의 개인 학습 DB</td></tr>
+        <tr><td><b>User</b></td><td><code>postgres</code></td><td>설치 확인용 관리자 계정. 실제 앱은 따로 만든 계정을 써요</td></tr>
+        <tr><td><b>Password</b></td><td>(본인이 정한 값)</td><td>서버 인증 · 결과물에는 숨겨요</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>SELECT 1</code>만 보면 안 돼?</strong> — <code>1</code>이 나오면 "어떤 서버엔가 붙었다"는 것만 알려 줘요. 실수로 <code>postgres</code> DB에 붙은 채 표를 만들면 나중에 <code>knowledge_lab</code>에서 "relation does not exist"가 나요. 그래서 <b>첫 SQL은 <code>current_database()</code></b>로 지금 DB 이름부터 봐요. 그리고 pgAdmin의 서버 등록 이름은 화면에 보이는 <b>별칭</b>일 뿐이라, 그 이름을 적는다고 DB가 생기지 않아요.</div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 첫 SQL — 지금 어느 DB인가 <a href="../commands.html#d18-current-database">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT current_database() AS db_name, current_user AS user_name;
+SELECT 1 AS connection_ok;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>CREATE DATABASE</code> — 개인 학습 DB 만들기 <a href="../commands.html#d18-create-database">명령어 사전에서 자세히 →</a></div>
+<pre><code>CREATE DATABASE knowledge_lab;      -- postgres DB에서 이 문장만 단독 실행</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>psql</code> — 터미널 접속과 <code>\dt</code> · <code>\d</code> <a href="../commands.html#d18-psql">명령어 사전에서 자세히 →</a></div>
+<pre><code>psql -U postgres -h localhost -p 5432 -d knowledge_lab
+\conninfo    \dt    \d knowledge    \q</code></pre>
+      </div>
+      <h3>pgAdmin Query Tool 읽는 법</h3>
+      <table>
+        <tr><th>순서</th><th>할 일</th></tr>
+        <tr><td>①</td><td>실행할 SQL만 <b>선택</b>해서 실행 (한 문장씩)</td></tr>
+        <tr><td>②</td><td><b>Data Output</b>에서 값과 <b>행 수</b> 확인</td></tr>
+        <tr><td>③</td><td><b>Messages</b>에서 오류·변경된 행 수(<code>UPDATE 1</code> 등) 확인</td></tr>
+        <tr><td>설정</td><td>변경 실습 때 <b>Auto commit 켬 · Auto rollback on error 끔</b>. BEGIN부터 끝까지 <b>같은 Query Tool 창</b>에서</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>결과가 0행이면 실패야?</strong> — 아니에요. "조건에 맞는 행이 없다"는 <b>정상 결과</b>예요. 오류는 Messages에 빨간 메시지로 따로 나와요. 그리고 DB를 직접 실행할 때는 <b>HTTP 상태 코드가 없어요</b> — 200·404는 FastAPI의 일이에요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="select">② 지식 조회 — SELECT · WHERE · ORDER BY</h2>
+      <p>오늘 새 DB에 미리 넣어 둔 <b>가상 초기 데이터</b>를 <b>S0</b>라고 불러요. (어제 JSON 파일이 자동으로 옮겨진 게 아니에요.)</p>
+      <div class="figs">
+        <table>
+          <tr><th colspan="2">categories · 분류 3건</th></tr>
+          <tr><th>id</th><th>name</th></tr>
+          <tr><td>1</td><td>learning</td></tr>
+          <tr><td>2</td><td>environment</td></tr>
+          <tr><td>3</td><td>reference</td></tr>
+        </table>
+        <table>
+          <tr><th colspan="3">knowledge · 지식 3건 (content 생략)</th></tr>
+          <tr><th>id</th><th>title</th><th>category_id</th></tr>
+          <tr><td>1</td><td>실습 파일 보관</td><td>1</td></tr>
+          <tr><td>2</td><td>서버 실행</td><td>2</td></tr>
+          <tr><td>3</td><td>질문 작성</td><td>1</td></tr>
+        </table>
+      </div>
+      <p><b>한 행(Row)</b> = 지식 한 건, <b>한 열(Column)</b> = 공통 항목 한 종류, <b>값</b> = 그 행·열이 만나는 칸이에요. 지식 2번 행의 <code>category_id</code> 값 <code>2</code>는 "분류 2번(environment)"을 가리켜요. 그리고 reference(3번)를 가리키는 지식은 아직 없어요.</p>
+      <h3>SQL은 업무 질문으로 읽어요</h3>
+      <p>"<b>어느 표</b>에서 <b>어떤 행</b>을 골라 <b>어떤 열</b>을 <b>어떤 순서</b>로 보고 싶은가?"</p>
+      <table>
+        <tr><th>순서</th><th>절</th><th>질문</th></tr>
+        <tr><td>1</td><td><code>FROM</code></td><td>어느 테이블?</td></tr>
+        <tr><td>2</td><td><code>WHERE</code></td><td>어떤 조건의 행?</td></tr>
+        <tr><td>3</td><td><code>SELECT</code></td><td>어떤 열?</td></tr>
+        <tr><td>4</td><td><code>ORDER BY</code></td><td>어떤 순서? (<code>DESC</code> = 큰 것부터) · <code>LIMIT n</code> = 최대 n행</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>쓰는 순서(SELECT가 먼저)와 왜 달라?</strong> — 위 순서는 <b>뜻을 이해하는 순서</b>예요. 실제로 DB가 어떤 순서·방법으로 처리할지는 <b>실행계획</b>이 정해요(⑧). 그리고 <code>ORDER BY</code>가 없으면 결과 순서는 보장되지 않아요 — 순서가 중요하면 꼭 써요.</div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>SELECT</code> · <code>FROM</code> · <code>ORDER BY</code> <a href="../commands.html#d18-select">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT id, title, category_id FROM knowledge ORDER BY id;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>WHERE</code> — ID·분류 조건 <a href="../commands.html#d18-where">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT id, title FROM knowledge WHERE id = 2;
+SELECT id, title FROM knowledge WHERE category_id = 1 ORDER BY id;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>AND</code> · <code>LIKE</code> · <code>DESC</code> · <code>LIMIT</code> <a href="../commands.html#d18-like-limit">명령어 사전에서 자세히 →</a></div>
+<pre><code>WHERE category_id = 1 AND title LIKE '%실습%'
+ORDER BY id DESC LIMIT 2;</code></pre>
+      </div>
+
+      <h3>NULL과 빈 문자열은 달라요</h3>
+      <table>
+        <tr><th></th><th><code>NULL</code></th><th><code>''</code> (빈 문자열)</th></tr>
+        <tr><td>뜻</td><td>값이 <b>없음 / 모름</b></td><td>길이가 0인 <b>값</b></td></tr>
+        <tr><td>확인</td><td><code>IS NULL</code> (<code>= NULL</code>은 결과가 NULL이라 안 됨)</td><td><code>char_length(x) = 0</code></td></tr>
+        <tr><td>막는 규칙</td><td><code>NOT NULL</code></td><td>길이 <code>CHECK</code> (1자 이상)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 규칙이 두 개나 필요해?</strong> — <code>NOT NULL</code>만 걸면 빈 본문 <code>''</code>은 "값이 있음"이라 통과해요. 본문이 비면 Agent가 근거로 쓸 게 없으니 <b>길이 CHECK</b>도 같이 걸어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>IS NULL</code> · <code>char_length()</code> <a href="../commands.html#d18-null">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT NULL IS NULL, '' IS NULL, char_length('');   -- true, false, 0</code></pre>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="design">③ 두 테이블 설계 — PK · FK · ERD · DDL</h2>
+      <figure id="fig-erd"><img class="smooth" src="img/day18/erd.png" alt="왼쪽에 어제의 JSON 한 건, 가운데 categories 표(1 learning, 2 environment, 3 reference), 오른쪽 knowledge 표의 category_id 값에서 categories의 해당 행으로 화살표가 이어진 ERD"><figcaption><b>무엇을 보나:</b> 어제 JSON은 지식마다 <code>"category": "environment"</code> 같은 <b>분류 이름을 반복</b>해서 들고 있었어요. 오늘은 분류 이름을 <b>부모 표(categories)에 한 번만</b> 두고, 지식은 <code>category_id</code> <b>번호</b>로 가리켜요(초록 화살표). 분류 하나에 지식이 <b>0개 이상</b>(1 : 0..N) — reference처럼 0개여도 돼요. <b>🤔 왜 나눠?</b> 분류 이름을 고칠 때 한 곳만 바꾸면 되고, 오타 난 분류("enviroment")가 몰래 생기는 걸 FK가 막아 줘요. 대신 볼 때는 <b>JOIN</b>으로 다시 붙여요(⑤).</figcaption></figure>
+      <table>
+        <tr><th>개념</th><th>하는 일</th><th>이번 예시</th></tr>
+        <tr><td><b>PK</b> (Primary Key)</td><td>각 행을 유일하게 식별 · NULL 불가</td><td><code>knowledge.id</code>, <code>categories.id</code></td></tr>
+        <tr><td><b>FK</b> (Foreign Key)</td><td>참조하는 <b>부모 값이 실제로 있는지</b> 검사</td><td><code>knowledge.category_id → categories.id</code></td></tr>
+        <tr><td><b>IDENTITY</b></td><td>값을 생략하면 DB가 번호를 발급</td><td><code>id</code> 자동 생성 (유일성 보장은 PK의 일)</td></tr>
+        <tr><td><b>JOIN</b></td><td>조회할 때 조건에 맞는 행을 붙여 보여 줌</td><td>지식 목록에 분류 이름 붙이기</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>PK · FK · JOIN은 서로 다른 일이에요.</b> FK가 있다고 JOIN이 자동으로 되지 않고, JOIN은 FK가 없어도 쓸 수 있어요. FK는 <b>저장할 때 검사</b>, JOIN은 <b>읽을 때 연결</b>이에요. 그리고 <b>ID는 행 수나 목록의 위치가 아니에요</b> — 삭제·취소가 있으면 번호가 비어요(⑦).</div>
+      <h3>자료형과 저장 규칙 (데이터 계약)</h3>
+      <table>
+        <tr><th>필드</th><th>DB 표현</th><th>규칙</th></tr>
+        <tr><td><code>id</code></td><td><code>BIGINT</code> + <code>IDENTITY</code> + <code>PK</code></td><td>DB가 발급 · 응답의 실제 ID로 추적</td></tr>
+        <tr><td><code>title</code></td><td><code>VARCHAR(80)</code> + <code>NOT NULL</code> + <code>CHECK</code></td><td>1~80자 · <b>같은 제목 허용</b> (UNIQUE 아님)</td></tr>
+        <tr><td><code>content</code></td><td><code>TEXT</code> + <code>NOT NULL</code> + <code>CHECK</code></td><td>1~2,000자</td></tr>
+        <tr><td><code>categories.name</code></td><td><code>VARCHAR(30)</code> + <code>NOT NULL</code> + <code>UNIQUE</code></td><td>1~30자 · 분류 이름 중복 금지</td></tr>
+        <tr><td><code>category_id</code></td><td><code>BIGINT</code> + <code>NOT NULL</code> + <code>FK</code></td><td>등록된 분류만 참조</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 제목엔 UNIQUE를 안 걸어?</strong> — 어제 API도 같은 제목을 막지 않았어요. 규칙을 DB로 옮기면서 몰래 바꾸면, 어제는 되던 요청이 오늘은 실패해요. 그래서 "제목은 ID 대신 쓸 수 없다 — 찾을 땐 ID로"가 원칙이에요. 반대로 분류 이름은 하나여야 이름으로 ID를 찾을 수 있어서 UNIQUE예요.</div>
+      <div class="callout">💡 <b>DDL</b>(Data Definition Language)은 <code>CREATE TABLE</code>처럼 <b>구조</b>를 만드는 SQL, <b>DML</b>은 <code>INSERT</code>·<code>UPDATE</code>처럼 <b>데이터</b>를 바꾸는 SQL이에요. 부모(<code>categories</code>)를 <b>먼저</b> 만들어야 자식의 FK가 가리킬 곳이 생겨요.</div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>CREATE TABLE categories</code> — 부모 표 <a href="../commands.html#d18-create-categories">명령어 사전에서 자세히 →</a></div>
+<pre><code>id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+name VARCHAR(30) NOT NULL UNIQUE,</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>CREATE TABLE knowledge</code> — 자식 표와 FK <a href="../commands.html#d18-create-knowledge">명령어 사전에서 자세히 →</a></div>
+<pre><code>CONSTRAINT knowledge_category_fk FOREIGN KEY (category_id)
+  REFERENCES categories(id) ON DELETE RESTRICT</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Seed — 분류를 넣고 이름으로 ID를 찾아 연결 <a href="../commands.html#d18-seed">명령어 사전에서 자세히 →</a></div>
+<pre><code>INSERT INTO categories (name) VALUES ('learning'), ('environment'), ('reference') RETURNING id, name;
+INSERT INTO knowledge (title, content, category_id) SELECT '실습 파일 보관', '...', id FROM categories WHERE name = 'learning';</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 연습용 <code>_try</code> 표 — 본 표를 안 건드리고 키 연습 <a href="../commands.html#d18-try">명령어 사전에서 자세히 →</a></div>
+<pre><code>BEGIN; CREATE TABLE categories_try (...); CREATE TABLE knowledge_try (...); ... ROLLBACK;</code></pre>
+      </div>
+      <div class="callout">💡 <b>나중에 태그가 여러 개 필요해지면?</b> 지식 하나에 태그 여러 개, 태그 하나에 지식 여러 개 = <b>N:M</b> 관계예요. 이건 FK 한 칸으로 못 담아서 가운데에 <code>knowledge_tags(knowledge_id FK, tag_id FK)</code> 연결 표를 두고, 두 열의 <b>조합</b>을 PK로 해 같은 짝이 두 번 들어가는 걸 막아요. 오늘 필수는 아니고 설계 예시예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="write">④ 바꾸기 — INSERT · UPDATE · DELETE · RETURNING</h2>
+      <p>변경 SQL은 <b>확인하고 → 바꾸고 → 다시 확인</b>해요.</p>
+      <table>
+        <tr><th>단계</th><th>SQL</th><th>확인할 것</th></tr>
+        <tr><td>1 · 대상 조회</td><td>같은 <code>WHERE</code>로 먼저 <code>SELECT</code></td><td>바꿀 행의 실제 ID·현재 값</td></tr>
+        <tr><td>2 · 묶음 시작</td><td><code>BEGIN</code></td><td>취소할 수 있는 상태</td></tr>
+        <tr><td>3 · 변경</td><td><code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> + <code>RETURNING</code></td><td>어느 행이 어떻게 바뀌었나</td></tr>
+        <tr><td>4 · 끝내기</td><td><code>COMMIT</code> 또는 <code>ROLLBACK</code> → 다시 <code>SELECT</code></td><td>확정됐나 / 원래대로인가</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 <code>RETURNING</code>을 붙여?</strong> — <code>INSERT</code>만 하면 "1행 넣음"만 알려 줘서 <b>몇 번 ID가 발급됐는지</b> 다시 찾아야 해요. <code>RETURNING id</code>는 바뀐 행을 그 자리에서 돌려줘요. "아마 4번이겠지" 하고 다음 ID를 <b>예상하면 안 돼요</b> — 취소·실패가 있으면 번호가 건너뛰어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>INSERT ... RETURNING</code> <a href="../commands.html#d18-insert">명령어 사전에서 자세히 →</a></div>
+<pre><code>INSERT INTO knowledge (title, content, category_id)
+VALUES ('임시 안내', '한 번만 실행합니다.', 1) RETURNING id, title, category_id;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>UPDATE ... SET ... WHERE</code> <a href="../commands.html#d18-update">명령어 사전에서 자세히 →</a></div>
+<pre><code>UPDATE knowledge SET content = '실행 전에 가상환경을 확인합니다.'
+WHERE id = 2 RETURNING id, title, content;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>DELETE FROM ... WHERE</code> <a href="../commands.html#d18-delete">명령어 사전에서 자세히 →</a></div>
+<pre><code>DELETE FROM knowledge WHERE id = 3 RETURNING id, title;</code></pre>
+      </div>
+      <div class="callout warn">⚠️ <b><code>UPDATE</code>·<code>DELETE</code>에서 <code>WHERE</code>를 빼면 표의 모든 행이 대상</b>이에요. 그래서 같은 조건의 <code>SELECT</code>를 먼저 돌려 대상 행 수를 보고, 연습은 <code>BEGIN</code> 안에서 해요. <code>DELETE</code>는 행만 지우고 표 구조는 남아요(구조까지 지우는 건 <code>DROP</code> — 본 데이터엔 안 써요).</div>
+      <h3>0행 · 오류 · HTTP 응답은 다른 층이에요</h3>
+      <table>
+        <tr><th>상황</th><th>오늘 SQL 결과</th><th>내일 API가 정할 것</th></tr>
+        <tr><td>없는 ID를 SELECT</td><td><b>0행</b> · SQL은 정상</td><td>상세면 404, 목록이면 빈 배열 등</td></tr>
+        <tr><td>없는 ID를 UPDATE</td><td><code>UPDATE 0</code> / RETURNING 0행</td><td>"성공"이라고 할지 404로 할지</td></tr>
+        <tr><td>정상 INSERT</td><td>생성된 행과 실제 ID</td><td>201 + 그 행</td></tr>
+        <tr><td>잘못된 참조·빈 본문</td><td><b>DB 오류</b> · 변경 미확정</td><td>예외를 잡아 응답으로 바꾸기</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>SQL이 404를 보내 주면 편하지 않아?</strong> — DB는 "0행"이라는 사실만 알려 줘요. 그게 "없는 지식"(404)인지 "검색 결과 없음"(200 + [])인지는 <b>API의 약속</b>이라 FastAPI가 정해요. 층마다 책임이 달라야 나중에 DB를 바꿔도 API 약속이 그대로예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="join">⑤ 연결해서 읽기 — JOIN · LEFT JOIN · GROUP BY</h2>
+      <figure id="fig-join"><img class="smooth" src="img/day18/join_kinds.png" alt="왼쪽 JOIN 결과 3행, 가운데 LEFT JOIN 결과 4행(reference 행은 knowledge_id와 title이 NULL), 오른쪽 분류별 COUNT(*)와 COUNT(k.id) 막대그래프: learning 2·2, environment 1·1, reference 1·0"><figcaption><b>무엇을 보나:</b> 같은 두 표를 붙여도 결과가 달라요. <b>JOIN</b>(INNER)은 <code>ON</code> 조건에 짝이 있는 행만 → 3행, 지식이 없는 reference는 사라져요. <b>LEFT JOIN</b>은 왼쪽 표(분류)를 <b>모두 남기고</b> 짝이 없으면 오른쪽 칸을 <b>NULL</b>로 채워요 → 4행(분홍 줄). 오른쪽 막대는 그 4행을 분류별로 센 결과예요 — <code>COUNT(*)</code>는 NULL 줄도 한 행이라 reference를 <b>1</b>, <code>COUNT(k.id)</code>는 NULL을 안 세서 <b>0</b>. <b>🤔 그래서?</b> "분류별 지식 수"를 물으면 <code>COUNT(k.id)</code>가 정답이에요. 값은 S0를 실제로 실행한 결과예요.</figcaption></figure>
+      <table>
+        <tr><th>표현</th><th>뜻</th></tr>
+        <tr><td><code>FROM knowledge AS k</code></td><td><code>k</code>는 표의 <b>별칭</b> — <code>k.id</code>처럼 어느 표의 열인지 밝힐 때</td></tr>
+        <tr><td><code>JOIN categories AS c ON c.id = k.category_id</code></td><td>어떤 값끼리 짝을 맞출지</td></tr>
+        <tr><td><code>c.name AS category</code></td><td>결과 열 이름 바꾸기</td></tr>
+        <tr><td><code>GROUP BY c.id, c.name</code></td><td>분류별로 묶기 — 결과 한 행 = <b>분류 한 개</b></td></tr>
+        <tr><td><code>HAVING COUNT(k.id) >= 2</code></td><td>묶은 <b>뒤</b> 그룹 조건 (<code>WHERE</code>는 묶기 <b>전</b> 행 조건)</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>JOIN 결과에 learning이 두 번 나오는데 중복 아니야?</strong> — 결과 한 행은 여전히 <b>지식 한 건</b>이에요. 지식 1·3이 둘 다 learning이라 이름이 두 번 보이는 건 정상적인 관계 결과예요. 반대로 GROUP BY를 하면 한 행의 단위가 <b>분류</b>로 바뀌어요. SQL을 읽을 때 "지금 결과 한 행은 무엇 하나인가?"를 먼저 물어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>JOIN ... ON</code> — 지식에 분류명 붙이기 <a href="../commands.html#d18-join">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT k.id, k.title, c.name AS category
+FROM knowledge AS k JOIN categories AS c ON c.id = k.category_id ORDER BY k.id;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>LEFT JOIN</code> — 지식이 없는 분류도 남기기 <a href="../commands.html#d18-left-join">명령어 사전에서 자세히 →</a></div>
+<pre><code>FROM categories AS c LEFT JOIN knowledge AS k ON k.category_id = c.id</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>GROUP BY</code> + <code>COUNT(k.id)</code> — 분류별 지식 수 <a href="../commands.html#d18-group-by">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT c.name AS category, COUNT(k.id) AS knowledge_count ... GROUP BY c.id, c.name</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>COUNT</code> · <code>SUM</code> · <code>MIN</code> · <code>MAX</code> — 본문 길이 요약 <a href="../commands.html#d18-aggregate">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT COUNT(*), SUM(char_length(content)), MIN(char_length(content)), MAX(char_length(content)) FROM knowledge;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>HAVING</code> — 묶은 뒤 그룹 고르기 <a href="../commands.html#d18-having">명령어 사전에서 자세히 →</a></div>
+<pre><code>GROUP BY c.id, c.name HAVING COUNT(k.id) >= 2</code></pre>
+      </div>
+      <div class="callout warn">⚠️ <b>LEFT JOIN 뒤에 오른쪽 표 조건을 <code>WHERE</code>에 쓰면</b> NULL로 채운 줄이 걸러져서 0개인 분류가 사라져요 — 결과적으로 INNER JOIN처럼 돼요. 빈 분류를 살리려면 그 조건을 <code>ON</code> 안으로 옮겨요. (명령어 사전에 실제 결과 비교가 있어요.)</div>
+
+      <!-- ============================================================ -->
+      <h2 id="constraints">⑥ 제약조건 — DB가 거부하게 하기</h2>
+      <p>오늘의 SQL은 FastAPI를 거치지 않고 DB로 바로 가요. 그래서 <b>API의 입력 검증(Pydantic)과 별개로 DB에도 규칙</b>이 있어야 해요.</p>
+      <table>
+        <tr><th></th><th>흐름</th></tr>
+        <tr><td>오늘</td><td>pgAdmin / psql → <b>DB 제약</b>(필수·길이·참조) → 저장 / 오류</td></tr>
+        <tr><td>내일</td><td>사용자 JSON → <b>FastAPI 입력 검증</b> → <b>DB 제약</b> → 저장 / 오류</td></tr>
+      </table>
+      <table>
+        <tr><th>규칙</th><th>보장하는 것</th><th>이번 예</th><th>위반 시 SQLSTATE</th></tr>
+        <tr><td><code>PRIMARY KEY</code></td><td>각 행을 유일하게 식별 · NULL 불가</td><td><code>knowledge.id</code></td><td>23505 / 23502</td></tr>
+        <tr><td><code>FOREIGN KEY</code></td><td>참조 대상이 실제로 있음</td><td><code>knowledge.category_id</code></td><td><b>23503</b></td></tr>
+        <tr><td><code>NOT NULL</code></td><td>NULL 저장 금지</td><td><code>title</code> · <code>content</code></td><td><b>23502</b></td></tr>
+        <tr><td><code>UNIQUE</code></td><td>같은 값 중복 금지</td><td><code>categories.name</code></td><td><b>23505</b></td></tr>
+        <tr><td><code>CHECK</code></td><td>정한 조건 만족</td><td>본문 1~2,000자</td><td><b>23514</b></td></tr>
+        <tr><td>(오류 뒤 계속 실행)</td><td>—</td><td>실패한 트랜잭션 안에서 다음 SQL</td><td><b>25P02</b> → <code>ROLLBACK</code>부터</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:0.9rem">SQLSTATE는 PostgreSQL 공식 오류 코드표 값이에요. 코드를 외우는 게 목표가 아니라, <b>기대한 제약으로 실패했는지</b>와 <b>정리 후 기존 데이터가 그대로인지</b>를 보는 게 목표예요.</p>
+      <div class="callout">🤔 <strong>왜 실패를 일부러 일으켜 봐?</strong> — "오류가 났다"만으로는 부족해요. 빈 본문을 넣었는데 FK 오류가 났다면 테스트가 엉뚱한 걸 검사한 거예요. 그래서 <b>한 번에 한 가지만</b> 틀리게(나머지 값은 정상으로) 넣고, <b>오류 이름</b>과 <b>롤백 뒤 행 수·내용</b>을 같이 확인해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 실패 테스트 — 빈 본문 INSERT → 오류 확인 → ROLLBACK <a href="../commands.html#d18-fail-check">명령어 사전에서 자세히 →</a></div>
+<pre><code>BEGIN; INSERT INTO knowledge (title, content, category_id) VALUES ('오류 확인', '', 1);
+ROLLBACK; SELECT COUNT(*) FROM knowledge;</code></pre>
+      </div>
+      <h3>지식 삭제 vs 분류 삭제</h3>
+      <table>
+        <tr><th></th><th>지식 한 건 삭제</th><th>참조 중인 분류 삭제</th></tr>
+        <tr><td>SQL</td><td><code>DELETE FROM knowledge WHERE id = …</code></td><td><code>DELETE FROM categories WHERE name = 'learning'</code></td></tr>
+        <tr><td>결과</td><td>그 행만 사라짐 · 부모와 다른 지식은 그대로</td><td><b>거부</b> (<code>ON DELETE RESTRICT</code>) · 아무것도 안 지워짐</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>CASCADE로 같이 지우면 편하지 않아?</strong> — <code>ON DELETE CASCADE</code>는 분류를 지우면 <b>그 분류의 지식까지 전부</b> 지워요. 분류 하나 정리하려다 안내문 수십 개가 사라질 수 있어요. 그래서 "분류를 지우면 지식은 어떻게 되어야 하나?"라는 <b>업무 정책</b>을 먼저 정하고, 이번 설계는 거부(RESTRICT)예요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>ON DELETE RESTRICT</code> — 참조 중인 부모 삭제 <a href="../commands.html#d18-fk-restrict">명령어 사전에서 자세히 →</a></div>
+<pre><code>DELETE FROM categories WHERE name = 'learning';   -- 연결된 지식이 있어 거부 (23503)</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>DEFAULT</code> — 생략한 값 vs 직접 넣은 NULL <a href="../commands.html#d18-default">명령어 사전에서 자세히 →</a></div>
+<pre><code>INSERT INTO defaults_try DEFAULT VALUES;           -- '미지정'
+INSERT INTO defaults_try (label) VALUES (NULL);    -- NULL 그대로</code></pre>
+      </div>
+      <div class="callout">💡 <code>DEFAULT</code>는 값을 <b>생략</b>했을 때만 채워요. 직접 <code>NULL</code>을 넣으면 고쳐 주지 않아요. NULL을 막고 싶으면 <code>NOT NULL</code>을 따로 걸어야 해요.</div>
+      <div class="callout warn">⚠️ <b>형식 검증 ≠ 사실 검증.</b> 제약조건은 "본문이 1자 이상"까지만 지켜 줘요. 안내문 내용이 맞는지, 이 사람이 고쳐도 되는지, AI 답변이 정확한지는 <b>다른 검사</b>예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="tx">⑦ 트랜잭션 — 확정할까, 없던 일로 할까</h2>
+      <p><b>트랜잭션</b>은 여러 변경을 <b>한 묶음</b>으로 다루는 단위예요. <code>BEGIN</code>으로 시작하고, 같은 연결에서 작업한 뒤 <b>둘 중 하나</b>로 끝내요.</p>
+      <table>
+        <tr><th>명령</th><th>뜻</th></tr>
+        <tr><td><code>BEGIN</code></td><td>묶음 시작 — 이후 변경은 <b>미확정</b></td></tr>
+        <tr><td><code>COMMIT</code></td><td>묶음의 변경을 <b>확정</b> — 다른 연결·재접속에서도 보임</td></tr>
+        <tr><td><code>ROLLBACK</code></td><td>미확정 변경을 <b>취소</b> — BEGIN 직전 상태로</td></tr>
+      </table>
+      <figure id="fig-tx"><img class="smooth" src="img/day18/tx_timeline.png" alt="위 줄: SELECT 원래 본문, BEGIN, UPDATE 후 임시 본문, ROLLBACK, SELECT 원래 본문. 아래 줄: BEGIN, UPDATE RETURNING 새 본문, COMMIT, 재접속 후 새 본문, ROLLBACK 해도 값 그대로"><figcaption><b>무엇을 보나:</b> id 2번 지식의 <code>content</code> 값이 칸마다 어떻게 보이는지예요. <b>위(ROLLBACK)</b>: 작업 중엔 임시 본문이 보이지만 — 같은 순간 <b>다른 연결</b>에서는 아직 원래 본문이에요 — ROLLBACK 뒤엔 원래 본문으로 돌아가요. <b>아래(COMMIT)</b>: 확정하면 연결을 끊고 다시 붙어도 새 본문이고, 그 뒤 ROLLBACK은 <b>되돌릴 게 없어요</b>. 값은 실제 실행으로 확인한 거예요. <b>🤔 왜 재접속까지 해 봐?</b> 같은 창에서 보이는 건 내 미확정 변경일 수도 있어서, <b>새 연결</b>에서 보여야 정말 확정된 거예요.</figcaption></figure>
+      <div class="callout warn">⚠️ <b>ROLLBACK은 "DB 전체를 과거로 돌리는 버튼"이 아니에요.</b> 지금 열린 묶음의 미확정 변경만 취소해요. 이미 <code>COMMIT</code>한 값은 ROLLBACK으로 못 되돌려요 — 되돌리려면 새 <code>UPDATE</code>로 다시 고쳐야 해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>BEGIN</code> → <code>UPDATE</code> → <code>ROLLBACK</code> — 세 번 비교 <a href="../commands.html#d18-rollback">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT id, content FROM knowledge WHERE id = 2;
+BEGIN; UPDATE knowledge SET content = '취소할 임시 안내입니다.' WHERE id = 2; ROLLBACK;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>COMMIT</code> → 재접속해서 확인 <a href="../commands.html#d18-commit">명령어 사전에서 자세히 →</a></div>
+<pre><code>BEGIN; UPDATE knowledge SET content = '실행 전에 가상환경을 확인합니다.' WHERE id = 2 RETURNING id, content; COMMIT;</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 원자성 — 두 번째 변경이 실패하면 첫 변경도 취소 <a href="../commands.html#d18-atomic">명령어 사전에서 자세히 →</a></div>
+<pre><code>BEGIN; UPDATE ... WHERE id = 2;  UPDATE knowledge SET content = '' WHERE id = 3;  -- CHECK 오류
+ROLLBACK;</code></pre>
+      </div>
+      <div class="callout">🤔 <strong>원자성(Atomicity)이 왜 중요해?</strong> — "B 안내 수정 + C 안내 삭제"가 한 작업인데 앞의 것만 반영되면 지식이 반쯤 바뀐 상태로 남아요. 묶음으로 처리하면 <b>모두 반영되거나 하나도 반영 안 되거나</b> 둘 중 하나예요. PostgreSQL은 묶음 안에서 오류가 나면 그 묶음을 <b>중단 상태</b>로 만들어 다음 SQL을 거부해요(25P02) — 그래서 오류 뒤엔 <code>ROLLBACK</code>부터 해요.</div>
+
+      <h3>ID는 되돌아가지 않을 수 있어요</h3>
+      <figure id="fig-gap"><img class="smooth" src="img/day18/identity_gap.png" alt="1, 2, 3은 행이 있고, 4는 INSERT 뒤 ROLLBACK, 5는 CHECK 위반으로 INSERT 실패해 점선 빈칸, 다음 INSERT는 6을 받는 그림"><figcaption><b>무엇을 보나:</b> IDENTITY는 안에서 <b>시퀀스</b>(번호 발급기)를 써요. INSERT가 번호를 받아 간 뒤 ROLLBACK되거나 제약 위반으로 실패해도 <b>발급기는 되감기지 않을 수 있어서</b>, 표에는 1, 2, 3, 6처럼 빈 번호가 생겨요(PostgreSQL 공식 문서 내용을 그린 개념도). <b>🤔 그래서?</b> <code>max(id)</code>를 행 수로 쓰지 말고(<code>COUNT(*)</code>를 써요), 새 ID는 예상하지 말고 <code>RETURNING id</code>로 읽어요. 번호가 비어도 정상이에요.</figcaption></figure>
+      <table>
+        <tr><th>상황</th><th>지식 행</th><th>다음 ID</th></tr>
+        <tr><td>어제: API 검증에서 422</td><td>저장 함수에 도달 안 함</td><td>파일의 <code>next_id</code>도 그대로</td></tr>
+        <tr><td>오늘: INSERT 뒤 ROLLBACK</td><td>새 행 안 남음</td><td>발급된 번호는 재사용 안 될 수 있음</td></tr>
+        <tr><td>오늘: 제약 위반으로 INSERT 실패</td><td>실패 행 저장 안 됨</td><td>이미 발급됐으면 빈 번호</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="lab">🧪 트랜잭션 직접 해 보기</h2>
+      <p>브라우저 안에서 PostgreSQL 트랜잭션 규칙을 흉내 냈어요(실제 DB는 아니에요). <b>연결 A</b>에서 바꾸고, <b>연결 B</b>에서는 무엇이 보이는지 비교해 보세요. 오른쪽 아래 숫자는 IDENTITY의 다음 발급 번호예요.</p>
+      <div class="lab" id="tx-lab">
+        <div class="readout">
+          <span style="font-weight:800">연결 A</span>
+          <button type="button" class="filter-btn" data-act="begin">BEGIN</button>
+          <button type="button" class="filter-btn" data-act="update">UPDATE id 2 본문</button>
+          <button type="button" class="filter-btn" data-act="insert">INSERT 새 지식</button>
+          <button type="button" class="filter-btn" data-act="bad">INSERT 빈 본문 (CHECK 위반)</button>
+          <button type="button" class="filter-btn" data-act="selectA">SELECT</button>
+          <button type="button" class="filter-btn active" data-act="commit">COMMIT</button>
+          <button type="button" class="filter-btn" data-act="rollback">ROLLBACK</button>
+        </div>
+        <div class="readout">
+          <span style="font-weight:800">연결 B</span>
+          <button type="button" class="filter-btn" data-act="selectB">SELECT</button>
+          <span style="width:20px"></span>
+          <button type="button" class="filter-btn" data-act="reset">🗑 S0로 되돌리기</button>
+        </div>
+        <div class="readout" style="font-family:var(--font-code)"><div id="tx-sql">(아직 실행한 SQL 없음)</div></div>
+        <div class="readout"><div>A 상태 <span class="big" id="tx-state">자동 확정</span></div><div>다음 ID <span class="big" id="tx-seq">4</span></div></div>
+        <div class="figs">
+          <div><b>연결 A가 보는 표</b><table id="tx-a"></table></div>
+          <div><b>연결 B가 보는 표 (= 확정된 값)</b><table id="tx-b"></table></div>
+        </div>
+        <p class="verdict" id="tx-why">BEGIN 없이 UPDATE하면 바로 확정(Auto commit)돼요. BEGIN을 먼저 눌러 보세요.</p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="index">⑧ 인덱스와 실행계획 — INDEX · EXPLAIN</h2>
+      <p><b>인덱스</b>는 표와 별도로 만드는 <b>탐색 구조</b>예요. 책 뒤의 "찾아보기"처럼, <code>category_id = 1</code>인 행이 어디 있는지 표 전체를 훑지 않고 찾아가게 도와요.</p>
+      <table>
+        <tr><th></th><th>내용</th></tr>
+        <tr><td>도움이 되는 곳</td><td>자주 쓰는 <code>WHERE</code> 조건, <code>JOIN</code>의 연결 열</td></tr>
+        <tr><td>비용</td><td>INSERT·UPDATE 때 인덱스도 고쳐야 하고 저장 공간을 써요</td></tr>
+        <tr><td>자동으로 생기나?</td><td><b>PK·UNIQUE</b>엔 자동으로 생겨요. <b>자식 표의 FK 열엔 자동으로 안 생겨요</b> — 그래서 <code>knowledge.category_id</code>에 직접 만들어요</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>pg_indexes</code> 확인 → <code>CREATE INDEX</code> <a href="../commands.html#d18-create-index">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'knowledge';
+CREATE INDEX idx_knowledge_category_id ON knowledge (category_id);</code></pre>
+      </div>
+      <table>
+        <tr><th>EXPLAIN 용어</th><th>뜻</th></tr>
+        <tr><td><code>EXPLAIN</code></td><td>실행하지 않고 <b>예상</b> 실행계획만 보여 줌</td></tr>
+        <tr><td><code>EXPLAIN (ANALYZE, BUFFERS)</code></td><td><b>실제로 실행</b>하고 걸린 시간·실제 행 수·읽은 블록까지 (그래서 변경 SQL엔 쓰지 않아요)</td></tr>
+        <tr><td><code>Seq Scan</code></td><td>표를 처음부터 끝까지 훑기</td></tr>
+        <tr><td><code>Index Scan</code> / <code>Bitmap Index Scan</code></td><td>인덱스로 찾아가기</td></tr>
+        <tr><td><code>rows</code></td><td>예상 행 수 (ANALYZE면 실제 행 수도 따로 나옴)</td></tr>
+        <tr><td><code>cost</code></td><td>상대적인 비용 단위 — <b>밀리초가 아니에요</b></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>EXPLAIN</code> · <code>EXPLAIN (ANALYZE, BUFFERS)</code> <a href="../commands.html#d18-explain">명령어 사전에서 자세히 →</a></div>
+<pre><code>EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;</code></pre>
+      </div>
+      <div class="callout">🤔 <strong>인덱스를 만들었는데 Seq Scan이 나와. 실패야?</strong> — 아니에요. 행이 3개뿐이면 표 전체를 읽는 게 인덱스를 거쳐 가는 것보다 싸다고 판단할 수 있어요. 실행계획은 데이터 양·통계에 따라 바뀌어서, <b>계획 이름을 정답으로 외우지 않아요</b>. 인덱스는 <b>결과 행을 바꾸지 않고</b> 찾아가는 길만 바꿔요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="next">⑨ 다음 단계와 연결</h2>
+      <table>
+        <tr><th>날짜</th><th>핵심 결과</th><th>오늘과의 연결</th></tr>
+        <tr><td>11/10</td><td>JSON 파일 지식 CRUD API</td><td>title · content · category / 실제 ID</td></tr>
+        <tr><td>11/11 (오늘)</td><td>관계형 지식 DB · SQL · ERD</td><td>categories · knowledge / 제약 · 트랜잭션</td></tr>
+        <tr><td>11/12</td><td>FastAPI–PostgreSQL 연동</td><td>접속 설정 · ORM · Migration · 통합 검증</td></tr>
+        <tr><td>11/18~19</td><td>검색용 인덱스 · 문서·메타데이터 처리</td><td>원본 → 청크·벡터</td></tr>
+        <tr><td>11/20</td><td>Basic RAG</td><td>검색한 원문을 LLM에 제공</td></tr>
+      </table>
+      <h3>DB로 바꿔도 자동으로 해결되지 않는 것</h3>
+      <table>
+        <tr><th>항목</th><th>구분할 것</th><th>이후 확인</th></tr>
+        <tr><td>스키마</td><td>Pydantic 모델 ≠ DB 테이블 정의</td><td>입력·저장·응답 규칙이 서로 맞는지</td></tr>
+        <tr><td>데이터 이관</td><td>JSON이 DB로 저절로 옮겨지지 않음</td><td>기존 ID·분류 매핑·중복 정책</td></tr>
+        <tr><td>분류 입력</td><td>API는 <code>category</code> <b>문자열</b>, DB는 <code>category_id</code> <b>번호</b></td><td>있는 분류는 ID를 찾고, 새 이름이면 분류를 먼저 만든 뒤 저장 — 한 트랜잭션으로</td></tr>
+        <tr><td>검색 데이터</td><td>원본 수정 ≠ 청크·벡터 자동 갱신</td><td>수정·삭제 전파와 출처 추적</td></tr>
+        <tr><td>공개 서비스</td><td>로컬 학습 ≠ 운영 환경</td><td>앱 전용 계정·비밀 설정·백업·관측</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>DB로 바꾸면 API 모양도 바꿔야 해?</strong> — 아니에요. 바깥 약속(<code>"category": "environment"</code> 문자열)은 그대로 두고, <b>안쪽에서</b> 이름 ↔ ID를 바꿔 주면 돼요. 부르는 쪽(화면·Agent)은 저장소가 바뀐 걸 몰라도 돼요. 단, 분류 이름 자체를 바꾸면 그 분류를 가리키는 <b>모든 지식의 조회 결과</b>가 같이 바뀌어요.</div>
+      <div class="callout">💡 <b>파일 → DB로 옮기는 이유는 "파일은 사라져서"가 아니에요.</b> 어제 JSON도 재시작 후 남았어요. 옮기는 이유는 <b>관계</b>(분류–지식), <b>공유 규칙</b>(누가 넣어도 같은 제약), <b>조회</b>(필요한 행만·연결·집계), <b>트랜잭션</b>(여러 변경을 한 묶음으로)을 다루기 위해서예요.</div>
+
+      <!-- ============================================================ -->
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>20261111.pdf</code> (PostgreSQL 입문 · 지식 관리 DB, 94쪽) — 플랫폼 속 위치 p2–11 · 접속·첫 SQL p17–22 · SELECT·WHERE·NULL p24–29 · 두 테이블·ERD·DDL p31–37 · INSERT·UPDATE·DELETE p39–43 · JOIN·집계 p45–50 · 제약·실패 p52–56 · 트랜잭션·IDENTITY·INDEX·EXPLAIN p58–63 · 다음 수업 연결 p65–66 · 부록(DB 준비·Seed·연습 표·HAVING·DEFAULT·원자성·N:M·Windows·psql·연동 체크포인트) p78–91</li>
+        <li>노트·명령어 사전의 결과 값: 이 PC에 PostgreSQL이 없어서, 같은 S0 데이터와 강의 SQL을 파이썬 내장 SQLite 3.50으로 실제 실행해 확인 (<code>tools/io_day18.py</code>, 그림 <code>tools/visuals/make_day18.py</code>). PostgreSQL 전용 값(SQLSTATE·<code>current_database()</code>·EXPLAIN 표기·psql)은 강의자료·공식 문서 기준이라고 따로 표시했어요.</li>
+        <li>공식 문서: <a href="https://www.postgresql.org/docs/18/tutorial-select.html" target="_blank">Querying a Table</a> · <a href="https://www.postgresql.org/docs/18/ddl-schemas.html" target="_blank">Schemas</a> · <a href="https://www.postgresql.org/docs/18/ddl-constraints.html" target="_blank">Constraints</a> · <a href="https://www.postgresql.org/docs/18/sql-createtable.html" target="_blank">CREATE TABLE</a> · <a href="https://www.postgresql.org/docs/18/ddl-identity-columns.html" target="_blank">Identity Columns</a></li>
+        <li>공식 문서: <a href="https://www.postgresql.org/docs/18/dml-returning.html" target="_blank">Returning Data from Modified Rows</a> · <a href="https://www.postgresql.org/docs/18/queries-table-expressions.html" target="_blank">Table Expressions (JOIN)</a> · <a href="https://www.postgresql.org/docs/18/functions-aggregate.html" target="_blank">Aggregate Functions</a> · <a href="https://www.postgresql.org/docs/18/tutorial-transactions.html" target="_blank">Transactions</a> · <a href="https://www.postgresql.org/docs/18/functions-sequence.html" target="_blank">Sequence Functions</a></li>
+        <li>공식 문서: <a href="https://www.postgresql.org/docs/18/indexes.html" target="_blank">Indexes</a> · <a href="https://www.postgresql.org/docs/18/using-explain.html" target="_blank">Using EXPLAIN</a> · <a href="https://www.postgresql.org/docs/18/errcodes-appendix.html" target="_blank">Error Codes</a> · <a href="https://www.postgresql.org/docs/18/app-psql.html" target="_blank">psql</a> · <a href="https://www.pgadmin.org/docs/pgadmin4/latest/query_tool.html" target="_blank">pgAdmin Query Tool</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day17.html">← 이전: Day17</a>
+      <span></span>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  (() => {
+    const S0 = () => ({ rows: [
+      { id: 1, title: '실습 파일 보관', content: '실습 파일은 개인 폴더에 보관합니다.', cat: 1 },
+      { id: 2, title: '서버 실행', content: '프로젝트 폴더에서 서버를 실행합니다.', cat: 2 },
+      { id: 3, title: '질문 작성', content: '오류 메시지와 시도한 작업을 함께 적습니다.', cat: 1 } ], seq: 4 });
+    let committed = S0(), work = null, aborted = false, seq = 4, flip = 0;
+    const $ = id => document.getElementById(id);
+    const clone = d => JSON.parse(JSON.stringify(d));
+    const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    function draw(el, rows, other) {
+      const ids = new Map((other || []).map(r => [r.id, r.content]));
+      el.innerHTML = '<tr><th>id</th><th>title</th><th>content</th></tr>' + rows.map(r => {
+        const diff = other && (!ids.has(r.id) || ids.get(r.id) !== r.content);
+        return `<tr${diff ? ' style="background:#fff4e6"' : ''}><td>${r.id}</td><td>${esc(r.title)}</td><td>${esc(r.content)}</td></tr>`;
+      }).join('');
+    }
+    function show(sql, why) {
+      $('tx-sql').textContent = sql;
+      $('tx-why').textContent = why;
+      $('tx-state').textContent = aborted ? '중단됨 (25P02)' : work ? '트랜잭션 중' : '자동 확정';
+      $('tx-state').style.color = aborted ? '#e03131' : work ? '#f76707' : 'var(--accent)';
+      $('tx-seq').textContent = seq;
+      const aView = work ? work.rows : committed.rows;
+      draw($('tx-a'), aView, committed.rows);
+      draw($('tx-b'), committed.rows);
+    }
+    function blocked(sql) {
+      show(sql, '🤔 ERROR 25P02: 현재 트랜잭션이 중단됐어요. 앞 문장이 실패해서 이 묶음 안의 다음 SQL은 모두 거부돼요. ROLLBACK부터 하세요.');
+      return true;
+    }
+    const acts = {
+      begin() {
+        if (work) return show('BEGIN;', '🤔 WARNING: 이미 트랜잭션 중이에요. 열린 묶음은 하나뿐 — COMMIT이나 ROLLBACK으로 먼저 끝내요.');
+        work = clone(committed); aborted = false;
+        show('BEGIN;', '🤔 묶음 시작. 이제부터 A의 변경은 미확정이라 B에는 안 보여요.');
+      },
+      update() {
+        const text = (flip++ % 2) ? '실행 전에 가상환경을 확인합니다.' : '취소할 임시 안내입니다.';
+        const sql = `UPDATE knowledge SET content = '${text}' WHERE id = 2 RETURNING id, content;`;
+        if (aborted) return blocked(sql);
+        const t = work || clone(committed);
+        const r = t.rows.find(x => x.id === 2);
+        if (!r) return show(sql, '🤔 UPDATE 0 — id 2가 없어요. 오류가 아니라 0행이에요.');
+        r.content = text;
+        if (!work) { committed = t; return show(sql, '🤔 BEGIN 없이 실행해서 바로 확정됐어요(Auto commit). B에도 곧바로 보여요 — 취소할 기회가 없어요.'); }
+        show(sql, '🤔 A에서는 새 본문이 보이지만(주황 줄) B는 아직 원래 본문이에요. 확정 전이니까요.');
+      },
+      insert() {
+        const sql = "INSERT INTO knowledge (title, content, category_id) VALUES ('새 안내', '새 본문입니다.', 1) RETURNING id;";
+        if (aborted) return blocked(sql);
+        const id = seq++;
+        const t = work || clone(committed);
+        t.rows.push({ id, title: '새 안내', content: '새 본문입니다.', cat: 1 });
+        if (!work) { committed = t; return show(sql, `🤔 RETURNING id = ${id}. 바로 확정됐어요.`); }
+        show(sql, `🤔 RETURNING id = ${id}. 번호 ${id}는 이미 발급됐어요 — 지금 ROLLBACK해도 발급기는 되감기지 않아서 다음 INSERT는 ${seq}를 받아요.`);
+      },
+      bad() {
+        const sql = "INSERT INTO knowledge (title, content, category_id) VALUES ('오류 확인', '', 1);";
+        if (aborted) return blocked(sql);
+        const id = seq++;
+        if (!work) return show(sql, `🤔 ERROR 23514: knowledge_content_length 위반. 행은 저장 안 됐지만 번호 ${id}는 이미 쓰였어요 → 빈 번호가 생겨요.`);
+        aborted = true;
+        show(sql, `🤔 ERROR 23514: CHECK 위반. 이 묶음은 이제 '중단' 상태 — COMMIT해도 확정되지 않고, 다른 SQL도 거부돼요. 번호 ${id}도 이미 쓰였어요.`);
+      },
+      selectA() {
+        const sql = 'SELECT id, title, content FROM knowledge ORDER BY id;  -- 연결 A';
+        if (aborted) return blocked(sql);
+        show(sql, work ? '🤔 A는 자기 미확정 변경까지 포함해서 봐요.' : '🤔 트랜잭션 밖이라 A와 B가 같은 확정 값을 봐요.');
+      },
+      selectB() {
+        show('SELECT id, title, content FROM knowledge ORDER BY id;  -- 연결 B', work
+          ? '🤔 B는 확정된 값만 봐요. A가 COMMIT하기 전엔 A의 변경이 안 보여요.'
+          : '🤔 지금은 열린 트랜잭션이 없어서 A와 B가 같아요.');
+      },
+      commit() {
+        if (!work) return show('COMMIT;', '🤔 WARNING: 열린 트랜잭션이 없어요. 이미 확정된 값엔 아무 일도 안 일어나요.');
+        if (aborted) { work = null; aborted = false; return show('COMMIT;  → ROLLBACK', '🤔 중단된 묶음은 COMMIT해도 ROLLBACK으로 끝나요. 아무것도 확정되지 않았어요.'); }
+        committed = work; work = null;
+        show('COMMIT;', '🤔 확정! 이제 B(새 연결)에서도 보여요. 이 값은 ROLLBACK으로 되돌릴 수 없어요.');
+      },
+      rollback() {
+        if (!work) return show('ROLLBACK;', '🤔 WARNING: 열린 트랜잭션이 없어요. 이미 COMMIT한 값은 그대로예요 — 되돌리려면 새 UPDATE를 해야 해요.');
+        work = null; aborted = false;
+        show('ROLLBACK;', `🤔 묶음 안의 변경이 모두 취소됐어요. 행 수·내용은 BEGIN 직전과 같지만, 다음 ID는 ${seq} 그대로예요(번호는 되감기지 않음).`);
+      },
+      reset() {
+        committed = S0(); work = null; aborted = false; seq = 4; flip = 0;
+        show('(S0로 다시 준비)', '처음 3건 · 다음 ID 4로 돌아갔어요.');
+      },
+    };
+    document.querySelectorAll('#tx-lab [data-act]').forEach(b => b.addEventListener('click', () => acts[b.dataset.act]()));
+    show('(아직 실행한 SQL 없음)', 'BEGIN 없이 UPDATE하면 바로 확정(Auto commit)돼요. BEGIN을 먼저 눌러 보세요.');
+  })();
+  </script>
+</body>
+</html>

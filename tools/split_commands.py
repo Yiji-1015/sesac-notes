@@ -51,6 +51,11 @@ TOPICS = {
     17: {"first": ("FastAPI", "서버 실행"), "storage": ("FastAPI", "파일 저장"), "read": ("FastAPI", "조회 (GET)"),
          "create": ("FastAPI", "등록 · 검증 (POST)"), "update": ("FastAPI", "수정 · 삭제"),
          "delete": ("FastAPI", "수정 · 삭제"), "structure": ("FastAPI", "구조 · 테스트")},
+    # Day18은 처음부터 이론/명령어를 나눠 써서 split 없이 cmds/day18.html 을 직접 만듦 (주제 이름 참고용)
+    18: {"connect": ("PostgreSQL · SQL", "접속 · 확인"), "select": ("PostgreSQL · SQL", "조회 (SELECT)"),
+         "design": ("PostgreSQL · SQL", "테이블 설계 (DDL)"), "write": ("PostgreSQL · SQL", "변경 (INSERT · UPDATE · DELETE)"),
+         "join": ("PostgreSQL · SQL", "JOIN · 집계"), "constraints": ("PostgreSQL · SQL", "제약 · 실패 검증"),
+         "tx": ("PostgreSQL · SQL", "트랜잭션"), "index": ("PostgreSQL · SQL", "인덱스 · 실행계획")},
 }
 
 END = re.compile(r'^\s*(<h2|<h3|<!-- =+)')

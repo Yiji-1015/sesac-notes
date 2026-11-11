@@ -11239,3 +11239,1374 @@ python -m pytest -q
 - **PostgreSQL** (PostgreSQL (관계형 데이터베이스)): 표·관계·SQL로 데이터를 저장하는 데이터베이스. 동시 요청·여러 서버·트랜잭션처럼 JSON 파일로 어려운 일을 맡아요.
 - **AI Agent**: LLM이 작업을 보고 필요한 도구를 골라 호출을 제안하고 결과를 확인하는 시스템. 실제 호출·권한 확인은 애플리케이션이 책임져요.
 - **RAG** (Retrieval-Augmented Generation (검색 증강 생성)): 질문과 관련된 근거 문서를 먼저 검색해 LLM에 함께 넣어 답하게 하는 방식. 원본 지식이 정리돼 있어야 시작할 수 있어요.
+
+---
+
+# Day18 · PostgreSQL 입문 · 지식 관리 DB
+_2026-11-11(수) · PostgreSQL · SQL · PK/FK · JOIN · 집계 · 제약조건 · 트랜잭션 · 인덱스_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day18.html
+
+📌 딱 3줄 요약
+
+- 어제 JSON 파일 하나에 넣던 지식을 PostgreSQL의 표 두 개(categories 분류 · knowledge 지식)로 나누고, PK·FK로 관계를 묶어요.
+
+- SQL로 읽고(SELECT·WHERE·JOIN·GROUP BY) 바꿔요(INSERT·UPDATE·DELETE + RETURNING).
+
+- 잘못된 값은 제약조건이 거부하고, 여러 변경은 트랜잭션(BEGIN → COMMIT 또는 ROLLBACK)으로 묶어 확정하거나 없던 일로 해요.
+
+🔧 Day18 명령어 한눈에 — 이론 구역별 SQL·인자 설명 명령어 사전에서 보기 →
+
+본문에는 핵심 SQL 한두 줄만 남겼어요. 명령어 사전의 결과값은 같은 S0 데이터를 실제로 실행해 얻은 거예요.
+
+## 📦 필요한 프로그램
+
+오늘은 pip install이 없어요. 파이썬이 아니라 DB 서버 프로그램을 설치하고, 그 서버에 SQL을 보내는 접속 도구를 써요.
+
+| 프로그램 | 뭐 하는 애? | 어디서 써? |
+|---|---|---|
+| PostgreSQL 18 (Server) | 데이터를 실제로 저장하고 SQL·규칙을 처리하는 DBMS. 수업 기준은 18 계열 | 설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요 |
+| pgAdmin 4 | 창(GUI)으로 서버에 접속해 SQL을 보내고 결과를 보는 클라이언트 | Query Tool에서 SQL 실행 → Data Output·Messages 확인 |
+| psql (Command Line Tools) | 터미널에서 쓰는 클라이언트 | PowerShell에서 psql -U postgres -d knowledge_lab |
+| psycopg 등 (내일) | 파이썬(FastAPI)에서 PostgreSQL에 접속하는 드라이버 | 오늘은 안 씀 — 11/12 연동 때 |
+
+### 🔧 설치 · 확인 (PowerShell)
+
+```
+# 공식 Windows 안내 → EDB 설치 프로그램 (Server · pgAdmin · Command Line Tools 선택)
+psql --version                         # 클라이언트(psql) 버전
+Get-Service postgresql*                # 서버가 서비스로 Running 인지
+psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → postgres=# 프롬프트
+```
+
+⚠️ 서버 비밀번호는 비밀이에요. 소스 코드·Git·제출물·스크린샷에 실제 값을 남기지 않아요. 그리고 pgAdmin 창을 닫는 것 ≠ PostgreSQL 서버를 끄는 것 — 서버는 서비스로 계속 돌아요.
+
+🤔 왜 psql --version과 SELECT version()이 따로 있어? — 앞의 것은 내 컴퓨터의 접속 도구 버전, 뒤의 것은 접속한 서버의 버전이에요. 다른 컴퓨터의 서버에 붙으면 둘이 다를 수 있어요.
+
+## 이거 어디에 써?
+
+신입이 "개발환경 설정 절차 알려 주세요"라고 물으면 나중엔 AI Agent가 지식 조회 도구로 안내문을 찾아 답해요. 그런데 안내문이 바뀌었는데 예전 내용을 읽어 가면 안 되죠. 그래서 검색·생성 이전에, 사람이 관리하는 원본 지식이 정확하고 추적 가능해야 해요. 오늘은 그 원본을 표와 규칙으로 관리해요.
+
+🗂️
+
+원본 지식 저장제목·본문·분류를 규칙과 함께 보관
+
+🔗
+
+관계 관리분류 이름을 한 곳에서 관리하고 번호로 연결
+
+🛡️
+
+안전한 변경잘못된 값 거부 · 실패하면 통째로 취소
+
+🔎
+
+추적Agent가 어떤 ID의 안내를 참고했는지 남길 근거
+
+[그림: AI Agent 서비스, FastAPI, PostgreSQL 서버, knowledge_lab·public, categories·knowledge 두 테이블, 한 행의 category_id 값까지 왼쪽에서 오른쪽으로 확대해 가는 그림. 가운데 세 칸이 오늘 다루는 곳으로 초록 점선 안에 있다] 무엇을 보나: 왼쪽 서비스에서 오른쪽 값 하나까지 점점 확대했어요. 초록 점선 안(서버 → DB·스키마 → 테이블)이 오늘 SQL로 직접 만지는 곳이에요. 아래 회색 점선의 검색·RAG·Agent는 이 원본을 읽어 가는 별도 계층이고 이후 수업이에요. 🤔 왜 이렇게 나눠 봐? 문제가 생겼을 때 "서버에 못 붙은 건지, 다른 DB에 붙은 건지, 표가 없는 건지, 값이 틀린 건지"를 층별로 좁힐 수 있어요.
+
+|  | 오늘 · PostgreSQL SQL / Index | 이후 · Embedding / Vector Search |
+|---|---|---|
+| 찾는 방법 | WHERE category_id = 1처럼 조건이 정확히 맞는 행 | 질문과 뜻이 가까운 문서 조각 |
+| 인덱스 | B-tree 인덱스 — 조건에 맞는 행을 빨리 찾는 길 | 벡터 인덱스 — 가까운 벡터를 빨리 찾는 길 |
+| 책임 | 원본의 저장 규칙·관계·변경 확정 | 근거 후보를 골라 LLM에 전달 |
+
+⚠️ B-tree 인덱스를 만들었다고 의미 검색이 되는 건 아니에요. LIKE '%실행%'도 글자 포함 검색일 뿐이라 "구동"은 못 찾아요. 그리고 원본을 고치거나 지워도 나중의 벡터 인덱스는 자동으로 안 바뀌어요.
+
+## ① DB · DBMS · 접속 도구
+
+| 용어 | 오늘의 예 | 역할 |
+|---|---|---|
+| Database | knowledge_lab | 지식·분류의 구조와 데이터를 담는 업무 공간 |
+| DBMS / RDBMS | PostgreSQL | 표 형태의 데이터를 관리하고 SQL·규칙을 처리하는 프로그램 |
+| Client | pgAdmin / psql | 서버에 SQL을 보내고 결과를 받는 도구 |
+| SQL | SELECT · INSERT … | 구조를 정의하고 데이터를 읽고 바꾸는 언어 |
+
+이름 공간은 Server ⊃ Database ⊃ Schema ⊃ Table이에요. knowledge_lab에 접속하면 public 스키마의 knowledge 표를 public.knowledge(줄여서 knowledge)로 불러요. Schema는 같은 DB 안에서 표 이름을 묶는 이름표지 디스크 폴더가 아니에요.
+
+| 접속 값 | 예시 | 뜻 |
+|---|---|---|
+| Host | localhost | 지금 이 컴퓨터의 서버 |
+| Port | 5432 | 설치할 때 정한 서버 포트 (기본값) |
+| Database | knowledge_lab | 오늘의 개인 학습 DB |
+| User | postgres | 설치 확인용 관리자 계정. 실제 앱은 따로 만든 계정을 써요 |
+| Password | (본인이 정한 값) | 서버 인증 · 결과물에는 숨겨요 |
+
+🤔 왜 SELECT 1만 보면 안 돼? — 1이 나오면 "어떤 서버엔가 붙었다"는 것만 알려 줘요. 실수로 postgres DB에 붙은 채 표를 만들면 나중에 knowledge_lab에서 "relation does not exist"가 나요. 그래서 첫 SQL은 current_database()로 지금 DB 이름부터 봐요. 그리고 pgAdmin의 서버 등록 이름은 화면에 보이는 별칭일 뿐이라, 그 이름을 적는다고 DB가 생기지 않아요.
+
+🔧 첫 SQL — 지금 어느 DB인가 명령어 사전에서 자세히 →
+
+```
+SELECT current_database() AS db_name, current_user AS user_name;
+SELECT 1 AS connection_ok;
+```
+
+🔧 CREATE DATABASE — 개인 학습 DB 만들기 명령어 사전에서 자세히 →
+
+```
+CREATE DATABASE knowledge_lab;      -- postgres DB에서 이 문장만 단독 실행
+```
+
+🔧 psql — 터미널 접속과 \dt · \d 명령어 사전에서 자세히 →
+
+```
+psql -U postgres -h localhost -p 5432 -d knowledge_lab
+\conninfo    \dt    \d knowledge    \q
+```
+
+### pgAdmin Query Tool 읽는 법
+
+| 순서 | 할 일 |
+|---|---|
+| ① | 실행할 SQL만 선택해서 실행 (한 문장씩) |
+| ② | Data Output에서 값과 행 수 확인 |
+| ③ | Messages에서 오류·변경된 행 수(UPDATE 1 등) 확인 |
+| 설정 | 변경 실습 때 Auto commit 켬 · Auto rollback on error 끔. BEGIN부터 끝까지 같은 Query Tool 창에서 |
+
+🤔 결과가 0행이면 실패야? — 아니에요. "조건에 맞는 행이 없다"는 정상 결과예요. 오류는 Messages에 빨간 메시지로 따로 나와요. 그리고 DB를 직접 실행할 때는 HTTP 상태 코드가 없어요 — 200·404는 FastAPI의 일이에요.
+
+## ② 지식 조회 — SELECT · WHERE · ORDER BY
+
+오늘 새 DB에 미리 넣어 둔 가상 초기 데이터를 S0라고 불러요. (어제 JSON 파일이 자동으로 옮겨진 게 아니에요.)
+
+| categories · 분류 3건 |  |
+|---|---|
+| id | name |
+| 1 | learning |
+| 2 | environment |
+| 3 | reference |
+
+| knowledge · 지식 3건 (content 생략) |  |  |
+|---|---|---|
+| id | title | category_id |
+| 1 | 실습 파일 보관 | 1 |
+| 2 | 서버 실행 | 2 |
+| 3 | 질문 작성 | 1 |
+
+한 행(Row) = 지식 한 건, 한 열(Column) = 공통 항목 한 종류, 값 = 그 행·열이 만나는 칸이에요. 지식 2번 행의 category_id 값 2는 "분류 2번(environment)"을 가리켜요. 그리고 reference(3번)를 가리키는 지식은 아직 없어요.
+
+### SQL은 업무 질문으로 읽어요
+
+"어느 표에서 어떤 행을 골라 어떤 열을 어떤 순서로 보고 싶은가?"
+
+| 순서 | 절 | 질문 |
+|---|---|---|
+| 1 | FROM | 어느 테이블? |
+| 2 | WHERE | 어떤 조건의 행? |
+| 3 | SELECT | 어떤 열? |
+| 4 | ORDER BY | 어떤 순서? (DESC = 큰 것부터) · LIMIT n = 최대 n행 |
+
+🤔 쓰는 순서(SELECT가 먼저)와 왜 달라? — 위 순서는 뜻을 이해하는 순서예요. 실제로 DB가 어떤 순서·방법으로 처리할지는 실행계획이 정해요(⑧). 그리고 ORDER BY가 없으면 결과 순서는 보장되지 않아요 — 순서가 중요하면 꼭 써요.
+
+🔧 SELECT · FROM · ORDER BY 명령어 사전에서 자세히 →
+
+```
+SELECT id, title, category_id FROM knowledge ORDER BY id;
+```
+
+🔧 WHERE — ID·분류 조건 명령어 사전에서 자세히 →
+
+```
+SELECT id, title FROM knowledge WHERE id = 2;
+SELECT id, title FROM knowledge WHERE category_id = 1 ORDER BY id;
+```
+
+🔧 AND · LIKE · DESC · LIMIT 명령어 사전에서 자세히 →
+
+```
+WHERE category_id = 1 AND title LIKE '%실습%'
+ORDER BY id DESC LIMIT 2;
+```
+
+### NULL과 빈 문자열은 달라요
+
+|  | NULL | '' (빈 문자열) |
+|---|---|---|
+| 뜻 | 값이 없음 / 모름 | 길이가 0인 값 |
+| 확인 | IS NULL (= NULL은 결과가 NULL이라 안 됨) | char_length(x) = 0 |
+| 막는 규칙 | NOT NULL | 길이 CHECK (1자 이상) |
+
+🤔 왜 규칙이 두 개나 필요해? — NOT NULL만 걸면 빈 본문 ''은 "값이 있음"이라 통과해요. 본문이 비면 Agent가 근거로 쓸 게 없으니 길이 CHECK도 같이 걸어요.
+
+🔧 IS NULL · char_length() 명령어 사전에서 자세히 →
+
+```
+SELECT NULL IS NULL, '' IS NULL, char_length('');   -- true, false, 0
+```
+
+## ③ 두 테이블 설계 — PK · FK · ERD · DDL
+
+[그림: 왼쪽에 어제의 JSON 한 건, 가운데 categories 표(1 learning, 2 environment, 3 reference), 오른쪽 knowledge 표의 category_id 값에서 categories의 해당 행으로 화살표가 이어진 ERD] 무엇을 보나: 어제 JSON은 지식마다 "category": "environment" 같은 분류 이름을 반복해서 들고 있었어요. 오늘은 분류 이름을 부모 표(categories)에 한 번만 두고, 지식은 category_id 번호로 가리켜요(초록 화살표). 분류 하나에 지식이 0개 이상(1 : 0..N) — reference처럼 0개여도 돼요. 🤔 왜 나눠? 분류 이름을 고칠 때 한 곳만 바꾸면 되고, 오타 난 분류("enviroment")가 몰래 생기는 걸 FK가 막아 줘요. 대신 볼 때는 JOIN으로 다시 붙여요(⑤).
+
+| 개념 | 하는 일 | 이번 예시 |
+|---|---|---|
+| PK (Primary Key) | 각 행을 유일하게 식별 · NULL 불가 | knowledge.id, categories.id |
+| FK (Foreign Key) | 참조하는 부모 값이 실제로 있는지 검사 | knowledge.category_id → categories.id |
+| IDENTITY | 값을 생략하면 DB가 번호를 발급 | id 자동 생성 (유일성 보장은 PK의 일) |
+| JOIN | 조회할 때 조건에 맞는 행을 붙여 보여 줌 | 지식 목록에 분류 이름 붙이기 |
+
+⚠️ PK · FK · JOIN은 서로 다른 일이에요. FK가 있다고 JOIN이 자동으로 되지 않고, JOIN은 FK가 없어도 쓸 수 있어요. FK는 저장할 때 검사, JOIN은 읽을 때 연결이에요. 그리고 ID는 행 수나 목록의 위치가 아니에요 — 삭제·취소가 있으면 번호가 비어요(⑦).
+
+### 자료형과 저장 규칙 (데이터 계약)
+
+| 필드 | DB 표현 | 규칙 |
+|---|---|---|
+| id | BIGINT + IDENTITY + PK | DB가 발급 · 응답의 실제 ID로 추적 |
+| title | VARCHAR(80) + NOT NULL + CHECK | 1~80자 · 같은 제목 허용 (UNIQUE 아님) |
+| content | TEXT + NOT NULL + CHECK | 1~2,000자 |
+| categories.name | VARCHAR(30) + NOT NULL + UNIQUE | 1~30자 · 분류 이름 중복 금지 |
+| category_id | BIGINT + NOT NULL + FK | 등록된 분류만 참조 |
+
+🤔 왜 제목엔 UNIQUE를 안 걸어? — 어제 API도 같은 제목을 막지 않았어요. 규칙을 DB로 옮기면서 몰래 바꾸면, 어제는 되던 요청이 오늘은 실패해요. 그래서 "제목은 ID 대신 쓸 수 없다 — 찾을 땐 ID로"가 원칙이에요. 반대로 분류 이름은 하나여야 이름으로 ID를 찾을 수 있어서 UNIQUE예요.
+
+💡 DDL(Data Definition Language)은 CREATE TABLE처럼 구조를 만드는 SQL, DML은 INSERT·UPDATE처럼 데이터를 바꾸는 SQL이에요. 부모(categories)를 먼저 만들어야 자식의 FK가 가리킬 곳이 생겨요.
+
+🔧 CREATE TABLE categories — 부모 표 명령어 사전에서 자세히 →
+
+```
+id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+name VARCHAR(30) NOT NULL UNIQUE,
+```
+
+🔧 CREATE TABLE knowledge — 자식 표와 FK 명령어 사전에서 자세히 →
+
+```
+CONSTRAINT knowledge_category_fk FOREIGN KEY (category_id)
+  REFERENCES categories(id) ON DELETE RESTRICT
+```
+
+🔧 Seed — 분류를 넣고 이름으로 ID를 찾아 연결 명령어 사전에서 자세히 →
+
+```
+INSERT INTO categories (name) VALUES ('learning'), ('environment'), ('reference') RETURNING id, name;
+INSERT INTO knowledge (title, content, category_id) SELECT '실습 파일 보관', '...', id FROM categories WHERE name = 'learning';
+```
+
+🔧 연습용 _try 표 — 본 표를 안 건드리고 키 연습 명령어 사전에서 자세히 →
+
+```
+BEGIN; CREATE TABLE categories_try (...); CREATE TABLE knowledge_try (...); ... ROLLBACK;
+```
+
+💡 나중에 태그가 여러 개 필요해지면? 지식 하나에 태그 여러 개, 태그 하나에 지식 여러 개 = N:M 관계예요. 이건 FK 한 칸으로 못 담아서 가운데에 knowledge_tags(knowledge_id FK, tag_id FK) 연결 표를 두고, 두 열의 조합을 PK로 해 같은 짝이 두 번 들어가는 걸 막아요. 오늘 필수는 아니고 설계 예시예요.
+
+## ④ 바꾸기 — INSERT · UPDATE · DELETE · RETURNING
+
+변경 SQL은 확인하고 → 바꾸고 → 다시 확인해요.
+
+| 단계 | SQL | 확인할 것 |
+|---|---|---|
+| 1 · 대상 조회 | 같은 WHERE로 먼저 SELECT | 바꿀 행의 실제 ID·현재 값 |
+| 2 · 묶음 시작 | BEGIN | 취소할 수 있는 상태 |
+| 3 · 변경 | INSERT / UPDATE / DELETE + RETURNING | 어느 행이 어떻게 바뀌었나 |
+| 4 · 끝내기 | COMMIT 또는 ROLLBACK → 다시 SELECT | 확정됐나 / 원래대로인가 |
+
+🤔 왜 RETURNING을 붙여? — INSERT만 하면 "1행 넣음"만 알려 줘서 몇 번 ID가 발급됐는지 다시 찾아야 해요. RETURNING id는 바뀐 행을 그 자리에서 돌려줘요. "아마 4번이겠지" 하고 다음 ID를 예상하면 안 돼요 — 취소·실패가 있으면 번호가 건너뛰어요.
+
+🔧 INSERT ... RETURNING 명령어 사전에서 자세히 →
+
+```
+INSERT INTO knowledge (title, content, category_id)
+VALUES ('임시 안내', '한 번만 실행합니다.', 1) RETURNING id, title, category_id;
+```
+
+🔧 UPDATE ... SET ... WHERE 명령어 사전에서 자세히 →
+
+```
+UPDATE knowledge SET content = '실행 전에 가상환경을 확인합니다.'
+WHERE id = 2 RETURNING id, title, content;
+```
+
+🔧 DELETE FROM ... WHERE 명령어 사전에서 자세히 →
+
+```
+DELETE FROM knowledge WHERE id = 3 RETURNING id, title;
+```
+
+⚠️ UPDATE·DELETE에서 WHERE를 빼면 표의 모든 행이 대상이에요. 그래서 같은 조건의 SELECT를 먼저 돌려 대상 행 수를 보고, 연습은 BEGIN 안에서 해요. DELETE는 행만 지우고 표 구조는 남아요(구조까지 지우는 건 DROP — 본 데이터엔 안 써요).
+
+### 0행 · 오류 · HTTP 응답은 다른 층이에요
+
+| 상황 | 오늘 SQL 결과 | 내일 API가 정할 것 |
+|---|---|---|
+| 없는 ID를 SELECT | 0행 · SQL은 정상 | 상세면 404, 목록이면 빈 배열 등 |
+| 없는 ID를 UPDATE | UPDATE 0 / RETURNING 0행 | "성공"이라고 할지 404로 할지 |
+| 정상 INSERT | 생성된 행과 실제 ID | 201 + 그 행 |
+| 잘못된 참조·빈 본문 | DB 오류 · 변경 미확정 | 예외를 잡아 응답으로 바꾸기 |
+
+🤔 SQL이 404를 보내 주면 편하지 않아? — DB는 "0행"이라는 사실만 알려 줘요. 그게 "없는 지식"(404)인지 "검색 결과 없음"(200 + [])인지는 API의 약속이라 FastAPI가 정해요. 층마다 책임이 달라야 나중에 DB를 바꿔도 API 약속이 그대로예요.
+
+## ⑤ 연결해서 읽기 — JOIN · LEFT JOIN · GROUP BY
+
+[그림: 왼쪽 JOIN 결과 3행, 가운데 LEFT JOIN 결과 4행(reference 행은 knowledge_id와 title이 NULL), 오른쪽 분류별 COUNT(*)와 COUNT(k.id) 막대그래프: learning 2·2, environment 1·1, reference 1·0] 무엇을 보나: 같은 두 표를 붙여도 결과가 달라요. JOIN(INNER)은 ON 조건에 짝이 있는 행만 → 3행, 지식이 없는 reference는 사라져요. LEFT JOIN은 왼쪽 표(분류)를 모두 남기고 짝이 없으면 오른쪽 칸을 NULL로 채워요 → 4행(분홍 줄). 오른쪽 막대는 그 4행을 분류별로 센 결과예요 — COUNT(*)는 NULL 줄도 한 행이라 reference를 1, COUNT(k.id)는 NULL을 안 세서 0. 🤔 그래서? "분류별 지식 수"를 물으면 COUNT(k.id)가 정답이에요. 값은 S0를 실제로 실행한 결과예요.
+
+| 표현 | 뜻 |
+|---|---|
+| FROM knowledge AS k | k는 표의 별칭 — k.id처럼 어느 표의 열인지 밝힐 때 |
+| JOIN categories AS c ON c.id = k.category_id | 어떤 값끼리 짝을 맞출지 |
+| c.name AS category | 결과 열 이름 바꾸기 |
+| GROUP BY c.id, c.name | 분류별로 묶기 — 결과 한 행 = 분류 한 개 |
+| HAVING COUNT(k.id) >= 2 | 묶은 뒤 그룹 조건 (WHERE는 묶기 전 행 조건) |
+
+🤔 JOIN 결과에 learning이 두 번 나오는데 중복 아니야? — 결과 한 행은 여전히 지식 한 건이에요. 지식 1·3이 둘 다 learning이라 이름이 두 번 보이는 건 정상적인 관계 결과예요. 반대로 GROUP BY를 하면 한 행의 단위가 분류로 바뀌어요. SQL을 읽을 때 "지금 결과 한 행은 무엇 하나인가?"를 먼저 물어요.
+
+🔧 JOIN ... ON — 지식에 분류명 붙이기 명령어 사전에서 자세히 →
+
+```
+SELECT k.id, k.title, c.name AS category
+FROM knowledge AS k JOIN categories AS c ON c.id = k.category_id ORDER BY k.id;
+```
+
+🔧 LEFT JOIN — 지식이 없는 분류도 남기기 명령어 사전에서 자세히 →
+
+```
+FROM categories AS c LEFT JOIN knowledge AS k ON k.category_id = c.id
+```
+
+🔧 GROUP BY + COUNT(k.id) — 분류별 지식 수 명령어 사전에서 자세히 →
+
+```
+SELECT c.name AS category, COUNT(k.id) AS knowledge_count ... GROUP BY c.id, c.name
+```
+
+🔧 COUNT · SUM · MIN · MAX — 본문 길이 요약 명령어 사전에서 자세히 →
+
+```
+SELECT COUNT(*), SUM(char_length(content)), MIN(char_length(content)), MAX(char_length(content)) FROM knowledge;
+```
+
+🔧 HAVING — 묶은 뒤 그룹 고르기 명령어 사전에서 자세히 →
+
+```
+GROUP BY c.id, c.name HAVING COUNT(k.id) >= 2
+```
+
+⚠️ LEFT JOIN 뒤에 오른쪽 표 조건을 WHERE에 쓰면 NULL로 채운 줄이 걸러져서 0개인 분류가 사라져요 — 결과적으로 INNER JOIN처럼 돼요. 빈 분류를 살리려면 그 조건을 ON 안으로 옮겨요. (명령어 사전에 실제 결과 비교가 있어요.)
+
+## ⑥ 제약조건 — DB가 거부하게 하기
+
+오늘의 SQL은 FastAPI를 거치지 않고 DB로 바로 가요. 그래서 API의 입력 검증(Pydantic)과 별개로 DB에도 규칙이 있어야 해요.
+
+|  | 흐름 |
+|---|---|
+| 오늘 | pgAdmin / psql → DB 제약(필수·길이·참조) → 저장 / 오류 |
+| 내일 | 사용자 JSON → FastAPI 입력 검증 → DB 제약 → 저장 / 오류 |
+
+| 규칙 | 보장하는 것 | 이번 예 | 위반 시 SQLSTATE |
+|---|---|---|---|
+| PRIMARY KEY | 각 행을 유일하게 식별 · NULL 불가 | knowledge.id | 23505 / 23502 |
+| FOREIGN KEY | 참조 대상이 실제로 있음 | knowledge.category_id | 23503 |
+| NOT NULL | NULL 저장 금지 | title · content | 23502 |
+| UNIQUE | 같은 값 중복 금지 | categories.name | 23505 |
+| CHECK | 정한 조건 만족 | 본문 1~2,000자 | 23514 |
+| (오류 뒤 계속 실행) | — | 실패한 트랜잭션 안에서 다음 SQL | 25P02 → ROLLBACK부터 |
+
+SQLSTATE는 PostgreSQL 공식 오류 코드표 값이에요. 코드를 외우는 게 목표가 아니라, 기대한 제약으로 실패했는지와 정리 후 기존 데이터가 그대로인지를 보는 게 목표예요.
+
+🤔 왜 실패를 일부러 일으켜 봐? — "오류가 났다"만으로는 부족해요. 빈 본문을 넣었는데 FK 오류가 났다면 테스트가 엉뚱한 걸 검사한 거예요. 그래서 한 번에 한 가지만 틀리게(나머지 값은 정상으로) 넣고, 오류 이름과 롤백 뒤 행 수·내용을 같이 확인해요.
+
+🔧 실패 테스트 — 빈 본문 INSERT → 오류 확인 → ROLLBACK 명령어 사전에서 자세히 →
+
+```
+BEGIN; INSERT INTO knowledge (title, content, category_id) VALUES ('오류 확인', '', 1);
+ROLLBACK; SELECT COUNT(*) FROM knowledge;
+```
+
+### 지식 삭제 vs 분류 삭제
+
+|  | 지식 한 건 삭제 | 참조 중인 분류 삭제 |
+|---|---|---|
+| SQL | DELETE FROM knowledge WHERE id = … | DELETE FROM categories WHERE name = 'learning' |
+| 결과 | 그 행만 사라짐 · 부모와 다른 지식은 그대로 | 거부 (ON DELETE RESTRICT) · 아무것도 안 지워짐 |
+
+🤔 CASCADE로 같이 지우면 편하지 않아? — ON DELETE CASCADE는 분류를 지우면 그 분류의 지식까지 전부 지워요. 분류 하나 정리하려다 안내문 수십 개가 사라질 수 있어요. 그래서 "분류를 지우면 지식은 어떻게 되어야 하나?"라는 업무 정책을 먼저 정하고, 이번 설계는 거부(RESTRICT)예요.
+
+🔧 ON DELETE RESTRICT — 참조 중인 부모 삭제 명령어 사전에서 자세히 →
+
+```
+DELETE FROM categories WHERE name = 'learning';   -- 연결된 지식이 있어 거부 (23503)
+```
+
+🔧 DEFAULT — 생략한 값 vs 직접 넣은 NULL 명령어 사전에서 자세히 →
+
+```
+INSERT INTO defaults_try DEFAULT VALUES;           -- '미지정'
+INSERT INTO defaults_try (label) VALUES (NULL);    -- NULL 그대로
+```
+
+💡 DEFAULT는 값을 생략했을 때만 채워요. 직접 NULL을 넣으면 고쳐 주지 않아요. NULL을 막고 싶으면 NOT NULL을 따로 걸어야 해요.
+
+⚠️ 형식 검증 ≠ 사실 검증. 제약조건은 "본문이 1자 이상"까지만 지켜 줘요. 안내문 내용이 맞는지, 이 사람이 고쳐도 되는지, AI 답변이 정확한지는 다른 검사예요.
+
+## ⑦ 트랜잭션 — 확정할까, 없던 일로 할까
+
+트랜잭션은 여러 변경을 한 묶음으로 다루는 단위예요. BEGIN으로 시작하고, 같은 연결에서 작업한 뒤 둘 중 하나로 끝내요.
+
+| 명령 | 뜻 |
+|---|---|
+| BEGIN | 묶음 시작 — 이후 변경은 미확정 |
+| COMMIT | 묶음의 변경을 확정 — 다른 연결·재접속에서도 보임 |
+| ROLLBACK | 미확정 변경을 취소 — BEGIN 직전 상태로 |
+
+[그림: 위 줄: SELECT 원래 본문, BEGIN, UPDATE 후 임시 본문, ROLLBACK, SELECT 원래 본문. 아래 줄: BEGIN, UPDATE RETURNING 새 본문, COMMIT, 재접속 후 새 본문, ROLLBACK 해도 값 그대로] 무엇을 보나: id 2번 지식의 content 값이 칸마다 어떻게 보이는지예요. 위(ROLLBACK): 작업 중엔 임시 본문이 보이지만 — 같은 순간 다른 연결에서는 아직 원래 본문이에요 — ROLLBACK 뒤엔 원래 본문으로 돌아가요. 아래(COMMIT): 확정하면 연결을 끊고 다시 붙어도 새 본문이고, 그 뒤 ROLLBACK은 되돌릴 게 없어요. 값은 실제 실행으로 확인한 거예요. 🤔 왜 재접속까지 해 봐? 같은 창에서 보이는 건 내 미확정 변경일 수도 있어서, 새 연결에서 보여야 정말 확정된 거예요.
+
+⚠️ ROLLBACK은 "DB 전체를 과거로 돌리는 버튼"이 아니에요. 지금 열린 묶음의 미확정 변경만 취소해요. 이미 COMMIT한 값은 ROLLBACK으로 못 되돌려요 — 되돌리려면 새 UPDATE로 다시 고쳐야 해요.
+
+🔧 BEGIN → UPDATE → ROLLBACK — 세 번 비교 명령어 사전에서 자세히 →
+
+```
+SELECT id, content FROM knowledge WHERE id = 2;
+BEGIN; UPDATE knowledge SET content = '취소할 임시 안내입니다.' WHERE id = 2; ROLLBACK;
+```
+
+🔧 COMMIT → 재접속해서 확인 명령어 사전에서 자세히 →
+
+```
+BEGIN; UPDATE knowledge SET content = '실행 전에 가상환경을 확인합니다.' WHERE id = 2 RETURNING id, content; COMMIT;
+```
+
+🔧 원자성 — 두 번째 변경이 실패하면 첫 변경도 취소 명령어 사전에서 자세히 →
+
+```
+BEGIN; UPDATE ... WHERE id = 2;  UPDATE knowledge SET content = '' WHERE id = 3;  -- CHECK 오류
+ROLLBACK;
+```
+
+🤔 원자성(Atomicity)이 왜 중요해? — "B 안내 수정 + C 안내 삭제"가 한 작업인데 앞의 것만 반영되면 지식이 반쯤 바뀐 상태로 남아요. 묶음으로 처리하면 모두 반영되거나 하나도 반영 안 되거나 둘 중 하나예요. PostgreSQL은 묶음 안에서 오류가 나면 그 묶음을 중단 상태로 만들어 다음 SQL을 거부해요(25P02) — 그래서 오류 뒤엔 ROLLBACK부터 해요.
+
+### ID는 되돌아가지 않을 수 있어요
+
+[그림: 1, 2, 3은 행이 있고, 4는 INSERT 뒤 ROLLBACK, 5는 CHECK 위반으로 INSERT 실패해 점선 빈칸, 다음 INSERT는 6을 받는 그림] 무엇을 보나: IDENTITY는 안에서 시퀀스(번호 발급기)를 써요. INSERT가 번호를 받아 간 뒤 ROLLBACK되거나 제약 위반으로 실패해도 발급기는 되감기지 않을 수 있어서, 표에는 1, 2, 3, 6처럼 빈 번호가 생겨요(PostgreSQL 공식 문서 내용을 그린 개념도). 🤔 그래서? max(id)를 행 수로 쓰지 말고(COUNT(*)를 써요), 새 ID는 예상하지 말고 RETURNING id로 읽어요. 번호가 비어도 정상이에요.
+
+| 상황 | 지식 행 | 다음 ID |
+|---|---|---|
+| 어제: API 검증에서 422 | 저장 함수에 도달 안 함 | 파일의 next_id도 그대로 |
+| 오늘: INSERT 뒤 ROLLBACK | 새 행 안 남음 | 발급된 번호는 재사용 안 될 수 있음 |
+| 오늘: 제약 위반으로 INSERT 실패 | 실패 행 저장 안 됨 | 이미 발급됐으면 빈 번호 |
+
+## 🧪 트랜잭션 직접 해 보기
+
+브라우저 안에서 PostgreSQL 트랜잭션 규칙을 흉내 냈어요(실제 DB는 아니에요). 연결 A에서 바꾸고, 연결 B에서는 무엇이 보이는지 비교해 보세요. 오른쪽 아래 숫자는 IDENTITY의 다음 발급 번호예요.
+
+## ⑧ 인덱스와 실행계획 — INDEX · EXPLAIN
+
+인덱스는 표와 별도로 만드는 탐색 구조예요. 책 뒤의 "찾아보기"처럼, category_id = 1인 행이 어디 있는지 표 전체를 훑지 않고 찾아가게 도와요.
+
+|  | 내용 |
+|---|---|
+| 도움이 되는 곳 | 자주 쓰는 WHERE 조건, JOIN의 연결 열 |
+| 비용 | INSERT·UPDATE 때 인덱스도 고쳐야 하고 저장 공간을 써요 |
+| 자동으로 생기나? | PK·UNIQUE엔 자동으로 생겨요. 자식 표의 FK 열엔 자동으로 안 생겨요 — 그래서 knowledge.category_id에 직접 만들어요 |
+
+🔧 pg_indexes 확인 → CREATE INDEX 명령어 사전에서 자세히 →
+
+```
+SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'knowledge';
+CREATE INDEX idx_knowledge_category_id ON knowledge (category_id);
+```
+
+| EXPLAIN 용어 | 뜻 |
+|---|---|
+| EXPLAIN | 실행하지 않고 예상 실행계획만 보여 줌 |
+| EXPLAIN (ANALYZE, BUFFERS) | 실제로 실행하고 걸린 시간·실제 행 수·읽은 블록까지 (그래서 변경 SQL엔 쓰지 않아요) |
+| Seq Scan | 표를 처음부터 끝까지 훑기 |
+| Index Scan / Bitmap Index Scan | 인덱스로 찾아가기 |
+| rows | 예상 행 수 (ANALYZE면 실제 행 수도 따로 나옴) |
+| cost | 상대적인 비용 단위 — 밀리초가 아니에요 |
+
+🔧 EXPLAIN · EXPLAIN (ANALYZE, BUFFERS) 명령어 사전에서 자세히 →
+
+```
+EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;
+```
+
+🤔 인덱스를 만들었는데 Seq Scan이 나와. 실패야? — 아니에요. 행이 3개뿐이면 표 전체를 읽는 게 인덱스를 거쳐 가는 것보다 싸다고 판단할 수 있어요. 실행계획은 데이터 양·통계에 따라 바뀌어서, 계획 이름을 정답으로 외우지 않아요. 인덱스는 결과 행을 바꾸지 않고 찾아가는 길만 바꿔요.
+
+## ⑨ 다음 단계와 연결
+
+| 날짜 | 핵심 결과 | 오늘과의 연결 |
+|---|---|---|
+| 11/10 | JSON 파일 지식 CRUD API | title · content · category / 실제 ID |
+| 11/11 (오늘) | 관계형 지식 DB · SQL · ERD | categories · knowledge / 제약 · 트랜잭션 |
+| 11/12 | FastAPI–PostgreSQL 연동 | 접속 설정 · ORM · Migration · 통합 검증 |
+| 11/18~19 | 검색용 인덱스 · 문서·메타데이터 처리 | 원본 → 청크·벡터 |
+| 11/20 | Basic RAG | 검색한 원문을 LLM에 제공 |
+
+### DB로 바꿔도 자동으로 해결되지 않는 것
+
+| 항목 | 구분할 것 | 이후 확인 |
+|---|---|---|
+| 스키마 | Pydantic 모델 ≠ DB 테이블 정의 | 입력·저장·응답 규칙이 서로 맞는지 |
+| 데이터 이관 | JSON이 DB로 저절로 옮겨지지 않음 | 기존 ID·분류 매핑·중복 정책 |
+| 분류 입력 | API는 category 문자열, DB는 category_id 번호 | 있는 분류는 ID를 찾고, 새 이름이면 분류를 먼저 만든 뒤 저장 — 한 트랜잭션으로 |
+| 검색 데이터 | 원본 수정 ≠ 청크·벡터 자동 갱신 | 수정·삭제 전파와 출처 추적 |
+| 공개 서비스 | 로컬 학습 ≠ 운영 환경 | 앱 전용 계정·비밀 설정·백업·관측 |
+
+🤔 DB로 바꾸면 API 모양도 바꿔야 해? — 아니에요. 바깥 약속("category": "environment" 문자열)은 그대로 두고, 안쪽에서 이름 ↔ ID를 바꿔 주면 돼요. 부르는 쪽(화면·Agent)은 저장소가 바뀐 걸 몰라도 돼요. 단, 분류 이름 자체를 바꾸면 그 분류를 가리키는 모든 지식의 조회 결과가 같이 바뀌어요.
+
+💡 파일 → DB로 옮기는 이유는 "파일은 사라져서"가 아니에요. 어제 JSON도 재시작 후 남았어요. 옮기는 이유는 관계(분류–지식), 공유 규칙(누가 넣어도 같은 제약), 조회(필요한 행만·연결·집계), 트랜잭션(여러 변경을 한 묶음으로)을 다루기 위해서예요.
+
+## 원본 자료
+
+- 강의: 20261111.pdf (PostgreSQL 입문 · 지식 관리 DB, 94쪽) — 플랫폼 속 위치 p2–11 · 접속·첫 SQL p17–22 · SELECT·WHERE·NULL p24–29 · 두 테이블·ERD·DDL p31–37 · INSERT·UPDATE·DELETE p39–43 · JOIN·집계 p45–50 · 제약·실패 p52–56 · 트랜잭션·IDENTITY·INDEX·EXPLAIN p58–63 · 다음 수업 연결 p65–66 · 부록(DB 준비·Seed·연습 표·HAVING·DEFAULT·원자성·N:M·Windows·psql·연동 체크포인트) p78–91
+
+- 노트·명령어 사전의 결과 값: 이 PC에 PostgreSQL이 없어서, 같은 S0 데이터와 강의 SQL을 파이썬 내장 SQLite 3.50으로 실제 실행해 확인 (tools/io_day18.py, 그림 tools/visuals/make_day18.py). PostgreSQL 전용 값(SQLSTATE·current_database()·EXPLAIN 표기·psql)은 강의자료·공식 문서 기준이라고 따로 표시했어요.
+
+- 공식 문서: Querying a Table · Schemas · Constraints · CREATE TABLE · Identity Columns
+
+- 공식 문서: Returning Data from Modified Rows · Table Expressions (JOIN) · Aggregate Functions · Transactions · Sequence Functions
+
+- 공식 문서: Indexes · Using EXPLAIN · Error Codes · psql · pgAdmin Query Tool
+
+## 🔧 Day18 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day18)
+| 이론 | 대응 명령어 |
+|---|---|
+| 📦 필요한 프로그램 | psql --version, Get-Service postgresql* |
+| ① DB · DBMS · 접속 도구 | SELECT current_database(), CREATE DATABASE, psql -U -h -p -d, \dt · \d |
+| ② 지식 조회 | SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT, LIKE, IS NULL |
+| ③ 두 테이블 설계 | CREATE TABLE, GENERATED ALWAYS AS IDENTITY, PRIMARY KEY, FOREIGN KEY ... REFERENCES, CHECK |
+| ④ 바꾸기 | INSERT ... RETURNING, UPDATE ... SET ... WHERE, DELETE FROM ... WHERE |
+| ⑤ 연결해서 읽기 | JOIN ... ON, LEFT JOIN, GROUP BY, COUNT(k.id), HAVING |
+| ⑥ 제약조건 | NOT NULL · UNIQUE · CHECK · ON DELETE RESTRICT · DEFAULT, SQLSTATE |
+| ⑦ 트랜잭션 | BEGIN, COMMIT, ROLLBACK |
+| 🧪 트랜잭션 직접 해 보기 | (브라우저 안에서 연결 A · B 흉내) |
+| ⑧ 인덱스와 실행계획 | pg_indexes, CREATE INDEX, EXPLAIN (ANALYZE, BUFFERS) |
+| ⑨ 다음 단계와 연결 | FastAPI–PostgreSQL 연동 (11/12) · 검색 인덱스 · RAG |
+
+### 첫 SQL — current_database() · version() · SELECT 1
+
+```
+SELECT current_database() AS db_name,
+       current_user AS user_name;      -- 지금 접속한 DB · 계정
+SELECT version();                      -- 서버 버전
+SELECT 1 AS connection_ok;             -- SQL을 보내고 결과를 받을 수 있나
+```
+
+▶ 실제로 돌려 보면 PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — 강의자료 p21의 기대값
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT current_database() AS db_name, current_user AS user_name; | PG = db_name: knowledge_lab (user: 접속한 계정) | 지금 연결된 DB 이름부터 확인 |
+| SELECT 1 AS connection_ok; | PG = connection_ok: 1 | SQL을 보내고 결과를 받는 길이 열렸다 |
+| SELECT version(); | PG = 서버 버전 문자열 (수업 기준 18.x) | psql --version은 클라이언트 버전 — 서로 다를 수 있어요 |
+
+| 표현 | 뜻 | 🤔 왜? |
+|---|---|---|
+| current_database() | 지금 연결된 Database 이름 | knowledge_lab이 아니면 표를 엉뚱한 DB에 만들게 돼요 |
+| current_user | 접속한 계정 이름 (괄호 없음) | 권한 문제를 볼 때 첫 단서 |
+| AS db_name | 결과 열 이름 붙이기 | Data Output에서 무슨 값인지 바로 보이게 |
+| version() | 서버 버전 | psql --version(클라이언트)과 구분 |
+
+💡 pgAdmin에서는 실행할 문장만 선택하고 실행해요. 세 문장을 한꺼번에 돌리면 마지막 결과만 Data Output에 보일 수 있어요.
+
+### CREATE DATABASE — 개인 학습 DB 만들기
+
+```
+-- postgres DB에 접속한 Query Tool에서 이 문장만 단독 실행
+CREATE DATABASE knowledge_lab;
+
+-- 왼쪽 트리에서 knowledge_lab을 선택하고 Query Tool을 새로 연 뒤
+SELECT current_database();      -- 기대: knowledge_lab
+```
+
+▶ 실제로 돌려 보면 PostgreSQL 전용이라 SQLite로는 못 돌려요 — 강의자료 p68(A01)의 기대값
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| CREATE DATABASE knowledge_lab; (postgres DB에서) | PG = CREATE DATABASE | 새 DB가 생김 — 아직 이 창은 postgres DB |
+| knowledge_lab에서 새 Query Tool → SELECT current_database(); | PG = knowledge_lab | 이제부터 표를 만들 곳 |
+| BEGIN; CREATE DATABASE ... | PG = ERROR: CREATE DATABASE cannot run inside a transaction block | 그래서 Auto commit 상태에서 단독 실행 |
+
+| 규칙 | 🤔 왜? |
+|---|---|
+| Auto commit이 켜진 상태에서, BEGIN 안이 아닌 곳에서 | CREATE DATABASE는 트랜잭션 묶음 안에서 실행할 수 없어요 |
+| 만든 뒤 새 Query Tool을 그 DB에서 열기 | Query Tool은 열 때 정한 DB에 붙어 있어요. 만들기만 하면 여전히 postgres DB예요 |
+| 같은 이름이 있으면 내용부터 확인 | 임의로 DROP하면 남의(또는 어제의) 데이터를 지울 수 있어요 |
+
+💡 준비 순서: A01 DB 만들기 → A02 categories → A03 knowledge → A04·A05 Seed. 빈 개인 DB에 한 번만 해요.
+
+### psql — 터미널 접속과 메타 명령
+
+```
+# PowerShell에서
+psql -U postgres -h localhost -p 5432 -d knowledge_lab
+
+-- 접속한 psql 안에서
+SELECT current_database();     -- SQL (세미콜론으로 끝)
+\conninfo                      -- 지금 접속 정보
+\dt                            -- 표 목록
+\d knowledge                   -- 표 구조 (열 · 제약 · 인덱스)
+\q                             -- 나가기
+```
+
+▶ 실제로 돌려 보면 PostgreSQL 클라이언트라 이 PC에선 못 돌려요 — 각 명령이 하는 일 (공식 psql 문서)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| psql -U postgres -h localhost -p 5432 -d knowledge_lab | Password for user postgres: (입력해도 화면에 안 보임) | PowerShell에서 실행 — 접속되면 프롬프트가 knowledge_lab=# 로 바뀜 |
+| \conninfo | 접속한 DB · 사용자 · 호스트 · 포트 한 줄 | 어느 서버·DB에 붙었는지 확인 |
+| \dt | public 스키마의 표 목록 (categories, knowledge) | SQL이 아니라 psql 전용 명령 |
+| \d knowledge | 열 · 자료형 · 제약 · 인덱스 · FK | CREATE TABLE이 의도대로 됐는지 확인 |
+| \q | psql 종료 | 서버는 계속 켜져 있어요 |
+
+| 옵션 | 뜻 |
+|---|---|
+| -U postgres | User — 접속 계정 |
+| -h localhost | Host — 서버 위치 |
+| -p 5432 | Port — 설치 때 정한 포트 |
+| -d knowledge_lab | Database — 붙을 DB |
+
+⚠️ \dt · \d · \q처럼 역슬래시로 시작하는 건 SQL이 아니라 psql 전용 명령이에요. pgAdmin Query Tool에 붙이면 문법 오류가 나요. 반대로 첫 줄(psql ...)은 PowerShell 명령이라 psql 안에서 치면 안 돼요.
+
+| 증상 | 먼저 볼 것 |
+|---|---|
+| connection refused | 서버 서비스가 켜졌나 · Host · Port |
+| 인증 실패 | 사용자 · 서버 비밀번호 (pgAdmin 보호 비밀번호와 다름) |
+| database "..." does not exist | DB 이름 · A01을 했나 |
+| relation "..." does not exist | 지금 DB · 스키마 · 표를 만든 곳 |
+| psql을 못 찾음 | Command Line Tools 설치 · SQL Shell(psql) 메뉴나 설치 폴더의 bin 경로 |
+
+### SELECT · FROM · ORDER BY
+
+```
+SELECT id, title, category_id     -- 어떤 열?
+FROM knowledge                    -- 어느 표?
+ORDER BY id;                      -- 어떤 순서?
+
+SELECT name
+FROM categories
+ORDER BY id;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT id, title, category_id FROM knowledge ORDER BY id; | id \| title \| category_id 1 \| 실습 파일 보관 \| 1 2 \| 서버 실행 \| 2 3 \| 질문 작성 \| 1 | 한 행 = 지식 한 건 |
+| SELECT name FROM categories ORDER BY id; | name learning environment reference | 분류 3행 |
+
+| 절 | 뜻 | 바꾸면? |
+|---|---|---|
+| SELECT 열, 열 | 보여 줄 열 | SELECT *는 모든 열 — 연습엔 편하지만 필요한 열만 고르는 습관이 좋아요 |
+| FROM 표 | 읽을 표 | 없는 표면 relation does not exist |
+| ORDER BY id | 작은 id부터 | 빼면 순서가 보장되지 않아요 |
+
+### WHERE — ID·분류 조건
+
+```
+SELECT id, title
+FROM knowledge
+WHERE id = 2;                     -- 특정 지식 한 건
+
+SELECT id, title
+FROM knowledge
+WHERE category_id = 1             -- 같은 분류
+ORDER BY id;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| WHERE id = 2 | id \| title 2 \| 서버 실행 | 특정 지식 한 건 |
+| WHERE category_id = 1 ORDER BY id | id \| title 1 \| 실습 파일 보관 3 \| 질문 작성 | 같은 분류(learning)의 지식 |
+| WHERE id = 99 | id \| title (0행) | 0행은 오류가 아니라 '없음'이라는 정상 결과 |
+
+| 표현 | 뜻 |
+|---|---|
+| = | 같다 (SQL은 ==가 아니라 = 하나) |
+| <> 또는 != | 다르다 |
+| 'learning' | 문자열은 작은따옴표. 큰따옴표 "..."는 열·표 이름을 뜻해요 |
+| IN (2, 3) | 목록 중 하나 |
+
+🤔 결과 0행은 조회 실패야? — 아니에요. 조건에 맞는 행이 없다는 정상 결과예요. 오류와 0행을 구분해야 내일 API에서 404 / 빈 배열을 정할 수 있어요.
+
+### AND · LIKE · DESC · LIMIT
+
+```
+SELECT id, title
+FROM knowledge
+WHERE category_id = 1
+  AND title LIKE '%실습%'         -- '실습'을 포함
+ORDER BY id DESC                  -- 큰 ID부터
+LIMIT 2;                          -- 최대 2행
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| WHERE category_id = 1 AND title LIKE '%실습%' ORDER BY id DESC LIMIT 2 | id \| title 1 \| 실습 파일 보관 | 두 조건을 다 만족하는 건 1번뿐 |
+| WHERE category_id = 1 ORDER BY id DESC LIMIT 2 | id \| title 3 \| 질문 작성 1 \| 실습 파일 보관 | LIKE를 빼면 큰 ID부터 2행 |
+| WHERE title LIKE '%실행%' | id \| title 2 \| 서버 실행 | 글자 포함 검색 — 뜻이 비슷한 '구동'은 못 찾아요 |
+
+| 표현 | 뜻 | 주의 |
+|---|---|---|
+| AND / OR | 둘 다 / 하나라도 | 섞어 쓰면 괄호로 묶기: a AND (b OR c) |
+| LIKE '%실습%' | % = 아무 글자 0개 이상 | PostgreSQL의 LIKE는 대소문자를 구분해요 (ILIKE는 무시) |
+| LIKE '실습%' | '실습'으로 시작 | _는 아무 글자 정확히 1개 |
+| DESC | 내림차순 (기본은 ASC) | 같은 값이 여럿이면 순서가 섞일 수 있어 두 번째 기준을 더해요 |
+| LIMIT 2 | 최대 2행 | ORDER BY 없이 쓰면 "아무 2행"이에요 |
+
+⚠️ LIKE는 글자 포함 검색이에요. 뜻이 비슷한 말을 찾는 의미 검색(RAG)이 아니에요.
+
+### IS NULL · char_length() — NULL과 빈 문자열
+
+```
+SELECT NULL IS NULL AS is_missing;          -- true
+SELECT '' IS NULL AS is_missing;            -- false
+SELECT char_length('') AS text_length;      -- 0
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음) · SQLite는 true/false를 1/0으로 보여 줘요
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT NULL IS NULL AS is_missing; | is_missing 1 | PG에선 true |
+| SELECT '' IS NULL AS is_missing; | is_missing 0 | PG에선 false — 빈 문자열은 값이 있음 |
+| SELECT char_length('') AS text_length; | text_length 0 | 길이 0인 값 |
+| SELECT NULL = NULL AS eq; | eq NULL | = 로 비교하면 '모름'(NULL) — 그래서 IS NULL을 써요 |
+
+| 표현 | 뜻 |
+|---|---|
+| x IS NULL / x IS NOT NULL | 값이 없는지 / 있는지 |
+| x = NULL | ❌ 결과가 true가 아니라 NULL(모름)이라 WHERE에서 아무 행도 안 걸려요 |
+| char_length(x) | 글자 수 (한글 한 글자 = 1) |
+
+### CREATE TABLE categories — 부모 표
+
+```
+CREATE TABLE categories (
+  id BIGINT GENERATED ALWAYS AS IDENTITY
+    PRIMARY KEY,
+  name VARCHAR(30) NOT NULL UNIQUE,
+  CONSTRAINT categories_name_length
+    CHECK (char_length(name) BETWEEN 1 AND 30)
+);
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| CREATE TABLE categories (...) | (완료) | 표가 생김 (PG 메시지: CREATE TABLE) |
+| INSERT INTO categories (name) VALUES ('learning'); | id \| name 1 \| learning | id는 생략 → DB가 1을 발급 |
+| 같은 'learning' 한 번 더 | 오류: UNIQUE constraint failed: categories.name | UNIQUE가 중복 분류명을 거부 (PG SQLSTATE 23505) |
+| name = '' | 오류: CHECK constraint failed: categories_name_length | 길이 CHECK가 빈 이름을 거부 (PG 23514) |
+
+| 부분 | 뜻 | 🤔 왜? |
+|---|---|---|
+| BIGINT | 큰 정수 (약 ±9.2×10¹⁸) | ID가 모자랄 일이 없게 |
+| GENERATED ALWAYS AS IDENTITY | DB가 번호를 발급. ALWAYS면 사용자가 직접 넣는 걸 막음 | 번호 매기기를 사람이 하지 않게 — 어제의 next_id 역할 |
+| PRIMARY KEY | 유일 + NULL 불가 (인덱스도 자동 생성) | 행 하나를 콕 집는 열쇠 |
+| VARCHAR(30) | 최대 30자 문자열 | 분류 이름은 짧아야 해서 |
+| UNIQUE | 같은 값 두 번 금지 | 이름으로 ID를 찾으려면 이름이 하나여야 |
+| CONSTRAINT 이름 CHECK (...) | 이름 붙인 조건 검사 | 오류 메시지에 이 이름이 나와서 원인을 바로 알 수 있어요 |
+
+💡 이미 만든 표에는 다시 실행하지 않아요(relation already exists 오류). 구조를 바꾸려면 ALTER TABLE이나, 연습이면 _try 표로 해요.
+
+### CREATE TABLE knowledge — 자식 표와 FK
+
+```
+CREATE TABLE knowledge (
+  id BIGINT GENERATED ALWAYS AS IDENTITY
+    PRIMARY KEY,
+  title VARCHAR(80) NOT NULL,
+  content TEXT NOT NULL,
+  category_id BIGINT NOT NULL,
+  CONSTRAINT knowledge_title_length
+    CHECK (char_length(title) BETWEEN 1 AND 80),
+  CONSTRAINT knowledge_content_length
+    CHECK (char_length(content) BETWEEN 1 AND 2000),
+  CONSTRAINT knowledge_category_fk
+    FOREIGN KEY (category_id)
+    REFERENCES categories(id) ON DELETE RESTRICT
+);
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| CREATE TABLE knowledge (...) | (완료) | 부모 categories가 먼저 있어야 해요 |
+| 만들어진 표 목록 | name categories knowledge |  |
+| category_id = 99 (없는 분류) | 오류: FOREIGN KEY constraint failed | FK가 부모 없는 참조를 거부 (PG 23503) |
+| title = NULL | 오류: NOT NULL constraint failed: knowledge.title | NOT NULL 위반 (PG 23502) |
+| 같은 제목 두 번 | id \| title 1 \| 같은 제목 2 \| 같은 제목 | title엔 UNIQUE가 없어서 둘 다 들어가요 — 제목은 ID 대신 못 써요 |
+
+| 부분 | 뜻 |
+|---|---|
+| TEXT | 길이 제한 없는 문자열 — 길이는 CHECK로 1~2,000자 |
+| category_id BIGINT NOT NULL | 분류 번호 — 반드시 있어야 함 (지식 1건 → 분류 1개) |
+| FOREIGN KEY (category_id) REFERENCES categories(id) | 넣을 때 그 번호의 분류가 실제로 있는지 검사 |
+| ON DELETE RESTRICT | 이 분류를 가리키는 지식이 있으면 분류 삭제를 거부 |
+
+🤔 FK 타입을 왜 BIGINT로 맞춰? — 가리키는 쪽(category_id)과 가리켜지는 쪽(categories.id)의 타입이 같아야 비교·연결이 자연스러워요. 그리고 title에는 UNIQUE가 없어요 — 같은 제목도 허용(어제 API와 같은 규칙).
+
+### Seed — 분류 3건 · 지식 3건 넣기 (S0)
+
+```
+INSERT INTO categories (name)
+VALUES ('learning'), ('environment'), ('reference')
+RETURNING id, name;
+
+INSERT INTO knowledge (title, content, category_id)
+SELECT '실습 파일 보관',
+       '실습 파일은 개인 폴더에 보관합니다.', id
+FROM categories WHERE name = 'learning'
+RETURNING id, title;
+
+INSERT INTO knowledge (title, content, category_id)
+SELECT '서버 실행',
+       '프로젝트 폴더에서 서버를 실행합니다.', id
+FROM categories WHERE name = 'environment'
+RETURNING id, title;
+
+INSERT INTO knowledge (title, content, category_id)
+SELECT '질문 작성',
+       '오류 메시지와 시도한 작업을 함께 적습니다.', id
+FROM categories WHERE name = 'learning'
+RETURNING id, title;
+
+SELECT COUNT(*) FROM knowledge;      -- 기대: 3
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| INSERT INTO categories (name) VALUES ('learning'), ('environment'), ('reference') RETURNING id, name; | id \| name 1 \| learning 2 \| environment 3 \| reference | DB가 발급한 실제 ID |
+| INSERT INTO knowledge ... SELECT '실습 파일 보관', ..., id FROM categories WHERE name = 'learning' RETURNING id, title; | id \| title 1 \| 실습 파일 보관 | 분류 ID를 이름으로 찾아 넣음 |
+| 나머지 두 건 (environment · learning) | id \| title 2 \| 서버 실행 3 \| 질문 작성 |  |
+| SELECT COUNT(*) FROM knowledge; | COUNT(*) 3 | S0 준비 완료 |
+| WHERE name = 'nothing' 으로 INSERT SELECT | id (0행) | 부모가 없으면 오류 없이 0행 — 그래서 RETURNING을 꼭 봐요 |
+
+| 표현 | 뜻 | 🤔 왜? |
+|---|---|---|
+| VALUES (...), (...), (...) | 여러 행을 한 문장으로 | id는 생략 → DB가 발급 |
+| INSERT ... SELECT ... FROM categories WHERE name = ... | 분류 이름으로 실제 ID를 찾아 넣기 | "learning은 1번이겠지" 하고 숫자를 박지 않으려고 |
+| RETURNING | 들어간 행 확인 | 부모가 없으면 오류 없이 0행이라 RETURNING으로 확인해야 해요 |
+
+⚠️ Seed는 빈 DB에 한 번만. 반복하면 분류는 UNIQUE에 걸리고, 지식은 같은 내용이 또 들어가요(제목은 UNIQUE가 아니니까).
+
+### 연습용 _try 표 — PK·FK 연습 후 ROLLBACK
+
+```
+BEGIN;
+CREATE TABLE categories_try (
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL
+);
+CREATE TABLE knowledge_try (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,
+  category_id INTEGER NOT NULL
+    REFERENCES categories_try(id)
+);
+INSERT INTO categories_try VALUES (1, '연습');
+INSERT INTO knowledge_try VALUES (1, '안내', 1);
+SELECT * FROM knowledge_try;
+ROLLBACK;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT * FROM knowledge_try; | id \| title \| category_id 1 \| 안내 \| 1 | PK·FK가 연결된 연습용 표 |
+| INSERT INTO knowledge_try VALUES (2, '안내2', 7); | 오류: FOREIGN KEY constraint failed | 연습 표에서도 FK가 동작 |
+| ROLLBACK; 뒤 _try 표가 남았나? | name (0행) | 표 생성(DDL)까지 같이 취소됨 — 본 표는 그대로 |
+
+| 포인트 | 뜻 |
+|---|---|
+| _try 이름 | 본 표(categories·knowledge)와 섞이지 않게 |
+| REFERENCES categories_try(id) | 열 정의 안에 쓰는 짧은 FK 문법 |
+| id를 손으로 1 | 연습용 수동 번호 — 본 모델은 IDENTITY |
+| ROLLBACK | PostgreSQL은 CREATE TABLE도 트랜잭션 안에서 취소돼요 → 표까지 사라짐 |
+
+⚠️ 본 데이터에는 DROP TABLE을 쓰지 않아요. 같은 연결(같은 Query Tool)에서 ROLLBACK해야 취소돼요.
+
+### INSERT ... RETURNING — 새 지식 넣고 ID 바로 읽기
+
+```
+BEGIN;
+INSERT INTO knowledge (title, content, category_id)
+VALUES ('임시 안내', '한 번만 실행합니다.', 1)
+RETURNING id, title, category_id;
+-- 결과의 id를 확인한 뒤 별도로 실행
+ROLLBACK;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| BEGIN; INSERT ... RETURNING id, title, category_id; | id \| title \| category_id 4 \| 임시 안내 \| 1 | 발급된 실제 ID를 바로 읽음 |
+| (취소 전) SELECT COUNT(*) | COUNT(*) 4 | 같은 연결에선 새 행이 보여요 |
+| ROLLBACK; SELECT COUNT(*) | COUNT(*) 3 | 새 행은 남지 않음 |
+| 취소 뒤 다시 INSERT ... RETURNING id | id 4 | SQLite는 4를 다시 줌. PG는 시퀀스 번호를 되돌리지 않아 5가 나올 수 있어요(공식 문서) — 그래서 ID를 예상하지 말고 RETURNING을 봐요 |
+
+| 부분 | 뜻 |
+|---|---|
+| INSERT INTO 표 (열, 열, 열) | 값을 넣을 열 목록 — id는 빼요 (IDENTITY) |
+| VALUES (..., ..., ...) | 열 목록과 같은 순서로 값 |
+| RETURNING id, ... | 실제로 들어간 행을 돌려받기 |
+| category_id = 1 | S0에서 learning이 1번이라는 전제 — 다르면 실제 ID를 써요 |
+
+⚠️ ID를 4로 고정하지 마세요. 취소·실패가 있었으면 다음 번호가 5, 6일 수 있어요. 새 ID는 항상 RETURNING 결과로.
+
+### UPDATE ... SET ... WHERE — 같은 ID의 본문만 바꾸기
+
+```
+SELECT id, content FROM knowledge WHERE id = 2;    -- 1. 대상 확인
+
+BEGIN;                                              -- 2. 묶음 시작
+UPDATE knowledge
+SET content = '실행 전에 가상환경을 확인합니다.'     -- 바꿀 열 = 새 값
+WHERE id = 2                                        -- 바꿀 대상
+RETURNING id, title, content;                       -- 3. 무엇이 바뀌었나
+ROLLBACK;                                           -- 4. 연습이니 취소
+
+SELECT id, content FROM knowledge WHERE id = 2;    -- 원래 본문인지
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 시작: SELECT id, content WHERE id = 2 | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. | 원래 본문 기록 |
+| BEGIN; UPDATE ... WHERE id = 2 RETURNING id, title, content; | id \| title \| content 2 \| 서버 실행 \| 실행 전에 가상환경을 확인합니다. | 변경 1행 — 어느 행이 어떻게 바뀌었는지 |
+| ROLLBACK; SELECT id, content WHERE id = 2 | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. | 원문 복원 |
+| UPDATE ... WHERE id = 99 | 바뀐 행 0 | 없는 ID — 오류 없이 0행 (PG 메시지: UPDATE 0). 404로 볼지는 API가 정해요 |
+
+| 부분 | 뜻 | 바꾸면? |
+|---|---|---|
+| SET 열 = 값 | 바꿀 열과 새 값 | 여러 열은 쉼표: SET title = 'a', content = 'b' |
+| WHERE id = 2 | 바꿀 행 | 빼면 모든 행이 바뀌어요 |
+| RETURNING | 바뀐 뒤의 행 | 없는 ID면 0행 (오류 아님) |
+
+💡 다른 분류로 옮길 때는 SET category_id = 3처럼 번호를 바꿔요. 분류 이름(categories.name)을 바꾸는 건 그 분류의 모든 지식에 영향을 줘요.
+
+### DELETE FROM ... WHERE — 지식 한 행 삭제
+
+```
+BEGIN;
+DELETE FROM knowledge
+WHERE id = 3
+RETURNING id, title;            -- 지운 행이 무엇이었나
+ROLLBACK;                       -- 연습이니 취소
+
+SELECT id, title FROM knowledge WHERE id = 3;   -- 다시 1행
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| BEGIN; DELETE FROM knowledge WHERE id = 3 RETURNING id, title; | id \| title 3 \| 질문 작성 | 지운 행이 무엇이었는지 |
+| (취소 전) SELECT COUNT(*) | COUNT(*) 2 |  |
+| ROLLBACK; SELECT id, title WHERE id = 3 | id \| title 3 \| 질문 작성 | 취소해서 3번이 다시 보여요 |
+| BEGIN; DELETE FROM knowledge; (WHERE 없음) → ROLLBACK | 바뀐 행 3 | WHERE를 빼면 전체 삭제 — 연습이라 취소했어요 |
+
+| 명령 | 지우는 것 |
+|---|---|
+| DELETE FROM 표 WHERE ... | 조건에 맞는 행. 표 구조는 남음 |
+| DELETE FROM 표 (WHERE 없음) | 모든 행 ⚠️ |
+| DROP TABLE 표 | 표 자체 (구조 + 데이터) — 오늘 본 데이터엔 안 씀 |
+
+### JOIN ... ON — 지식 목록에 분류명 붙이기
+
+```
+SELECT k.id, k.title, c.name AS category
+FROM knowledge AS k
+JOIN categories AS c
+  ON c.id = k.category_id
+ORDER BY k.id;
+
+-- "서버 실행 안내와 분류를 보여 줘"
+SELECT k.id, k.title, c.name AS category
+FROM knowledge AS k
+JOIN categories AS c ON c.id = k.category_id
+WHERE k.id = 2;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT k.id, k.title, c.name AS category FROM knowledge AS k JOIN categories AS c ON c.id = k.category_id ORDER BY k.id; | id \| title \| category 1 \| 실습 파일 보관 \| learning 2 \| 서버 실행 \| environment 3 \| 질문 작성 \| learning | 3행 — 한 행은 여전히 지식 한 건 |
+| ... WHERE k.id = 2 | id \| title \| category 2 \| 서버 실행 \| environment | '서버 실행 안내와 분류를 보여 줘' |
+
+| 표현 | 뜻 |
+|---|---|
+| knowledge AS k | 표 별칭 k (AS는 생략 가능) |
+| JOIN | = INNER JOIN — 양쪽에 짝이 있는 행만 |
+| ON c.id = k.category_id | 어떤 값끼리 짝을 맞출지 |
+| c.name AS category | 결과 열 이름 — 어제 API의 category와 같은 이름 |
+
+⚠️ ON을 빼거나 잘못 쓰면 모든 행 × 모든 행 조합(3 × 3 = 9행)이 나올 수 있어요. JOIN 뒤에는 행 수가 예상과 같은지 먼저 봐요.
+
+### LEFT JOIN — 지식이 없는 분류도 남기기
+
+```
+SELECT c.name, k.id AS knowledge_id, k.title
+FROM categories AS c              -- 왼쪽: 모든 분류
+LEFT JOIN knowledge AS k          -- 오른쪽: 연결된 지식
+  ON k.category_id = c.id
+ORDER BY c.id, k.id;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT c.name, k.id AS knowledge_id, k.title FROM categories AS c LEFT JOIN knowledge AS k ON k.category_id = c.id ORDER BY c.id, k.id; | name \| knowledge_id \| title learning \| 1 \| 실습 파일 보관 learning \| 3 \| 질문 작성 environment \| 2 \| 서버 실행 reference \| NULL \| NULL | 4행 — 지식 없는 reference도 남고 오른쪽이 NULL |
+| 같은 SQL을 (INNER) JOIN으로 | name \| knowledge_id \| title learning \| 1 \| 실습 파일 보관 learning \| 3 \| 질문 작성 environment \| 2 \| 서버 실행 | 3행 — reference가 사라져요 |
+
+|  | JOIN | LEFT JOIN |
+|---|---|---|
+| 남는 행 | 짝 있는 행만 | 왼쪽 표 행은 전부 |
+| 짝이 없으면 | 행이 빠짐 | 오른쪽 열이 NULL |
+| S0 결과 | 3행 | 4행 (reference + NULL) |
+
+🤔 어느 쪽이 왼쪽이야? — FROM에 쓴 표가 왼쪽이에요. "빠지면 안 되는 쪽"을 FROM에 둬요. 분류 목록 화면이면 분류가 왼쪽이에요.
+
+### GROUP BY + COUNT(k.id) — 분류별 지식 수
+
+```
+SELECT c.name AS category,
+       COUNT(k.id) AS knowledge_count
+FROM categories AS c
+LEFT JOIN knowledge AS k
+  ON k.category_id = c.id
+GROUP BY c.id, c.name
+ORDER BY c.id;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT c.name AS category, COUNT(k.id) AS knowledge_count ... LEFT JOIN ... GROUP BY c.id, c.name ORDER BY c.id; | category \| knowledge_count learning \| 2 environment \| 1 reference \| 0 | 한 행 = 분류 한 개 |
+| COUNT(k.id) 대신 COUNT(*) | category \| knowledge_count learning \| 2 environment \| 1 reference \| 1 | reference가 1 — NULL로 채운 보존 행까지 셌어요 |
+| LEFT JOIN 뒤에 WHERE k.title LIKE '%실%' | category \| knowledge_count learning \| 1 environment \| 1 | WHERE가 NULL 행을 걸러 0인 분류가 사라짐 |
+| 조건을 ON 안으로: ON k.category_id = c.id AND k.title LIKE '%실%' | category \| knowledge_count learning \| 1 environment \| 1 reference \| 0 | 분류 3개가 다 남고 0도 보여요 |
+
+| 표현 | 세는 것 | reference (지식 0개) |
+|---|---|---|
+| COUNT(*) | 그룹의 행 수 (NULL로 채운 줄도 1행) | 1 ❌ |
+| COUNT(k.id) | k.id가 NULL이 아닌 행 수 | 0 ✅ |
+
+🤔 왜 GROUP BY c.id, c.name 둘 다? — SELECT에 쓴 c.name이 그룹마다 하나로 정해져야 해요. 이름이 UNIQUE라 c.name만으로도 되지만, PK인 c.id로 묶으면 "분류 한 개 = 한 행"이 확실해요.
+
+⚠️ LEFT JOIN 뒤 오른쪽 조건은 ON 안에. WHERE k.title LIKE ...로 쓰면 NULL 줄이 걸러져 0인 분류가 사라져요 (아래 결과 비교).
+
+### COUNT · SUM · MIN · MAX — 본문 길이 요약
+
+```
+SELECT COUNT(*) AS knowledge_count,
+       SUM(char_length(content)) AS total_chars,
+       MIN(char_length(content)) AS min_chars,
+       MAX(char_length(content)) AS max_chars
+FROM knowledge;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT COUNT(*), SUM(char_length(content)), MIN(...), MAX(...) FROM knowledge; | knowledge_count \| total_chars \| min_chars \| max_chars 3 \| 64 \| 20 \| 24 | 강의자료의 3건 · 64자 · 20 · 24와 같아요 |
+| SELECT id, char_length(content) FROM knowledge ORDER BY id; | id \| chars 1 \| 20 2 \| 20 3 \| 24 | 글자 수(공백 포함) — 내용이 맞는지는 알려 주지 않아요 |
+
+| 함수 | 뜻 |
+|---|---|
+| COUNT(*) | 행 개수 |
+| SUM(x) · AVG(x) | 합계 · 평균 |
+| MIN(x) · MAX(x) | 가장 작은 · 큰 값 |
+
+💡 집계 결과는 GROUP BY가 없으면 표 전체가 한 행으로 줄어요. 그리고 이 수치는 본문 내용이 맞는지는 알려 주지 않아요.
+
+### HAVING — 묶은 뒤 그룹 고르기
+
+```
+SELECT c.name, COUNT(k.id) AS knowledge_count
+FROM categories AS c
+LEFT JOIN knowledge AS k ON k.category_id = c.id
+GROUP BY c.id, c.name
+HAVING COUNT(k.id) >= 2
+ORDER BY c.name;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| ... GROUP BY c.id, c.name HAVING COUNT(k.id) >= 2 ORDER BY c.name; | name \| knowledge_count learning \| 2 | 묶은 뒤 '2건 이상인 분류'만 |
+| HAVING COUNT(k.id) = 0 | name \| knowledge_count reference \| 0 | 아직 비어 있는 분류 찾기 |
+
+|  | WHERE | HAVING |
+|---|---|---|
+| 언제 | 묶기 전 | 묶은 뒤 |
+| 무엇을 거르나 | 행 | 그룹 |
+| 집계 함수 | 못 씀 (WHERE COUNT(...) ❌) | 씀 |
+
+### 실패 테스트 — 오류 확인 → ROLLBACK → 기존 행 확인
+
+```
+BEGIN;
+INSERT INTO knowledge (title, content, category_id)
+VALUES ('오류 확인', '', 1);
+-- 기대: knowledge_content_length 위반 (SQLSTATE 23514)
+-- 오류를 읽은 뒤 이것만 별도로 실행
+ROLLBACK;
+SELECT COUNT(*) FROM knowledge;      -- 시작과 같은 개수인지
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음) · SQLSTATE는 PostgreSQL 공식 오류 코드표 값
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| BEGIN; INSERT ... VALUES ('오류 확인', '', 1); | 오류: CHECK constraint failed: knowledge_content_length | 기대한 제약(knowledge_content_length)으로 실패 · PG SQLSTATE 23514 |
+| ROLLBACK; SELECT COUNT(*) FROM knowledge; | COUNT(*) 3 | 실패한 행은 저장되지 않음 — 기존 3건 그대로 |
+| 필수 title = NULL | 오류: NOT NULL constraint failed: knowledge.title | PG SQLSTATE 23502 |
+| 분류 learning 중복 | 오류: UNIQUE constraint failed: categories.name | PG SQLSTATE 23505 |
+| content = '' | 오류: CHECK constraint failed: knowledge_content_length | PG SQLSTATE 23514 |
+| 없는 category_id = 99 | 오류: FOREIGN KEY constraint failed | PG SQLSTATE 23503 |
+| 실패 뒤 SELECT COUNT(*) | COUNT(*) 3 | 네 번 실패해도 3건 그대로 |
+
+| 실패 입력 | SQLSTATE | 뜻 / 회복 |
+|---|---|---|
+| title = NULL | 23502 | NOT NULL 위반 |
+| 분류 'learning' 중복 | 23505 | UNIQUE 위반 |
+| content = '' | 23514 | 길이 CHECK 위반 |
+| 없는 category_id | 23503 | FK 위반 · 부모를 확인 |
+| 오류 뒤 계속 SQL | 25P02 | 트랜잭션 중단 · ROLLBACK부터 |
+
+🤔 한 번에 한 가지만 틀리게? — 제목도 비우고 본문도 비우면 어느 규칙이 막았는지 흐려져요. 분류 1이 실제로 있는지 먼저 확인하고, 나머지 값은 정상으로 둬요. 다음 ID 번호는 비교하지 않아요 — 실패해도 번호는 쓰였을 수 있어요.
+
+### ON DELETE RESTRICT — 참조 중인 부모 삭제
+
+```
+-- 지식 한 건 삭제: 그 행만 사라짐
+DELETE FROM knowledge WHERE id = …;
+
+-- 참조 중인 분류 삭제: 거부
+DELETE FROM categories WHERE name = 'learning';
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| DELETE FROM categories WHERE name = 'learning'; | 오류: FOREIGN KEY constraint failed | 연결된 지식이 있어 RESTRICT가 거부 (PG 23503) |
+| SELECT COUNT(*) FROM knowledge WHERE category_id = 1 | COUNT(*) 2 | 자식 지식도 그대로 — 삭제가 번지지 않음 |
+| DELETE FROM categories WHERE name = 'reference' RETURNING id, name; | id \| name 3 \| reference | 참조하는 지식이 없는 분류는 지워져요 |
+| DELETE FROM knowledge WHERE id = 1 RETURNING id; | id 1 | 지식 한 건 삭제는 부모와 무관 (연습 후 다시 넣었어요) |
+
+| 삭제 정책 | 부모(분류)를 지우면 |
+|---|---|
+| RESTRICT (이번 설계) | 자식이 있으면 거부 |
+| CASCADE | 자식도 같이 삭제 ⚠️ |
+| SET NULL | 자식의 FK를 NULL로 (그 열이 NOT NULL이면 불가) |
+
+⚠️ CASCADE를 "편해서" 켜지 않아요. 분류 하나 지우다 안내문 전체가 사라질 수 있어요. 업무 정책(분류를 없애면 지식은 어디로?)을 먼저 정해요.
+
+### DEFAULT — 생략한 값 vs 직접 넣은 NULL
+
+```
+BEGIN;
+CREATE TABLE defaults_try (
+  label TEXT DEFAULT '미지정'
+);
+INSERT INTO defaults_try DEFAULT VALUES;          -- 값 생략
+INSERT INTO defaults_try (label) VALUES (NULL);   -- NULL 직접
+SELECT label, label IS NULL AS is_missing
+FROM defaults_try;
+ROLLBACK;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음) · is_missing의 1/0 = PG의 true/false
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| INSERT DEFAULT VALUES; INSERT ... VALUES (NULL); SELECT label, label IS NULL | label \| is_missing 미지정 \| 0 NULL \| 1 | 생략 → '미지정', 직접 넣은 NULL → 그대로 NULL |
+
+| 입력 | 저장되는 값 |
+|---|---|
+| 값 생략 (DEFAULT VALUES) | '미지정' |
+| NULL을 직접 | NULL (DEFAULT가 고쳐 주지 않음) |
+| + NOT NULL을 걸면 | NULL 입력은 거부 (23502) |
+
+### BEGIN → UPDATE → ROLLBACK — 세 번 비교
+
+```
+SELECT id, content FROM knowledge WHERE id = 2;   -- ① 시작 본문
+BEGIN;
+UPDATE knowledge
+SET content = '취소할 임시 안내입니다.'
+WHERE id = 2;
+SELECT id, content FROM knowledge WHERE id = 2;   -- ② 작업 중
+ROLLBACK;
+SELECT id, content FROM knowledge WHERE id = 2;   -- ③ 취소 후
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| ① 시작 SELECT | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. | 현재 본문 기록 |
+| ② BEGIN; UPDATE ...; SELECT (같은 연결) | id \| content 2 \| 취소할 임시 안내입니다. | 작업 중: 임시 본문이 보여요 |
+| ②' 그 순간 다른 연결에서 SELECT | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. | 아직 미확정이라 다른 연결엔 원래 본문 |
+| ③ ROLLBACK; SELECT | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. | 시작 본문으로 복귀 · 행 수·ID 그대로 |
+
+| 시점 | 보이는 본문 |
+|---|---|
+| ① 시작 | 원래 본문 |
+| ② 작업 중 (같은 연결) | 임시 본문 — 다른 연결에선 아직 원래 본문 |
+| ③ ROLLBACK 뒤 | 원래 본문 · 행 수·ID 그대로 |
+
+⚠️ BEGIN부터 ROLLBACK까지 같은 Query Tool 창에서 해요. 창마다 연결이 따로라, 다른 창에서 ROLLBACK하면 이 묶음과 상관없어요.
+
+### COMMIT → 재접속해서 확인
+
+```
+BEGIN;
+UPDATE knowledge
+SET content = '실행 전에 가상환경을 확인합니다.'
+WHERE id = 2
+RETURNING id, content;
+COMMIT;
+-- 연결을 닫고 knowledge_lab에 다시 접속한 뒤
+SELECT id, content FROM knowledge WHERE id = 2;
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| BEGIN; UPDATE ... RETURNING id, content; COMMIT; | id \| content 2 \| 실행 전에 가상환경을 확인합니다. | 확정 |
+| 연결을 닫고 다시 접속 → SELECT | id \| content 2 \| 실행 전에 가상환경을 확인합니다. | 새 연결에서도 수정 본문 |
+| 이어서 ROLLBACK; | 오류: cannot rollback - no transaction is active | 열린 트랜잭션이 없음 (PG는 경고 'there is no transaction in progress') |
+| 다시 SELECT | id \| content 2 \| 실행 전에 가상환경을 확인합니다. | 이미 COMMIT한 값은 ROLLBACK으로 못 되돌려요 |
+
+| 포인트 | 뜻 |
+|---|---|
+| COMMIT | 확정 — 이제 S0의 본문은 달라졌어요. 이후는 실제 현재값 기준 |
+| 재접속 | 내 미확정 변경이 아니라 정말 저장된 값인지 확인 |
+| 서버를 강제로 끄지 않기 | 단순 재접속 ≠ 서버 장애 시험 |
+
+### 원자성 — 두 번째 변경이 실패하면 첫 변경도 취소
+
+```
+SELECT id, content FROM knowledge WHERE id IN (2, 3) ORDER BY id;  -- 먼저 원문 기록
+BEGIN;
+UPDATE knowledge
+SET content = '확정되면 안 되는 임시 본문'
+WHERE id = 2;
+UPDATE knowledge SET content = '' WHERE id = 3;
+-- 두 번째 문장의 CHECK 오류를 확인
+-- 이후 별도 실행
+ROLLBACK;
+SELECT id, content FROM knowledge
+WHERE id IN (2, 3) ORDER BY id;                                    -- 둘 다 원문
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 시작: 2·3번 원문 | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. 3 \| 오류 메시지와 시도한 작업을 함께 적습니다. |  |
+| BEGIN; UPDATE 2번 → 성공, UPDATE 3번 content = '' | 오류: CHECK constraint failed: knowledge_content_length | 두 번째 문장이 CHECK에 걸림 |
+| (롤백 전) 2·3번 | id \| content 2 \| 확정되면 안 되는 임시 본문 3 \| 오류 메시지와 시도한 작업을 함께 적습니다. | SQLite는 실패한 문장만 취소해서 2번 변경이 아직 보여요. PG는 이 SELECT부터 25P02(트랜잭션 중단)로 거부 |
+| ROLLBACK; 2·3번 | id \| content 2 \| 프로젝트 폴더에서 서버를 실행합니다. 3 \| 오류 메시지와 시도한 작업을 함께 적습니다. | 묶음 전체 취소 — 2번 첫 변경도 남지 않음 |
+
+🤔 첫 UPDATE는 성공했는데 왜 취소돼? — 둘이 한 묶음이라서요. 묶음은 전부 확정 아니면 전부 취소예요. PostgreSQL은 두 번째 오류 뒤 이 묶음을 중단 상태로 만들어 COMMIT해도 확정하지 않아요.
+
+### pg_indexes 확인 → CREATE INDEX
+
+```
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename = 'knowledge';
+-- 같은 이름/정의가 없는지 확인한 뒤 한 번 실행
+CREATE INDEX idx_knowledge_category_id
+ON knowledge (category_id);
+```
+
+▶ 실제로 돌려 보면 S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음) · PG는 pg_indexes, SQLite는 sqlite_master로 목록을 봐요
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 인덱스 목록 (만들기 전) | name (0행) | FK를 만들어도 자식 열 인덱스는 자동으로 안 생겨요 (PG도 같음. PG엔 PK용 knowledge_pkey는 있음) |
+| CREATE INDEX idx_knowledge_category_id ON knowledge (category_id); | name \| sql idx_knowledge_category_id \| CREATE INDEX idx_knowledge_category_id ON knowledge (category_id) | 새 탐색 구조 |
+| 같은 이름으로 한 번 더 | 오류: index idx_knowledge_category_id already exists | 그래서 만들기 전에 목록부터 확인 |
+| 인덱스 뒤 WHERE category_id = 1 결과 | id \| title 1 \| 실습 파일 보관 3 \| 질문 작성 | 결과 행은 그대로 — 바뀌는 건 찾아가는 길 |
+
+| 부분 | 뜻 |
+|---|---|
+| pg_indexes | 인덱스 목록을 보여 주는 시스템 뷰 |
+| idx_knowledge_category_id | 인덱스 이름 (관례: idx_표_열) |
+| ON knowledge (category_id) | 어느 표의 어느 열로 찾아가게 할지 |
+
+💡 PK·UNIQUE 열엔 인덱스가 자동으로 있어요(knowledge_pkey 등). FK 열엔 자동으로 안 생겨서 분류 조건·JOIN이 잦으면 직접 만들어요. 읽기는 빨라질 수 있지만 쓰기·공간 비용이 생겨요.
+
+### EXPLAIN · EXPLAIN (ANALYZE, BUFFERS)
+
+```
+EXPLAIN                          -- 예상 계획만 (실행 안 함)
+SELECT id, title
+FROM knowledge
+WHERE category_id = 1;
+
+EXPLAIN (ANALYZE, BUFFERS)       -- 실제로 실행하고 측정
+SELECT id, title
+FROM knowledge
+WHERE category_id = 1;
+```
+
+▶ 실제로 돌려 보면 SQLite의 EXPLAIN QUERY PLAN 실제 출력 (PG의 EXPLAIN 표기와 다름)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 인덱스 전: WHERE category_id = 1 | SCAN knowledge | 표 전체를 훑음 (PG의 Seq Scan에 해당) |
+| 인덱스 후: 같은 SQL | SEARCH knowledge USING INDEX idx_knowledge_category_id (category_id=?) | 인덱스로 바로 찾아감 |
+| PG에서 3행짜리 표라면? | PG = Seq Scan이 나와도 정상 (강의자료 p53) | 행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기 |
+
+| 출력에서 | 읽는 법 |
+|---|---|
+| Seq Scan on knowledge | 표 전체 훑기 — 작은 표에선 정상 |
+| Index Scan / Bitmap Heap Scan | 인덱스로 찾아가기 |
+| cost=시작..끝 | 시작·끝까지의 예상 비용 — 상대 단위, 밀리초 아님 |
+| rows= | 예상 행 수 / ANALYZE면 actual ... rows=가 실제 |
+| Buffers: shared hit= | 읽은 블록 수 (BUFFERS 옵션) |
+
+⚠️ ANALYZE는 SQL을 진짜로 실행해요. 이 수업에선 SELECT에만 써요. 그리고 더 빠른 계획이나 특정 계획 이름을 정답으로 요구하지 않아요.
+
+## 📖 Day18 용어 (29개)
+- **seed** (random_state (난수 고정값)): 무작위 과정(추출, 특성 후보, 분할 섞기 등)을 매번 같게 만드는 번호. 결과를 재현하려고 고정해요(예: 42).
+- **SQL** (Structured Query Language): DB에 '어느 표에서 어떤 행을 보여 줘 / 바꿔 줘'라고 말하는 언어. 구조를 만드는 CREATE와 데이터를 읽고 바꾸는 SELECT·INSERT·UPDATE·DELETE가 있어요.
+- **DBMS** (Database Management System (관계형이면 RDBMS)): 데이터를 실제로 저장하고 SQL·규칙·동시 접근을 처리하는 프로그램. PostgreSQL이 RDBMS예요.
+- **pgAdmin** (pgAdmin 4 (PostgreSQL GUI 클라이언트)): 창으로 PostgreSQL 서버에 접속해 SQL을 보내고 Data Output·Messages로 결과를 보는 도구. 창을 닫아도 서버는 안 꺼져요.
+- **psql** (psql (PostgreSQL 터미널 클라이언트)): 터미널에서 쓰는 PostgreSQL 접속 도구. \dt·\d·\q 같은 역슬래시 명령은 SQL이 아니라 psql 전용이에요.
+- **테이블** (Table (관계형 DB의 표)): 같은 종류의 데이터를 행과 열로 담는 표. 한 행 = 한 건(지식 하나), 한 열 = 공통 항목(제목, 본문).
+- **PK** (Primary Key (기본키)): 표에서 행 하나를 콕 집어 구별하는 열. 값이 겹치면 안 되고 NULL도 안 돼요. 이번엔 id.
+- **FK** (Foreign Key (외래키)): 다른 표(부모)의 PK를 가리키는 열. 저장할 때 그 번호의 부모 행이 실제로 있는지 DB가 검사해요. 이번엔 knowledge.category_id → categories.id.
+- **IDENTITY** (Identity Column (자동 번호 열)): 값을 생략하면 DB가 번호를 발급하는 열. 안에서 시퀀스(번호 발급기)를 쓰고, 취소·실패한 번호는 다시 쓰지 않을 수 있어서 빈 번호가 생겨요.
+- **JOIN** (JOIN (INNER JOIN)): 조회할 때 두 표에서 ON 조건으로 짝이 맞는 행을 붙여 한 줄로 보여 주는 것. 짝이 없는 행은 빠져요.
+- **LEFT JOIN** (LEFT (OUTER) JOIN): 왼쪽(FROM) 표의 행은 모두 남기고, 짝이 없으면 오른쪽 열을 NULL로 채우는 JOIN. 지식이 0개인 분류도 결과에 남아요.
+- **GROUP BY** (GROUP BY (묶어서 집계)): 같은 값끼리 행을 묶어 그룹마다 COUNT·SUM 등을 계산. 결과 한 행의 단위가 '그룹 하나'로 바뀌어요.
+- **HAVING** (HAVING (그룹 조건)): GROUP BY로 묶은 뒤 그룹을 거르는 조건. 묶기 전 행을 거르는 WHERE와 순서가 달라요.
+- **NULL** (NULL (값 없음 / 모름)): 값이 없거나 모른다는 표시. 빈 문자열 ''과 달라요. = NULL로는 비교가 안 돼서 IS NULL로 확인해요.
+- **제약조건** (Constraint (제약조건)): DB가 저장 때마다 검사하는 규칙. PRIMARY KEY·FOREIGN KEY·NOT NULL·UNIQUE·CHECK가 있고, 어기면 행을 저장하지 않고 오류를 내요.
+- **CHECK** (CHECK 제약조건): 값이 정한 조건을 만족하는지 검사. 예: char_length(content) BETWEEN 1 AND 2000 → 빈 본문 거부(SQLSTATE 23514).
+- **UNIQUE** (UNIQUE 제약조건): 같은 값이 두 번 들어가지 못하게 막아요. 분류 이름은 UNIQUE, 지식 제목은 아님.
+- **ON DELETE RESTRICT** (FK 삭제 정책 (RESTRICT / CASCADE)): 부모 행을 지울 때 자식이 있으면? RESTRICT는 거부, CASCADE는 자식까지 같이 삭제. 이번 설계는 RESTRICT.
+- **DEFAULT** (DEFAULT (기본값)): 값을 생략했을 때 채우는 값. 직접 NULL을 넣으면 고쳐 주지 않아요.
+- **DDL** (Data Definition Language / Data Manipulation Language): DDL은 CREATE TABLE처럼 구조를 만드는 SQL, DML은 INSERT·UPDATE·DELETE처럼 데이터를 바꾸는 SQL.
+- **ERD** (Entity Relationship Diagram): 표와 열, 표끼리의 관계(1:N, N:M)를 그린 설계도. 그림일 뿐이고 실제 검사는 CREATE TABLE의 FK가 해요.
+- **RETURNING** (RETURNING 절): INSERT·UPDATE·DELETE가 바꾼 행을 그 자리에서 돌려받는 PostgreSQL 문법. 새로 발급된 id를 예상하지 않고 바로 읽어요.
+- **COMMIT** (COMMIT (확정)): BEGIN 이후의 변경을 확정. 이후 다른 연결·재접속에서도 보이고, ROLLBACK으로 되돌릴 수 없어요.
+- **ROLLBACK** (ROLLBACK (취소)): 지금 열린 트랜잭션의 미확정 변경을 모두 취소. DB 전체를 과거로 돌리는 버튼은 아니에요.
+- **BEGIN** (BEGIN (트랜잭션 시작)): 여러 변경을 한 묶음으로 시작. 이후 변경은 COMMIT 또는 ROLLBACK 전까지 미확정이고 다른 연결엔 안 보여요.
+- **원자성** (Atomicity (원자성)): 트랜잭션 안의 변경은 전부 반영되거나 전부 취소되거나 둘 중 하나. 반쯤 바뀐 상태로 남지 않아요.
+- **SQLSTATE** (SQLSTATE (표준 오류 코드)): DB 오류의 종류를 나타내는 5자리 코드. 23502 NOT NULL, 23503 FK, 23505 UNIQUE, 23514 CHECK, 25P02 중단된 트랜잭션. HTTP 상태 코드와는 별개예요.
+- **인덱스** (Index (B-tree 인덱스)): 표와 따로 만드는 탐색 구조. 조건에 맞는 행을 표 전체를 훑지 않고 찾게 도와요. 결과는 같고 찾아가는 길만 달라요. 의미 검색 인덱스와는 다른 것.
+- **EXPLAIN** (EXPLAIN (실행계획 보기)): DB가 SQL을 어떤 방법으로 처리할지 보여 줘요. Seq Scan = 전체 훑기, Index Scan = 인덱스 사용. cost는 밀리초가 아니라 상대 단위. ANALYZE를 붙이면 실제로 실행해요.
