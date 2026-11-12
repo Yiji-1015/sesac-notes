@@ -13,7 +13,7 @@
     <header class="note-header">
       <span class="tag llm">LLM·RAG</span>
       <h1>Day19 · FastAPI–PostgreSQL 연동</h1>
-      <div class="meta">2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 정책 · Alembic Migration · 통합 검증</div>
+      <div class="meta">2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 처리 · Alembic Migration · 통합 검증</div>
     </header>
 
     <article class="note">
@@ -46,29 +46,102 @@
       <div class="cmdref">
         <div class="cmdref-head">🔧 설치 · 확인 · 실행 <a href="../commands.html#d19-pip-install">명령어 사전에서 자세히 →</a></div>
 <pre><code>python -m pip install "sqlalchemy>=2.0,<2.1" "psycopg[binary]>=3,<4" pydantic-settings alembic
-python -m uvicorn main:app --port 8001 --reload       # 오후 앱은 8001</code></pre>
+python -m uvicorn main:app --port 8001 --reload       # API 서버 (포트는 자유)</code></pre>
       </div>
-      <div class="callout">🤔 <strong>왜 포트를 8001로 바꿔?</strong> — 오전(JSON 파일 API)과 오후(DB 연동 API)를 동시에 켜 두면 둘 다 8000을 쓰려다 충돌하고, 어느 서버의 응답을 보고 있는지 헷갈려요. 그리고 <b>8001은 API 포트, 5432는 DB 포트</b> — 목적이 달라요.</div>
+      <div class="callout">💡 <b>API 포트(예: 8001)와 DB 포트(5432)는 다른 것</b>이에요. uvicorn의 <code>--port</code>는 내 API가 요청을 받을 문, 5432는 PostgreSQL 서버의 문이에요. 같은 포트에 서버 두 개를 띄우면 충돌해요.</div>
 
       <!-- ============================================================ -->
       <h2>이거 어디에 써?</h2>
       <p>"가상환경 정책이 바뀌었어요. AI 도우미는 무엇을 기준으로 답해야 하죠?" — 답의 근거는 <b>최신 원본 지식</b>이에요. 오늘은 담당자가 <code>/docs</code>(나중엔 관리 화면)에서 안내를 등록·수정하면 그게 <b>PostgreSQL에 실제로 반영</b>되는 원본 관리 서비스를 완성해요. AI 도우미의 검색(RAG)·도구(Agent)는 그 원본을 읽어 가는 이후 단계예요.</p>
       <table>
-        <tr><th></th><th>오전 · 각각</th><th>오후 · 하나로</th></tr>
+        <tr><th></th><th>Day17 · Day18 (따로)</th><th>Day19 (하나로)</th></tr>
         <tr><td>흐름</td><td>FastAPI → JSON 파일 <br>pgAdmin → PostgreSQL</td><td>POST → FastAPI 입력 검증 → ORM·Session → PostgreSQL → 201</td></tr>
         <tr><td>관계</td><td>API를 불러도 DB는 안 바뀜 (별개)</td><td>API의 새 지식 = DB의 새 행</td></tr>
         <tr><td>증거</td><td>—</td><td><b>API 응답 id = SQL로 찾은 knowledge.id = 다시 GET한 id</b></td></tr>
       </table>
       <div class="callout warn">⚠️ <b>API가 있다고 Agent 도구가 되는 건 아니에요.</b> 도구로 쓰려면 Method·Path·입력 스키마·권한을 따로 계약해야 해요. 그리고 원본을 고쳐도 검색 인덱스는 <b>별도 동기화</b>가 필요해요. <code>?category=learning</code> 필터도 의미 검색이 아니라 문자열 일치예요.</div>
 
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 지식 관리 API</h2>
+      <p>오늘 만든 서비스의 약속을 한곳에 모았어요. 바깥(API)에서 보는 모양과 안쪽(DB)에 저장되는 모양을 나눠 적었어요.</p>
+
+      <h3>1. 엔드포인트</h3>
+      <table>
+        <tr><th>Method · Path</th><th>입력</th><th>성공</th><th>실패</th></tr>
+        <tr><td><code>GET /api/knowledge</code></td><td>Query <code>category</code> (선택, 문자열)</td><td><b>200</b> · <code>Knowledge[]</code> (id 오름차순, 없으면 <code>[]</code>)</td><td>—</td></tr>
+        <tr><td><code>GET /api/knowledge/{knowledge_id}</code></td><td>Path <code>knowledge_id</code> (정수)</td><td><b>200</b> · <code>Knowledge</code></td><td>422 정수 아님 · 404 없음</td></tr>
+        <tr><td><code>POST /api/knowledge</code></td><td>Body <code>KnowledgeWrite</code></td><td><b>201</b> · <code>Knowledge</code> (DB가 발급한 id)</td><td>422 입력 · 409 충돌 · 500</td></tr>
+        <tr><td><code>PUT /api/knowledge/{knowledge_id}</code></td><td>Path + Body <code>KnowledgeWrite</code> (세 필드 모두)</td><td><b>200</b> · <code>Knowledge</code> (같은 id)</td><td>422 · 404 · 409 · 500</td></tr>
+        <tr><td><code>DELETE /api/knowledge/{knowledge_id}</code></td><td>Path</td><td><b>204</b> · 본문 없음</td><td>422 · 404</td></tr>
+        <tr><td><code>GET /health</code></td><td>—</td><td><b>200</b> · <code>{"status": "ok"}</code></td><td>—</td></tr>
+      </table>
+
+      <h3>2. 요청 · 응답 스키마</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th><code>KnowledgeWrite</code> (요청)</th><th><code>Knowledge</code> (응답)</th><th>규칙</th></tr>
+        <tr><td><code>id</code></td><td>integer</td><td>— (보내지 않음)</td><td>✅</td><td>DB가 발급 · 바뀌지 않음</td></tr>
+        <tr><td><code>title</code></td><td>string</td><td>필수</td><td>✅</td><td>1~80자 · 중복 허용</td></tr>
+        <tr><td><code>content</code></td><td>string</td><td>필수</td><td>✅</td><td>1~2,000자</td></tr>
+        <tr><td><code>category</code></td><td>string</td><td>필수</td><td>✅</td><td>1~30자 · 처음 보는 이름이면 분류를 새로 만듦</td></tr>
+      </table>
+<pre><code>// 요청 (POST · PUT)                        // 응답 (200 · 201)
+{                                          {
+  "title": "실습 환경 안내",                  "id": 5,
+  "content": "실행 전에 가상환경을 확인합니다.",  "title": "실습 환경 안내",
+  "category": "learning"                     "content": "실행 전에 가상환경을 확인합니다.",
+}                                            "category": "learning"
+                                           }</code></pre>
+      <p style="color:var(--muted);font-size:0.9rem">모르는 필드(예: <code>author</code>)는 오류 없이 무시돼요. 응답에는 <code>category_id</code> 같은 DB 내부 열이 나가지 않아요.</p>
+
+      <h3>3. DB 스키마</h3>
+      <table>
+        <tr><th>표.열</th><th>타입</th><th>제약 (이름)</th></tr>
+        <tr><td><code>categories.id</code></td><td>BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td><code>categories.name</code></td><td>VARCHAR(30)</td><td>NOT NULL · UNIQUE (<code>categories_name_key</code>) · CHECK 1~30자 (<code>categories_name_length</code>)</td></tr>
+        <tr><td><code>knowledge.id</code></td><td>BIGINT IDENTITY</td><td>PK</td></tr>
+        <tr><td><code>knowledge.title</code></td><td>VARCHAR(80)</td><td>NOT NULL · CHECK 1~80자 (<code>knowledge_title_length</code>)</td></tr>
+        <tr><td><code>knowledge.content</code></td><td>TEXT</td><td>NOT NULL · CHECK 1~2,000자 (<code>knowledge_content_length</code>)</td></tr>
+        <tr><td><code>knowledge.category_id</code></td><td>BIGINT</td><td>NOT NULL · FK → <code>categories.id</code> ON DELETE RESTRICT (<code>knowledge_category_fk</code>)</td></tr>
+      </table>
+
+      <h3>4. API ↔ DB 대응</h3>
+      <table>
+        <tr><th>API 필드</th><th>DB</th><th>바꾸는 곳</th></tr>
+        <tr><td><code>id</code></td><td><code>knowledge.id</code></td><td>그대로</td></tr>
+        <tr><td><code>title</code> · <code>content</code></td><td><code>knowledge.title</code> · <code>knowledge.content</code></td><td>그대로</td></tr>
+        <tr><td><code>category</code> (이름)</td><td><code>knowledge.category_id</code> → <code>categories.name</code></td><td>들어올 때 <code>get_or_create_category</code> · 나갈 때 <code>to_read</code></td></tr>
+      </table>
+
+      <h3 id="spec-errors">5. 오류 응답</h3>
+      <table>
+        <tr><th>상태</th><th>본문</th><th>언제</th><th>DB 상태</th></tr>
+        <tr><td><b>422</b></td><td><code>{"detail": [ {type, loc, msg, input}, ... ]}</code></td><td>필수 누락 · 길이 위반 · Path가 정수 아님</td><td>아무것도 시도 안 함</td></tr>
+        <tr><td><b>404</b></td><td><code>{"detail": "Knowledge not found"}</code></td><td>없는 지식 id</td><td>변화 없음 (새 분류도 안 생김)</td></tr>
+        <tr><td><b>409</b></td><td><code>{"detail": "Data conflict"}</code></td><td>분류명 UNIQUE 충돌 · FK 충돌</td><td>ROLLBACK</td></tr>
+        <tr><td><b>503</b></td><td><code>{"detail": "Database unavailable"}</code></td><td>DB 연결 계열 오류 (SQLSTATE 08…) · 연결 끊김</td><td>성공으로 보고하지 않음</td></tr>
+        <tr><td><b>500</b></td><td><code>{"detail": "Database operation failed"}</code></td><td>그 밖의 DB 오류 (예: 예상 못 한 CHECK 위반)</td><td>ROLLBACK</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:0.9rem">오류 본문에는 SQL·파라미터·DB 진단 메시지를 넣지 않아요.</p>
+
+      <h3>6. 동작 보장</h3>
+      <table>
+        <tr><th>항목</th><th>약속</th></tr>
+        <tr><td>성공 응답 시점</td><td>201·200·204는 <b>COMMIT 성공 뒤</b>에만</td></tr>
+        <tr><td>원자성</td><td>새 분류 + 지식은 함께 저장되거나 함께 취소</td></tr>
+        <tr><td>PUT</td><td>id·전체 개수 유지 · 없는 id를 새로 만들지 않음</td></tr>
+        <tr><td>DELETE</td><td>그 지식만 삭제 · 부모 분류는 남음</td></tr>
+        <tr><td>id</td><td>연속이 아닐 수 있음 (실패·취소한 번호는 다시 안 씀)</td></tr>
+      </table>
+
       <!-- ============================================================ -->
       <h2 id="config">① 연결 대상 고정 · 설정 분리</h2>
-      <p>코드보다 먼저 정할 것: <b>어느 DB에 붙을지</b>. DB 이름이 틀리면 코드가 멀쩡해도 다른 데이터를 보게 돼요.</p>
+      <p>코드보다 먼저 정할 것: <b>어느 DB에 붙을지</b>. DB 이름이 틀리면 코드가 멀쩡해도 다른 데이터를 보게 돼요. 그래서 용도별로 DB를 나눠요.</p>
       <table>
         <tr><th>DB</th><th>쓰는 곳</th><th>지킬 것</th></tr>
-        <tr><td><b>주 프로젝트 DB</b> (예: <code>day19_crud_b</code>)</td><td>API가 매일 쓰는 곳</td><td>기존 지식·분류 보존 · DROP·Seed 반복 금지</td></tr>
-        <tr><td><b>Migration 연습 DB</b> (<code>day19_migration_lab</code>)</td><td>Alembic 연습</td><td>새 빈 DB에서만</td></tr>
-        <tr><td><b>테스트 DB</b> (<code>day19_api_test</code>)</td><td>자동 테스트</td><td>테스트가 만든 행만 정리</td></tr>
+        <tr><td><b>실제 데이터 DB</b></td><td>API가 평소에 쓰는 곳</td><td>기존 데이터 보존 · DROP·Seed 반복 금지</td></tr>
+        <tr><td><b>Migration 연습 DB</b></td><td>구조 변경을 먼저 시험</td><td>비어 있는 별도 DB에서</td></tr>
+        <tr><td><b>테스트 DB</b></td><td>자동 테스트</td><td>테스트가 만든 행만 정리</td></tr>
       </table>
       <div class="callout warn">⚠️ API 시작할 때 <code>create_all()</code>이나 Seed를 자동 실행하게 넣지 않아요. 이미 데이터가 있는 DB에 표를 다시 만들거나 같은 데이터를 또 넣을 수 있어요.</div>
 
@@ -90,7 +163,7 @@ engine = create_engine(url, pool_pre_ping=True, hide_parameters=True)</code></pr
         <div class="cmdref-head">🔧 <code>check_database.py</code> — 같은 DB를 보고 있나 <a href="../commands.html#d19-check-database">명령어 사전에서 자세히 →</a></div>
 <pre><code>conn.execute(text("SELECT current_database(), current_user")).one()</code></pre>
       </div>
-      <div class="callout">💡 <b>Engine을 만들었다 ≠ 접속 성공.</b> Engine은 "필요할 때 연결을 빌려 줄 준비"만 해요. 실제로 SQL을 한 번 보내 봐야 Host·비밀번호가 맞는지 알 수 있어요. 그리고 행 수를 "3이겠지"로 고정하지 마세요 — 오전 실습으로 바뀌었을 수 있어요.</div>
+      <div class="callout">💡 <b>Engine을 만들었다 ≠ 접속 성공.</b> Engine은 "필요할 때 연결을 빌려 줄 준비"만 해요. 실제로 SQL을 한 번 보내 봐야 Host·비밀번호가 맞는지 알 수 있어요. 그리고 행 수를 "3이겠지"로 고정하지 마세요 — 그 사이 다른 작업으로 바뀌었을 수 있어요.</div>
 
       <!-- ============================================================ -->
       <h2 id="orm">② ORM · Engine · Session</h2>
@@ -147,15 +220,7 @@ name: Mapped[str] = mapped_column(String(30), nullable=False, unique=True)</code
       <!-- ============================================================ -->
       <h2 id="crud">③ 다섯 API를 DB CRUD로</h2>
       <figure id="fig-flow"><img class="smooth" src="img/day19/request_flow.png" alt="HTTP 요청, Pydantic 검증, get_db, transaction, COMMIT, 201 응답 여섯 칸과, Pydantic에서 422로, transaction에서 ROLLBACK 후 409·500으로, 응답에서 pgAdmin 확인으로 갈라지는 흐름도"><figcaption><b>무엇을 보나:</b> <code>POST /api/knowledge</code> 한 건이 지나가는 순서예요. ① 길이·필수가 틀리면 <b>함수가 실행되기도 전에</b> 422(DB엔 가지도 않아요). ③ 안에서 DB 제약이 터지면 <b>ROLLBACK</b> 후 예외 → 오류 처리기가 409/500으로 바꿔요. 모두 통과해 ④ COMMIT이 성공해야 비로소 ⑤ 201이에요. <b>🤔 왜 201을 COMMIT 뒤에?</b> 201을 먼저 보내고 COMMIT이 실패하면, 사용자는 "저장됐다"고 믿는데 DB엔 없어요. 응답은 <b>사실이 확정된 뒤</b>에.</figcaption></figure>
-      <table>
-        <tr><th>요청</th><th>입력</th><th>정상 결과</th></tr>
-        <tr><td><code>GET /api/knowledge</code></td><td>(응용: <code>?category=</code>)</td><td>200 · id 오름차순 배열 (없으면 <code>[]</code>)</td></tr>
-        <tr><td><code>GET /api/knowledge/{id}</code></td><td>정수 Path ID</td><td>200 · 지식 하나</td></tr>
-        <tr><td><code>POST /api/knowledge</code></td><td>title · content · category</td><td>201 · DB가 발급한 id 포함</td></tr>
-        <tr><td><code>PUT /api/knowledge/{id}</code></td><td>Path ID + 세 필드 모두</td><td>200 · 같은 id의 수정 결과</td></tr>
-        <tr><td><code>DELETE /api/knowledge/{id}</code></td><td>정수 Path ID</td><td>204 · 본문 없음</td></tr>
-      </table>
-      <p style="color:var(--muted);font-size:0.9rem">없는 지식: <code>404 {"detail":"Knowledge not found"}</code> · 잘못된 입력: 기본 422 — Day17과 같은 약속이에요.</p>
+      <p>다섯 경로의 입력·응답·상태 코드는 <a href="#spec">📋 명세</a>에 모아 뒀어요. 아래는 각 경로가 DB와 어떻게 이어지는지예요.</p>
 
       <div class="cmdref">
         <div class="cmdref-head">🔧 목록 GET — <code>select(Knowledge, Category.name).join(...)</code> <a href="../commands.html#d19-list">명령어 사전에서 자세히 →</a></div>
@@ -169,7 +234,7 @@ rows = db.execute(stmt).all()</code></pre>
 <pre><code>category = db.scalar(select(Category).where(Category.name == name))
 if category is None: db.add(Category(name=name)); db.flush()   # id 확보, 아직 미확정</code></pre>
       </div>
-      <div class="callout">💡 수업 정책: 있는 분류는 그 ID 재사용, 없는 분류는 <b>같은 트랜잭션 안에서</b> 새로 만들어요. 여기서 commit하지 않는 게 핵심 — 분류와 지식을 <b>함께</b> 확정해야 반쪽 저장이 없어요. ("조회 후 생성"이 동시 요청 충돌까지 해결하지는 않아요 → 그땐 UNIQUE 위반 409.)</div>
+      <div class="callout">💡 있는 분류는 그 ID를 재사용하고, 없는 분류는 <b>같은 트랜잭션 안에서</b> 새로 만들어요. 여기서 commit하지 않는 게 핵심 — 분류와 지식을 <b>함께</b> 확정해야 반쪽 저장이 없어요. ("조회 후 생성"이 동시 요청 충돌까지 해결하지는 않아요 → 그땐 UNIQUE 위반 409.)</div>
       <div class="cmdref">
         <div class="cmdref-head">🔧 POST — 저장 후 201 <a href="../commands.html#d19-post">명령어 사전에서 자세히 →</a></div>
 <pre><code>with transaction(db):
@@ -185,7 +250,7 @@ if row is None: raise HTTPException(404, "Knowledge not found")</code></pre>
 <pre><code>row = knowledge_or_404(db, knowledge_id)        # 먼저 존재 확인
 row.title = payload.title; row.content = payload.content; row.category_id = category.id</code></pre>
       </div>
-      <div class="callout">🤔 <strong>PUT에서 왜 지식부터 찾고 분류는 나중에?</strong> — 순서를 바꾸면 없는 지식 ID로 PUT했을 때 404를 내기 전에 <b>새 분류부터 만들어</b> 버릴 수 있어요(트랜잭션이 롤백해 주긴 하지만, 불필요한 일을 안 하는 게 원칙). 실제로 <code>PUT /99999</code> + 새 분류 이름 → 404, 분류도 안 생겼어요. 그리고 ORM 객체의 속성을 바꾸면 flush/commit 때 UPDATE가 나가요 — <code>UPDATE</code> SQL을 직접 쓰지 않아도 돼요.</div>
+      <div class="callout">🤔 <strong>PUT에서 왜 지식부터 찾고 분류는 나중에?</strong> — 순서를 바꾸면 없는 지식 ID로 PUT했을 때 404를 내기 전에 <b>새 분류부터 만들어</b> 버릴 수 있어요(트랜잭션이 롤백해 주긴 하지만, 불필요한 일은 안 하는 게 좋아요). 실제로 <code>PUT /99999</code> + 새 분류 이름 → 404, 분류도 안 생겼어요. 그리고 ORM 객체의 속성을 바꾸면 flush/commit 때 UPDATE가 나가요 — <code>UPDATE</code> SQL을 직접 쓰지 않아도 돼요.</div>
       <div class="cmdref">
         <div class="cmdref-head">🔧 DELETE — commit 후 빈 204 <a href="../commands.html#d19-delete">명령어 사전에서 자세히 →</a></div>
 <pre><code>db.delete(row)                      # 삭제 대상으로 표시 → commit 때 실제 삭제
@@ -220,15 +285,8 @@ except Exception: db.rollback(); raise</code></pre>
       </div>
 
       <!-- ============================================================ -->
-      <h2 id="errors">⑤ 오류 정책 — 원인별로 다른 응답</h2>
-      <table>
-        <tr><th>상황</th><th>응답</th><th>DB 확인</th></tr>
-        <tr><td>필수 값·길이·Path 형식 오류</td><td><b>422</b> · FastAPI 기본 검증</td><td>쓰기 코드로 아예 안 들어감</td></tr>
-        <tr><td>정상 입력 + 없는 지식 ID</td><td><b>404</b> · Knowledge not found</td><td>새 지식·분류 생성 없음</td></tr>
-        <tr><td>알려진 UNIQUE / FK 충돌</td><td><b>409</b> · Data conflict</td><td>현재 트랜잭션 rollback</td></tr>
-        <tr><td>확인된 연결 실패 · 접속 시간초과</td><td><b>503</b> · Database unavailable</td><td>성공으로 보고하지 않음</td></tr>
-        <tr><td>예상 밖 CHECK · SQL · 설정 오류</td><td><b>500</b> · 일반 메시지</td><td>내부 코드·구조 불일치 점검</td></tr>
-      </table>
+      <h2 id="errors">⑤ 오류 처리 — 원인별로 다른 응답</h2>
+      <p>어떤 상황에 어떤 상태 코드를 주는지는 <a href="#spec-errors">📋 명세의 오류 응답 표</a>에 있어요. 여기선 <b>왜 그렇게 나누는지</b>와 코드를 봐요.</p>
       <div class="callout">🤔 <strong>DB 오류는 다 409(충돌)로 주면 안 돼?</strong> — 409는 "요청이 지금 데이터와 부딪혔다, 바꿔서 다시 보내라"는 뜻이에요. 그런데 CHECK 위반은 API 검증(422)을 통과했는데 DB에서 막힌 거라 <b>우리 코드와 DB 규칙이 어긋났다</b>는 신호(500)예요. 같은 <code>IntegrityError</code>라도 <code>sqlstate</code>와 <b>제약 이름</b>을 보고 나눠요. 그리고 응답엔 SQL·파라미터·진단 문자열을 그대로 내보내지 않아요.</div>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>@app.exception_handler(IntegrityError)</code> — 제약 이름으로 409/500 <a href="../commands.html#d19-error-handler">명령어 사전에서 자세히 →</a></div>
@@ -239,7 +297,7 @@ status = 409 if (code, name) in known else 500</code></pre>
         <div class="cmdref-head">🔧 <code>@app.exception_handler(DBAPIError)</code> — 접속 오류 503 <a href="../commands.html#d19-connectivity">명령어 사전에서 자세히 →</a></div>
 <pre><code>unavailable = isinstance(exc, OperationalError) and (str(code or "").startswith("08") or exc.connection_invalidated)</code></pre>
       </div>
-      <div class="callout warn">⚠️ <b>실제로 돌려 보니:</b> DB 서버가 아예 없는 포트로 접속하면 psycopg 오류에 <b>SQLSTATE가 없어서</b>(<code>None</code>) 강의의 503 판정 규칙에 안 걸리고 500이 됐어요. 강의자료도 "실제 배포 전 환경별 검증 필요"라고 적어 둔 부분 — 규칙은 <b>실제 오류를 일으켜 보고</b> 확인해야 해요.</div>
+      <div class="callout warn">⚠️ <b>실제로 돌려 보니:</b> DB 서버가 아예 없는 포트로 접속하면 psycopg 오류에 <b>SQLSTATE가 없어서</b>(<code>None</code>) 위 503 판정 규칙에 안 걸리고 500이 됐어요. 이런 판정 규칙은 <b>실제 오류를 일으켜 보고</b> 확인해야 해요.</div>
       <h3>응답이 이상하면 — 연결 대상부터</h3>
       <table>
         <tr><th>증상</th><th>먼저 확인</th><th>피할 행동</th></tr>
@@ -252,7 +310,7 @@ status = 409 if (code, name) in known else 500</code></pre>
 
       <!-- ============================================================ -->
       <h2 id="lab">🧪 이 요청은 어디서 멈출까?</h2>
-      <p>요청을 고르면 <b>어느 단계에서 멈추는지</b>, 응답과 DB가 어떻게 되는지 보여 줘요. 결과는 모두 강의 코드를 실제 PostgreSQL에서 돌려 확인한 것이에요.</p>
+      <p>요청을 고르면 <b>어느 단계에서 멈추는지</b>, 응답과 DB가 어떻게 되는지 보여 줘요. 결과는 모두 이 코드를 실제 PostgreSQL에서 돌려 확인한 것이에요.</p>
       <div class="lab" id="where-lab">
         <div class="readout">
           <label>요청
@@ -322,7 +380,7 @@ python -m alembic upgrade head</code></pre>
         <div class="cmdref-head">🔧 서버 재시작 후 같은 id 다시 조회 <a href="../commands.html#d19-uvicorn">명령어 사전에서 자세히 →</a></div>
 <pre><code>python -m uvicorn main:app --port 8001     # Ctrl+C → 다시 실행 → GET /api/knowledge/{id}</code></pre>
       </div>
-      <div class="callout">💡 <b>TestClient ≠ 실서버 재시작</b>, <b>mock 통과 ≠ PostgreSQL 통과</b>. 강의자료도 모의 객체로 69항목을 검수했지만 실제 PostgreSQL 실행은 "미검증"으로 따로 적었어요. 이 노트의 결과는 실제 PostgreSQL 18에서 실행한 것이에요.</div>
+      <div class="callout">💡 <b>TestClient ≠ 실서버 재시작</b>, <b>mock(가짜 객체) 통과 ≠ PostgreSQL 통과</b>. 진짜 DB에서 돌려 봐야 제약·트랜잭션이 실제로 어떻게 동작하는지 알 수 있어요. 이 노트의 결과는 실제 PostgreSQL 18에서 실행한 것이에요.</div>
 
       <!-- ============================================================ -->
       <h2 id="next">⑧ 다음 단계와 연결</h2>

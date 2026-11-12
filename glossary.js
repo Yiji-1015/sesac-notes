@@ -7726,7 +7726,7 @@ window.GLOSSARY = [
    "Data conflict"
   ],
   "full": "HTTP 409 Conflict",
-  "short": "요청이 지금 데이터 상태와 충돌했다는 응답. 이 수업에선 알려진 UNIQUE(분류명 중복)·FK 충돌만 409, 나머지 DB 오류는 500.",
+  "short": "요청이 지금 데이터 상태와 충돌했다는 응답. 여기선 분류명 중복(UNIQUE)·없는 분류 참조(FK) 같은 알려진 충돌만 409, 그 밖의 DB 오류는 500.",
   "analogy": "이미 예약된 자리를 또 예약하려 할 때의 '중복 예약' 안내.",
   "first": 19,
   "days": [
@@ -7740,7 +7740,7 @@ window.GLOSSARY = [
    "Database unavailable"
   ],
   "full": "HTTP 503 Service Unavailable",
-  "short": "서버가 지금 일을 처리할 수 없다는 응답. 이 수업에선 연결 계열 SQLSTATE(08…)나 확인된 연결 끊김만 503으로 봐요.",
+  "short": "서버가 지금 일을 처리할 수 없다는 응답. 여기선 연결 계열 SQLSTATE(08…)나 확인된 연결 끊김을 503으로 봐요.",
   "analogy": "'잠시 영업 준비 중' 팻말.",
   "first": 19,
   "days": [

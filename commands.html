@@ -217,7 +217,8 @@
         <tr><td><a href="notes/day19.html#orm">📖 ② ORM · Engine · Session</a></td><td><code>sessionmaker</code>, <code>get_db()</code> + <code>Depends</code>, <code>class ...(Base)</code> · <code>mapped_column</code>, <code>KnowledgeWrite</code> <a href="#d19-engine-session" class="ov-go">🔧 4개 보기</a></td></tr>
         <tr><td><a href="notes/day19.html#crud">📖 ③ 다섯 API</a></td><td><code>select().join()</code>, <code>db.get()</code>, <code>get_or_create_category()</code>, <code>db.add</code> · <code>db.flush</code> · <code>db.delete</code> <a href="#d19-list" class="ov-go">🔧 6개 보기</a></td></tr>
         <tr><td><a href="notes/day19.html#tx">📖 ④ 트랜잭션 · Session 메서드</a></td><td><code>with transaction(db):</code>, <code>commit()</code> · <code>rollback()</code> · <code>refresh()</code> · <code>close()</code> <a href="#d19-session-methods" class="ov-go">🔧 3개 보기</a></td></tr>
-        <tr><td><a href="notes/day19.html#errors">📖 ⑤ 오류 정책</a></td><td><code>@app.exception_handler(IntegrityError)</code>, <code>exc.orig.sqlstate</code> · <code>diag.constraint_name</code>, 409 · 503 · 500 <a href="#d19-error-handler" class="ov-go">🔧 2개 보기</a></td></tr>
+        <tr><td><a href="notes/day19.html#spec">📖 📋 명세</a></td><td>엔드포인트 · 요청/응답 스키마 · DB 스키마 · 오류 응답</td></tr>
+        <tr><td><a href="notes/day19.html#errors">📖 ⑤ 오류 처리</a></td><td><code>@app.exception_handler(IntegrityError)</code>, <code>exc.orig.sqlstate</code> · <code>diag.constraint_name</code>, 409 · 503 · 500 <a href="#d19-error-handler" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day19.html#lab">📖 🧪 이 요청은 어디서 멈출까?</a></td><td>(요청별 멈추는 단계 · 응답)</td></tr>
         <tr><td><a href="notes/day19.html#migration">📖 ⑥ Migration</a></td><td><code>alembic current</code> · <code>history</code> · <code>upgrade</code> · <code>downgrade</code>, <code>op.add_column</code>, <code>--autogenerate</code> <a href="#d19-alembic-commands" class="ov-go">🔧 3개 보기</a></td></tr>
         <tr><td><a href="notes/day19.html#verify">📖 ⑦ 통합 검증</a></td><td><code>app.dependency_overrides</code>, <code>TestClient</code>, 재시작 후 GET <a href="#d19-test-db" class="ov-go">🔧 2개 보기</a></td></tr>
@@ -5935,7 +5936,7 @@ async def other_db_error(request: Request, exc):
     <tr><td><code>강의 처리기 규칙으로 판정</code></td><td><code>500 (Database operation failed)</code></td><td>규칙이 08* 코드나 연결 무효화만 503으로 봐서, &#x27;서버 꺼짐&#x27;은 이 규칙으론 500이 돼요 — 환경별 검증이 필요한 이유</td></tr>
   </table>
 </div>
-      <div class="callout warn">⚠️ 인증 실패·잘못된 SQL·예상 밖 오류를 모두 503으로 묶지 않아요. 이 규칙은 수업의 <b>제한된 정책</b>이고, 실제 배포 전 환경별로 오류를 일으켜 확인해야 해요 (아래 결과 참고).</div>
+      <div class="callout warn">⚠️ 인증 실패·잘못된 SQL·예상 밖 오류를 모두 503으로 묶지 않아요. 이 판정 규칙은 단순한 기준이라, 실제로 오류를 일으켜 확인해야 해요 (아래 결과 참고).</div>
 </article>
 <article class="cmd" id="d19-test-db" data-day="19">
   <div class="cmd-head"><h3>테스트 DB로 <code>get_db</code> 교체 — <code>dependency_overrides</code></h3><span class="cmd-meta"><span class="tag">Day19</span> <a href="notes/day19.html#verify">📖 이론 보기</a></span></div>
@@ -5988,7 +5989,7 @@ finally:
 # Ctrl+C 로 종료 → 같은 명령으로 다시 실행
 # GET /api/knowledge/{id}  → 재시작 전과 같은 값인지</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 폴더의 강의 코드를 빈 포트(60577)로 띄워 실행 (수업에선 8001)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 폴더의 강의 코드를 빈 포트(60577)로 띄워 실행 (평소엔 8001 등)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>python -m uvicorn main:app --port &lt;포트&gt;  →  GET /docs</code></td><td><code>200</code></td><td>자동 문서가 열림</td></tr>
@@ -6874,15 +6875,15 @@ WHERE category_id = 1;</code></pre>
 <h2>🧬 SQLAlchemy · Alembic</h2>
 <h4 class="cmd-sub">설치 · 설정</h4>
 <article class="cmd" id="d19-pip-install" data-day="19">
-  <div class="cmd-head"><h3>설치 · 확인 · 오후 서버 실행</h3><span class="cmd-meta"><span class="tag">Day19</span> <a href="notes/day19.html#packages">📖 이론 보기</a></span></div>
-<pre><code>python -m pip show fastapi pydantic uvicorn          # 오전 환경 재사용
+  <div class="cmd-head"><h3>설치 · 확인 · 서버 실행</h3><span class="cmd-meta"><span class="tag">Day19</span> <a href="notes/day19.html#packages">📖 이론 보기</a></span></div>
+<pre><code>python -m pip show fastapi pydantic uvicorn          # 이미 있는 환경 재사용
 python -m pip install "sqlalchemy>=2.0,<2.1"
 python -m pip install "psycopg[binary]>=3,<4"
 python -m pip install pydantic-settings alembic
 # 심화 자동 테스트만: httpx pytest
 python -m pip show sqlalchemy psycopg alembic
 
-# 오후 앱의 프로젝트 최상위에서
+# 프로젝트 최상위에서
 python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/docs</code></pre>
 <div class="io">
   <div class="io-title">▶ 실제로 돌려 보면 <small>이 노트를 만든 가상환경에서 실제로 확인</small></div>
@@ -6897,7 +6898,7 @@ python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/do
         <tr><th>부분</th><th>뜻</th></tr>
         <tr><td><code>"sqlalchemy>=2.0,<2.1"</code></td><td>2.0 계열로 범위 고정 — 따옴표로 감싸야 PowerShell이 <code>&lt;</code>를 리다이렉트로 읽지 않아요</td></tr>
         <tr><td><code>psycopg[binary]</code></td><td>미리 빌드된 C 확장 포함 — libpq를 따로 설치할 필요 없음</td></tr>
-        <tr><td><code>--port 8001</code></td><td>오전 서버(8000)와 구분. DB 포트(5432)와는 다른 것</td></tr>
+        <tr><td><code>--port 8001</code></td><td>API가 요청을 받을 포트 — 다른 서버와 겹치지 않게. DB 포트(5432)와는 다른 것</td></tr>
         <tr><td><code>main:app</code> / <code>app.main:app</code></td><td>루트의 <code>main.py</code> / <code>app/main.py</code> — 프로젝트 최상위에서 실행</td></tr>
       </table>
       <div class="callout">💡 활성화(Activate.ps1)가 막히면 정책을 바꾸지 말고 <code>.\.venv\Scripts\python.exe -m uvicorn main:app --port 8001</code>처럼 가상환경 python을 경로로 직접 불러요. GPU·CUDA는 필요 없어요.</div>
@@ -6907,8 +6908,8 @@ python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/do
 <pre><code># .env — 실제 값은 제출·Git에 넣지 않는다.
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=day19_crud_b
-DB_USER=내_수업용_계정
+DB_NAME=knowledge_lab
+DB_USER=내_계정
 DB_PASSWORD='내_비밀번호'
 
 # .gitignore
@@ -7195,7 +7196,7 @@ class Category(Base):
     <tr><td><code>db.refresh(row2) → row2.content</code></td><td><code>&#x27;SQL로 직접 바꿈&#x27;</code></td><td>DB 값을 다시 읽음 (저장 명령 아님)</td></tr>
   </table>
 </div>
-      <div class="callout">💡 수업 코드의 순서: <b>flush → 응답 객체 준비 → commit → return</b>. <code>refresh</code>는 DB가 값을 바꾸는 경우(기본값·트리거)처럼 필요할 때만 써요.</div>
+      <div class="callout">💡 순서: <b>flush → 응답 객체 준비 → commit → return</b>. <code>refresh</code>는 DB가 값을 바꾸는 경우(기본값·트리거)처럼 필요할 때만 써요.</div>
 </article>
 <article class="cmd" id="d19-transaction" data-day="19">
   <div class="cmd-head"><h3><code>transaction(db)</code> 도우미 — 쓰기 경계 하나</h3><span class="cmd-meta"><span class="tag">Day19</span> <a href="notes/day19.html#tx">📖 이론 보기</a></span></div>
@@ -7230,7 +7231,7 @@ def transaction(db):
       </table>
 </article>
 <article class="cmd" id="d19-same-session" data-day="19">
-  <div class="cmd-head"><h3>같은 Session에서 실패 후 rollback (강사 시연)</h3><span class="cmd-meta"><span class="tag">Day19</span> <a href="notes/day19.html#tx">📖 이론 보기</a></span></div>
+  <div class="cmd-head"><h3>같은 Session에서 실패 후 rollback</h3><span class="cmd-meta"><span class="tag">Day19</span> <a href="notes/day19.html#tx">📖 이론 보기</a></span></div>
 <pre><code># 테스트 전용 DB · 기존 learning 분류 전제
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -7342,7 +7343,7 @@ connectable = create_engine(demo_url, poolclass=pool.NullPool)
 with connectable.connect() as connection:
     actual = connection.execute(text("SELECT current_database()")).scalar_one()
     connection.rollback()  # 점검 SELECT의 tx 종료
-    if actual != "day19_migration_lab":
+    if actual != "migration_lab":
         raise RuntimeError("연습 DB 대상 확인 필요")
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():

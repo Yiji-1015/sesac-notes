@@ -670,7 +670,7 @@ srv.terminate(); srv.wait(timeout=10)
 srv = run_server(port)
 st2, body2 = get(port, f"/api/knowledge/{pid}")
 srv.terminate(); srv.wait(timeout=10)
-IO["d19-uvicorn"] = (f"임시 폴더의 강의 코드를 빈 포트({port})로 띄워 실행 (수업에선 8001)", [
+IO["d19-uvicorn"] = (f"임시 폴더의 강의 코드를 빈 포트({port})로 띄워 실행 (평소엔 8001 등)", [
     ("python -m uvicorn main:app --port <포트>  →  GET /docs", f"{st_docs}", "자동 문서가 열림"),
     (f"GET /api/knowledge/{pid}", f"{st1} {body1}"[:200], "PUT으로 바꾼 본문"),
     ("서버 종료 → 같은 명령으로 재시작 → 같은 GET", f"{st2} {body2}"[:200], "DB에 있으니 재시작해도 그대로"),

@@ -12614,7 +12614,7 @@ WHERE category_id = 1;
 ---
 
 # Day19 · FastAPI–PostgreSQL 연동
-_2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 정책 · Alembic Migration · 통합 검증_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day19.html
+_2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 처리 · Alembic Migration · 통합 검증_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day19.html
 
 📌 딱 3줄 요약
 
@@ -12643,16 +12643,16 @@ _2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 정책 �
 
 ```
 python -m pip install "sqlalchemy>=2.0,<2.1" "psycopg[binary]>=3,<4" pydantic-settings alembic
-python -m uvicorn main:app --port 8001 --reload       # 오후 앱은 8001
+python -m uvicorn main:app --port 8001 --reload       # API 서버 (포트는 자유)
 ```
 
-🤔 왜 포트를 8001로 바꿔? — 오전(JSON 파일 API)과 오후(DB 연동 API)를 동시에 켜 두면 둘 다 8000을 쓰려다 충돌하고, 어느 서버의 응답을 보고 있는지 헷갈려요. 그리고 8001은 API 포트, 5432는 DB 포트 — 목적이 달라요.
+💡 API 포트(예: 8001)와 DB 포트(5432)는 다른 것이에요. uvicorn의 --port는 내 API가 요청을 받을 문, 5432는 PostgreSQL 서버의 문이에요. 같은 포트에 서버 두 개를 띄우면 충돌해요.
 
 ## 이거 어디에 써?
 
 "가상환경 정책이 바뀌었어요. AI 도우미는 무엇을 기준으로 답해야 하죠?" — 답의 근거는 최신 원본 지식이에요. 오늘은 담당자가 /docs(나중엔 관리 화면)에서 안내를 등록·수정하면 그게 PostgreSQL에 실제로 반영되는 원본 관리 서비스를 완성해요. AI 도우미의 검색(RAG)·도구(Agent)는 그 원본을 읽어 가는 이후 단계예요.
 
-|  | 오전 · 각각 | 오후 · 하나로 |
+|  | Day17 · Day18 (따로) | Day19 (하나로) |
 |---|---|---|
 | 흐름 | FastAPI → JSON 파일 pgAdmin → PostgreSQL | POST → FastAPI 입력 검증 → ORM·Session → PostgreSQL → 201 |
 | 관계 | API를 불러도 DB는 안 바뀜 (별개) | API의 새 지식 = DB의 새 행 |
@@ -12660,15 +12660,92 @@ python -m uvicorn main:app --port 8001 --reload       # 오후 앱은 8001
 
 ⚠️ API가 있다고 Agent 도구가 되는 건 아니에요. 도구로 쓰려면 Method·Path·입력 스키마·권한을 따로 계약해야 해요. 그리고 원본을 고쳐도 검색 인덱스는 별도 동기화가 필요해요. ?category=learning 필터도 의미 검색이 아니라 문자열 일치예요.
 
+## 📋 명세 — 지식 관리 API
+
+오늘 만든 서비스의 약속을 한곳에 모았어요. 바깥(API)에서 보는 모양과 안쪽(DB)에 저장되는 모양을 나눠 적었어요.
+
+### 1. 엔드포인트
+
+| Method · Path | 입력 | 성공 | 실패 |
+|---|---|---|---|
+| GET /api/knowledge | Query category (선택, 문자열) | 200 · Knowledge[] (id 오름차순, 없으면 []) | — |
+| GET /api/knowledge/{knowledge_id} | Path knowledge_id (정수) | 200 · Knowledge | 422 정수 아님 · 404 없음 |
+| POST /api/knowledge | Body KnowledgeWrite | 201 · Knowledge (DB가 발급한 id) | 422 입력 · 409 충돌 · 500 |
+| PUT /api/knowledge/{knowledge_id} | Path + Body KnowledgeWrite (세 필드 모두) | 200 · Knowledge (같은 id) | 422 · 404 · 409 · 500 |
+| DELETE /api/knowledge/{knowledge_id} | Path | 204 · 본문 없음 | 422 · 404 |
+| GET /health | — | 200 · {"status": "ok"} | — |
+
+### 2. 요청 · 응답 스키마
+
+| 필드 | 타입 | KnowledgeWrite (요청) | Knowledge (응답) | 규칙 |
+|---|---|---|---|---|
+| id | integer | — (보내지 않음) | ✅ | DB가 발급 · 바뀌지 않음 |
+| title | string | 필수 | ✅ | 1~80자 · 중복 허용 |
+| content | string | 필수 | ✅ | 1~2,000자 |
+| category | string | 필수 | ✅ | 1~30자 · 처음 보는 이름이면 분류를 새로 만듦 |
+
+```
+// 요청 (POST · PUT)                        // 응답 (200 · 201)
+{                                          {
+  "title": "실습 환경 안내",                  "id": 5,
+  "content": "실행 전에 가상환경을 확인합니다.",  "title": "실습 환경 안내",
+  "category": "learning"                     "content": "실행 전에 가상환경을 확인합니다.",
+}                                            "category": "learning"
+                                           }
+```
+
+모르는 필드(예: author)는 오류 없이 무시돼요. 응답에는 category_id 같은 DB 내부 열이 나가지 않아요.
+
+### 3. DB 스키마
+
+| 표.열 | 타입 | 제약 (이름) |
+|---|---|---|
+| categories.id | BIGINT IDENTITY | PK |
+| categories.name | VARCHAR(30) | NOT NULL · UNIQUE (categories_name_key) · CHECK 1~30자 (categories_name_length) |
+| knowledge.id | BIGINT IDENTITY | PK |
+| knowledge.title | VARCHAR(80) | NOT NULL · CHECK 1~80자 (knowledge_title_length) |
+| knowledge.content | TEXT | NOT NULL · CHECK 1~2,000자 (knowledge_content_length) |
+| knowledge.category_id | BIGINT | NOT NULL · FK → categories.id ON DELETE RESTRICT (knowledge_category_fk) |
+
+### 4. API ↔ DB 대응
+
+| API 필드 | DB | 바꾸는 곳 |
+|---|---|---|
+| id | knowledge.id | 그대로 |
+| title · content | knowledge.title · knowledge.content | 그대로 |
+| category (이름) | knowledge.category_id → categories.name | 들어올 때 get_or_create_category · 나갈 때 to_read |
+
+### 5. 오류 응답
+
+| 상태 | 본문 | 언제 | DB 상태 |
+|---|---|---|---|
+| 422 | {"detail": [ {type, loc, msg, input}, ... ]} | 필수 누락 · 길이 위반 · Path가 정수 아님 | 아무것도 시도 안 함 |
+| 404 | {"detail": "Knowledge not found"} | 없는 지식 id | 변화 없음 (새 분류도 안 생김) |
+| 409 | {"detail": "Data conflict"} | 분류명 UNIQUE 충돌 · FK 충돌 | ROLLBACK |
+| 503 | {"detail": "Database unavailable"} | DB 연결 계열 오류 (SQLSTATE 08…) · 연결 끊김 | 성공으로 보고하지 않음 |
+| 500 | {"detail": "Database operation failed"} | 그 밖의 DB 오류 (예: 예상 못 한 CHECK 위반) | ROLLBACK |
+
+오류 본문에는 SQL·파라미터·DB 진단 메시지를 넣지 않아요.
+
+### 6. 동작 보장
+
+| 항목 | 약속 |
+|---|---|
+| 성공 응답 시점 | 201·200·204는 COMMIT 성공 뒤에만 |
+| 원자성 | 새 분류 + 지식은 함께 저장되거나 함께 취소 |
+| PUT | id·전체 개수 유지 · 없는 id를 새로 만들지 않음 |
+| DELETE | 그 지식만 삭제 · 부모 분류는 남음 |
+| id | 연속이 아닐 수 있음 (실패·취소한 번호는 다시 안 씀) |
+
 ## ① 연결 대상 고정 · 설정 분리
 
-코드보다 먼저 정할 것: 어느 DB에 붙을지. DB 이름이 틀리면 코드가 멀쩡해도 다른 데이터를 보게 돼요.
+코드보다 먼저 정할 것: 어느 DB에 붙을지. DB 이름이 틀리면 코드가 멀쩡해도 다른 데이터를 보게 돼요. 그래서 용도별로 DB를 나눠요.
 
 | DB | 쓰는 곳 | 지킬 것 |
 |---|---|---|
-| 주 프로젝트 DB (예: day19_crud_b) | API가 매일 쓰는 곳 | 기존 지식·분류 보존 · DROP·Seed 반복 금지 |
-| Migration 연습 DB (day19_migration_lab) | Alembic 연습 | 새 빈 DB에서만 |
-| 테스트 DB (day19_api_test) | 자동 테스트 | 테스트가 만든 행만 정리 |
+| 실제 데이터 DB | API가 평소에 쓰는 곳 | 기존 데이터 보존 · DROP·Seed 반복 금지 |
+| Migration 연습 DB | 구조 변경을 먼저 시험 | 비어 있는 별도 DB에서 |
+| 테스트 DB | 자동 테스트 | 테스트가 만든 행만 정리 |
 
 ⚠️ API 시작할 때 create_all()이나 Seed를 자동 실행하게 넣지 않아요. 이미 데이터가 있는 DB에 표를 다시 만들거나 같은 데이터를 또 넣을 수 있어요.
 
@@ -12700,7 +12777,7 @@ engine = create_engine(url, pool_pre_ping=True, hide_parameters=True)
 conn.execute(text("SELECT current_database(), current_user")).one()
 ```
 
-💡 Engine을 만들었다 ≠ 접속 성공. Engine은 "필요할 때 연결을 빌려 줄 준비"만 해요. 실제로 SQL을 한 번 보내 봐야 Host·비밀번호가 맞는지 알 수 있어요. 그리고 행 수를 "3이겠지"로 고정하지 마세요 — 오전 실습으로 바뀌었을 수 있어요.
+💡 Engine을 만들었다 ≠ 접속 성공. Engine은 "필요할 때 연결을 빌려 줄 준비"만 해요. 실제로 SQL을 한 번 보내 봐야 Host·비밀번호가 맞는지 알 수 있어요. 그리고 행 수를 "3이겠지"로 고정하지 마세요 — 그 사이 다른 작업으로 바뀌었을 수 있어요.
 
 ## ② ORM · Engine · Session
 
@@ -12770,15 +12847,7 @@ class KnowledgeWrite(BaseModel):
 
 [그림: HTTP 요청, Pydantic 검증, get_db, transaction, COMMIT, 201 응답 여섯 칸과, Pydantic에서 422로, transaction에서 ROLLBACK 후 409·500으로, 응답에서 pgAdmin 확인으로 갈라지는 흐름도] 무엇을 보나: POST /api/knowledge 한 건이 지나가는 순서예요. ① 길이·필수가 틀리면 함수가 실행되기도 전에 422(DB엔 가지도 않아요). ③ 안에서 DB 제약이 터지면 ROLLBACK 후 예외 → 오류 처리기가 409/500으로 바꿔요. 모두 통과해 ④ COMMIT이 성공해야 비로소 ⑤ 201이에요. 🤔 왜 201을 COMMIT 뒤에? 201을 먼저 보내고 COMMIT이 실패하면, 사용자는 "저장됐다"고 믿는데 DB엔 없어요. 응답은 사실이 확정된 뒤에.
 
-| 요청 | 입력 | 정상 결과 |
-|---|---|---|
-| GET /api/knowledge | (응용: ?category=) | 200 · id 오름차순 배열 (없으면 []) |
-| GET /api/knowledge/{id} | 정수 Path ID | 200 · 지식 하나 |
-| POST /api/knowledge | title · content · category | 201 · DB가 발급한 id 포함 |
-| PUT /api/knowledge/{id} | Path ID + 세 필드 모두 | 200 · 같은 id의 수정 결과 |
-| DELETE /api/knowledge/{id} | 정수 Path ID | 204 · 본문 없음 |
-
-없는 지식: 404 {"detail":"Knowledge not found"} · 잘못된 입력: 기본 422 — Day17과 같은 약속이에요.
+다섯 경로의 입력·응답·상태 코드는 📋 명세에 모아 뒀어요. 아래는 각 경로가 DB와 어떻게 이어지는지예요.
 
 🔧 목록 GET — select(Knowledge, Category.name).join(...) 명령어 사전에서 자세히 →
 
@@ -12796,7 +12865,7 @@ category = db.scalar(select(Category).where(Category.name == name))
 if category is None: db.add(Category(name=name)); db.flush()   # id 확보, 아직 미확정
 ```
 
-💡 수업 정책: 있는 분류는 그 ID 재사용, 없는 분류는 같은 트랜잭션 안에서 새로 만들어요. 여기서 commit하지 않는 게 핵심 — 분류와 지식을 함께 확정해야 반쪽 저장이 없어요. ("조회 후 생성"이 동시 요청 충돌까지 해결하지는 않아요 → 그땐 UNIQUE 위반 409.)
+💡 있는 분류는 그 ID를 재사용하고, 없는 분류는 같은 트랜잭션 안에서 새로 만들어요. 여기서 commit하지 않는 게 핵심 — 분류와 지식을 함께 확정해야 반쪽 저장이 없어요. ("조회 후 생성"이 동시 요청 충돌까지 해결하지는 않아요 → 그땐 UNIQUE 위반 409.)
 
 🔧 POST — 저장 후 201 명령어 사전에서 자세히 →
 
@@ -12819,7 +12888,7 @@ row = knowledge_or_404(db, knowledge_id)        # 먼저 존재 확인
 row.title = payload.title; row.content = payload.content; row.category_id = category.id
 ```
 
-🤔 PUT에서 왜 지식부터 찾고 분류는 나중에? — 순서를 바꾸면 없는 지식 ID로 PUT했을 때 404를 내기 전에 새 분류부터 만들어 버릴 수 있어요(트랜잭션이 롤백해 주긴 하지만, 불필요한 일을 안 하는 게 원칙). 실제로 PUT /99999 + 새 분류 이름 → 404, 분류도 안 생겼어요. 그리고 ORM 객체의 속성을 바꾸면 flush/commit 때 UPDATE가 나가요 — UPDATE SQL을 직접 쓰지 않아도 돼요.
+🤔 PUT에서 왜 지식부터 찾고 분류는 나중에? — 순서를 바꾸면 없는 지식 ID로 PUT했을 때 404를 내기 전에 새 분류부터 만들어 버릴 수 있어요(트랜잭션이 롤백해 주긴 하지만, 불필요한 일은 안 하는 게 좋아요). 실제로 PUT /99999 + 새 분류 이름 → 404, 분류도 안 생겼어요. 그리고 ORM 객체의 속성을 바꾸면 flush/commit 때 UPDATE가 나가요 — UPDATE SQL을 직접 쓰지 않아도 돼요.
 
 🔧 DELETE — commit 후 빈 204 명령어 사전에서 자세히 →
 
@@ -12862,15 +12931,9 @@ except Exception: db.rollback(); raise
 except IntegrityError: db.rollback()       # 안 하면 다음 SQL이 PendingRollbackError
 ```
 
-## ⑤ 오류 정책 — 원인별로 다른 응답
+## ⑤ 오류 처리 — 원인별로 다른 응답
 
-| 상황 | 응답 | DB 확인 |
-|---|---|---|
-| 필수 값·길이·Path 형식 오류 | 422 · FastAPI 기본 검증 | 쓰기 코드로 아예 안 들어감 |
-| 정상 입력 + 없는 지식 ID | 404 · Knowledge not found | 새 지식·분류 생성 없음 |
-| 알려진 UNIQUE / FK 충돌 | 409 · Data conflict | 현재 트랜잭션 rollback |
-| 확인된 연결 실패 · 접속 시간초과 | 503 · Database unavailable | 성공으로 보고하지 않음 |
-| 예상 밖 CHECK · SQL · 설정 오류 | 500 · 일반 메시지 | 내부 코드·구조 불일치 점검 |
+어떤 상황에 어떤 상태 코드를 주는지는 📋 명세의 오류 응답 표에 있어요. 여기선 왜 그렇게 나누는지와 코드를 봐요.
 
 🤔 DB 오류는 다 409(충돌)로 주면 안 돼? — 409는 "요청이 지금 데이터와 부딪혔다, 바꿔서 다시 보내라"는 뜻이에요. 그런데 CHECK 위반은 API 검증(422)을 통과했는데 DB에서 막힌 거라 우리 코드와 DB 규칙이 어긋났다는 신호(500)예요. 같은 IntegrityError라도 sqlstate와 제약 이름을 보고 나눠요. 그리고 응답엔 SQL·파라미터·진단 문자열을 그대로 내보내지 않아요.
 
@@ -12887,7 +12950,7 @@ status = 409 if (code, name) in known else 500
 unavailable = isinstance(exc, OperationalError) and (str(code or "").startswith("08") or exc.connection_invalidated)
 ```
 
-⚠️ 실제로 돌려 보니: DB 서버가 아예 없는 포트로 접속하면 psycopg 오류에 SQLSTATE가 없어서(None) 강의의 503 판정 규칙에 안 걸리고 500이 됐어요. 강의자료도 "실제 배포 전 환경별 검증 필요"라고 적어 둔 부분 — 규칙은 실제 오류를 일으켜 보고 확인해야 해요.
+⚠️ 실제로 돌려 보니: DB 서버가 아예 없는 포트로 접속하면 psycopg 오류에 SQLSTATE가 없어서(None) 위 503 판정 규칙에 안 걸리고 500이 됐어요. 이런 판정 규칙은 실제 오류를 일으켜 보고 확인해야 해요.
 
 ### 응답이 이상하면 — 연결 대상부터
 
@@ -12901,7 +12964,7 @@ unavailable = isinstance(exc, OperationalError) and (str(code or "").startswith(
 
 ## 🧪 이 요청은 어디서 멈출까?
 
-요청을 고르면 어느 단계에서 멈추는지, 응답과 DB가 어떻게 되는지 보여 줘요. 결과는 모두 강의 코드를 실제 PostgreSQL에서 돌려 확인한 것이에요.
+요청을 고르면 어느 단계에서 멈추는지, 응답과 DB가 어떻게 되는지 보여 줘요. 결과는 모두 이 코드를 실제 PostgreSQL에서 돌려 확인한 것이에요.
 
 ## ⑥ Migration — Alembic
 
@@ -12965,7 +13028,7 @@ app.dependency_overrides[get_db] = override_get_db
 python -m uvicorn main:app --port 8001     # Ctrl+C → 다시 실행 → GET /api/knowledge/{id}
 ```
 
-💡 TestClient ≠ 실서버 재시작, mock 통과 ≠ PostgreSQL 통과. 강의자료도 모의 객체로 69항목을 검수했지만 실제 PostgreSQL 실행은 "미검증"으로 따로 적었어요. 이 노트의 결과는 실제 PostgreSQL 18에서 실행한 것이에요.
+💡 TestClient ≠ 실서버 재시작, mock(가짜 객체) 통과 ≠ PostgreSQL 통과. 진짜 DB에서 돌려 봐야 제약·트랜잭션이 실제로 어떻게 동작하는지 알 수 있어요. 이 노트의 결과는 실제 PostgreSQL 18에서 실행한 것이에요.
 
 ## ⑧ 다음 단계와 연결
 
@@ -13006,23 +13069,24 @@ python -m uvicorn main:app --port 8001     # Ctrl+C → 다시 실행 → GET /a
 | ② ORM · Engine · Session | sessionmaker, get_db() + Depends, class ...(Base) · mapped_column, KnowledgeWrite |
 | ③ 다섯 API | select().join(), db.get(), get_or_create_category(), db.add · db.flush · db.delete |
 | ④ 트랜잭션 · Session 메서드 | with transaction(db):, commit() · rollback() · refresh() · close() |
-| ⑤ 오류 정책 | @app.exception_handler(IntegrityError), exc.orig.sqlstate · diag.constraint_name, 409 · 503 · 500 |
+| 📋 명세 | 엔드포인트 · 요청/응답 스키마 · DB 스키마 · 오류 응답 |
+| ⑤ 오류 처리 | @app.exception_handler(IntegrityError), exc.orig.sqlstate · diag.constraint_name, 409 · 503 · 500 |
 | 🧪 이 요청은 어디서 멈출까? | (요청별 멈추는 단계 · 응답) |
 | ⑥ Migration | alembic current · history · upgrade · downgrade, op.add_column, --autogenerate |
 | ⑦ 통합 검증 | app.dependency_overrides, TestClient, 재시작 후 GET |
 | ⑧ 다음 단계 | LLM 기초 (11/13) → 임베딩 → Basic RAG (11/20) |
 
-### 설치 · 확인 · 오후 서버 실행
+### 설치 · 확인 · 서버 실행
 
 ```
-python -m pip show fastapi pydantic uvicorn          # 오전 환경 재사용
+python -m pip show fastapi pydantic uvicorn          # 이미 있는 환경 재사용
 python -m pip install "sqlalchemy>=2.0,<2.1"
 python -m pip install "psycopg[binary]>=3,<4"
 python -m pip install pydantic-settings alembic
 # 심화 자동 테스트만: httpx pytest
 python -m pip show sqlalchemy psycopg alembic
 
-# 오후 앱의 프로젝트 최상위에서
+# 프로젝트 최상위에서
 python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/docs
 ```
 
@@ -13038,7 +13102,7 @@ python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/do
 |---|---|
 | "sqlalchemy>=2.0,<2.1" | 2.0 계열로 범위 고정 — 따옴표로 감싸야 PowerShell이 <를 리다이렉트로 읽지 않아요 |
 | psycopg[binary] | 미리 빌드된 C 확장 포함 — libpq를 따로 설치할 필요 없음 |
-| --port 8001 | 오전 서버(8000)와 구분. DB 포트(5432)와는 다른 것 |
+| --port 8001 | API가 요청을 받을 포트 — 다른 서버와 겹치지 않게. DB 포트(5432)와는 다른 것 |
 | main:app / app.main:app | 루트의 main.py / app/main.py — 프로젝트 최상위에서 실행 |
 
 💡 활성화(Activate.ps1)가 막히면 정책을 바꾸지 말고 .\.venv\Scripts\python.exe -m uvicorn main:app --port 8001처럼 가상환경 python을 경로로 직접 불러요. GPU·CUDA는 필요 없어요.
@@ -13049,8 +13113,8 @@ python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/do
 # .env — 실제 값은 제출·Git에 넣지 않는다.
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=day19_crud_b
-DB_USER=내_수업용_계정
+DB_NAME=knowledge_lab
+DB_USER=내_계정
 DB_PASSWORD='내_비밀번호'
 
 # .gitignore
@@ -13550,7 +13614,7 @@ with SessionLocal() as db:
 | 다른 곳에서 SQL로 본문 수정 → row2.content | '이번엔 commit' | expire_on_commit=False라 객체는 예전 값을 들고 있음 |
 | db.refresh(row2) → row2.content | 'SQL로 직접 바꿈' | DB 값을 다시 읽음 (저장 명령 아님) |
 
-💡 수업 코드의 순서: flush → 응답 객체 준비 → commit → return. refresh는 DB가 값을 바꾸는 경우(기본값·트리거)처럼 필요할 때만 써요.
+💡 순서: flush → 응답 객체 준비 → commit → return. refresh는 DB가 값을 바꾸는 경우(기본값·트리거)처럼 필요할 때만 써요.
 
 ### transaction(db) 도우미 — 쓰기 경계 하나
 
@@ -13583,7 +13647,7 @@ def transaction(db):
 | raise로 예외를 다시 전달 | 삼키면 실패했는데 201·200을 보내게 돼요 |
 | HTTP 오류 변환은 따로 (예외 처리기) | 트랜잭션 정리와 응답 결정은 다른 책임 |
 
-### 같은 Session에서 실패 후 rollback (강사 시연)
+### 같은 Session에서 실패 후 rollback
 
 ```
 # 테스트 전용 DB · 기존 learning 분류 전제
@@ -13680,7 +13744,7 @@ async def other_db_error(request: Request, exc):
 | create_engine(...port=1).connect() | OperationalError · sqlstate None · connection_invalidated False | 서버가 없으면 DB에 닿지도 못해서 SQLSTATE가 없어요 |
 | 강의 처리기 규칙으로 판정 | 500 (Database operation failed) | 규칙이 08* 코드나 연결 무효화만 503으로 봐서, '서버 꺼짐'은 이 규칙으론 500이 돼요 — 환경별 검증이 필요한 이유 |
 
-⚠️ 인증 실패·잘못된 SQL·예상 밖 오류를 모두 503으로 묶지 않아요. 이 규칙은 수업의 제한된 정책이고, 실제 배포 전 환경별로 오류를 일으켜 확인해야 해요 (아래 결과 참고).
+⚠️ 인증 실패·잘못된 SQL·예상 밖 오류를 모두 503으로 묶지 않아요. 이 판정 규칙은 단순한 기준이라, 실제로 오류를 일으켜 확인해야 해요 (아래 결과 참고).
 
 ### alembic current · history · upgrade
 
@@ -13757,7 +13821,7 @@ connectable = create_engine(demo_url, poolclass=pool.NullPool)
 with connectable.connect() as connection:
     actual = connection.execute(text("SELECT current_database()")).scalar_one()
     connection.rollback()  # 점검 SELECT의 tx 종료
-    if actual != "day19_migration_lab":
+    if actual != "migration_lab":
         raise RuntimeError("연습 DB 대상 확인 필요")
     context.configure(connection=connection, target_metadata=target_metadata)
     with context.begin_transaction():
@@ -13848,7 +13912,7 @@ python -m uvicorn main:app --port 8001     # 실행
 # GET /api/knowledge/{id}  → 재시작 전과 같은 값인지
 ```
 
-▶ 실제로 돌려 보면 임시 폴더의 강의 코드를 빈 포트(60577)로 띄워 실행 (수업에선 8001)
+▶ 실제로 돌려 보면 임시 폴더의 강의 코드를 빈 포트(60577)로 띄워 실행 (평소엔 8001 등)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13881,7 +13945,7 @@ WHERE k.id = 17;
 - **Revision** (Alembic Revision): 변경 하나를 담은 파이썬 파일. upgrade()로 적용, downgrade()로 되돌림. down_revision으로 앞 변경과 이어져 사슬이 되고, 마지막이 head.
 - **autogenerate** (alembic revision --autogenerate / alembic stamp): autogenerate는 DB와 Model 차이로 Revision 초안을 만들 뿐이라 꼭 읽고 고쳐야 해요(이름 변경이 삭제+추가로 나옴). stamp는 DDL 없이 기록만 바꿔요.
 - **IntegrityError** (sqlalchemy.exc.IntegrityError): DB 제약(UNIQUE·FK·CHECK·NOT NULL) 위반 때 SQLAlchemy가 내는 예외. exc.orig.sqlstate와 diag.constraint_name으로 원인을 구분해요. 실패한 Session은 rollback 전까지 PendingRollbackError로 다음 SQL을 거부해요.
-- **409 Conflict** (HTTP 409 Conflict): 요청이 지금 데이터 상태와 충돌했다는 응답. 이 수업에선 알려진 UNIQUE(분류명 중복)·FK 충돌만 409, 나머지 DB 오류는 500.
-- **503 Service Unavailable** (HTTP 503 Service Unavailable): 서버가 지금 일을 처리할 수 없다는 응답. 이 수업에선 연결 계열 SQLSTATE(08…)나 확인된 연결 끊김만 503으로 봐요.
+- **409 Conflict** (HTTP 409 Conflict): 요청이 지금 데이터 상태와 충돌했다는 응답. 여기선 분류명 중복(UNIQUE)·없는 분류 참조(FK) 같은 알려진 충돌만 409, 그 밖의 DB 오류는 500.
+- **503 Service Unavailable** (HTTP 503 Service Unavailable): 서버가 지금 일을 처리할 수 없다는 응답. 여기선 연결 계열 SQLSTATE(08…)나 확인된 연결 끊김을 503으로 봐요.
 - **SQL Injection** (SQL Injection / Parameter Binding): 사용자 입력을 SQL 문자열에 그대로 이어 붙이면 입력으로 SQL을 조작당할 수 있어요(Injection). select().where(...)처럼 값을 따로 전달(바인딩)하면 막혀요.
 - **dependency_overrides** (FastAPI app.dependency_overrides): 테스트에서 get_db 같은 의존성을 다른 함수(테스트 DB용)로 바꿔 끼우는 사전. 끝나면 pop으로 원래대로 돌려요.
