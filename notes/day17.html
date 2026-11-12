@@ -75,6 +75,73 @@ Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요�
       <div class="callout">🤔 <strong>왜 셋을 따로 나눠?</strong> — 같은 서비스로 이어 붙일 수는 있지만 <b>책임</b>이 달라요. 원본 저장은 "정확히 남기기", 검색은 "잘 찾기", Agent는 "무슨 도구를 쓸지 판단하기"예요. 한 덩어리로 섞으면 검색 방식을 바꿀 때 저장 코드까지 건드리게 돼요.</div>
       <div class="callout warn">⚠️ <b>FastAPI ≠ AI 모델 ≠ Agent.</b> 오늘 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 나중에 만들 <b>검색 인덱스는 자동으로 바뀌지 않아요</b>(따로 다시 만들어야 해요).</div>
 
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 지식 관리 API (JSON 파일 버전)</h2>
+      <p>오늘 만든 API의 약속을 한곳에 모았어요. Day19에서 저장소를 PostgreSQL로 바꿔도 <b>1·2·4번(바깥 약속)은 그대로</b>예요.</p>
+
+      <h3>1. 엔드포인트</h3>
+      <table>
+        <tr><th>Method · Path</th><th>입력</th><th>성공</th><th>실패</th></tr>
+        <tr><td><code>GET /health</code></td><td>—</td><td><b>200</b> · <code>{"status": "ok"}</code></td><td>—</td></tr>
+        <tr><td><code>GET /api/knowledge</code></td><td>Query <code>category</code> (선택, 정확히 일치)</td><td><b>200</b> · <code>Knowledge[]</code> (없으면 <code>[]</code>)</td><td>—</td></tr>
+        <tr><td><code>GET /api/knowledge/{knowledge_id}</code></td><td>Path <code>knowledge_id</code> (정수)</td><td><b>200</b> · <code>Knowledge</code></td><td>422 정수 아님 · 404 없음</td></tr>
+        <tr><td><code>POST /api/knowledge</code></td><td>Body <code>KnowledgeWrite</code></td><td><b>201</b> · <code>Knowledge</code> (서버가 정한 id)</td><td>422 입력</td></tr>
+        <tr><td><code>PUT /api/knowledge/{knowledge_id}</code></td><td>Path + Body <code>KnowledgeWrite</code> (세 필드 모두)</td><td><b>200</b> · <code>Knowledge</code> (같은 id)</td><td>422 · 404</td></tr>
+        <tr><td><code>DELETE /api/knowledge/{knowledge_id}</code></td><td>Path</td><td><b>204</b> · 본문 없음</td><td>422 · 404</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:0.9rem">선택 확장: 목록에 <code>?q=</code>(제목·본문에 글자가 들어 있는지, 최대 80자)를 붙일 수 있어요 — 의미 검색이 아니에요.</p>
+
+      <h3>2. 요청 · 응답 스키마</h3>
+      <table>
+        <tr><th>필드</th><th>타입</th><th><code>KnowledgeWrite</code> (요청)</th><th><code>Knowledge</code> (응답)</th><th>규칙</th></tr>
+        <tr><td><code>id</code></td><td>integer</td><td>— (보내지 않음)</td><td>✅</td><td>서버가 발급 · 바뀌지 않음</td></tr>
+        <tr><td><code>title</code></td><td>string</td><td>필수</td><td>✅</td><td>1~80자 · 중복 허용</td></tr>
+        <tr><td><code>content</code></td><td>string</td><td>필수</td><td>✅</td><td>1~2,000자</td></tr>
+        <tr><td><code>category</code></td><td>string</td><td>필수</td><td>✅</td><td>1~30자 · 정해진 목록 없음(아무 이름이나)</td></tr>
+      </table>
+<pre><code>// 요청 (POST · PUT)                        // 응답 (200 · 201)
+{                                          {
+  "title": "실습 환경 안내",                  "title": "실습 환경 안내",
+  "content": "Python 3.10 이상을 사용한다.",    "content": "Python 3.10 이상을 사용한다.",
+  "category": "setup"                        "category": "setup",
+}                                            "id": 4
+                                           }</code></pre>
+
+      <h3>3. 저장 파일 — <code>data/knowledge.json</code></h3>
+      <table>
+        <tr><th>키</th><th>타입</th><th>뜻</th></tr>
+        <tr><td><code>next_id</code></td><td>integer</td><td>다음에 줄 번호 · <b>줄어들지 않음</b> · API 응답엔 안 나감</td></tr>
+        <tr><td><code>entries</code></td><td>array</td><td>지식 항목 목록 — 항목 1건 = <code>{id, title, category, content}</code></td></tr>
+      </table>
+<pre><code>{"next_id": 4, "entries": [ {"id": 1, "title": "가상환경", "category": "setup", "content": "..."}, ... ]}</code></pre>
+      <table>
+        <tr><th>쓰기 규칙</th><th>왜</th></tr>
+        <tr><td>읽기 → 변경 → 저장을 <code>with LOCK:</code> 하나로</td><td>동시 요청이 서로 덮어쓰지 않게 (③)</td></tr>
+        <tr><td>임시 파일에 다 쓴 뒤 <code>replace()</code>로 교체</td><td>쓰다 멈춰도 파일이 반쯤 깨지지 않게</td></tr>
+        <tr><td>UTF-8 · <code>ensure_ascii=False</code></td><td>한글을 그대로 저장</td></tr>
+      </table>
+
+      <h3 id="spec-errors">4. 오류 응답</h3>
+      <table>
+        <tr><th>상태</th><th>본문</th><th>언제</th><th>파일</th></tr>
+        <tr><td><b>422</b></td><td><code>{"detail": [ {type, loc, msg, input}, ... ]}</code></td><td>필수 누락 · 길이 위반 · Path가 정수 아님</td><td>안 바뀜 (함수 실행 전)</td></tr>
+        <tr><td><b>404</b></td><td><code>{"detail": "Knowledge not found"}</code></td><td>없는 id (이미 지운 id 포함)</td><td>안 바뀜</td></tr>
+        <tr><td><b>405</b></td><td><code>{"detail": "Method Not Allowed"}</code></td><td>경로는 있는데 그 Method가 없음</td><td>안 바뀜</td></tr>
+        <tr><td><b>500</b></td><td>서버 오류</td><td>파일 읽기·쓰기 실패 등</td><td>성공 응답을 만들지 않음</td></tr>
+      </table>
+
+      <h3>5. 동작 보장</h3>
+      <table>
+        <tr><th>항목</th><th>약속</th></tr>
+        <tr><td>id</td><td>한 번 쓴 번호는 다시 쓰지 않음 (<code>len(entries)+1</code> 아님)</td></tr>
+        <tr><td>찾기</td><td>목록 위치(index)가 아니라 <code>entry["id"] == knowledge_id</code>로</td></tr>
+        <tr><td>PUT</td><td>세 필드를 통째로 교체 · id·항목 수·<code>next_id</code> 유지 · 없는 id를 새로 만들지 않음</td></tr>
+        <tr><td>DELETE</td><td>그 항목 하나만 · <code>next_id</code> 유지 · 두 번째 DELETE는 404</td></tr>
+        <tr><td>실패한 요청</td><td>파일·<code>next_id</code>를 바꾸지 않음</td></tr>
+        <tr><td>재시작</td><td>파일에서 다시 읽으니 수정·삭제 결과가 그대로</td></tr>
+      </table>
+
       <!-- ============================================================ -->
       <h2 id="first">① 첫 서버 띄우기</h2>
       <p><b>API</b>(Application Programming Interface)는 프로그램끼리 주고받는 <b>약속된 창구</b>예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.</p>
@@ -205,7 +272,7 @@ def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite�
 Content-Type: application/json
 
 {"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}</code></pre>
-      <p>이 수업의 PUT 규칙: <b>세 필드를 모두</b> 보내 내용을 통째로 교체해요. ID·항목 수·<code>next_id</code>는 그대로예요.</p>
+      <p>이 API의 PUT 규칙: <b>세 필드를 모두</b> 보내 내용을 통째로 교체해요. ID·항목 수·<code>next_id</code>는 그대로예요.</p>
       <div class="cmdref">
         <div class="cmdref-head">🔧 수정 함수 <a href="../commands.html#d17-수정-함수">명령어 사전에서 자세히 →</a></div>
 <pre><code>@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)

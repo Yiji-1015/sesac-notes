@@ -37,7 +37,7 @@
       <p>오늘은 <code>pip install</code>이 없어요. 파이썬이 아니라 <b>DB 서버 프로그램</b>을 설치하고, 그 서버에 SQL을 보내는 <b>접속 도구</b>를 써요.</p>
       <table>
         <tr><th>프로그램</th><th>뭐 하는 애?</th><th>어디서 써?</th></tr>
-        <tr><td><b>PostgreSQL 18</b> (Server)</td><td>데이터를 실제로 저장하고 SQL·규칙을 처리하는 <b>DBMS</b>. 수업 기준은 18 계열</td><td>설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요</td></tr>
+        <tr><td><b>PostgreSQL 18</b> (Server)</td><td>데이터를 실제로 저장하고 SQL·규칙을 처리하는 <b>DBMS</b>. 이 노트는 18 기준</td><td>설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요</td></tr>
         <tr><td><b>pgAdmin 4</b></td><td>창(GUI)으로 서버에 접속해 SQL을 보내고 결과를 보는 <b>클라이언트</b></td><td>Query Tool에서 SQL 실행 → Data Output·Messages 확인</td></tr>
         <tr><td><b>psql</b> (Command Line Tools)</td><td>터미널에서 쓰는 클라이언트</td><td>PowerShell에서 <code>psql -U postgres -d knowledge_lab</code></td></tr>
         <tr><td><code>psycopg</code> 등 (내일)</td><td>파이썬(FastAPI)에서 PostgreSQL에 접속하는 드라이버</td><td>오늘은 안 씀 — 11/12 연동 때</td></tr>
@@ -67,6 +67,66 @@ psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → post
         <tr><td>책임</td><td>원본의 저장 규칙·관계·변경 확정</td><td>근거 후보를 골라 LLM에 전달</td></tr>
       </table>
       <div class="callout warn">⚠️ <b>B-tree 인덱스를 만들었다고 의미 검색이 되는 건 아니에요.</b> <code>LIKE '%실행%'</code>도 글자 포함 검색일 뿐이라 "구동"은 못 찾아요. 그리고 원본을 고치거나 지워도 나중의 <b>벡터 인덱스는 자동으로 안 바뀌어요</b>.</div>
+
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 지식 관리 DB</h2>
+      <p>오늘 만든 DB의 구조와 규칙을 한곳에 모았어요. Day19의 API가 이 구조 위에서 그대로 동작해요.</p>
+
+      <h3>1. 위치</h3>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>DBMS</td><td>PostgreSQL 18</td></tr>
+        <tr><td>Database · Schema</td><td><code>knowledge_lab</code> · <code>public</code></td></tr>
+        <tr><td>접속</td><td>Host · Port(기본 5432) · User · Password — 비밀번호는 결과물에 남기지 않음</td></tr>
+      </table>
+
+      <h3>2. 테이블</h3>
+      <table>
+        <tr><th>표.열</th><th>타입</th><th>제약 (이름)</th></tr>
+        <tr><td><code>categories.id</code></td><td>BIGINT · IDENTITY (ALWAYS)</td><td>PK</td></tr>
+        <tr><td><code>categories.name</code></td><td>VARCHAR(30)</td><td>NOT NULL · UNIQUE · CHECK 1~30자 (<code>categories_name_length</code>)</td></tr>
+        <tr><td><code>knowledge.id</code></td><td>BIGINT · IDENTITY (ALWAYS)</td><td>PK</td></tr>
+        <tr><td><code>knowledge.title</code></td><td>VARCHAR(80)</td><td>NOT NULL · CHECK 1~80자 (<code>knowledge_title_length</code>) · 중복 허용</td></tr>
+        <tr><td><code>knowledge.content</code></td><td>TEXT</td><td>NOT NULL · CHECK 1~2,000자 (<code>knowledge_content_length</code>)</td></tr>
+        <tr><td><code>knowledge.category_id</code></td><td>BIGINT</td><td>NOT NULL · FK → <code>categories.id</code> (<code>knowledge_category_fk</code>)</td></tr>
+      </table>
+
+      <h3>3. 관계 · 삭제 정책 · 인덱스</h3>
+      <table>
+        <tr><th>항목</th><th>규칙</th></tr>
+        <tr><td>관계</td><td>분류 1 : 지식 0..N — 지식은 분류 하나를 반드시 가리킴</td></tr>
+        <tr><td>분류 삭제</td><td><code>ON DELETE RESTRICT</code> — 가리키는 지식이 있으면 거부</td></tr>
+        <tr><td>지식 삭제</td><td>그 행만 삭제 · 분류는 남음</td></tr>
+        <tr><td>인덱스</td><td>PK·UNIQUE는 자동 · <code>idx_knowledge_category_id ON knowledge (category_id)</code>는 직접 생성</td></tr>
+      </table>
+
+      <h3>4. 시작 데이터 (S0)</h3>
+      <table>
+        <tr><th>categories</th><th>knowledge</th></tr>
+        <tr><td>1 learning · 2 environment · 3 reference</td><td>1 실습 파일 보관 → 1 · 2 서버 실행 → 2 · 3 질문 작성 → 1</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:0.9rem">ID는 DB가 발급한 실제 값으로 확인해요. 빈 DB에 한 번만 넣어요.</p>
+
+      <h3 id="spec-errors">5. 결과 · 오류 읽는 법</h3>
+      <table>
+        <tr><th>상황</th><th>결과</th><th>SQLSTATE</th></tr>
+        <tr><td>조건에 맞는 행 없음 (SELECT · UPDATE · DELETE)</td><td><b>0행</b> — 오류 아님</td><td>—</td></tr>
+        <tr><td>필수 값에 NULL</td><td>오류 · 저장 안 됨</td><td>23502</td></tr>
+        <tr><td>없는 분류 참조 · 참조 중인 분류 삭제</td><td>오류 · 변경 안 됨</td><td>23503</td></tr>
+        <tr><td>분류 이름 중복</td><td>오류 · 저장 안 됨</td><td>23505</td></tr>
+        <tr><td>빈 문자열·길이 초과</td><td>오류 · 저장 안 됨</td><td>23514</td></tr>
+        <tr><td>트랜잭션 안에서 오류 뒤 다음 SQL</td><td>거부 → <code>ROLLBACK</code>부터</td><td>25P02</td></tr>
+      </table>
+
+      <h3>6. 변경 규칙</h3>
+      <table>
+        <tr><th>항목</th><th>약속</th></tr>
+        <tr><td>순서</td><td>같은 조건으로 SELECT → <code>BEGIN</code> → 변경 + <code>RETURNING</code> → <code>COMMIT</code> 또는 <code>ROLLBACK</code> → 다시 SELECT</td></tr>
+        <tr><td>새 id</td><td>예상하지 말고 <code>RETURNING id</code>로 읽기 · 빈 번호가 생겨도 정상</td></tr>
+        <tr><td>여러 변경</td><td>한 트랜잭션으로 — 전부 확정 또는 전부 취소</td></tr>
+        <tr><td>확정 확인</td><td>COMMIT 뒤 <b>새 연결</b>에서 다시 조회</td></tr>
+      </table>
 
       <!-- ============================================================ -->
       <h2 id="connect">① DB · DBMS · 접속 도구</h2>

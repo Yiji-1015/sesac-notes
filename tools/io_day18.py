@@ -97,7 +97,7 @@ TITLE = "S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설
 IO["d18-current-database"] = ("PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — 강의자료 p21의 기대값", [
     ("SELECT current_database() AS db_name, current_user AS user_name;", "PG = db_name: knowledge_lab (user: 접속한 계정)", "지금 연결된 DB 이름부터 확인"),
     ("SELECT 1 AS connection_ok;", "PG = connection_ok: 1", "SQL을 보내고 결과를 받는 길이 열렸다"),
-    ("SELECT version();", "PG = 서버 버전 문자열 (수업 기준 18.x)", "psql --version은 클라이언트 버전 — 서로 다를 수 있어요"),
+    ("SELECT version();", "PG = 서버 버전 문자열 (18.x)", "psql --version은 클라이언트 버전 — 서로 다를 수 있어요"),
 ])
 
 IO["d18-create-database"] = ("PostgreSQL 전용이라 SQLite로는 못 돌려요 — 강의자료 p68(A01)의 기대값", [

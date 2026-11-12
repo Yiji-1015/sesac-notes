@@ -3,6 +3,7 @@
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
         <tr><td><a href="notes/day17.html#packages">📦 필요한 패키지</a></td><td><code>python -m pip install fastapi uvicorn</code></td></tr>
+        <tr><td><a href="notes/day17.html#spec">📋 명세</a></td><td>엔드포인트 · 요청/응답 스키마 · 저장 파일 · 오류 응답 · 동작 보장</td></tr>
         <tr><td><a href="notes/day17.html#first">① 첫 서버 띄우기</a></td><td><code>FastAPI()</code>, <code>@app.get()</code>, <code>python -m uvicorn main:app --reload</code></td></tr>
         <tr><td><a href="notes/day17.html#http">② HTTP 요청과 응답</a></td><td>Method · Path · Query · Body · Status, <code>/docs</code>의 Try it out</td></tr>
         <tr><td><a href="notes/day17.html#storage">③ JSON 파일 저장소</a></td><td><code>json.load()</code>, <code>json.dump()</code>, <code>with LOCK:</code>, <code>temp.replace()</code></td></tr>
@@ -279,7 +280,7 @@ def list_knowledge(q: str = Query("", max_length=80)):
     ...
         if q in entry["title"] or q in entry["content"]:    # "포함하나?" 단순 비교
             result.append(entry)</code></pre>
-      <div class="callout warn">⚠️ <code>?q=서버</code>는 글자가 <b>그대로 들어 있는지</b>만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 <b>의미 기반 검색(RAG·벡터 검색)</b>은 이후 수업에서 배워요.</div>
+      <div class="callout warn">⚠️ <code>?q=서버</code>는 글자가 <b>그대로 들어 있는지</b>만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 <b>의미 기반 검색(RAG·벡터 검색)</b>은 따로 배워요.</div>
 </section>
 
 <section class="cmd" id="d17-pydantic으로-입력-모양-정하기" data-topic="FastAPI" data-sub="등록 · 검증 (POST)" data-day="17" data-theory="notes/day17.html#create">

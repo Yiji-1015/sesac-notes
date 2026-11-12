@@ -3,6 +3,7 @@
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
         <tr><td><a href="notes/day18.html#packages">📦 필요한 프로그램</a></td><td><code>psql --version</code>, <code>Get-Service postgresql*</code></td></tr>
+        <tr><td><a href="notes/day18.html#spec">📋 명세</a></td><td>테이블 · 제약 이름 · 관계 · S0 · 결과/오류 · 변경 규칙</td></tr>
         <tr><td><a href="notes/day18.html#connect">① DB · DBMS · 접속 도구</a></td><td><code>SELECT current_database()</code>, <code>CREATE DATABASE</code>, <code>psql -U -h -p -d</code>, <code>\dt</code> · <code>\d</code></td></tr>
         <tr><td><a href="notes/day18.html#select">② 지식 조회</a></td><td><code>SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT</code>, <code>LIKE</code>, <code>IS NULL</code></td></tr>
         <tr><td><a href="notes/day18.html#design">③ 두 테이블 설계</a></td><td><code>CREATE TABLE</code>, <code>GENERATED ALWAYS AS IDENTITY</code>, <code>PRIMARY KEY</code>, <code>FOREIGN KEY ... REFERENCES</code>, <code>CHECK</code></td></tr>
@@ -27,7 +28,7 @@ SELECT 1 AS connection_ok;             -- SQL을 보내고 결과를 받을 수 
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>SELECT current_database() AS db_name, current_user AS user_name;</code></td><td><code>PG = db_name: knowledge_lab (user: 접속한 계정)</code></td><td>지금 연결된 DB 이름부터 확인</td></tr>
     <tr><td><code>SELECT 1 AS connection_ok;</code></td><td><code>PG = connection_ok: 1</code></td><td>SQL을 보내고 결과를 받는 길이 열렸다</td></tr>
-    <tr><td><code>SELECT version();</code></td><td><code>PG = 서버 버전 문자열 (수업 기준 18.x)</code></td><td>psql --version은 클라이언트 버전 — 서로 다를 수 있어요</td></tr>
+    <tr><td><code>SELECT version();</code></td><td><code>PG = 서버 버전 문자열 (18.x)</code></td><td>psql --version은 클라이언트 버전 — 서로 다를 수 있어요</td></tr>
   </table>
 </div>
       <table>
@@ -868,5 +869,5 @@ WHERE category_id = 1;</code></pre>
         <tr><td><code>rows=</code></td><td>예상 행 수 / ANALYZE면 <code>actual ... rows=</code>가 실제</td></tr>
         <tr><td><code>Buffers: shared hit=</code></td><td>읽은 블록 수 (BUFFERS 옵션)</td></tr>
       </table>
-      <div class="callout warn">⚠️ <code>ANALYZE</code>는 SQL을 <b>진짜로 실행</b>해요. 이 수업에선 SELECT에만 써요. 그리고 더 빠른 계획이나 특정 계획 이름을 정답으로 요구하지 않아요.</div>
+      <div class="callout warn">⚠️ <code>ANALYZE</code>는 SQL을 <b>진짜로 실행</b>해요. INSERT·UPDATE·DELETE에 쓰면 변경이 실제로 일어나니 SELECT에만 써요. 그리고 더 빠른 계획이나 특정 계획 이름을 정답으로 요구하지 않아요.</div>
 </section>

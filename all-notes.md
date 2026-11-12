@@ -10175,6 +10175,79 @@ Agent 도구Agent가 "지식 조회"를 부를 때 실제로 찾는 곳
 
 ⚠️ FastAPI ≠ AI 모델 ≠ Agent. 오늘 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 나중에 만들 검색 인덱스는 자동으로 바뀌지 않아요(따로 다시 만들어야 해요).
 
+## 📋 명세 — 지식 관리 API (JSON 파일 버전)
+
+오늘 만든 API의 약속을 한곳에 모았어요. Day19에서 저장소를 PostgreSQL로 바꿔도 1·2·4번(바깥 약속)은 그대로예요.
+
+### 1. 엔드포인트
+
+| Method · Path | 입력 | 성공 | 실패 |
+|---|---|---|---|
+| GET /health | — | 200 · {"status": "ok"} | — |
+| GET /api/knowledge | Query category (선택, 정확히 일치) | 200 · Knowledge[] (없으면 []) | — |
+| GET /api/knowledge/{knowledge_id} | Path knowledge_id (정수) | 200 · Knowledge | 422 정수 아님 · 404 없음 |
+| POST /api/knowledge | Body KnowledgeWrite | 201 · Knowledge (서버가 정한 id) | 422 입력 |
+| PUT /api/knowledge/{knowledge_id} | Path + Body KnowledgeWrite (세 필드 모두) | 200 · Knowledge (같은 id) | 422 · 404 |
+| DELETE /api/knowledge/{knowledge_id} | Path | 204 · 본문 없음 | 422 · 404 |
+
+선택 확장: 목록에 ?q=(제목·본문에 글자가 들어 있는지, 최대 80자)를 붙일 수 있어요 — 의미 검색이 아니에요.
+
+### 2. 요청 · 응답 스키마
+
+| 필드 | 타입 | KnowledgeWrite (요청) | Knowledge (응답) | 규칙 |
+|---|---|---|---|---|
+| id | integer | — (보내지 않음) | ✅ | 서버가 발급 · 바뀌지 않음 |
+| title | string | 필수 | ✅ | 1~80자 · 중복 허용 |
+| content | string | 필수 | ✅ | 1~2,000자 |
+| category | string | 필수 | ✅ | 1~30자 · 정해진 목록 없음(아무 이름이나) |
+
+```
+// 요청 (POST · PUT)                        // 응답 (200 · 201)
+{                                          {
+  "title": "실습 환경 안내",                  "title": "실습 환경 안내",
+  "content": "Python 3.10 이상을 사용한다.",    "content": "Python 3.10 이상을 사용한다.",
+  "category": "setup"                        "category": "setup",
+}                                            "id": 4
+                                           }
+```
+
+### 3. 저장 파일 — data/knowledge.json
+
+| 키 | 타입 | 뜻 |
+|---|---|---|
+| next_id | integer | 다음에 줄 번호 · 줄어들지 않음 · API 응답엔 안 나감 |
+| entries | array | 지식 항목 목록 — 항목 1건 = {id, title, category, content} |
+
+```
+{"next_id": 4, "entries": [ {"id": 1, "title": "가상환경", "category": "setup", "content": "..."}, ... ]}
+```
+
+| 쓰기 규칙 | 왜 |
+|---|---|
+| 읽기 → 변경 → 저장을 with LOCK: 하나로 | 동시 요청이 서로 덮어쓰지 않게 (③) |
+| 임시 파일에 다 쓴 뒤 replace()로 교체 | 쓰다 멈춰도 파일이 반쯤 깨지지 않게 |
+| UTF-8 · ensure_ascii=False | 한글을 그대로 저장 |
+
+### 4. 오류 응답
+
+| 상태 | 본문 | 언제 | 파일 |
+|---|---|---|---|
+| 422 | {"detail": [ {type, loc, msg, input}, ... ]} | 필수 누락 · 길이 위반 · Path가 정수 아님 | 안 바뀜 (함수 실행 전) |
+| 404 | {"detail": "Knowledge not found"} | 없는 id (이미 지운 id 포함) | 안 바뀜 |
+| 405 | {"detail": "Method Not Allowed"} | 경로는 있는데 그 Method가 없음 | 안 바뀜 |
+| 500 | 서버 오류 | 파일 읽기·쓰기 실패 등 | 성공 응답을 만들지 않음 |
+
+### 5. 동작 보장
+
+| 항목 | 약속 |
+|---|---|
+| id | 한 번 쓴 번호는 다시 쓰지 않음 (len(entries)+1 아님) |
+| 찾기 | 목록 위치(index)가 아니라 entry["id"] == knowledge_id로 |
+| PUT | 세 필드를 통째로 교체 · id·항목 수·next_id 유지 · 없는 id를 새로 만들지 않음 |
+| DELETE | 그 항목 하나만 · next_id 유지 · 두 번째 DELETE는 404 |
+| 실패한 요청 | 파일·next_id를 바꾸지 않음 |
+| 재시작 | 파일에서 다시 읽으니 수정·삭제 결과가 그대로 |
+
 ## ① 첫 서버 띄우기
 
 API(Application Programming Interface)는 프로그램끼리 주고받는 약속된 창구예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.
@@ -10331,7 +10404,7 @@ Content-Type: application/json
 {"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}
 ```
 
-이 수업의 PUT 규칙: 세 필드를 모두 보내 내용을 통째로 교체해요. ID·항목 수·next_id는 그대로예요.
+이 API의 PUT 규칙: 세 필드를 모두 보내 내용을 통째로 교체해요. ID·항목 수·next_id는 그대로예요.
 
 🔧 수정 함수 명령어 사전에서 자세히 →
 
@@ -10522,6 +10595,7 @@ with TestClient(app) as client:
 | 이론 | 대응 명령어 |
 |---|---|
 | 📦 필요한 패키지 | python -m pip install fastapi uvicorn |
+| 📋 명세 | 엔드포인트 · 요청/응답 스키마 · 저장 파일 · 오류 응답 · 동작 보장 |
 | ① 첫 서버 띄우기 | FastAPI(), @app.get(), python -m uvicorn main:app --reload |
 | ② HTTP 요청과 응답 | Method · Path · Query · Body · Status, /docs의 Try it out |
 | ③ JSON 파일 저장소 | json.load(), json.dump(), with LOCK:, temp.replace() |
@@ -10816,7 +10890,7 @@ def list_knowledge(q: str = Query("", max_length=80)):
             result.append(entry)
 ```
 
-⚠️ ?q=서버는 글자가 그대로 들어 있는지만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 의미 기반 검색(RAG·벡터 검색)은 이후 수업에서 배워요.
+⚠️ ?q=서버는 글자가 그대로 들어 있는지만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 의미 기반 검색(RAG·벡터 검색)은 따로 배워요.
 
 ### Pydantic으로 입력 모양 정하기
 
@@ -11263,7 +11337,7 @@ _2026-11-11(수) · PostgreSQL · SQL · PK/FK · JOIN · 집계 · 제약조건
 
 | 프로그램 | 뭐 하는 애? | 어디서 써? |
 |---|---|---|
-| PostgreSQL 18 (Server) | 데이터를 실제로 저장하고 SQL·규칙을 처리하는 DBMS. 수업 기준은 18 계열 | 설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요 |
+| PostgreSQL 18 (Server) | 데이터를 실제로 저장하고 SQL·규칙을 처리하는 DBMS. 이 노트는 18 기준 | 설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요 |
 | pgAdmin 4 | 창(GUI)으로 서버에 접속해 SQL을 보내고 결과를 보는 클라이언트 | Query Tool에서 SQL 실행 → Data Output·Messages 확인 |
 | psql (Command Line Tools) | 터미널에서 쓰는 클라이언트 | PowerShell에서 psql -U postgres -d knowledge_lab |
 | psycopg 등 (내일) | 파이썬(FastAPI)에서 PostgreSQL에 접속하는 드라이버 | 오늘은 안 씀 — 11/12 연동 때 |
@@ -11310,6 +11384,66 @@ psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → post
 | 책임 | 원본의 저장 규칙·관계·변경 확정 | 근거 후보를 골라 LLM에 전달 |
 
 ⚠️ B-tree 인덱스를 만들었다고 의미 검색이 되는 건 아니에요. LIKE '%실행%'도 글자 포함 검색일 뿐이라 "구동"은 못 찾아요. 그리고 원본을 고치거나 지워도 나중의 벡터 인덱스는 자동으로 안 바뀌어요.
+
+## 📋 명세 — 지식 관리 DB
+
+오늘 만든 DB의 구조와 규칙을 한곳에 모았어요. Day19의 API가 이 구조 위에서 그대로 동작해요.
+
+### 1. 위치
+
+| 항목 | 값 |
+|---|---|
+| DBMS | PostgreSQL 18 |
+| Database · Schema | knowledge_lab · public |
+| 접속 | Host · Port(기본 5432) · User · Password — 비밀번호는 결과물에 남기지 않음 |
+
+### 2. 테이블
+
+| 표.열 | 타입 | 제약 (이름) |
+|---|---|---|
+| categories.id | BIGINT · IDENTITY (ALWAYS) | PK |
+| categories.name | VARCHAR(30) | NOT NULL · UNIQUE · CHECK 1~30자 (categories_name_length) |
+| knowledge.id | BIGINT · IDENTITY (ALWAYS) | PK |
+| knowledge.title | VARCHAR(80) | NOT NULL · CHECK 1~80자 (knowledge_title_length) · 중복 허용 |
+| knowledge.content | TEXT | NOT NULL · CHECK 1~2,000자 (knowledge_content_length) |
+| knowledge.category_id | BIGINT | NOT NULL · FK → categories.id (knowledge_category_fk) |
+
+### 3. 관계 · 삭제 정책 · 인덱스
+
+| 항목 | 규칙 |
+|---|---|
+| 관계 | 분류 1 : 지식 0..N — 지식은 분류 하나를 반드시 가리킴 |
+| 분류 삭제 | ON DELETE RESTRICT — 가리키는 지식이 있으면 거부 |
+| 지식 삭제 | 그 행만 삭제 · 분류는 남음 |
+| 인덱스 | PK·UNIQUE는 자동 · idx_knowledge_category_id ON knowledge (category_id)는 직접 생성 |
+
+### 4. 시작 데이터 (S0)
+
+| categories | knowledge |
+|---|---|
+| 1 learning · 2 environment · 3 reference | 1 실습 파일 보관 → 1 · 2 서버 실행 → 2 · 3 질문 작성 → 1 |
+
+ID는 DB가 발급한 실제 값으로 확인해요. 빈 DB에 한 번만 넣어요.
+
+### 5. 결과 · 오류 읽는 법
+
+| 상황 | 결과 | SQLSTATE |
+|---|---|---|
+| 조건에 맞는 행 없음 (SELECT · UPDATE · DELETE) | 0행 — 오류 아님 | — |
+| 필수 값에 NULL | 오류 · 저장 안 됨 | 23502 |
+| 없는 분류 참조 · 참조 중인 분류 삭제 | 오류 · 변경 안 됨 | 23503 |
+| 분류 이름 중복 | 오류 · 저장 안 됨 | 23505 |
+| 빈 문자열·길이 초과 | 오류 · 저장 안 됨 | 23514 |
+| 트랜잭션 안에서 오류 뒤 다음 SQL | 거부 → ROLLBACK부터 | 25P02 |
+
+### 6. 변경 규칙
+
+| 항목 | 약속 |
+|---|---|
+| 순서 | 같은 조건으로 SELECT → BEGIN → 변경 + RETURNING → COMMIT 또는 ROLLBACK → 다시 SELECT |
+| 새 id | 예상하지 말고 RETURNING id로 읽기 · 빈 번호가 생겨도 정상 |
+| 여러 변경 | 한 트랜잭션으로 — 전부 확정 또는 전부 취소 |
+| 확정 확인 | COMMIT 뒤 새 연결에서 다시 조회 |
 
 ## ① DB · DBMS · 접속 도구
 
@@ -11760,6 +11894,7 @@ EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;
 | 이론 | 대응 명령어 |
 |---|---|
 | 📦 필요한 프로그램 | psql --version, Get-Service postgresql* |
+| 📋 명세 | 테이블 · 제약 이름 · 관계 · S0 · 결과/오류 · 변경 규칙 |
 | ① DB · DBMS · 접속 도구 | SELECT current_database(), CREATE DATABASE, psql -U -h -p -d, \dt · \d |
 | ② 지식 조회 | SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT, LIKE, IS NULL |
 | ③ 두 테이블 설계 | CREATE TABLE, GENERATED ALWAYS AS IDENTITY, PRIMARY KEY, FOREIGN KEY ... REFERENCES, CHECK |
@@ -11786,7 +11921,7 @@ SELECT 1 AS connection_ok;             -- SQL을 보내고 결과를 받을 수 
 |---|---|---|
 | SELECT current_database() AS db_name, current_user AS user_name; | PG = db_name: knowledge_lab (user: 접속한 계정) | 지금 연결된 DB 이름부터 확인 |
 | SELECT 1 AS connection_ok; | PG = connection_ok: 1 | SQL을 보내고 결과를 받는 길이 열렸다 |
-| SELECT version(); | PG = 서버 버전 문자열 (수업 기준 18.x) | psql --version은 클라이언트 버전 — 서로 다를 수 있어요 |
+| SELECT version(); | PG = 서버 버전 문자열 (18.x) | psql --version은 클라이언트 버전 — 서로 다를 수 있어요 |
 
 | 표현 | 뜻 | 🤔 왜? |
 |---|---|---|
@@ -12578,7 +12713,7 @@ WHERE category_id = 1;
 | rows= | 예상 행 수 / ANALYZE면 actual ... rows=가 실제 |
 | Buffers: shared hit= | 읽은 블록 수 (BUFFERS 옵션) |
 
-⚠️ ANALYZE는 SQL을 진짜로 실행해요. 이 수업에선 SELECT에만 써요. 그리고 더 빠른 계획이나 특정 계획 이름을 정답으로 요구하지 않아요.
+⚠️ ANALYZE는 SQL을 진짜로 실행해요. INSERT·UPDATE·DELETE에 쓰면 변경이 실제로 일어나니 SELECT에만 써요. 그리고 더 빠른 계획이나 특정 계획 이름을 정답으로 요구하지 않아요.
 
 ## 📖 Day18 용어 (29개)
 - **seed** (random_state (난수 고정값)): 무작위 과정(추출, 특성 후보, 분할 섞기 등)을 매번 같게 만드는 번호. 결과를 재현하려고 고정해요(예: 42).
