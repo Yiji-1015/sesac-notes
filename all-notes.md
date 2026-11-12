@@ -13114,6 +13114,53 @@ ORM Model에 source_label 열을 적었다고 DB에 열이 생기지 않아요. 
 | head | 사슬의 마지막 Revision |
 | alembic_version 표 | DB가 지금 어느 Revision까지 적용됐는지 기록 (alembic current가 읽음) |
 
+### 한마디로: DB 구조를 위한 Git
+
+|  | Git | Alembic |
+|---|---|---|
+| 기록하는 것 | 코드 변경 | DB 구조(표·열) 변경 |
+| 기록 단위 | commit | Revision 파일 |
+| 순서 연결 | 부모 commit | down_revision |
+| 지금 위치 | HEAD | alembic_version 표 |
+| 되돌리기 | 보관해 둔 옛 내용을 그대로 복원 | downgrade() 코드를 실행 → 데이터가 날아갈 수 있음 |
+
+🤔 그럼 데이터 변경 이력도 남아? — 아니에요. "어떤 열이 언제 생겼나"는 남지만 "행 값이 어떻게 바뀌었나"는 기록하지 않아요. 그리고 Git과 달리 옛 상태를 보관하지 않아서, 되돌리기는 DROP 같은 SQL을 실행하는 것일 뿐이에요.
+
+🔧 미니 예제 — 메모 표에 Revision 두 개
+
+```
+# 001_create_memo.py
+revision = "001"
+down_revision = None              # 사슬의 첫 번째
+def upgrade():
+    op.create_table("memo", sa.Column("id", sa.Integer, primary_key=True),
+                    sa.Column("text", sa.String(100), nullable=False))
+def downgrade():
+    op.drop_table("memo")
+
+# 002_add_tag.py
+revision = "002"
+down_revision = "001"             # 001 다음
+def upgrade():
+    op.add_column("memo", sa.Column("tag", sa.String(20), nullable=True))
+def downgrade():
+    op.drop_column("memo", "tag")
+```
+
+▶ 실제로 돌려 보면 위 두 Revision을 Alembic 1.20.1 + SQLite 임시 DB에서 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| alembic history | 001 -> 002 (head) <base> -> 001 | down_revision으로 이어진 사슬 |
+| alembic upgrade 001 | alembic_version: ['001'] memo 열: ['id', 'text'] | 표가 생기고 위치가 001 |
+| INSERT INTO memo(text) VALUES ('우유 사기') | memo 행: [(1, '우유 사기')] | 데이터 1건 |
+| alembic upgrade head | alembic_version: ['002'] memo 열: ['id', 'text', 'tag'] memo 행: [(1, '우유 사기', None)] | 기존 행은 그대로, 새 열은 NULL |
+| UPDATE memo SET tag = '장보기' | memo 행: [(1, '우유 사기', '장보기')] | 새 열에 값 채움 |
+| alembic downgrade -1 | alembic_version: ['001'] memo 열: ['id', 'text'] | 002의 downgrade 실행 → tag 열 삭제 |
+| alembic upgrade head (다시) | memo 열: ['id', 'text', 'tag'] memo 행: [(1, '우유 사기', None)] | 열은 돌아왔지만 '장보기'는 사라짐 — Git과 가장 다른 점 |
+
+아래는 같은 흐름을 지식 관리 DB(knowledge에 source_label 추가)에 적용한 거예요.
+
 🔧 002_source.py — upgrade / downgrade 명령어 사전에서 자세히 →
 
 ```
