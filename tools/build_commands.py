@@ -17,11 +17,11 @@ sys.stdout.reconfigure(encoding="utf-8")
 ROOT = Path(__file__).resolve().parents[1]
 
 TOPIC_ORDER = ["환경 · 설치", "Python 기본", "NumPy", "pandas", "시각화", "scikit-learn", "XGBoost", "PyTorch",
-               "torchvision", "OpenCV", "YOLO", "OCR · 문서", "VLM · Transformers", "배포 · 최적화", "FastAPI", "PostgreSQL · SQL"]
+               "torchvision", "OpenCV", "YOLO", "OCR · 문서", "VLM · Transformers", "배포 · 최적화", "FastAPI", "PostgreSQL · SQL", "SQLAlchemy · Alembic"]
 TOPIC_EMOJI = {"OpenCV": "🖼️", "PyTorch": "🔥", "YOLO": "🎯", "FastAPI": "⚡", "pandas": "🐼", "NumPy": "🔢",
                "scikit-learn": "🤖", "XGBoost": "🌲", "시각화": "📊", "OCR · 문서": "📄", "VLM · Transformers": "🧠",
                "배포 · 최적화": "🚀", "환경 · 설치": "🧰", "Python 기본": "🐍", "torchvision": "🧩",
-               "PostgreSQL · SQL": "🐘"}
+               "PostgreSQL · SQL": "🐘", "SQLAlchemy · Alembic": "🧬"}
 
 SEC = re.compile(r'<section class="cmd"(?P<attrs>[^>]*)>\s*<h3>(?P<title>.*?)</h3>(?P<body>.*?)</section>', re.S)
 ATTR = re.compile(r'([\w-]+)="([^"]*)"')
