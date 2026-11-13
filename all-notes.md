@@ -14131,3 +14131,1072 @@ WHERE k.id = 17;
 - **503 Service Unavailable** (HTTP 503 Service Unavailable): 서버가 지금 일을 처리할 수 없다는 응답. 여기선 연결 계열 SQLSTATE(08…)나 확인된 연결 끊김을 503으로 봐요.
 - **SQL Injection** (SQL Injection / Parameter Binding): 사용자 입력을 SQL 문자열에 그대로 이어 붙이면 입력으로 SQL을 조작당할 수 있어요(Injection). select().where(...)처럼 값을 따로 전달(바인딩)하면 막혀요.
 - **dependency_overrides** (FastAPI app.dependency_overrides): 테스트에서 get_db 같은 의존성을 다른 함수(테스트 DB용)로 바꿔 끼우는 사전. 끝나면 pop으로 원래대로 돌려요.
+
+---
+
+# Day20 · LLM 원리 — Token · Embedding · Attention
+_2026-11-13(금) · LLM 생태계 · Tokenizer · Context Window · Embedding · Transformer Block · Self-Attention · 학습/추론 · 디코딩 · 한계와 검증_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day20.html
+
+📌 딱 3줄 요약
+
+- LLM은 문장 → Token → Token ID → Embedding → Transformer → Logit → 다음 Token을 반복하는 계산이에요. 정수 ID는 벡터가 아니고, Logit은 확률이 아니에요.
+
+- Transformer Block의 핵심인 Self-Attention은 Q·Kᵀ/√d 점수 → Mask → Softmax → V 가중합. 생성 모델은 Causal Mask로 미래 Token을 못 봐요.
+
+- 학습은 가중치를 바꾸고 추론은 다음 Token을 고를 뿐. LLM은 답을 제안하는 부품이고, 근거 찾기(RAG)·실행 권한(Agent·Backend)·사실 검증은 따로 설계해요.
+
+🔧 Day20 명령어 한눈에 — 이론 구역별 코드·인자 설명 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 강의 코드를 이 PC의 CPU에서 실제로 돌린 거예요 (Tokenizer·문장 모델은 Hugging Face에서 내려받아 실행).
+
+## 📦 필요한 패키지
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch | Tensor 계산 · nn.Embedding · nn.TransformerEncoderLayer · Softmax | import torch · import torch.nn.functional as F |
+| transformers | Hugging Face — 모델 이름으로 Tokenizer·모델을 내려받아 씀 | from transformers import AutoTokenizer |
+| sentence-transformers (선택) | 문장 하나 → 벡터 하나 (문장 Embedding) | from sentence_transformers import SentenceTransformer |
+
+🔧 설치 · 버전 확인 명령어 사전에서 자세히 →
+
+```
+python -m pip install torch transformers sentence-transformers
+```
+
+💡 오늘 코드는 모두 작은 Tensor라 CPU로 충분해요. Tokenizer·문장 모델은 처음 한 번 인터넷에서 내려받아요. 숫자 자체보다 shape · Mask · 입력과 출력의 의미를 보는 날이에요.
+
+## 이거 어디에 써?
+
+"FastAPI에서 PostgreSQL 연결이 안 됩니다." — 이런 문의에 AI 도우미가 증상 설명 · 근거 문서 · 확인 절차를 답하려면, 지난 3일에 만든 API·DB 위에 "문장을 읽고 만드는" 부품이 하나 더 필요해요. 그게 LLM이에요. 오늘은 그 부품의 안쪽을 열어 봐요.
+
+[그림: 사용자 → FastAPI → Agent 처리 → LLM → 응답. LLM 위에 RAG 검색 근거가 Context로 들어가고, Agent 아래 Tool 실행은 Backend가 권한을 확인] 무엇을 보나: AI 도우미 서비스 한 건의 흐름이에요. LLM(보라)은 문맥을 읽고 다음 Token을 만드는 부분이에요. 근거 문서는 RAG(초록)가 찾아 LLM 입력(Context)에 넣어 주고, 실제 시스템을 바꾸는 Tool(분홍) 실행은 Backend가 권한을 확인해요. 🤔 왜 나눠? LLM은 그럴듯한 문장을 만들 뿐, 문서를 찾거나 DB를 고칠 권한을 스스로 판단하지 못하니까요.
+
+| 날짜 | 만든 것 | 역할 |
+|---|---|---|
+| 11/10 Day17 | FastAPI /api/knowledge | 서비스 입구 |
+| 11/11 Day18 | PostgreSQL 지식·분류 표 | 원본 지식 저장 |
+| 11/12 Day19 | API ↔ DB 연동 | API 요청이 실제 행으로 |
+| 11/13 오늘 | LLM 원리 | 그 위에서 동작할 언어 모델 이해 |
+| 이후 | 11/16 Prompt → 11/17 LLM API → 11/18 Embedding·Vector DB → 11/19 Chunking → 11/20 Basic RAG | 검색·생성·도구 |
+
+[그림: AI Agent 서비스 안에 LLM 호출, 그 안에 Transformer 층 반복, Block, Self-Attention, Q/K/V 계산이 차례로 들어 있는 확대 지도] 무엇을 보나: 오늘의 확대 지도예요. 바깥(서비스)에서 안쪽(Attention 계산 한 줄)으로 6단계 들어가요. 노트도 이 순서를 거꾸로 — 바깥 생태계(①)부터 안쪽 계산(⑤)까지 — 따라가요. ⚠️ Tokenizer는 이 상자들 밖이에요. 모델 입력을 준비하는 별도 단계라서요.
+
+## 📋 명세 — 문장 하나가 다음 Token이 되기까지
+
+오늘 다룬 단계들의 입력과 출력 약속을 한곳에 모았어요. shape는 명령어 사전에서 실제로 돌린 예(배치 B=2, Token T=5, feature D=8, 어휘 V=100)예요.
+
+[그림: 문자열, Tokenizer, Token ID, Embedding, Transformer, LM Head, Decode 일곱 단계. Tokenizer와 Token ID 칸에 실제 실행 결과, 마지막에서 처음으로 돌아가는 반복 화살표] 무엇을 보나: "실습 파일은 개인 폴더에 보관합니다."(공백 포함 20글자)를 실제 Tokenizer에 넣었더니 Token 17개(앞뒤 구분용 2개 포함)가 됐어요. 그 뒤로는 ID → 벡터 → 문맥 표현 → 어휘 전체 점수 → 하나 선택 → 문맥 끝에 붙여 다시(초록 점선). 🤔 왜 한 번에 문장 전체를 안 만들어? LLM은 "다음 Token 하나"의 점수만 계산하는 기계라서, 문장은 그걸 반복해서 만들어져요.
+
+### 1. 단계별 입력 · 출력
+
+| 단계 | 입력 | 출력 | 자료형 · shape 예 | 하지 않는 일 |
+|---|---|---|---|---|
+| Tokenizer | 문자열 | Token 조각 · input_ids · attention_mask | 정수 리스트 / (B, T) | 의미 계산 (규칙대로 자르고 번호 찾기만) |
+| Embedding | input_ids | Token 벡터 | 실수 (B, T, D) = (2, 5, 8) | 문맥 반영 (같은 ID면 같은 벡터) |
+| Transformer Block × N | Token 벡터 + 위치 정보 | 문맥 표현 (Hidden State) | (B, T, D) 그대로 | shape 변경 |
+| LM Head | Hidden State | Logit (어휘 전체 점수) | (B, T, V) = (2, 5, 100) | 확률 만들기 (음수도 됨) |
+| Softmax | 마지막 위치 Logit / temperature | 확률 분포 | (B, V) · 합 1 | Token 고르기 |
+| Decode | 확률 분포 | 다음 Token 하나 | 정수 ID | 사실 확인 |
+
+### 2. Mask 네 가지 — True·1의 뜻이 다르다
+
+| 어디서 | 값 | 뜻 | 막는 것 |
+|---|---|---|---|
+| Tokenizer attention_mask | 1 / 0 | 1 = 본다 (실제 Token) | PAD |
+| PyTorch src_key_padding_mask | True / False | True = 안 본다 | PAD |
+| 직접 masked_fill(mask, -inf) | True / False | True = 가린다 | 미래 (Causal) |
+| F.scaled_dot_product_attention(attn_mask=) | True / False | True = 본다 | 미래 또는 PAD |
+
+아래 두 줄은 실제로 돌려 확인했어요: Tokenizer의 attention_mask를 == 0으로 뒤집어 src_key_padding_mask에 줘야 PAD 값이 결과에 안 섞이고, SDPA에는 masked_fill용 Mask를 ~로 뒤집어 줘야 is_causal=True와 같아요.
+
+### 3. 숫자 읽는 규칙
+
+| 숫자 | 맞는 해석 | 틀린 해석 |
+|---|---|---|
+| Token ID (예: 119081) | Vocabulary 안의 번호 | 클수록 중요한 단어 |
+| Token 수 | Context·요금·속도의 단위 | 글자 수 · 단어 수와 같음 |
+| Logit | 후보별 점수 (음수 가능) | 확률 % |
+| Attention Weight 행 | 그 Query가 각 Key를 참고한 비율 · 행 합 1 | 모델 판단의 유일한 이유 |
+| Cosine 유사도 | 두 벡터의 방향이 얼마나 같은가 | 답이 맞을 확률 |
+
+## ① LLM 생태계 · 서비스 속 역할
+
+| 용어 | 뜻 |
+|---|---|
+| AI | 언어·시각·판단 등 넓은 지능적 작업을 하는 기술 전체 |
+| 생성형 AI | 학습한 패턴으로 텍스트·이미지·음성 등을 만들어 내는 AI |
+| Foundation Model | 대규모로 미리 학습한 뒤 여러 작업(다운스트림)에 가져다 쓰는 모델 |
+| LLM | 언어 Token 사이의 통계적 관계를 학습한 대규모 언어 모델 — 위 셋 안에 들어가는 부분집합 |
+
+LLM이 하는 일은 결국 하나예요: 지금까지의 Token을 보고 다음 Token 후보마다 점수를 매기는 것. 고른 Token을 붙이고 또 점수를 매기고… 이걸 반복해 문장이 돼요(Autoregressive). ⚠️ 그래서 "유창한 출력"과 "사실 검증"은 다른 일이에요. 점수가 높은 Token이 자연스러운 Token일 뿐, 맞는 Token이라는 보장은 없어요.
+
+### 모델 · Runtime · 서비스 · 데이터 · 운영은 다른 계층
+
+| 계층 | 주요 구성 | 던질 질문 |
+|---|---|---|
+| 모델 | Tokenizer · 가중치 · Transformer | 무슨 입력을 어떤 표현으로 바꾸나? |
+| Runtime | PyTorch · 추론 엔진 | 어디서 어떤 자원으로 실행하나? |
+| 서비스 | FastAPI · 요청 · 응답 | 누가 어떻게 기능을 호출하나? |
+| 데이터 | PostgreSQL · 문서 · Metadata | 어떤 지식과 출처를 보관하나? |
+| 운영 | 권한 · 평가 · 로그 · 비용 | 어디까지 신뢰하고 통제하나? |
+
+🤔 모델만 설치하면 서비스가 되는 거 아냐? — 아니에요. 모델은 첫 줄 하나예요. 인증·근거·정확성은 아래 계층들이 따로 보장해야 해요. Day17~19에서 만든 API·DB가 바로 그 아래 계층이에요.
+
+### 잘 맞는 일 vs 검증 없이는 위험한 일
+
+| 활용하기 좋은 예 | 검증 없이는 위험한 예 |
+|---|---|
+| FAQ 초안 작성 · 요약 · 분류 | 출처가 불명확한 정책·법률 답변 |
+| 자유형 텍스트를 정해진 형식으로 바꾸기 | 실시간 운영 상태를 알고 있다는 주장 |
+| Python 코드 초안 · 설명 · 테스트 제안 | 승인 없이 DB를 수정·삭제하는 Agent |
+| 대화형 지식 탐색 보조 | 개인정보·비밀 정보를 그대로 전달 |
+
+출력은 후보 답변이에요. 정확성·권한·출처 검증은 애플리케이션에서 설계해요.
+
+### 대표적인 한계 네 가지
+
+| 한계 | 무슨 일이 생기나 |
+|---|---|
+| Hallucination | 틀렸거나 근거 없는 내용을 그럴듯하게 만들어요 |
+| 지식 시점 | 학습 이후의 변경이나 사내 문서는 자동으로 반영되지 않아요 |
+| Context · 비용 | 입력 길이 · 요금 · 응답 시간 · 장비 자원의 제약이 있어요 |
+| 보안 · 권한 | 프롬프트만으로 권한 판단과 개인정보 보호가 완성되지 않아요 |
+
+🤔 그럼 Day18~19에 만든 지식 DB는 왜 필요해? — "지식 시점" 한계 때문이에요. LLM이 모르는 최신·사내 지식을 검색해서 입력에 붙여 주면(Retriever → LLM) 그걸 근거로 답할 수 있어요. 이게 RAG예요. 단, DB가 있다고 자동으로 RAG가 되진 않아요 — 검색·입력 구성·출처 확인을 따로 만들어야 해요(11/20). 그리고 검색해서 붙이는 건 학습이 아니에요. 모델 가중치는 그대로예요.
+
+## ② Tokenizer — 문자열이 정수 ID가 되기까지
+
+Token은 언어 모델이 다루는 분할 단위예요. 띄어쓰기 단어와 같지 않아요. Tokenizer가 모델마다 정해진 규칙으로 문자열을 자르고, 각 조각을 Vocabulary(어휘 사전)에서 찾아 번호(Token ID)로 바꿔요.
+
+|  | Token · 텍스트 조각 | Token ID · 정수 인덱스 |
+|---|---|---|
+| 정체 | 문자열을 모델 규칙에 따라 나눈 단위 | Token을 Vocabulary에서 찾은 번호 |
+| 예 | 실 ##습 파 ##일 … | 9489 119081 9901 18392 … |
+| 주의 | 공백 표식이 Token에 포함되기도 함 | 번호 크기 ≠ 중요도 · Embedding 표의 행 번호로 쓰임 |
+
+🔧 AutoTokenizer — Token · ID · 개수 명령어 사전에서 자세히 →
+
+```
+tok = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+ids = tok("실습 파일은 개인 폴더에 보관합니다.")["input_ids"]     # → 17개
+```
+
+실제로 돌려 보니 결과는 [CLS] 실 ##습 파 ##일 ##은 개 ##인 폴 ##더 ##에 보 ##관 ##합 ##니다 . [SEP] — 17개예요. 공백 포함 20글자, 띄어쓰기 단어 5개, Token 17개. 셋 다 다른 숫자예요. ##은 "앞 조각에 붙어 있던 것"이라는 표시(WordPiece 방식)라 되돌릴 때 다시 붙여요.
+
+| 같은 Tokenizer에 넣은 문장 | Token 수 (구분용 2개 포함) |
+|---|---|
+| 실습 파일은 개인 폴더에 보관합니다. | 17 — 한국어는 글자 단위로 잘게 |
+| Keep practice files in your personal folder. | 12 — 영어 단어는 대부분 한 Token (folder만 f ##old ##er) |
+| def get_db(): yield db | 11 — 기호 하나하나가 Token |
+
+🔧 한국어 · 영어 · 코드 Token 수 비교 명령어 사전에서 자세히 →
+
+```
+print(len(tok(t)["input_ids"]), tok.convert_ids_to_tokens(tok(t)["input_ids"]))
+```
+
+### Special Token — 일반 Token과 다른 구분용 Token
+
+| 종류 | 하는 일 | 이 Tokenizer에서 (실제 값) |
+|---|---|---|
+| 시작 · 끝 (BOS · EOS) | 문장 경계 표시 | [CLS]=101 · [SEP]=102 |
+| PAD | 배치 길이 맞추기 | [PAD]=0 |
+| UNK | 사전에 없는 조각 | [UNK]=100 |
+| Chat Role | system · user · assistant 역할 구분과 형식 | (대화 모델마다 따로 정의) |
+
+⚠️ 표기·ID·사용 여부는 모델·Tokenizer마다 달라요. Special Token도 Token 수(= Context 예산)에 들어가요.
+
+🔧 Special Token · decode 명령어 사전에서 자세히 →
+
+```
+tok.decode(ids, skip_special_tokens=True)     # → "실습 파일은 개인 폴더에 보관합니다."
+```
+
+### Padding · Truncation · Attention Mask
+
+여러 문장을 한 번에(배치) 넣으려면 길이가 같아야 Tensor가 돼요. 그래서 짧은 문장은 채우고, 너무 긴 문장은 잘라요.
+
+| 용어 | 왜 필요한가 | 확인할 것 |
+|---|---|---|
+| Padding | 길이가 다른 문장들을 한 배치로 맞춤 | 짧은 입력 뒤 [PAD] 추가 |
+| Truncation | 입력 길이를 제한 | 넘친 Token은 잘려서 사라짐 |
+| Attention Mask | 실제 Token과 PAD 구분 | 1 = 실제 · 0 = PAD |
+| Causal Mask | 미래 Token을 못 보게 제한 | 생성(Decoder)에서 삼각형 모양 — ⑤에서 |
+
+🔧 padding · truncation · max_length 명령어 사전에서 자세히 →
+
+```
+batch = tok(["AI", "FastAPI와 PostgreSQL"], padding=True, truncation=True, max_length=12, return_tensors="pt")
+batch["input_ids"].shape          # → torch.Size([2, 9])
+```
+
+실제 결과: 긴 문장이 9 Token이라 [2, 9], 짧은 "AI"의 attention_mask는 [1, 1, 1, 0, 0, 0, 0, 0, 0]. max_length=12는 상한이지 목표 길이가 아니라서 12까지 채우지 않았어요(padding="max_length"를 줘야 12).
+
+⚠️ 잘림은 조용히 일어나요. max_length=4로 바꿔 돌려 보니 두 번째 문장이 [CLS] Fast ##AP [SEP]가 됐어요 — "PostgreSQL"이 통째로 사라졌는데 오류는 없었어요. Truncation은 요약이 아니라 잘라 버리기예요. 긴 문서의 중요한 내용이 뒤에 있으면 그대로 빠져요.
+
+### Context Window — 한 요청에서 모델이 보는 Token 범위
+
+Context Window에는 시스템 지시 · 질문 · 대화 이력 · 검색 근거 · 출력까지 전부 들어가요. 출력도 같은 예산을 나눠 써요.
+
+[그림: System 300, 이전 대화 1200, 검색 근거 2000, User 질문 150, 출력 예약 850 Token을 이어 붙인 막대, 합계 4500] 무엇을 보나: 강의의 산술 예시(합계 4,500 Token)를 그린 거예요. 실제 모델의 한도나 요금이 아니에요. 검색 근거가 가장 큰 덩어리고, 답변을 쓸 자리(850)도 미리 남겨 둬야 해요. 🤔 그럼 많이 넣을수록 좋아? 아니에요. 너무 긴 문맥은 잡음이 되고, 잘리거나 중요한 근거를 놓치기도 해요. 그리고 Context Window는 영구 기억(Memory)이 아니에요 — 요청이 끝나면 사라져요.
+
+| Token 수를 세야 하는 이유 | 내용 |
+|---|---|
+| 계산량 · 지연 | 입력 길이와 생성 길이가 응답 시간에 영향 |
+| 비용 | API는 입력·출력 Token 단위 과금이 흔함 |
+| 품질 | 너무 긴 문맥은 잡음 · 잘림 · 근거 누락을 부름 |
+
+## ③ Embedding — 정수 ID를 계산 가능한 벡터로
+
+Token ID는 그냥 번호라 더하거나 비교해도 의미가 없어요. 그래서 모델은 ID를 행 번호로 써서 Embedding 표(어휘 수 × D)에서 그 행의 벡터를 꺼내요. 이 벡터 값은 학습으로 정해지는 연속값이에요.
+
+🔧 nn.Embedding — ID로 행 꺼내기 명령어 사전에서 자세히 →
+
+```
+emb = nn.Embedding(100, 4)                       # 어휘 100 × 4차원
+emb(torch.tensor([7, 3, 99, 3, 0])).shape        # → torch.Size([5, 4])
+```
+
+| 표현 | shape 예 | 뜻 |
+|---|---|---|
+| ID 한 개 | () | 정수 하나 |
+| 한 Token 벡터 | (4,) | 네 개의 연속 수치 |
+| 문장 Token 벡터 | (5, 4) | Token 5개 × feature 4 |
+| Batch 입력 | (2, 5, 4) | Batch 2 × Token 5 × feature 4 |
+
+실제로 돌려 보니 [7, 3, 99, 3, 0]에서 두 번 나온 ID 3의 벡터가 완전히 같았어요(True). Embedding은 표에서 꺼내기라 위치를 모르거든요.
+
+### Position — 순서 정보가 따로 필요한 이유
+
+"개가 사람을 물었다"와 "사람이 개를 물었다"는 Token 종류가 거의 같아요. 순서를 구분하려면 위치 정보를 벡터 계산에 반영해야 해요(위치가 새 Token이 되는 건 아니에요).
+
+| 방식 | 어떻게 |
+|---|---|
+| Sinusoidal | 원 Transformer 논문의 고정된 sin·cos 위치 값 |
+| Learned Position | 위치별 벡터도 학습 |
+| RoPE | Attention 계산에서 Q·K를 위치만큼 회전시켜 상대 위치를 반영 (요즘 LLM에서 흔함) |
+
+### Token Embedding vs Sentence Embedding
+
+|  | Token Embedding | Sentence Embedding |
+|---|---|---|
+| 단위 | Token 하나 → 벡터 하나 | 문장·문서 전체 → 벡터 하나 |
+| 쓰임 | 모델 입력 — 뒤의 Attention을 거치며 문맥에 따른 Hidden State가 됨 | 의미가 가까운 문장 찾기 · 검색 (11/18 Vector DB) |
+| 주의 | 위치 정보는 따로 반영 | Pooling·학습 목적에 따라 표현이 달라짐 — Token 벡터를 그냥 평균한다고 좋은 문장 벡터가 되진 않음 |
+
+### Cosine Similarity — 방향이 얼마나 같은가
+
+[그림: 원점에서 뻗은 화살표 a [1,0], b [0.8,0.2], c [-1,0], d [3,0]과 a와의 cosine 값 0.9701, -1, 1] 무엇을 보나: 강의 코드 값으로 그린 그림이에요. a와 b는 거의 같은 방향이라 0.9701, c는 정반대라 -1. 점선 d [3, 0]은 a보다 3배 길지만 방향이 같아서 1이에요. 🤔 왜 길이를 무시해? 문장이 길어 벡터가 커지는 것보다 "어느 쪽을 가리키나(뜻)"를 비교하고 싶어서예요.
+
+🔧 F.cosine_similarity 명령어 사전에서 자세히 →
+
+```
+F.cosine_similarity(torch.tensor([1.0, 0.0]), torch.tensor([0.8, 0.2]), dim=0)   # → 0.9701
+```
+
+🔧 SentenceTransformer — 문장 벡터 · 유사도 명령어 사전에서 자세히 →
+
+```
+vectors = model.encode(texts)                   # → (3, 384)
+model.similarity(vectors, vectors)
+```
+
+| all-MiniLM-L6-v2로 실제 비교 | 유사도 |
+|---|---|
+| "The file is in your project folder." ↔ "Look for it in the project directory." | 0.7957 — 단어가 달라도 뜻이 가까움 |
+| "The file is in your project folder." ↔ "The weather is sunny today." | -0.0307 — 관계없음 |
+| 한국어: 실습 파일 보관 ↔ 서버 실행 ↔ 질문 작성 (세 쌍) | 0.86 ~ 0.89 ⚠️ |
+
+⚠️ 실제로 돌려 보니: 같은 영어 모델에 주제가 전혀 다른 한국어 세 문장을 넣었더니 전부 0.86~0.89로 영어의 "비슷한 문장"보다 높게 나왔어요. 모델이 한국어 뜻을 구별하지 못하는 거예요. Cosine이 높다는 건 "이 모델이 보기에 방향이 같다"일 뿐이에요. 정답·사실성·출처 적절성은 보장하지 않고, 모델이 그 언어를 아는지도 따로 확인해야 해요.
+
+## ④ Transformer Block — Attention과 FFN을 층으로 쌓는다
+
+[그림: Token+Position 벡터 [B,T,D]가 Self-Attention, Add&Norm, Feed-Forward, Add&Norm으로 된 Block을 N번 거친 뒤 LM Head를 지나 Logits [B,T,V]가 되는 그림. 초록 곡선은 Residual 우회로] 무엇을 보나: Block 하나 안의 네 칸이에요. Self-Attention이 Token끼리 정보를 섞고, FFN이 Token마다 따로 변환하고, 초록 곡선(Residual)이 원래 표현을 더해 주고, Norm이 크기를 맞춰요. 들어갈 때와 나올 때 shape가 같아서 N번 쌓을 수 있어요. 마지막에만 LM Head가 D차원 → 어휘 V개 점수로 바꿔요. (모델마다 Norm 위치 등 순서는 조금씩 달라요.)
+
+| 구성요소 | 하는 일 | 🤔 왜 필요해? |
+|---|---|---|
+| Self-Attention | 각 Token이 쓸 문맥 정보를 다른 Token에서 섞어 옴 | "폴더에"가 앞의 "폴더"를 참고해야 뜻이 정해지니까 |
+| Feed-Forward (FFN) | 각 위치 벡터를 비선형 변환 (선형 → 활성화 → 선형) | 섞어 온 정보를 Token별로 가공 — 같은 가중치를 모든 위치에 공유, Token끼리 섞진 않음 |
+| Residual | x + f(x) — 원래 표현을 더함 | 층이 깊어도 정보·기울기가 끊기지 않게 (Attention이 아니라 우회로) |
+| LayerNorm | 표현의 크기(스케일)를 맞춤 | 수십 층을 안정적으로 학습시키려고 |
+
+🤔 Self-Attention만 구현하면 Transformer야? — 아니에요. Attention은 "누구 정보를 섞을지"만 정해요. FFN·Residual·Norm이 같이 있어야 Block이 되고, Block을 여러 층 쌓아야 모델이 돼요. Day12에서 처음 본 Attention이 오늘은 Block 안의 한 칸이에요.
+
+### Encoder · Decoder · Encoder–Decoder
+
+| 유형 | 자주 하는 일 | Attention 방향 | 예 |
+|---|---|---|---|
+| Encoder | 문장 표현 · 분류 · 검색 입력 | 대체로 양방향 (앞뒤 다 봄) | BERT · 오늘의 Tokenizer 모델 |
+| Decoder-only | 다음 Token 생성 · 대화 | 대체로 Causal (앞만 봄) | GPT 계열 대부분의 LLM |
+| Encoder–Decoder | 번역 · 요약 등 조건부 생성 | Encoder 양방향 + Decoder Causal | T5 계열 |
+
+### 한 배치의 shape 따라가기
+
+🔧 nn.TransformerEncoderLayer — 입력 = 출력 shape 명령어 사전에서 자세히 →
+
+```
+layer = nn.TransformerEncoderLayer(d_model=8, nhead=2, dim_feedforward=16, batch_first=True, dropout=0.0)
+layer(torch.randn(2, 5, 8)).shape               # → torch.Size([2, 5, 8])
+```
+
+🔧 ID → Embedding → Block → LM Head 명령어 사전에서 자세히 →
+
+```
+logits = lm_head(block(embed(token_ids)))       # (2, 5) → (2, 5, 8) → (2, 5, 8) → (2, 5, 100)
+```
+
+| 단계 | shape (실제 실행) | 해석 |
+|---|---|---|
+| Token IDs | (2, 5) | 2문장 · 문장당 5 Token |
+| Token Embedding | (2, 5, 8) | 각 Token이 8차원 벡터 |
+| Attention · FFN 출력 | (2, 5, 8) | 문맥을 반영한 위치별 표현 |
+| LM Head logits | (2, 5, 100) | Token 위치별 어휘 100개 점수 |
+
+⚠️ (2, 5, 8)의 8은 Token 수가 아니라 feature 차원이에요. 그리고 shape의 숫자와 모델 파라미터 수는 다른 개념이에요 — 이 작은 층 하나의 파라미터는 실제로 600개였어요. 또 nhead=3으로 바꾸면 embed_dim must be divisible by num_heads 오류가 나요. 8차원을 head 수로 똑같이 나눠 가져야 해서요.
+
+## ⑤ Self-Attention — 누구의 정보를 얼마나 섞을까
+
+각 Token의 Query가 다른 Token들의 Key와 비교돼서 점수가 나오고, 그 비율대로 Value를 섞어 새 표현을 만들어요.
+
+|  | 일상 언어로 | 실제로는 |
+|---|---|---|
+| Query (Q) | "지금 이 위치는 어떤 정보를 찾고 싶은가?" | Q = X·Wq |
+| Key (K) | "다른 위치에는 어떤 특징이 있는가?" | K = X·Wk |
+| Value (V) | "실제로 섞어 가져올 정보는 무엇인가?" | V = X·Wv |
+
+비유는 직관용이에요. 실제 Q·K·V는 같은 입력 X에 서로 다른 학습 행렬을 곱한 결과예요. Q·K 비교는 "참고 비율"을 정하고, V는 "실제로 섞이는 내용"을 줘요.
+
+| 순서 | 연산 | 의미 |
+|---|---|---|
+| 1 | Q @ K.T | Token 위치 사이 점수 — (T, T) 행렬, 행 = Query · 열 = Key |
+| 2 | / sqrt(d_k) | 특징 차원이 크면 점수도 커지니 나눠서 Scale 조절 |
+| 3 | + Mask | 보면 안 되는 위치를 -inf로 |
+| 4 | softmax(scores) | 행마다 합이 1인 가중치로 (-inf → 정확히 0) |
+| 5 | weights @ V | Value를 가중합해 출력 |
+
+🔧 작은 Q/K/V로 Attention 직접 계산 명령어 사전에서 자세히 →
+
+```
+scores = q @ k.T / math.sqrt(2)
+weights = torch.softmax(scores.masked_fill(mask, float("-inf")), dim=-1)
+```
+
+[그림: 세 개의 3x3 히트맵: Softmax 전 scores, Causal Mask 적용 후 weights, Mask 없는 weights와 각각의 출력 벡터] 무엇을 보나: 강의 코드를 실제로 계산한 세 단계예요. ① 점수는 아직 확률이 아니에요(1.41처럼 1보다 큼). ② Causal Mask를 씌우면 대각선 위가 0이 되고 각 행 합이 1 — t1은 자기만, t3는 [0.25, 0.25, 0.50]. 출력 t3 = 0.25·[1,0] + 0.25·[0,1] + 0.5·[1,1] = [0.75, 0.75]. ③ Mask가 없으면 t1이 미래 t3에 0.40을 줘요. 🤔 t3 행은 왜 ②와 ③이 같아? 마지막 위치는 원래 볼 미래가 없어서 Mask가 가릴 게 없거든요.
+
+### Padding Mask와 Causal Mask는 막는 게 다르다
+
+|  | Padding Mask | Causal Mask |
+|---|---|---|
+| 막는 것 | 배치 길이 맞춤용 PAD | 현재 Token보다 미래 위치 |
+| 어디서 옴 | Tokenizer의 attention_mask | torch.triu(..., diagonal=1) · is_causal=True |
+| 모양 | 문장마다 PAD 위치가 다름 | 왼쪽 아래 삼각형(볼 수 있는 칸) |
+| 중요한 곳 | 배치 입력 전부 | 자기회귀 Decoder (생성) |
+
+🔧 Causal Mask 유무 비교 명령어 사전에서 자세히 →
+
+```
+torch.softmax(scores, dim=-1)       # Mask 없이 → t1 행 [0.40, 0.20, 0.40]
+```
+
+🔧 Padding Mask — src_key_padding_mask 명령어 사전에서 자세히 →
+
+```
+layer(x, src_key_padding_mask=(attention_mask == 0))     # True = 무시
+```
+
+실제로 PAD 자리(3·4번)에 엉뚱한 큰 값을 넣고 비교해 봤어요. Padding Mask를 주면 실제 Token(0~2번) 출력이 그대로(True), 안 주면 달라졌어요(False) — PAD 쓰레기 값이 실제 Token 표현에 섞여 들어간 거예요.
+
+🔧 F.scaled_dot_product_attention — 한 줄 버전 명령어 사전에서 자세히 →
+
+```
+F.scaled_dot_product_attention(q, k, v, is_causal=True)   # 직접 계산한 weights @ v 와 같음
+```
+
+### Multi-Head Attention
+
+| 항목 | 한 Head | 여러 Head |
+|---|---|---|
+| Q/K/V | 한 묶음 | Head별 별도 투영 (D를 head 수로 나눠 가짐) |
+| 참고 패턴 | 한 가지 분포 | 여러 패턴을 함께 학습 가능 |
+| 출력 | 그 Head 출력 | 이어 붙여(Concat) → Projection |
+| 주의 | 가중치 해석은 제한적 | Head가 많다고 무조건 좋아지진 않음 |
+
+요즘 LLM은 GQA·MLA 같은 변형을 쓰기도 해서 모두 표준 Multi-Head는 아니에요.
+
+### Attention 분석에서 흔한 오해
+
+| 오해 | 바로잡기 |
+|---|---|
+| Softmax 전 Score와 후 Weight를 섞어 읽음 | Score는 아무 실수, Weight는 0~1이고 행 합 1 |
+| Heatmap의 행과 열을 바꿔 읽음 | 행 = Query(지금 위치), 열 = Key(참고 대상) |
+| Mask의 True 뜻을 모든 API에 똑같이 적용 | 📋 명세의 Mask 네 가지 표 확인 |
+| Weight가 높은 Token 하나가 답의 "유일한 이유" | 여러 Head · 층 · Residual 경로가 섞인 계산 중 일부일 뿐 |
+
+## 🧪 Attention 계산기
+
+Token 세 개의 벡터(Q = K = V로 둠)를 바꾸고 Causal Mask를 켜고 꺼 보세요. 처음 값은 강의 코드와 같아서 명령어 사전의 실제 실행 결과와 같은 숫자가 나와요.
+
+## ⑥ 학습 · 추론 · 디코딩
+
+[그림: Training: 입력→Logit, 정답과 Loss 비교, backward, optimizer.step으로 가중치 변경. Inference: 입력→Logit, Softmax·디코딩, 선택한 Token을 붙임, 반복(가중치 고정)] 무엇을 보나: 두 줄 다 "입력 → Logit"으로 시작해요. 다른 건 그다음이에요. 학습(분홍)은 정답과 비교해 가중치 θ를 바꾸고, 추론(초록)은 Token을 골라 붙이며 반복할 뿐 θ는 고정이에요. 🤔 그래서? 서비스에서 질문에 답하는 건 추론이라 backward()·step()이 없어요. RAG로 문서를 넣어도 모델이 "배운" 게 아니라 그 요청의 입력에 붙었을 뿐이에요.
+
+🔧 학습은 가중치를 바꾸고, 추론은 안 바꾼다 명령어 사전에서 자세히 →
+
+```
+with torch.no_grad(): model(x)                       # 추론 — weight 그대로
+loss.backward(); optimizer.step()                    # 학습 — weight 변경
+```
+
+작은 nn.Linear로 실제로 돌려 보니 추론 뒤엔 weight가 그대로(True)였고, 학습 한 걸음 뒤엔 같은 입력의 Loss가 0.9661 → 0.8480으로 줄었어요.
+
+|  | Training · 학습 | Inference · 추론 |
+|---|---|---|
+| 목표 | 예측 오차를 줄이도록 가중치 조정 | 요청에 맞는 다음 Token 생성 |
+| LLM 사전학습 | Causal Language Modeling — "다음 Token 맞히기" Loss로 대량 텍스트 학습 | — |
+| 가중치 θ | 업데이트 | 고정 |
+| 추가 도구 | backward · Optimizer | 디코딩 · KV Cache |
+
+### 사전학습 뒤 모델을 쓰는 세 방법
+
+| 방법 | 가중치 | 무엇을 바꾸나 |
+|---|---|---|
+| Prompting | 그대로 | 입력 지시·예시 (11/16) |
+| Instruction Tuning | 추가 학습 | "지시 → 응답" 예시로 지시를 따르게 |
+| Preference Alignment | 추가 학습 | 사람이 더 좋다고 고른 응답 쪽으로 행동 조정 |
+
+### Logit → Softmax → 확률 · Temperature
+
+마지막 Hidden State에 LM Head(Linear 층)를 곱하면 어휘 전체 각각의 Logit(점수)이 나와요. 확률로 보려면 Softmax가 필요해요. 실제로 작은 모델의 Logit은 -1.49 ~ 1.23처럼 음수도 있었어요 — "확률 %"로 읽으면 안 돼요.
+
+🔧 Softmax · Temperature 명령어 사전에서 자세히 →
+
+```
+probs = torch.softmax(logits / temp, dim=0)
+```
+
+[그림: Logit 2,1,0에 temperature 0.5, 1.0, 2.0을 적용한 확률 막대: 0.867/0.117/0.016, 0.665/0.245/0.090, 0.506/0.307/0.186] 무엇을 보나: 같은 Logit [2, 1, 0]을 Temperature로 나눈 뒤 Softmax한 실제 값이에요. 0.5면 1등이 0.867로 몰리고, 2.0이면 0.506까지 내려가 3등도 0.186이 돼요. 🤔 순서는? 세 경우 모두 1등은 후보 0 — Temperature는 순위가 아니라 "얼마나 몰리나"를 바꿔요. 그리고 사실성을 높여 주진 않아요.
+
+### Greedy · Top-k · Top-p
+
+| 선택 방법 | 특징 | 알아야 할 한계 |
+|---|---|---|
+| Greedy | 매번 점수 최고 후보 | 반복 · 다양성 부족 |
+| Temperature | 분포의 날카로움 조절 | 사실성 자동 향상 아님 |
+| Top-k | 상위 k개 후보로 제한 후 그 안에서 뽑기 | k 설정에 따라 결과가 달라짐 |
+| Top-p | 누적 확률이 p에 닿을 때까지의 후보 | 분포 모양에 따라 후보 수가 변함 |
+
+🔧 Greedy · Top-k · Top-p 직접 계산 명령어 사전에서 자세히 →
+
+```
+sp, si = p.sort(descending=True); n = int((sp.cumsum(0) < 0.9).sum()) + 1   # Top-p 후보 수
+```
+
+### Autoregressive · Prefill · Decode · KV Cache
+
+생성은 한 Token씩 문맥을 늘려요: Prompt Token → Logits → 다음 Token 선택 → 입력 끝에 붙임 → EOS나 길이 제한까지 반복. 처음에 입력 전체를 한 번에 계산하는 단계를 Prefill, 이후 한 Token씩 처리하는 단계를 Decode라고 불러요.
+
+| KV Cache 이점 | 대가 · 주의 |
+|---|---|
+| 이전 Token의 Key/Value를 저장해 재사용 | 문맥이 길수록 메모리 사용 증가 |
+| 반복 디코딩의 중복 계산을 줄임 | 모델·Head 구성에 따라 크기가 달라짐 |
+| 긴 출력의 시간 효율에 도움 | 여러 사용자 요청 사이의 캐시 경계·격리 필요 |
+
+🤔 KV Cache가 대화를 기억해 주는 거야? — 아니에요. 한 번의 생성 과정에서 이미 계산한 Key/Value를 다시 쓰는 계산 절약이에요. 사용자의 장기 기억(Memory)이나 요청 사이 영구 저장소와는 역할이 달라요. 사실 검증도 대신하지 않아요.
+
+## ⑦ 한계 · 검증 · RAG/Agent 경계
+
+### 답변이 틀릴 수 있는 네 위치
+
+| 위치 | 예 | 먼저 볼 곳 |
+|---|---|---|
+| 입력 · 문맥 | 질문 의도나 필요한 제약이 빠짐 | Prompt · Context 구성 |
+| 검색 · 근거 | 관련 문서를 못 찾거나 오래된 버전 사용 | Retriever · 원본 DB 최신성 |
+| 생성 · 추론 | 근거 밖 내용을 보충하거나 오해 | 모델 · 디코딩 설정 · 인용 확인 |
+| 표현 · 평가 | JSON 형식은 맞는데 내용이 틀림 | 형식 검증과 사실 검증을 분리 |
+
+### 출력 품질은 숫자 하나로 끝나지 않는다
+
+| 평가 관점 | 검증할 질문 | 증거 예 |
+|---|---|---|
+| 형식 | 필수 필드 · JSON 구조가 맞나? | Schema 검증 |
+| 근거 | 각 주장이 문서로 뒷받침되나? | 출처 · 인용 |
+| 정확성 | 사실 · 계산과 일치하나? | 정답 세트 |
+| 재현성 | 같은 모델·설정에서 동작을 설명할 수 있나? | 버전 · Seed · 로그 |
+| 안전성 | 비밀 · 권한 · 오염된 근거에 대응하나? | 거부 · 승인 규칙 |
+
+⚠️ Pydantic 응답 검증으로 환각을 없앨 수 있을까? 아니에요. Day17에서 쓴 Pydantic은 형식을 검사해요. 형식이 맞는 틀린 답은 그대로 통과해요. 그리고 근거가 있다고 그 근거가 최신·정확하다는 뜻도 아니에요.
+
+### 무엇에 무엇을 붙이나
+
+| 문제 | 붙이는 것 | 함께 설계할 검증 |
+|---|---|---|
+| 문장 요약 · 정리 | LLM 생성 | 내용 · 형식 검증 |
+| 사내 규정에 근거한 답변 | Retriever → LLM (RAG) | 출처 · 최신성 검증 |
+| 실제 시스템 상태 조회 · 변경 | Agent → 허용된 Tool API | 권한 · 승인 · 감사 기록 |
+
+| 주로 정보 · 표현의 문제 | 주로 실행 · 제어의 문제 |
+|---|---|
+| Prompt: 지시 · 예시 · 출력 형식 정리 | Agent: 도구 선택 · 작업 단계 실행 |
+| RAG: 외부 지식을 검색해 근거 제공 | FastAPI: 기능의 서비스 입구 |
+| Fine-tuning: 모델 행동 · 스타일 · 과제 적응 | PostgreSQL: 원본 · 상태 · 기록 저장 |
+
+RAG를 넣었다고 Agent가 되진 않고, Fine-tuning이 사실성까지 보장하진 않아요. RAG = 근거 검색 + 생성, Agent = 상태·도구 실행을 포함한 처리 시스템이에요.
+
+### Agent 플랫폼에서도 필요한 검증
+
+| 항목 | 내용 |
+|---|---|
+| Untrusted Text | 검색된 문서 안의 명령 문구("이전 지시를 무시하고…")를 시스템 지시로 믿지 않아요 |
+| 권한 | 조회 · 수정 · 삭제 등 도구별 허용 범위를 애플리케이션에서 확인해요 |
+| 관측 · 재현 | 모델 · 지시 · 참고 문서 · Tool 결과 · 오류를 안전하게 기록해요 |
+
+### 지식 관리 API에 LLM을 붙이면 새로 생기는 것
+
+| 이미 있음 (Day17~19) | 이후 추가해야 함 |
+|---|---|
+| /api/knowledge CRUD | 질문 처리용 LLM 호출 |
+| PostgreSQL 원본 지식 · 분류 | 관련 지식 검색 · Chunking · Vector DB |
+| HTTP 오류와 DB 트랜잭션 | 근거 · 사실성 평가와 출처 관리 |
+| 서버 재시작 후 저장 유지 | 필요하면 Agent 도구 · 권한 · 상태 |
+
+💡 원본 지식을 수정·삭제하면 검색 인덱스에도 반영되도록 설계해야 해요. Day19에서 말한 "원본을 고쳐도 인덱스는 별도 동기화"가 바로 이 얘기예요.
+
+## ⑧ 다음 단계
+
+| 날짜 | 주제 | 오늘과의 연결 |
+|---|---|---|
+| 11/16 | Prompt 구조 · Zero/Few-shot · Context Engineering · JSON Schema · 재시도 | 같은 모델에 더 좋은 입력(Context Window 안을 어떻게 채울지) |
+| 11/17 | LLM API | 오늘 본 추론을 서비스에서 호출 |
+| 11/18 | Embedding · Vector DB | 오늘의 Sentence Embedding · Cosine으로 검색 |
+| 11/19 → 11/20 | Chunking → Basic RAG | Retriever → Prompt + Context → LLM Answer + Source — 검색 근거도 Token 예산에 들어가요 |
+
+## 원본 자료
+
+- 강의: Day20_20261113.pdf (생성형 AI·LLM 및 RAG 엔지니어링 · LLM 생태계 → Token·Context → Transformer·Attention → 학습·추론, 100쪽) — 서비스 속 위치·확대 지도 p2–11 · 생태계·한계 p19–24 · Tokenizer·Context p27–35 · Embedding·Cosine p38–45 · Transformer Block p48–56 · Self-Attention p59–67 · 학습·추론·디코딩 p70–77 · 한계·평가·RAG/Agent p80–85 · 다음 수업 p96
+
+- 노트·명령어 사전의 결과 값: 강의 코드를 이 PC의 CPU에서 실제로 실행 (torch 2.14.0 · transformers 5.22.2 · sentence-transformers 6.3.0 — 강의 기준 5.17 · 6.1보다 조금 새 버전). Tokenizer bert-base-multilingual-cased, 문장 모델 all-MiniLM-L6-v2는 Hugging Face Hub에서 내려받음. 스크립트 tools/io_day20.py, 그림 tools/visuals/make_day20.py
+
+- 공식 자료: Attention Is All You Need (원 논문) · Hugging Face Transformers · Tokenizer · Causal LM · Generation
+
+- 공식 자료: PyTorch scaled_dot_product_attention · TransformerEncoderLayer · Sentence Transformers
+
+## 🔧 Day20 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day20)
+| 이론 | 대응 명령어 |
+|---|---|
+| 📦 필요한 패키지 | python -m pip install torch transformers sentence-transformers |
+| 📋 명세 | 단계별 입력 · 출력 · 자료형 · shape |
+| ① LLM 생태계 · 서비스 역할 | (개념 — 코드 없음) |
+| ② Tokenizer · Context Window | AutoTokenizer.from_pretrained(), convert_ids_to_tokens, decode, padding · truncation · max_length, attention_mask |
+| ③ Embedding · 유사도 | nn.Embedding, F.cosine_similarity, SentenceTransformer.encode · similarity |
+| ④ Transformer Block | nn.TransformerEncoderLayer, LM Head nn.Linear(D, V) |
+| ⑤ Self-Attention · Mask | q @ k.T / math.sqrt(d), torch.triu · masked_fill, softmax, F.scaled_dot_product_attention, src_key_padding_mask |
+| ⑥ 학습 · 추론 · 디코딩 | torch.softmax(logits / temp), Greedy · Top-k · Top-p, backward() · optimizer.step() vs torch.no_grad() |
+| ⑦ 한계 · 검증 · RAG/Agent 경계 | (개념 — 평가 관점표) |
+
+### 설치 · 버전 확인
+
+```
+python -m pip install torch                    # 대부분 이미 있음 (Day09~)
+python -m pip install transformers             # Tokenizer · 사전학습 모델
+python -m pip install sentence-transformers    # 문장 Embedding (선택)
+python -c "import torch, transformers; print(torch.__version__, transformers.__version__)"
+```
+
+▶ 실제로 돌려 보면 이 노트를 만든 가상환경에서 실제로 확인
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| import torch, transformers, sentence_transformers | torch 2.14.0+cu130 · transformers 5.22.2 · sentence-transformers 6.3.0 | 강의 기준(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준 |
+
+| 부분 | 뜻 |
+|---|---|
+| transformers | Hugging Face 라이브러리 — AutoTokenizer·AutoModel로 모델 이름만 주면 내려받아 씀 |
+| sentence-transformers | 문장 하나 → 벡터 하나를 만드는 모델 모음 (11/18 검색에서 다시 씀) |
+| 첫 실행 | 모델·Tokenizer 파일을 인터넷에서 내려받아 캐시(~/.cache/huggingface)에 둠 — 두 번째부터는 캐시 사용 |
+
+### AutoTokenizer — 문자열 → Token → ID
+
+```
+from transformers import AutoTokenizer
+tok = AutoTokenizer.from_pretrained(
+    "bert-base-multilingual-cased")
+text = "실습 파일은 개인 폴더에 보관합니다."
+ids = tok(text)["input_ids"]
+print(tok.convert_ids_to_tokens(ids))
+print("ids:", ids)
+print("n_tokens:", len(ids))
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로 · bert-base-multilingual-cased
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(tok.convert_ids_to_tokens(ids)) | ['[CLS]', '실', '##습', '파', '##일', '##은', '개', '##인', '폴', '##더', '##에', '보', '##관', '##합', '##니다', '.', '[SEP]'] | 앞뒤 [CLS]·[SEP]는 Special Token · ##은 '앞 조각에 붙어 있음' 표시(WordPiece) |
+| print("ids:", ids) | ids: [101, 9489, 119081, 9901, 18392, 10892, 8857, 12030, 9931, 54141, 10530, 9356, 20595, 33188, 48345, 119, 102] | Vocabulary 번호 — 119081이 101보다 '중요'하다는 뜻이 아니에요 |
+| print("n_tokens:", len(ids)) | n_tokens: 17 | 원문은 공백 포함 20글자 · 띄어쓰기 단어는 5개 — 셋 다 다른 숫자 |
+| tok.vocab_size | 119,547 | 이 Tokenizer가 아는 Token 종류 수 = ID 범위 0 ~ 119,546 |
+
+| 코드 | 뜻 |
+|---|---|
+| AutoTokenizer.from_pretrained(이름) | 모델 이름에 맞는 Tokenizer를 찾아 불러옴 — 모델마다 Tokenizer가 달라요 |
+| tok(text) | 사전(dict) 반환 — input_ids, attention_mask 등 |
+| ["input_ids"] | Token ID 정수 리스트 (Special Token 포함) |
+| convert_ids_to_tokens(ids) | ID → Token 문자열 (사람이 보기 위한 것) |
+
+💡 bert-base-multilingual-cased는 여러 언어를 아는 Encoder 모델의 Tokenizer예요(WordPiece 방식). GPT 같은 생성 모델은 다른 방식(BPE 등)이라 같은 문장도 다르게 쪼개요.
+
+### Special Token · decode
+
+```
+print(tok.all_special_tokens, tok.all_special_ids)
+print(tok("실습", add_special_tokens=False)["input_ids"])
+print(tok.decode(ids))
+print(tok.decode(ids, skip_special_tokens=True))
+```
+
+▶ 실제로 돌려 보면 같은 Tokenizer로 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| tok.all_special_tokens | ['[UNK]', '[SEP]', '[PAD]', '[CLS]', '[MASK]'] | BERT 계열 구분용 Token — GPT 계열은 이름·종류가 달라요(BOS·EOS 등) |
+| tok.all_special_ids | [100, 102, 0, 101, 103] | [PAD]=0 · [UNK]=100 · [CLS]=101 · [SEP]=102 · [MASK]=103 |
+| tok("실습", add_special_tokens=False)["input_ids"] | [9489, 119081] | Special Token을 빼면 '실' '##습' 두 개만 |
+| tok.decode(ids) | [CLS] 실습 파일은 개인 폴더에 보관합니다. [SEP] | ID → 문자열로 되돌림 · ## 조각은 다시 붙어요 |
+| tok.decode(ids, skip_special_tokens=True) | 실습 파일은 개인 폴더에 보관합니다. | 구분용 Token을 빼고 원문 복원 |
+
+| Token | 쓰임 |
+|---|---|
+| [CLS] · [SEP] | BERT 계열의 시작 · 구분/끝 표시 (생성 모델은 BOS · EOS) |
+| [PAD] | 배치 길이 맞추기용 빈칸 |
+| [UNK] | Vocabulary에 없는 조각 |
+| Chat Role | 대화 모델은 system·user·assistant 구분 Token·형식을 따로 씀 (모델마다 다름) |
+
+### 한국어 · 영어 · 코드 Token 수 비교
+
+```
+for t in ["실습 파일은 개인 폴더에 보관합니다.",
+          "Keep practice files in your personal folder.",
+          "def get_db(): yield db"]:
+    i = tok(t)["input_ids"]
+    print(len(i), tok.convert_ids_to_tokens(i))
+```
+
+▶ 실제로 돌려 보면 같은 Tokenizer · 실제 개수 (Special Token 2개 포함)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| "실습 파일은 개인 폴더에 보관합니다." | 17개 · [CLS] 실 ##습 파 ##일 ##은 개 ##인 폴 ##더 ##에 보 ##관 ##합 ##니다 . [SEP] | 한국어 · 글자 단위로 많이 쪼개짐 |
+| "Keep practice files in your personal folder." | 12개 · [CLS] Keep practice files in your personal f ##old ##er . [SEP] | 영어 · 단어 대부분이 한 Token, folder만 f ##old ##er |
+| "def get_db(): yield db" | 11개 · [CLS] def get _ db ( ) : yield db [SEP] | 코드 · 기호 하나하나가 Token |
+| "학습 파일" | 6개 · [CLS] 학 ##습 파 ##일 [SEP] | 강의 예시 — '학습 파일'도 4조각 |
+| "FastAPI와 PostgreSQL" | 9개 · [CLS] Fast ##AP ##I ##와 Post ##gre ##SQL [SEP] | 고유명사는 잘게 · 조사 '와'는 ##와로 붙음 |
+
+💡 같은 뜻이어도 언어·Tokenizer에 따라 Token 수가 달라요. API 요금·Context 한도는 글자 수가 아니라 Token 수로 계산돼요.
+
+### Padding · Truncation · attention_mask
+
+```
+texts = ["AI", "FastAPI와 PostgreSQL"]
+batch = tok(
+    texts,
+    padding=True,
+    truncation=True,
+    max_length=12,
+    return_tensors="pt",
+)
+print(batch["input_ids"].shape)
+print(batch["attention_mask"])
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로 + max_length·padding 바꿔 보기
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(batch["input_ids"].shape) | torch.Size([2, 9]) | 2문장 × 9 Token — 긴 문장(9개)에 맞춰짐, 12까지 채우지 않음 |
+| print(batch["attention_mask"]) | [[1, 1, 1, 0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1, 1]] | 1 = 실제 Token · 0 = [PAD] (짧은 'AI' 뒤 6칸) |
+| 첫 문장 Token | [CLS] AI [SEP] [PAD] [PAD] [PAD] [PAD] [PAD] [PAD] | PAD의 ID는 0 |
+| max_length=4 로 바꾸면 | torch.Size([2, 4]) · [CLS] AI [SEP] [PAD] \| [CLS] Fast ##AP [SEP] | 두 번째 문장이 잘림 — PostgreSQL이 통째로 사라졌는데 오류는 없어요. [SEP]은 끝에 다시 붙음 |
+| padding="max_length" 로 바꾸면 | torch.Size([2, 12]) · mask [1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0] | padding=True는 '배치 최장'까지, 'max_length'는 정한 길이까지 채움 |
+
+| 인자 | 뜻 |
+|---|---|
+| padding=True | 배치에서 가장 긴 문장 길이로 짧은 문장 뒤에 [PAD] 채움 |
+| padding="max_length" | max_length까지 무조건 채움 |
+| truncation=True + max_length | 넘치는 Token을 잘라 버림 — 요약이 아님, 오류도 안 남 |
+| return_tensors="pt" | PyTorch Tensor로 반환 (없으면 리스트) |
+| attention_mask | 1 = 실제 Token · 0 = PAD — 모델이 PAD를 무시하게 함 (Causal Mask와 다른 것) |
+
+### nn.Embedding — ID로 벡터 표에서 행 꺼내기
+
+```
+import torch
+from torch import nn
+torch.manual_seed(0)
+emb = nn.Embedding(num_embeddings=100, embedding_dim=4)   # 어휘 100개 × 4차원 표
+print(emb(torch.tensor(7)).shape)                  # ID 하나
+print(emb(torch.tensor([7, 3, 99, 3, 0])).shape)   # 문장 (Token 5개)
+print(emb(torch.randint(0, 100, (2, 5))).shape)    # 배치
+```
+
+▶ 실제로 돌려 보면 작은 nn.Embedding(100, 4) · seed 0 · 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| emb(torch.tensor(7)).shape | torch.Size([4]) | ID 하나(정수) → 4차원 벡터 하나 |
+| emb(torch.tensor(7)) | [1.3900, 1.5900, 0.9500, -0.8400] | 학습 전이라 무작위 값 — 학습하며 바뀌어요 |
+| emb(torch.tensor([7, 3, 99, 3, 0])).shape | torch.Size([5, 4]) | Token 5개 × feature 4 |
+| 같은 ID 3의 두 행 비교 | True | Embedding은 '표에서 행 꺼내기' — 위치가 달라도 같은 ID면 같은 벡터 (그래서 Position 정보가 따로 필요) |
+| emb(torch.randint(0, 100, (2, 5))).shape | torch.Size([2, 5, 4]) | Batch 2 × Token 5 × feature 4 = [B, T, D] |
+| emb.weight.shape | torch.Size([100, 4]) | Embedding Table = Vocabulary 크기 × 차원 |
+
+| 표현 | shape 예 | 뜻 |
+|---|---|---|
+| ID 한 개 | () | 정수 하나 |
+| 한 Token 벡터 | (4,) | 네 개의 연속 수치 |
+| 문장 Token 벡터 | (5, 4) | Token 5개 × feature 4 |
+| Batch 입력 | (2, 5, 4) | Batch 2 × Token 5 × feature 4 |
+
+### F.cosine_similarity — 방향 유사도
+
+```
+import torch
+import torch.nn.functional as F
+torch.set_num_threads(1)
+a = torch.tensor([1.0, 0.0])
+b = torch.tensor([0.8, 0.2])
+c = torch.tensor([-1.0, 0.0])
+print(F.cosine_similarity(a, b, dim=0))
+print(F.cosine_similarity(a, c, dim=0))
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로 + 두 줄 더
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| F.cosine_similarity(a, b, dim=0) | 0.9701 | 방향이 거의 같음 (각도 약 14°) |
+| F.cosine_similarity(a, c, dim=0) | -1.0000 | 정반대 방향 |
+| a vs [0.0, 1.0] | 0.0000 | 직각 — 방향 관련 없음 |
+| a vs [3.0, 0.0] | 1.0000 | 길이가 3배여도 1 — Cosine은 길이가 아니라 방향만 봐요 |
+
+| 값 | 뜻 |
+|---|---|
+| 1 | 방향이 같음 |
+| 0 | 직교 — 방향 관련 적음 |
+| -1 | 방향이 반대 |
+| dim=0 | 어느 축을 따라 비교할지 — 1차원 벡터 둘이면 0 |
+
+💡 식은 (a·b) / (|a| |b|) — 길이로 나눠서 방향만 남겨요. torch.set_num_threads(1)은 실행마다 같은 숫자가 나오게 CPU 스레드를 하나로 고정하는 것(강의 코드 공통).
+
+### SentenceTransformer — 문장 Embedding (선택)
+
+```
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer(
+    "sentence-transformers/all-MiniLM-L6-v2")
+texts = [
+    "The file is in your project folder.",
+    "Look for it in the project directory.",
+    "The weather is sunny today.",
+]
+vectors = model.encode(texts)
+print(vectors.shape)
+print(model.similarity(vectors, vectors))
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(vectors.shape) | (3, 384) | 문장 3개 × 384차원 — 문장 하나가 벡터 하나 |
+| similarity: 파일 위치 ↔ 폴더 찾기 | 0.7957 | 단어가 달라도(folder/directory) 뜻이 가까워 높음 |
+| similarity: 파일 위치 ↔ 날씨 | -0.0307 | 관계없는 문장은 0 근처 |
+| similarity 대각선 | 1.0000 · 1.0000 · 1.0000 | 자기 자신과는 1 |
+| 같은 모델에 한국어 3문장 (프로젝트 사례 A·B·C) | A↔B 0.8833 · A↔C 0.8941 · B↔C 0.8608 | ⚠️ 주제가 다른데 전부 0.86~0.89 — 영어용 모델이라 한국어 뜻을 구별 못 해요. 점수가 높다고 의미가 가까운 게 아니에요 |
+
+| 코드 | 뜻 |
+|---|---|
+| model.encode(texts) | 문장마다 벡터 하나 → NumPy 배열 (문장 수, 차원) |
+| model.similarity(A, B) | 모든 쌍의 유사도 행렬 (기본 Cosine) |
+| all-MiniLM-L6-v2 | 작고 빠른 영어 문장 모델 · 384차원 출력 |
+
+### nn.TransformerEncoderLayer — Block 하나의 shape
+
+```
+import torch
+from torch import nn
+torch.manual_seed(42)
+torch.set_num_threads(1)
+layer = nn.TransformerEncoderLayer(
+    d_model=8, nhead=2,
+    dim_feedforward=16, batch_first=True,
+    dropout=0.0)
+x = torch.randn(2, 5, 8)
+y = layer(x)
+print(x.shape, y.shape)
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로 + 제약 확인
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(x.shape, y.shape) | torch.Size([2, 5, 8]) torch.Size([2, 5, 8]) | 입력과 출력 shape가 같아요 — 그래서 Block을 여러 층 쌓을 수 있어요 |
+| sum(p.numel() for p in layer.parameters()) | 600 | 이 작은 층 하나의 학습 파라미터 수 — (2,5,8)의 숫자와는 다른 개념 |
+| nhead=3 으로 바꾸면 | AssertionError: embed_dim must be divisible by num_heads | d_model(8)은 head 수로 나누어떨어져야 해요 — head마다 8÷2=4차원씩 나눠 가짐 |
+| torch.equal(layer(x), layer(x)) | True | dropout=0.0이라 같은 입력이면 같은 출력 |
+
+| 인자 | 뜻 |
+|---|---|
+| d_model=8 | Token 하나의 feature 크기 (D) |
+| nhead=2 | Attention Head 수 — d_model이 이걸로 나누어떨어져야 함 |
+| dim_feedforward=16 | FFN 안쪽 층 크기 (보통 D보다 크게) |
+| batch_first=True | 입력을 (B, T, D)로 받음 (False면 (T, B, D)) |
+| dropout=0.0 | 무작위 끄기 없음 — 같은 입력 → 같은 출력 |
+
+⚠️ 이건 Encoder 층 하나의 shape 연습이에요. Decoder-only 생성 모델을 만든 게 아니에요.
+
+### ID → Embedding → Block → LM Head shape 따라가기
+
+```
+torch.manual_seed(0)
+V, D = 100, 8                                   # 어휘 100개, feature 8
+embed = nn.Embedding(V, D)
+block = nn.TransformerEncoderLayer(d_model=D, nhead=2, dim_feedforward=16,
+                                   batch_first=True, dropout=0.0)
+lm_head = nn.Linear(D, V)                       # 표현 → 어휘 전체 점수
+token_ids = torch.randint(0, V, (2, 5))
+h = block(embed(token_ids))
+logits = lm_head(h)
+next_probs = logits[:, -1, :].softmax(dim=-1)   # 마지막 위치 → 다음 Token 분포
+```
+
+▶ 실제로 돌려 보면 강의 shape 표를 작은 층으로 실제 실행 · seed 0
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| token_ids.shape | torch.Size([2, 5]) | 2문장 · 문장당 5 Token |
+| embed(token_ids).shape | torch.Size([2, 5, 8]) | 각 Token이 8차원 벡터 |
+| block(h).shape | torch.Size([2, 5, 8]) | Attention + FFN을 거쳐도 [B, T, D] 유지 |
+| lm_head(h).shape | torch.Size([2, 5, 100]) | 위치마다 어휘 100개 각각의 점수(Logit) |
+| logits[:, -1, :].softmax(-1).sum(-1) | [1., 1.] | 다음 Token은 마지막 위치 점수로 — Softmax 뒤 합이 1 |
+| logits[0, -1].min(), .max() | -1.49, 1.23 | Logit은 음수도 되는 점수 — 확률이 아니에요 |
+
+| 단계 | shape | 해석 |
+|---|---|---|
+| Token IDs | (2, 5) | 2문장 · 문장당 5 Token |
+| Token Embedding | (2, 5, 8) | 각 Token이 8차원 벡터 |
+| Attention · FFN 출력 | (2, 5, 8) | 문맥을 반영한 위치별 표현 |
+| LM Head logits | (2, 5, 100) | Token 위치별 어휘 100개 점수 |
+
+### 작은 Q/K/V로 Attention Weight 직접 계산
+
+```
+import math
+import torch
+torch.set_num_threads(1)
+q = torch.tensor([[1., 0.], [0., 1.], [1., 1.]])
+k, v = q.clone(), q.clone()
+scores = q @ k.T / math.sqrt(2)
+mask = torch.triu(torch.ones(3, 3,
+    dtype=torch.bool), diagonal=1)
+weights = torch.softmax(
+    scores.masked_fill(mask, float("-inf")),
+    dim=-1)
+print(weights.round(decimals=2))
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로 + 중간값 출력
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(scores.round(decimals=2)) | [[0.7100, 0.0000, 0.7100], [0.0000, 0.7100, 0.7100], [0.7100, 0.7100, 1.4100]] | (3,3) 관계 점수 · 행=Query, 열=Key · 아직 확률 아님 |
+| print(mask) | [[False, True, True], [False, False, True], [False, False, False]] | True = 가릴 칸 (대각선 위 = 미래) |
+| scores.masked_fill(mask, -inf) | [[0.7100, -inf, -inf], [0.0000, 0.7100, -inf], [0.7100, 0.7100, 1.4100]] | 미래 칸을 -inf로 → Softmax 뒤 정확히 0 |
+| print(weights.round(decimals=2)) | [[1.0000, 0.0000, 0.0000], [0.3300, 0.6700, 0.0000], [0.2500, 0.2500, 0.5000]] | t1은 자기만 · t3는 [0.25, 0.25, 0.50] |
+| weights.sum(dim=-1) | [1., 1., 1.] | 각 행의 합은 1 |
+| weights @ v | [[1.0000, 0.0000], [0.3300, 0.6700], [0.7500, 0.7500]] | t3 출력 = 0.25·[1,0] + 0.25·[0,1] + 0.5·[1,1] = [0.75, 0.75] |
+
+| 순서 | 연산 | 의미 |
+|---|---|---|
+| 1 | q @ k.T | Token 위치 간 점수 (행 = Query, 열 = Key) |
+| 2 | / math.sqrt(2) | 특징 차원 d_k(여기선 2)에 따른 Scale — 점수가 너무 커지는 것 방지 |
+| 3 | torch.triu(..., diagonal=1) | 대각선 위(미래)만 True인 Mask |
+| 4 | masked_fill(mask, -inf) | True 칸을 -inf로 → Softmax 뒤 0 |
+| 5 | torch.softmax(..., dim=-1) | 행마다 합이 1인 가중치로 |
+| 6 | weights @ v | Value를 가중합해 출력 |
+
+### Causal Mask 유무 비교
+
+```
+nomask_weights = torch.softmax(scores, dim=-1)     # Mask 없이
+print(nomask_weights.round(decimals=2))
+print((nomask_weights @ v).round(decimals=2))
+```
+
+▶ 실제로 돌려 보면 같은 q/k/v · 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| torch.softmax(scores, dim=-1) # Mask 없음 | [[0.4000, 0.2000, 0.4000], [0.2000, 0.4000, 0.4000], [0.2500, 0.2500, 0.5000]] | t1이 미래 t3에 0.40을 줌 — 생성 모델이라면 정답 엿보기 |
+| nomask_weights @ v | [[0.8000, 0.6000], [0.6000, 0.8000], [0.7500, 0.7500]] | t1·t2 출력이 바뀜 · 마지막 t3 행은 원래 볼 수 있는 게 전부라 Mask 유무와 무관 |
+| Mask 있음 t1 행 / 없음 t1 행 | [1.00, 0.00, 0.00] / [0.40, 0.20, 0.40] | Encoder(양방향)는 Mask 없이, Decoder(생성)는 Causal Mask로 |
+
+### F.scaled_dot_product_attention — 한 줄 버전
+
+```
+import torch.nn.functional as F
+out = F.scaled_dot_product_attention(q[None], k[None], v[None], is_causal=True)
+print(torch.allclose(out[0], weights @ v))
+```
+
+▶ 실제로 돌려 보면 같은 q/k/v · 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| F.scaled_dot_product_attention(q, k, v, is_causal=True) | [[1.0000, 0.0000], [0.3300, 0.6700], [0.7500, 0.7500]] | 직접 계산한 weights @ v와 같은 값 — √d_k 나누기·Mask·Softmax를 한 번에 |
+| torch.allclose(sdpa, weights @ v) | True | 같은 수식 |
+| SDPA(attn_mask=mask) 와 SDPA(attn_mask=~mask) 중 is_causal과 같은 것 | mask: False · ~mask: True | SDPA의 bool Mask는 True = 참여 — masked_fill용 Mask(True = 가림)를 그대로 주면 거꾸로 돼요. 뒤집어(~) 줘야 같음 |
+
+| 인자 | 뜻 |
+|---|---|
+| q[None] | 앞에 배치 축 하나 추가 → (1, 3, 2) |
+| is_causal=True | Causal Mask를 알아서 적용 |
+| attn_mask= | 직접 만든 Mask를 줄 때 — bool이면 True = 참여 허용(위의 masked_fill Mask와 뜻이 반대!) |
+
+### Padding Mask — src_key_padding_mask
+
+```
+attn_mask = torch.tensor([[1, 1, 1, 0, 0]])     # Tokenizer식: 1 = 실제, 0 = PAD
+kpm = attn_mask == 0                            # PyTorch식: True = 무시할 위치
+y = layer(x, src_key_padding_mask=kpm)
+```
+
+▶ 실제로 돌려 보면 작은 EncoderLayer · seed 42 · 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| attention_mask (Tokenizer식) | [[1, 1, 1, 0, 0]] | 1 = 실제 Token · 0 = PAD |
+| src_key_padding_mask = attention_mask == 0 | [[False, False, False, True, True]] | PyTorch 이 인자는 반대로 True = 무시할 위치 — 그대로 넘기면 거꾸로 가려요 |
+| PAD 자리 값을 바꿔도 실제 0~2번 출력이 같나? (Mask 있음) | True | PAD를 안 보니 영향 없음 |
+| 같은 비교 (Mask 없음) | False | PAD 자리 쓰레기 값이 실제 Token 표현에 섞여 들어감 |
+
+⚠️ 같은 "Mask"라도 API마다 True·1의 뜻이 달라요 — Tokenizer attention_mask는 1 = 본다, src_key_padding_mask는 True = 안 본다, SDPA의 bool attn_mask는 True = 본다. 넘기기 전에 문서를 확인해요.
+
+### Softmax · Temperature
+
+```
+import torch
+torch.set_num_threads(1)
+logits = torch.tensor([2.0, 1.0, 0.0])
+for temp in [0.5, 1.0, 2.0]:
+    probs = torch.softmax(logits / temp, dim=0)
+    print(temp, probs.round(decimals=3))
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| temp = 0.5 | [0.8670, 0.1170, 0.0160] | 1등 후보에 몰림(0.867) |
+| temp = 1.0 | [0.6650, 0.2450, 0.0900] | 기본 Softmax |
+| temp = 2.0 | [0.5060, 0.3070, 0.1860] | 완만해짐 — 3등도 0.186 |
+| logits.argmax() | 0 | Temperature를 바꿔도 1등은 그대로 0번 — 순서는 안 바뀌고 '몰림 정도'만 바뀜 |
+
+| temperature | 효과 |
+|---|---|
+| < 1 (예: 0.5) | Logit 차이가 커짐 → 1등에 몰림 (덜 다양) |
+| = 1 | 기본 Softmax |
+| > 1 (예: 2.0) | 차이가 줄어듦 → 분포가 완만 (더 다양) |
+
+💡 이 코드는 확률 계산만 해요. 실제 LLM 호출·Token 선택은 하지 않아요.
+
+### Greedy · Top-k · Top-p 직접 계산
+
+```
+vocab = ["확인", "점검", "재시작", "삭제", "날씨"]    # 장난감 어휘
+logits = torch.tensor([3.0, 2.5, 1.0, 0.5, -1.0])
+p = torch.softmax(logits, dim=0)
+greedy = p.argmax()                                   # 1등 하나
+sp, si = p.sort(descending=True)
+top_k = sp[:2] / sp[:2].sum()                         # k=2: 상위 2개만, 다시 정규화
+n = int((sp.cumsum(0) < 0.9).sum()) + 1               # p=0.9: 누적이 0.9 넘을 때까지
+top_p = sp[:n] / sp[:n].sum()
+pick = si[torch.multinomial(top_p, 1)]                # 남은 후보 중 확률대로 뽑기
+```
+
+▶ 실제로 돌려 보면 장난감 어휘 5개 · 실제 계산
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| softmax(logits) | 확인 0.543, 점검 0.329, 재시작 0.073, 삭제 0.045, 날씨 0.010 | 다음 Token 후보 분포 |
+| Greedy: probs.argmax() | 확인 | 항상 1등 — 같은 입력이면 같은 답, 반복되기 쉬움 |
+| Top-k (k=2) 후 다시 정규화 | 확인 0.622, 점검 0.378 | 상위 2개만 남겨 그 안에서 뽑기 |
+| 누적 확률 (큰 순) | [0.5430, 0.8720, 0.9460, 0.9900, 1.0000] | 1등 0.543 → 2등까지 0.872 → 3등까지 0.946 |
+| Top-p (p=0.9) 후 다시 정규화 | 확인 0.574, 점검 0.348, 재시작 0.078 | 누적이 0.9를 처음 넘는 곳까지 3개 — 분포가 퍼지면 개수가 늘어요 |
+| torch.multinomial(probs, 1) | 실행할 때마다 달라질 수 있음 | 샘플링은 무작위 — 재현하려면 seed 고정 |
+
+| 방법 | 특징 | 한계 |
+|---|---|---|
+| Greedy | 매번 점수 최고 후보 | 반복·다양성 부족 |
+| Temperature | 분포의 날카로움 조절 | 사실성이 좋아지는 건 아님 |
+| Top-k | 상위 k개로 제한 | k를 어떻게 정하느냐에 따라 달라짐 |
+| Top-p | 누적 확률 p까지 후보 | 분포에 따라 후보 수가 변함 |
+
+💡 실제 라이브러리(model.generate(do_sample=True, top_k=…, top_p=…, temperature=…))는 이걸 함께 적용하기도 해요. 적용 순서·기본값은 구현마다 문서로 확인해요.
+
+### 학습은 가중치를 바꾸고, 추론은 안 바꾼다
+
+```
+torch.manual_seed(0)
+model = nn.Linear(4, 3)
+x, y = torch.randn(8, 4), torch.randint(0, 3, (8,))
+
+model.eval()
+with torch.no_grad():                    # 추론: 기울기 계산 안 함
+    out = model(x)                       # weight 그대로
+
+model.train()
+opt = torch.optim.SGD(model.parameters(), lr=0.5)
+loss = F.cross_entropy(model(x), y)      # 학습: 정답과 비교
+opt.zero_grad(); loss.backward(); opt.step()   # weight 변경
+```
+
+▶ 실제로 돌려 보면 작은 nn.Linear(4, 3) · seed 0 · 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 추론: with torch.no_grad(): model(x) | 출력 shape (8, 3) · weight 그대로 True · grad None | 가중치 고정 · 기울기 계산도 안 함 |
+| 학습: loss.backward(); optimizer.step() | weight[0,0] -0.0037 → 0.0009 | 가중치가 바뀜 |
+| 같은 x의 Loss (step 전 → 후) | 0.9661 → 0.8480 | 오차를 줄이는 쪽으로 한 걸음 |
+
+💡 LLM도 같아요. 서비스에서 질문에 답할 때(추론)는 backward()·step()이 없어요. RAG로 문서를 넣어도 모델 가중치는 그대로 — 그때그때 입력에 붙여 줄 뿐이에요.
+
+## 📖 Day20 용어 (29개)
+- **Causal Mask** (Causal Mask (인과 마스크)): 다음 토큰을 예측할 때 미래 위치를 못 보게 가리는 Mask. 미래를 보면 정답을 미리 보는 셈이라서요.
+- **LLM** (Large Language Model): 글 토큰을 보고 다음 토큰을 하나씩 만들어 내는 큰 언어 모델. VLM의 답 생성 부분이에요.
+- **생성형 AI** (Generative AI): 학습한 패턴으로 텍스트·이미지·음성 등을 새로 만들어 내는 AI. LLM은 그중 언어를 다루는 것.
+- **Foundation Model**: 대규모 데이터로 미리 학습해 두고 여러 작업에 가져다 쓰는 범용 모델. LLM이 대표적이에요.
+- **Token**: 언어 모델이 다루는 텍스트 조각. 띄어쓰기 단어와 같지 않아요 — '실습'이 '실'+'##습' 두 Token이 되기도 해요. Context 한도·요금의 단위.
+- **Tokenizer**: 문자열을 모델 규칙대로 Token으로 자르고 Vocabulary 번호(Token ID)로 바꾸는 도구. 모델마다 달라서 같은 문장도 Token 수가 달라요.
+- **Token ID** (Token ID (input_ids)): Token을 Vocabulary에서 찾은 정수 번호. 크기가 의미의 크기는 아니고, Embedding 표의 행 번호로 쓰여요. 벡터가 아니에요.
+- **Vocabulary**: Tokenizer가 아는 Token 목록. bert-base-multilingual-cased는 119,547개. LM Head는 이 전체 각각에 점수를 매겨요.
+- **WordPiece** (WordPiece / Subword Tokenization): 단어를 자주 나오는 조각으로 나누는 방식. ##은 '앞 조각에 붙어 있음' 표시. GPT 계열은 BPE 같은 다른 방식을 써요.
+- **Special Token**: 문장 시작·끝·빈칸·역할 등을 표시하는 구분용 Token. 이름·ID·사용 여부는 모델마다 달라요. Token 수에도 포함돼요.
+- **Truncation**: max_length를 넘는 Token을 잘라 버리는 것. 요약이 아니고 오류도 안 나서, 뒤쪽의 중요한 내용이 조용히 사라질 수 있어요.
+- **Attention Mask** (Attention Mask (Padding Mask)): 실제 Token과 PAD를 구분하는 표시. Tokenizer는 1 = 실제, PyTorch src_key_padding_mask는 True = 무시 — 뜻이 반대라 넘길 때 뒤집어요.
+- **Context Window**: 한 요청에서 모델이 참조하는 Token 범위. 시스템 지시·대화·검색 근거·출력까지 모두 이 예산을 나눠 써요. 영구 기억이 아니에요.
+- **Token Embedding**: Token ID를 행 번호로 써서 Embedding 표(어휘 수 × D)에서 꺼낸 벡터. 학습으로 값이 정해져요. 같은 ID면 위치와 상관없이 같은 벡터.
+- **Sentence Embedding**: 문장·문서 전체를 대표하는 벡터 하나. 의미가 가까운 문장 찾기·검색(RAG)에 써요. 모델이 그 언어를 알아야 의미 있는 점수가 나와요.
+- **Cosine Similarity**: 두 벡터의 방향이 얼마나 같은지 (-1~1). 길이는 무시해요. 높다고 답이 맞다는 뜻은 아니에요.
+- **RoPE** (Rotary Position Embedding): Attention 계산에서 Q·K를 위치만큼 회전시켜 상대 위치를 반영하는 방식. 고정 sin·cos(Sinusoidal), 학습형 위치 벡터와 함께 대표적인 위치 정보 방식.
+- **Transformer Block**: Self-Attention + FFN + Residual + Norm 묶음. 입력·출력 shape가 같아서 N층 쌓아요.
+- **FFN** (Position-wise Feed-Forward Network): 각 Token 벡터를 따로 비선형 변환하는 작은 신경망(선형→활성화→선형). Token끼리 섞지는 않아요.
+- **Decoder-only** (Decoder-only Transformer): Causal Attention으로 다음 Token을 생성하는 구조. 대부분의 대화형 LLM. Encoder(BERT)는 양방향으로 문장 표현을, Encoder–Decoder(T5)는 번역·요약에 주로 써요.
+- **Scaled Dot-Product Attention**: softmax(Q·Kᵀ/√d_k + Mask)·V. √d_k로 나눠 점수가 너무 커지는 걸 막아요. PyTorch F.scaled_dot_product_attention은 bool Mask의 True를 '참여'로 읽어요.
+- **LM Head**: 마지막 Hidden State(D차원)를 어휘 전체(V개) 점수(Logit)로 바꾸는 Linear 층.
+- **Temperature** (Temperature (Softmax 온도)): Logit을 나누는 값. 1보다 작으면 1등에 몰리고 크면 완만해져요. 순위는 안 바뀌고, 사실성을 높여 주지도 않아요.
+- **Top-k** (Top-k Sampling): 확률 상위 k개 후보만 남겨 다시 정규화한 뒤 그 안에서 뽑는 디코딩.
+- **Top-p** (Top-p (Nucleus) Sampling): 큰 확률부터 더해 누적이 p에 닿을 때까지의 후보만 남겨 뽑는 디코딩. 분포가 퍼지면 후보 수가 늘어요.
+- **Autoregressive** (Autoregressive Decoding): 고른 Token을 입력 끝에 붙여 다음 Token을 또 예측하는 반복 생성. 입력 전체를 처음 계산하는 Prefill과 이후 한 Token씩 처리하는 Decode로 나눠요.
+- **Causal Language Modeling**: 앞의 Token만 보고 다음 Token을 맞히도록 Loss를 줄이는 LLM의 대표 사전학습 방식.
+- **Instruction Tuning** (Instruction Tuning / Preference Alignment): 사전학습 뒤 지시→응답 예시로 추가 학습(Instruction Tuning)하거나, 사람이 고른 좋은 응답 쪽으로 조정(Preference Alignment). Prompting은 가중치를 안 바꾸고 입력만 바꿔요.
+- **Agent** (AI Agent): LLM에 도구 선택·상태·작업 단계 실행을 더한 처리 시스템. 실제 실행 권한·승인은 Backend가 판단해요.

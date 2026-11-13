@@ -24,6 +24,7 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 - [Day17 · FastAPI 지식 관리 API](https://yiji-1015.github.io/sesac-notes/notes/day17.html): 2026-11-10(화) · FastAPI · HTTP 요청/응답 · CRUD · Pydantic 검증 · JSON 파일 저장 · 상태 코드
 - [Day18 · PostgreSQL 입문 · 지식 관리 DB](https://yiji-1015.github.io/sesac-notes/notes/day18.html): 2026-11-11(수) · PostgreSQL · SQL · PK/FK · JOIN · 집계 · 제약조건 · 트랜잭션 · 인덱스
 - [Day19 · FastAPI–PostgreSQL 연동](https://yiji-1015.github.io/sesac-notes/notes/day19.html): 2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 처리 · Alembic Migration · 통합 검증
+- [Day20 · LLM 원리 — Token · Embedding · Attention](https://yiji-1015.github.io/sesac-notes/notes/day20.html): 2026-11-13(금) · LLM 생태계 · Tokenizer · Context Window · Embedding · Transformer Block · Self-Attention · 학습/추론 · 디코딩 · 한계와 검증
 
 ## 참고
 - 저장소(원본 HTML·그림 생성 스크립트): https://github.com/Yiji-1015/sesac-notes

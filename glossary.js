@@ -4772,16 +4772,21 @@ window.GLOSSARY = [
  {
   "term": "Causal Mask",
   "aliases": [
-   "attn_mask"
+   "attn_mask",
+   "is_causal",
+   "torch.triu"
   ],
   "full": "Causal Mask (인과 마스크)",
   "short": "다음 토큰을 예측할 때 미래 위치를 못 보게 가리는 Mask. 미래를 보면 정답을 미리 보는 셈이라서요.",
   "analogy": "시험 볼 때 다음 장을 넘겨 보지 못하게 하는 것.",
   "first": 12,
   "days": [
-   12
+   12,
+   20
   ],
-  "keyDays": []
+  "keyDays": [
+   20
+  ]
  },
  {
   "term": "토큰",
@@ -6233,16 +6238,20 @@ window.GLOSSARY = [
   "term": "LLM",
   "aliases": [
    "대규모 언어 모델",
-   "언어 모델"
+   "언어 모델",
+   "Large Language Model"
   ],
   "full": "Large Language Model",
   "short": "글 토큰을 보고 다음 토큰을 하나씩 만들어 내는 큰 언어 모델. VLM의 답 생성 부분이에요.",
   "analogy": "",
   "first": 16,
   "days": [
-   16
+   16,
+   20
   ],
-  "keyDays": []
+  "keyDays": [
+   20
+  ]
  },
  {
   "term": "do_sample",
@@ -7772,6 +7781,431 @@ window.GLOSSARY = [
   "first": 19,
   "days": [
    19
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "생성형 AI",
+  "aliases": [
+   "Generative AI"
+  ],
+  "full": "Generative AI",
+  "short": "학습한 패턴으로 텍스트·이미지·음성 등을 새로 만들어 내는 AI. LLM은 그중 언어를 다루는 것.",
+  "analogy": "많이 읽은 사람이 비슷한 문체로 새 글을 쓰는 것.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Foundation Model",
+  "aliases": [
+   "파운데이션 모델"
+  ],
+  "full": "Foundation Model",
+  "short": "대규모 데이터로 미리 학습해 두고 여러 작업에 가져다 쓰는 범용 모델. LLM이 대표적이에요.",
+  "analogy": "여러 요리에 쓰는 기본 육수.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Token",
+  "aliases": [
+   "토큰"
+  ],
+  "full": "Token",
+  "short": "언어 모델이 다루는 텍스트 조각. 띄어쓰기 단어와 같지 않아요 — '실습'이 '실'+'##습' 두 Token이 되기도 해요. Context 한도·요금의 단위.",
+  "analogy": "레고 조각 — 문장을 모델이 아는 크기로 쪼갠 것.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "Tokenizer",
+  "aliases": [
+   "AutoTokenizer",
+   "토크나이저"
+  ],
+  "full": "Tokenizer",
+  "short": "문자열을 모델 규칙대로 Token으로 자르고 Vocabulary 번호(Token ID)로 바꾸는 도구. 모델마다 달라서 같은 문장도 Token 수가 달라요.",
+  "analogy": "모델 전용 사전을 든 번역 접수 창구.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "Token ID",
+  "aliases": [
+   "input_ids"
+  ],
+  "full": "Token ID (input_ids)",
+  "short": "Token을 Vocabulary에서 찾은 정수 번호. 크기가 의미의 크기는 아니고, Embedding 표의 행 번호로 쓰여요. 벡터가 아니에요.",
+  "analogy": "사물함 번호 — 큰 번호가 더 중요한 게 아님.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "Vocabulary",
+  "aliases": [
+   "vocab",
+   "어휘 사전",
+   "vocab_size"
+  ],
+  "full": "Vocabulary",
+  "short": "Tokenizer가 아는 Token 목록. bert-base-multilingual-cased는 119,547개. LM Head는 이 전체 각각에 점수를 매겨요.",
+  "analogy": "모델이 쓸 수 있는 낱말 카드 전체.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "WordPiece",
+  "aliases": [
+   "##",
+   "BPE",
+   "Subword"
+  ],
+  "full": "WordPiece / Subword Tokenization",
+  "short": "단어를 자주 나오는 조각으로 나누는 방식. ##은 '앞 조각에 붙어 있음' 표시. GPT 계열은 BPE 같은 다른 방식을 써요.",
+  "analogy": "모르는 긴 단어를 아는 부분으로 끊어 읽기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Special Token",
+  "aliases": [
+   "[CLS]",
+   "[SEP]",
+   "[PAD]",
+   "BOS",
+   "EOS"
+  ],
+  "full": "Special Token",
+  "short": "문장 시작·끝·빈칸·역할 등을 표시하는 구분용 Token. 이름·ID·사용 여부는 모델마다 달라요. Token 수에도 포함돼요.",
+  "analogy": "편지의 '받는 사람'·'끝' 표시.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Truncation",
+  "aliases": [
+   "max_length",
+   "잘림"
+  ],
+  "full": "Truncation",
+  "short": "max_length를 넘는 Token을 잘라 버리는 것. 요약이 아니고 오류도 안 나서, 뒤쪽의 중요한 내용이 조용히 사라질 수 있어요.",
+  "analogy": "글자 수 제한 칸에 넣다 보니 뒷부분이 안 들어간 것.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Attention Mask",
+  "aliases": [
+   "attention_mask",
+   "Padding Mask",
+   "src_key_padding_mask"
+  ],
+  "full": "Attention Mask (Padding Mask)",
+  "short": "실제 Token과 PAD를 구분하는 표시. Tokenizer는 1 = 실제, PyTorch src_key_padding_mask는 True = 무시 — 뜻이 반대라 넘길 때 뒤집어요.",
+  "analogy": "빈 좌석에 붙인 '사람 없음' 표시.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Context Window",
+  "aliases": [
+   "컨텍스트 윈도우",
+   "문맥 예산"
+  ],
+  "full": "Context Window",
+  "short": "한 요청에서 모델이 참조하는 Token 범위. 시스템 지시·대화·검색 근거·출력까지 모두 이 예산을 나눠 써요. 영구 기억이 아니에요.",
+  "analogy": "책상 위 크기 — 올려놓을 수 있는 서류에 한도가 있고, 일이 끝나면 치워져요.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "Token Embedding",
+  "aliases": [
+   "nn.Embedding",
+   "Embedding Table"
+  ],
+  "full": "Token Embedding",
+  "short": "Token ID를 행 번호로 써서 Embedding 표(어휘 수 × D)에서 꺼낸 벡터. 학습으로 값이 정해져요. 같은 ID면 위치와 상관없이 같은 벡터.",
+  "analogy": "사물함 번호로 열면 나오는 '특징 카드'.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "Sentence Embedding",
+  "aliases": [
+   "문장 임베딩",
+   "SentenceTransformer",
+   "encode"
+  ],
+  "full": "Sentence Embedding",
+  "short": "문장·문서 전체를 대표하는 벡터 하나. 의미가 가까운 문장 찾기·검색(RAG)에 써요. 모델이 그 언어를 알아야 의미 있는 점수가 나와요.",
+  "analogy": "글 한 편을 지도 위 점 하나로 찍기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Cosine Similarity",
+  "aliases": [
+   "코사인 유사도",
+   "cosine_similarity"
+  ],
+  "full": "Cosine Similarity",
+  "short": "두 벡터의 방향이 얼마나 같은지 (-1~1). 길이는 무시해요. 높다고 답이 맞다는 뜻은 아니에요.",
+  "analogy": "두 화살표가 같은 쪽을 가리키는 정도.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "RoPE",
+  "aliases": [
+   "Rotary Position Embedding",
+   "Sinusoidal",
+   "Positional Encoding"
+  ],
+  "full": "Rotary Position Embedding",
+  "short": "Attention 계산에서 Q·K를 위치만큼 회전시켜 상대 위치를 반영하는 방식. 고정 sin·cos(Sinusoidal), 학습형 위치 벡터와 함께 대표적인 위치 정보 방식.",
+  "analogy": "시계바늘을 위치만큼 돌려 두면 두 바늘의 각도 차가 거리를 알려 줌.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Transformer Block",
+  "aliases": [
+   "Decoder Block",
+   "Encoder Block"
+  ],
+  "full": "Transformer Block",
+  "short": "Self-Attention + FFN + Residual + Norm 묶음. 입력·출력 shape가 같아서 N층 쌓아요.",
+  "analogy": "같은 공정 라인을 여러 번 통과시키며 다듬기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": [
+   20
+  ]
+ },
+ {
+  "term": "FFN",
+  "aliases": [
+   "Feed-Forward",
+   "Feed Forward Network",
+   "dim_feedforward"
+  ],
+  "full": "Position-wise Feed-Forward Network",
+  "short": "각 Token 벡터를 따로 비선형 변환하는 작은 신경망(선형→활성화→선형). Token끼리 섞지는 않아요.",
+  "analogy": "모아 온 정보를 각자 자기 책상에서 정리하기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Decoder-only",
+  "aliases": [
+   "Encoder-only",
+   "Encoder–Decoder"
+  ],
+  "full": "Decoder-only Transformer",
+  "short": "Causal Attention으로 다음 Token을 생성하는 구조. 대부분의 대화형 LLM. Encoder(BERT)는 양방향으로 문장 표현을, Encoder–Decoder(T5)는 번역·요약에 주로 써요.",
+  "analogy": "앞만 보고 이어 쓰는 작가 vs 문장을 다 읽고 요약하는 독자.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Scaled Dot-Product Attention",
+  "aliases": [
+   "SDPA",
+   "scaled_dot_product_attention",
+   "√d_k"
+  ],
+  "full": "Scaled Dot-Product Attention",
+  "short": "softmax(Q·Kᵀ/√d_k + Mask)·V. √d_k로 나눠 점수가 너무 커지는 걸 막아요. PyTorch F.scaled_dot_product_attention은 bool Mask의 True를 '참여'로 읽어요.",
+  "analogy": "점수 매기기 → 비율로 바꾸기 → 비율대로 섞기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LM Head",
+  "aliases": [
+   "Language Model Head"
+  ],
+  "full": "LM Head",
+  "short": "마지막 Hidden State(D차원)를 어휘 전체(V개) 점수(Logit)로 바꾸는 Linear 층.",
+  "analogy": "최종 표현을 단어별 점수판으로 옮겨 적는 단계.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Temperature",
+  "aliases": [
+   "temperature"
+  ],
+  "full": "Temperature (Softmax 온도)",
+  "short": "Logit을 나누는 값. 1보다 작으면 1등에 몰리고 크면 완만해져요. 순위는 안 바뀌고, 사실성을 높여 주지도 않아요.",
+  "analogy": "볼륨이 아니라 대비(contrast) 조절.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Top-k",
+  "aliases": [
+   "top_k"
+  ],
+  "full": "Top-k Sampling",
+  "short": "확률 상위 k개 후보만 남겨 다시 정규화한 뒤 그 안에서 뽑는 디코딩.",
+  "analogy": "결승 진출자 k명 중에서만 추첨.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Top-p",
+  "aliases": [
+   "top_p",
+   "Nucleus Sampling"
+  ],
+  "full": "Top-p (Nucleus) Sampling",
+  "short": "큰 확률부터 더해 누적이 p에 닿을 때까지의 후보만 남겨 뽑는 디코딩. 분포가 퍼지면 후보 수가 늘어요.",
+  "analogy": "득표율 합이 90%가 될 때까지의 후보만 결선에.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Autoregressive",
+  "aliases": [
+   "자기회귀",
+   "Prefill",
+   "Decode"
+  ],
+  "full": "Autoregressive Decoding",
+  "short": "고른 Token을 입력 끝에 붙여 다음 Token을 또 예측하는 반복 생성. 입력 전체를 처음 계산하는 Prefill과 이후 한 Token씩 처리하는 Decode로 나눠요.",
+  "analogy": "끝말잇기처럼 방금 한 말을 보고 다음 말을 이어 가기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Causal Language Modeling",
+  "aliases": [
+   "CLM",
+   "사전학습",
+   "Pretraining"
+  ],
+  "full": "Causal Language Modeling",
+  "short": "앞의 Token만 보고 다음 Token을 맞히도록 Loss를 줄이는 LLM의 대표 사전학습 방식.",
+  "analogy": "빈칸 다음 단어 맞히기를 엄청나게 많이 푸는 연습.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Instruction Tuning",
+  "aliases": [
+   "Preference Alignment",
+   "RLHF",
+   "Prompting"
+  ],
+  "full": "Instruction Tuning / Preference Alignment",
+  "short": "사전학습 뒤 지시→응답 예시로 추가 학습(Instruction Tuning)하거나, 사람이 고른 좋은 응답 쪽으로 조정(Preference Alignment). Prompting은 가중치를 안 바꾸고 입력만 바꿔요.",
+  "analogy": "다 배운 사람에게 업무 매뉴얼 교육 vs 그때그때 지시서 주기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Agent",
+  "aliases": [
+   "AI Agent",
+   "Tool"
+  ],
+  "full": "AI Agent",
+  "short": "LLM에 도구 선택·상태·작업 단계 실행을 더한 처리 시스템. 실제 실행 권한·승인은 Backend가 판단해요.",
+  "analogy": "제안하는 비서 + 결재를 거쳐야 움직이는 실행 팀.",
+  "first": 20,
+  "days": [
+   20
   ],
   "keyDays": []
  }
