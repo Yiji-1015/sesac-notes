@@ -495,11 +495,13 @@ def run_stream(events, cut):
     if final is None or stream_error is not None:
         outcome = "interrupted"
         gate = None
+        final_view = "interrupted"
     else:
+        final_view = f"final.status={final.status!r} · output_text {len(final.output_text)}자"
         raw, gate = completed_text(final)
         outcome = "validate 로" if gate is None else gate
     usage = None if final is None or final.usage is None else final.usage.total_tokens
-    return {"seen": seen, "parts": len(parts), "first_text": first_ms is not None, "outcome": outcome,
+    return {"seen": seen, "parts": len(parts), "first_text": first_ms is not None, "outcome": outcome, "final_view": final_view,
             "exc": exc, "usage_total": usage, "preview": "".join(parts)[:30]}
 
 
@@ -508,10 +510,10 @@ for k, (label, evs, cut) in STREAMS.items():
     r = run_stream(evs, cut)
     st_table.append({"key": k, "label": label, **r})
     st_rows.append((label,
-                    f'조각 {r["parts"]}개 · first_ms 관측={r["first_text"]} · outcome={r["outcome"]!r} · usage 합계={r["usage_total"]}'
+                    f'조각 {r["parts"]}개 · first_ms 관측={r["first_text"]} · {r["final_view"]} · usage 합계={r["usage_total"]}'
                     + (f' · 예외 {r["exc"]}' if r["exc"] else ""),
-                    {"completed": "최종 response 를 기존 검증기로", "cut": "보인 조각이 있어도 최종 Response·usage 없음",
-                     "incomplete": "끝났지만 미완성 — 부분 JSON 버림", "refusal": "거절 기록 · 형식 수정 요청 안 함",
+                    {"completed": "완료 + 원문 있음 → json.loads → model_validate 로", "cut": "보인 조각이 있어도 최종 Response·usage 없음",
+                     "incomplete": "끝났지만 미완성 — 부분 JSON 버림", "refusal": "status 는 completed 인데 텍스트 0자 — 거절 콘텐츠라서 (status 만 보면 안 되는 이유)",
                      "empty": "빈 조각은 첫 텍스트로 안 셈", "nodone": "조각은 다 왔어도 완료 확인 못 함",
                      "error": "error 이벤트 → interrupted"}[k]))
 RESULTS["stream"] = st_table
@@ -891,6 +893,9 @@ def box(title, rows):
 
 
 if __name__ == "__main__":
+    for _cid in ["d22-gate", "d22-rules", "d22-validator-bridge", "d22-inspect", "d22-wait-main",
+                 "d22-wait-appendix", "d22-bounded", "d22-cache-read", "d22-routing"]:
+        IO.pop(_cid, None)  # 명령어 사전에서 뺀 항목 (강의가 직접 만든 함수)
     for cid, (title, rows) in IO.items():
         print(f"== {cid}")
         for i, o, n in rows:

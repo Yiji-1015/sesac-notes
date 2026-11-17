@@ -15290,15 +15290,15 @@ Day17~19에 만든 지식 API·DB가 있고, Day20에 LLM이 "다음 Token을 �
 
 시도 횟수: 최초 응답 1회 + 형식 수정 1회 = 최대 2회. 앞 단계가 실패하면 뒤 단계는 하지 않아요(미수행).
 
-### 3. 함수별 입력 · 출력 · 보장하지 않는 것
+### 3. 단계별 입력 · 출력 · 보장하지 않는 것
 
-| 함수 | 입력 | 출력 | 보장하지 않는 것 |
+| 단계 | 입력 | 출력 | 보장하지 않는 것 |
 |---|---|---|---|
-| build_context | 원본 rows · 고른 ID 목록 | context_json (JSON 문자열) · 없는 ID·원본 중복이면 ValueError | 전달 권한 · 자료의 정확성 · 길이 |
+| 문맥 만들기 (json.dumps) | 원본 rows · 고른 ID 목록 | context_json (JSON 문자열) · 없는 ID·원본 중복이면 ValueError | 전달 권한 · 자료의 정확성 · 길이 |
 | T.substitute | 질문 · context_json · 계약 | 완성된 Prompt 문자열 · 빠진 값이면 KeyError | 모델이 지시를 지킨다는 것 |
-| parse_answer | 응답 원문 raw | (obj, None) 또는 (None, "json_error" \| "schema_error") | 출처가 이번 자료인지 · 내용이 맞는지 |
-| final_rules | obj · provided_ids | 오류 코드 또는 None | 인용 본문이 답을 뒷받침하는지 |
-| run_with_retry | generate · prompt · validate | (obj, history) 또는 (None, history) | 재시도가 없는 근거를 만들어 주는 것 |
+| 문법 · 구조 검사 (json.loads → model_validate) | 응답 원문 raw | 검사를 통과한 객체 또는 "json_error" · "schema_error" | 출처가 이번 자료인지 · 내용이 맞는지 |
+| 규칙 검사 (출처 범위 · 상태 조합) | obj · provided_ids | 오류 코드 또는 None | 인용 본문이 답을 뒷받침하는지 |
+| 재시도 (최초 + 형식 수정 1회) | 응답 · 검사 결과 | 통과한 객체 또는 없음 + 시도별 기록 history | 재시도가 없는 근거를 만들어 주는 것 |
 
 ### 4. 실행 기록 한 건 — 값 읽는 법
 
@@ -15488,7 +15488,7 @@ CoT(Chain-of-Thought)는 중간 풀이가 이어진 예제를 보여 주는 고�
 
 Context는 모델이 이번 응답을 만들 때 참고하도록 입력에 넣은 정보예요. Context Engineering은 그 정보를 고르고 배치하며, 출처 · 유효성 · 길이 · 제외 이유까지 관리하는 일이에요.
 
-[그림: DB의 지식 101·102·103 중 사람이 고른 101만 build_context로 context_json이 되고, provided_ids [101]이 출처 검사 범위가 됨. 위치 질문은 answered, 기간 질문은 insufficient_context] 무엇을 보나: DB에 세 건이 있어도 이번에 넣은 건 101 한 건이에요. 이 [101]이 곧 출처로 인정할 범위(provided_ids)가 돼요. 같은 101로도 위치 질문엔 답이, 기간 질문엔 정보 부족이 나와요. 🤔 DB에 있으면 LLM이 알아서 읽지 않아? 아니에요. LLM은 입력으로 받은 글자만 봐요. DB 연결은 앱이 해요.
+[그림: DB의 지식 101·102·103 중 사람이 고른 101만 JSON 문자열(context_json)이 되고, provided_ids [101]이 출처 검사 범위가 됨. 위치 질문은 answered, 기간 질문은 insufficient_context] 무엇을 보나: DB에 세 건이 있어도 이번에 넣은 건 101 한 건이에요. 이 [101]이 곧 출처로 인정할 범위(provided_ids)가 돼요. 같은 101로도 위치 질문엔 답이, 기간 질문엔 정보 부족이 나와요. 🤔 DB에 있으면 LLM이 알아서 읽지 않아? 아니에요. LLM은 입력으로 받은 글자만 봐요. DB 연결은 앱이 해요.
 
 ### 스냅샷 — 비교하는 동안 자료를 고정
 
@@ -15517,12 +15517,15 @@ restored = json.loads(context_json)                            # str → list
 
 ### 고른 ID만, 고른 순서대로
 
-🔧 build_context(rows, selected_ids) 명령어 사전에서 자세히 →
+강의 코드가 문맥을 만드는 순서예요.
 
-```
-ids = list(dict.fromkeys(selected_ids))        # 선택 중복 제거 · 순서 유지
-chosen = [by_id[i] for i in ids]               # 정렬하지 않음
-```
+- 원본 rows에 같은 ID가 두 번 있으면 오류 — 어느 쪽이 진짜인지 모르니까요.
+
+- 고른 ID 목록의 중복은 지우고, 처음 나온 순서는 그대로 둬요 (list(dict.fromkeys(ids))).
+
+- 원본에 없는 ID를 골랐으면 오류 — 조용히 빼면 "넣었다고 믿은 자료"가 사라져요.
+
+- 고른 순서대로 꺼내 json.dumps(…, ensure_ascii=False)로 문자열을 만들어요. 정렬하지 않아요.
 
 | 입력 (실제 실행) | 결과 | 왜 |
 |---|---|---|
@@ -15576,7 +15579,7 @@ context_sha256 = hashlib.sha256(snapshot_text.encode("utf-8")).hexdigest()
 
 ## 🧪 Prompt 조립기
 
-질문을 고르고, 넣을 지식을 누르는 순서대로 골라 보세요. 강의의 build_context와 Template이 만드는 문자열을 그대로 보여 줘요. 모델은 부르지 않아요.
+질문을 고르고, 넣을 지식을 누르는 순서대로 골라 보세요. 강의의 문맥 만들기 순서와 Template이 만드는 문자열을 그대로 보여 줘요. 모델은 부르지 않아요.
 
 ## ⑤ 응답 비교 · 평가
 
@@ -15685,24 +15688,28 @@ schema = KnowledgeAnswer.model_json_schema()
 
 ### 응답 하나를 네 단계로
 
-| 단계 | 질문 | 누가 | 함수 |
+| 단계 | 질문 | 누가 | 실패하면 |
 |---|---|---|---|
-| ① 문법 | JSON으로 읽히나? | 코드 | parse_answer → json_error |
-| ② 구조 | 계약의 필드·자료형인가? | 코드 | parse_answer → schema_error |
-| ③ 규칙 | 이번에 준 ID인가? 상태 조합이 맞나? | 코드 | final_rules |
-| ④ 근거 | 인용 본문이 답을 뒷받침하나? | 사람 | — (evidence_ok) |
+| ① 문법 | JSON으로 읽히나? | 코드 (json.loads) | json_error |
+| ② 구조 | 계약의 필드·자료형인가? | 코드 (model_validate) | schema_error |
+| ③ 규칙 | 이번에 준 ID인가? 상태 조합이 맞나? | 코드 (규칙 비교) | unknown_source · status_rule 등 |
+| ④ 근거 | 인용 본문이 답을 뒷받침하나? | 사람 | evidence_ok = False |
 
-🔧 parse_answer — 문법 실패와 구조 실패를 다른 코드로 명령어 사전에서 자세히 →
+🔧 json.loads → model_validate — 문법 실패와 구조 실패를 다른 코드로 명령어 사전에서 자세히 →
 
 ```
-try: data = load_json(raw)
-except ValueError: return None, "json_error"
-try: obj = KnowledgeAnswer.model_validate(data)
-except ValidationError: return None, "schema_error"
-return obj, None
+try:
+    data = json.loads(raw)                          # ① 문법
+except ValueError:                                  # JSONDecodeError도 ValueError
+    error = "json_error"
+else:
+    try:
+        obj = KnowledgeAnswer.model_validate(data)  # ② 구조 · 자료형
+    except ValidationError:
+        error = "schema_error"
 ```
 
-[그림: 샘플 응답 14개를 네 단계 검사에 넣은 결과표. 정상 답변·정상 정보 부족·잘못된 인용 세 개만 자동 검사를 통과하고, 잘못된 인용은 근거 단계에서 불일치] 무엇을 보나: 강의 자료의 샘플 응답 14개를 실제 검사 함수에 넣은 결과예요(엄격 파서 사용). 빨간 칸에서 멈추고 오른쪽은 미수행(—)이에요. 자동 검사를 끝까지 통과한 건 3개인데, 그중 "ID는 있으나 잘못된 인용"은 ①~③을 다 통과하고 ④ 사람 검토에서만 걸려요. 🤔 왜? 서버 위치를 답하면서 101(파일 보관 자료)을 인용했어요. 101은 이번에 준 ID가 맞으니 참조 검사는 통과 — 하지만 본문은 그 답의 근거가 아니에요.
+[그림: 샘플 응답 14개를 네 단계 검사에 넣은 결과표. 정상 답변·정상 정보 부족·잘못된 인용 세 개만 자동 검사를 통과하고, 잘못된 인용은 근거 단계에서 불일치] 무엇을 보나: 강의 자료의 샘플 응답 14개를 네 단계 검사에 실제로 넣은 결과예요(엄격 파서 사용). 빨간 칸에서 멈추고 오른쪽은 미수행(—)이에요. 자동 검사를 끝까지 통과한 건 3개인데, 그중 "ID는 있으나 잘못된 인용"은 ①~③을 다 통과하고 ④ 사람 검토에서만 걸려요. 🤔 왜? 서버 위치를 답하면서 101(파일 보관 자료)을 인용했어요. 101은 이번에 준 ID가 맞으니 참조 검사는 통과 — 하지만 본문은 그 답의 근거가 아니에요.
 
 ⚠️ 자동 검사 통과 ≠ 답의 정확성. 출처 ID가 존재하는 것과 그 본문이 답을 뒷받침하는 것은 별개예요. 인용이 붙었다고 맞는 답이 아니에요 — 질문 · 답의 주장 · 인용 본문을 함께 대조해요.
 
@@ -15711,7 +15718,7 @@ return obj, None
 🔧 엄격 파서 — 중복 키 · NaN 거부 명령어 사전에서 자세히 →
 
 ```
-json.loads(raw, parse_constant=reject_constant, object_pairs_hook=unique_object)
+json.loads(raw, parse_constant=…, object_pairs_hook=…)   # 두 인자에 "거부하는 콜백"을 넘김
 ```
 
 | 샘플 | 기본 json.loads (실제) | 엄격 파서 (실제) |
@@ -15721,43 +15728,50 @@ json.loads(raw, parse_constant=reject_constant, object_pairs_hook=unique_object)
 
 ### 출처 범위 · 상태 조합 규칙
 
-🔧 check_rules · final_rules 명령어 사전에서 자세히 →
+①② 를 통과한 객체에 강의 코드가 차례로 확인하는 규칙이에요. 처음 걸린 곳에서 멈춰요.
 
-```
-if not set(ids) <= set(provided_ids): return "unknown_source"
-if obj.status == "answered" and (not ids or obj.missing_information != ""): return "status_rule"
-```
+| 순서 | 확인 | 걸리면 |
+|---|---|---|
+| 1 | source_ids에 같은 ID가 두 번 | duplicate_source |
+| 2 | 이번에 준 ID 밖을 인용 (set(ids) <= set(provided_ids)가 False) | unknown_source |
+| 3 | answered인데 출처가 없거나 missing_information이 채워짐 · insufficient_context인데 출처가 있거나 missing_information이 비었음 | status_rule |
+| 4 | answer가 공백뿐 | blank_answer |
+| 5 | insufficient_context인데 answer가 고정 안내문이 아님 | status_rule |
 
 insufficient_context인데 source_ids: [101]이면 문법 오류일까요, 규칙 위반일까요? → 자료형은 다 맞으니 ①② 통과, ③에서 status_rule이에요. "정보가 부족하다면서 근거는 있다"는 모순이라서요. 공백 세 칸짜리 answer도 길이는 3이라 ②를 통과하고 ③의 blank_answer에서 걸려요.
 
-🔧 세 자동 단계 연결 · 테스트 명령어 사전에서 자세히 →
+①→②→③을 이어서 하나라도 실패하면 거기서 멈추고, 모두 통과해도 evidence_ok는 아직 None이에요.
+
+🔧 pytest.mark.parametrize — 실패 입력 여러 개 명령어 사전에서 자세히 →
 
 ```
-obj, error = validate_answer(raw, provided_ids, load_json_strict)   # 통과해도 evidence_ok는 None
+@pytest.mark.parametrize("raw, expected", [('{"status":', json.JSONDecodeError), ('{}', ValidationError)])
+def test_invalid_outputs(raw, expected):
+    with pytest.raises(expected):
+        KnowledgeAnswer.model_validate(json.loads(raw))
 ```
 
-강의의 pytest 테스트(실패 입력 2개)도 실제로 돌려 보니 2 passed였어요. 테스트 통과 수는 검사기의 동작을 보여 줄 뿐, 모델 품질 점수로 바꾸지 않아요.
+실패 입력 2개로 실제로 pytest를 돌려 보니 2 passed였어요. 테스트 통과 수는 검사기의 동작을 보여 줄 뿐, 모델 품질 점수로 바꾸지 않아요.
 
 ## 🧪 출력 검증기
 
-샘플 응답을 고르거나 직접 고쳐서 네 단계 검사를 돌려 보세요. 강의의 parse_answer · final_rules를 브라우저로 옮긴 거라, 14개 샘플의 결과가 위 표(Python 실제 실행)와 같아요.
+샘플 응답을 고르거나 직접 고쳐서 네 단계 검사를 돌려 보세요. 강의의 네 단계 검사를 브라우저로 옮긴 거라, 14개 샘플의 결과가 위 표(Python 실제 실행)와 같아요.
 
 ## ⑦ 재시도 · 중단 — 다시 물을까, 멈출까
 
 [그림: 응답 → validate → 통과면 근거 검토, 형식 오류면 수정 요청 1회 후 다시 검사(통과면 검토, 실패면 중단), 규칙 위반이면 바로 중단] 무엇을 보나: 검사 결과에 따라 길이 셋으로 갈려요. 형식 오류(노랑)만 한 번 더 기회를 주고, 규칙 위반(빨강)은 바로 멈춰요. 🤔 왜 규칙 위반은 다시 안 물어? 깨진 괄호는 고칠 수 있지만, 없는 근거는 몇 번을 다시 물어도 생기지 않아요. 오히려 "다른 ID로 바꿔 넣기" 같은 엉뚱한 수정을 부를 수 있어요.
 
-🔧 run_with_retry — 최대 2회 명령어 사전에서 자세히 →
+강의 코드의 재시도 순서예요 (최대 2회).
 
-```
-for attempt in (1, 2):
-    obj, error = validate(generate(prompt))
-    if error is None: return obj, history
-    if error not in {"json_error", "schema_error"}: break
-    prompt = repair_prompt(prompt, error)
-return None, history
-```
+- 응답을 받아 ①~③ 검사를 해요. 시도 번호와 오류를 history에 남겨요.
 
-| 가짜 generate가 돌려준 샘플 (실제 실행) | 반환 | 호출 수 |
+- 오류가 없으면 끝 → 사람 근거 검토로.
+
+- 오류가 json_error · schema_error(형식 오류)이고 첫 시도였다면, 수정 요청을 붙여 한 번만 다시 받아요.
+
+- 그 밖의 오류(규칙 위반)거나 두 번째 시도도 실패면 중단 — 결과 없음 + history.
+
+| 차례로 받은 샘플 응답 (실제 실행) | 결과 | 받은 횟수 |
 |---|---|---|
 | 정상 답변 | obj | 1 |
 | 정상 정보 부족 | obj — 정보 부족도 정상 종료 | 1 |
@@ -15765,7 +15779,7 @@ return None, history
 | 괄호 누락 → 문자열 "101" | None · history [json_error, schema_error] | 2 (한도) |
 | 제공하지 않은 999 (다음 응답이 정상이었더라도) | None · history [unknown_source] | 1 — 바로 중단 |
 
-generate는 샘플을 차례로 돌려주는 가짜 함수, repair_prompt는 원래 Prompt 뒤에 아래 수정 요청을 붙이는 최소 구현이에요(강의는 이름만 연결).
+모델 대신 샘플 응답을 차례로 돌려주게 해서 돌렸어요. 수정 요청은 원래 Prompt 뒤에 아래 문장을 붙인 거예요.
 
 ### 수정 요청에는 확인된 오류만
 
@@ -15793,15 +15807,15 @@ history = [{"attempt": 1, "error": "json_error"}, {"attempt": 2, "error": None}]
 
 수정 응답만 남기면 첫 응답의 품질을 A/B로 비교할 수 없어요. "첫 응답 통과율"과 "수정 후 통과율"을 따로 세요. 그리고 오류가 None이어도 근거 검토는 아직이에요.
 
-## ⑧ 전체 연결 — 각 함수가 만드는 것과 보장하지 않는 것
+## ⑧ 전체 연결 — 각 단계가 만드는 것과 보장하지 않는 것
 
 | 단계 | 만드는 것 | 보장하지 않는 것 |
 |---|---|---|
 | Template | 완성된 Prompt 문자열 | 모델이 지시를 지킴 |
-| build_context | 고른 자료의 JSON · provided_ids | 권한 · 정확성 · 길이 |
+| 문맥 만들기 | 고른 자료의 JSON · provided_ids | 권한 · 정확성 · 길이 |
 | LLM (11/17) | 응답 원문 | 형식 · 사실 |
-| parse_answer · final_rules | 통과한 객체 또는 오류 코드 | 근거 적합성 |
-| run_with_retry | 객체 또는 None + 시도 기록 | 없는 근거 |
+| 문법 · 구조 · 규칙 검사 | 통과한 객체 또는 오류 코드 | 근거 적합성 |
+| 재시도 (형식 수정 1회) | 객체 또는 없음 + 시도 기록 | 없는 근거 |
 | 사람의 근거 검토 · A/B | evidence_ok · 비교표 · 실패 기록 · 개선 가설 | B가 이긴다는 것 |
 
 💡 오늘 평가 대상은 "B의 점수가 높은가"보다 비교 조건 · 검증 결과 · 중단 기준을 정확히 설명할 수 있는가예요. 모델의 답이 틀렸어도 실패를 정확히 기록했다면, 다음에 무엇을 고칠지 알 수 있어요.
@@ -15832,10 +15846,10 @@ history = [{"attempt": 1, "error": "json_error"}, {"attempt": 2, "error": None}]
 | ① Prompt · Template | string.Template · $question · substitute(), 여섯 요소 "\n\n".join(...) |
 | ② Zero/Few-shot · 버전 · A/B | 예제 구역 분리, experiment = {...} 버전 기록 |
 | ③ 추론 근거 · 작업 분해 | 작업 지시 문자열 (최종 JSON만) |
-| ④ Context Engineering | deepcopy, build_context(), json.dumps(ensure_ascii=False), 예산 계산, hashlib.sha256 |
+| ④ Context Engineering | deepcopy, json.dumps(ensure_ascii=False), 예산 계산, hashlib.sha256 |
 | ⑤ 응답 비교 · 평가 | 실행 기록 run = {...}, 분모 · None 지표 |
-| ⑥ 출력 검증 | json.loads, KnowledgeAnswer(BaseModel), model_json_schema(), parse_answer, check_rules · final_rules, pytest.mark.parametrize |
-| ⑦ 재시도 · 중단 | repair_instruction, run_with_retry(), 시도별 history |
+| ⑥ 출력 검증 | json.loads, KnowledgeAnswer(BaseModel), model_json_schema(), model_validate · ValidationError, json.loads(parse_constant=, object_pairs_hook=), pytest.mark.parametrize |
+| ⑦ 재시도 · 중단 | repair_instruction 문자열, 시도별 history |
 
 ### 설치 · 버전 확인
 
@@ -16111,42 +16125,6 @@ assert restored == selected_rows
 | ensure_ascii=False | 한글을 \uXXXX로 바꾸지 않고 그대로 |
 | json.loads(s) | 역직렬화: JSON 문자열 → Python 자료 |
 
-### build_context() — 고른 ID만, 고른 순서대로
-
-```
-import json
-
-def build_context(rows, selected_ids):
-    by_id = {row["id"]: row for row in rows}
-    if len(by_id) != len(rows):                 # 원본 ID 중복
-        raise ValueError("중복 ID를 확인하세요")
-    ids = list(dict.fromkeys(selected_ids))     # 선택 중복 제거 · 순서 유지
-    if any(i not in by_id for i in ids):        # 없는 ID
-        raise ValueError("선택한 ID가 없습니다")
-    chosen = [by_id[i] for i in ids]            # 정렬하지 않음
-    return json.dumps(chosen, ensure_ascii=False)
-
-context_json = build_context(knowledge, [102])
-```
-
-▶ 실제로 돌려 보면 강의 함수 그대로 · 지식 101~103 (교안 고정 자료)
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| build_context(knowledge, [102]) | [{"id": 102, "content": "프로젝트 폴더에서 서버를 실행합니다."}] | 고른 1건만 — 101·103은 이번 출처 범위 밖 |
-| build_context(knowledge, [102, 101, 102]) # ID만 | [102, 101] | 선택 목록 중복은 제거 · 처음 나온 순서 유지(정렬 안 함) |
-| build_context(knowledge, [999]) | ValueError: 선택한 ID가 없습니다 | 없는 ID를 조용히 빼지 않음 |
-| build_context(knowledge + [knowledge[0]], [101]) | ValueError: 중복 ID를 확인하세요 | 원본 rows 중복은 오류 — 선택 목록 중복과 다르게 처리 |
-| build_context(knowledge, []) | [] | 아무것도 안 골라도 오류는 아님 → 빈 문맥 '[]' |
-
-| 코드 | 뜻 |
-|---|---|
-| {row["id"]: row …} | ID로 바로 찾는 dict — 같은 ID가 둘이면 나중 것이 덮어써서 길이가 줄어듦 |
-| dict.fromkeys(ids) | 처음 나온 순서를 지키며 중복 제거하는 관용구 |
-| raise ValueError | 잘못된 입력을 조용히 넘기지 않고 오류로 알림 |
-
-⚠️ 이 함수는 전달 권한 · 원본 스키마 · 크기를 확인하지 않아요. 교육용 함수 밖의 책임이에요.
-
 ### Token 예산 — 출력 공간부터 남기기
 
 ```
@@ -16394,25 +16372,26 @@ Path("answer_schema.json").write_text(
 
 💡 특정 LLM API가 이 Schema를 그대로 지원하는지는 공급자마다 달라요. 내일(11/17) 확인할 일이에요.
 
-### parse_answer() — 문법 실패와 구조 실패 나누기
+### json.loads → model_validate — 문법 실패와 구조 실패 나누기
 
 ```
 import json
 from pydantic import ValidationError
 
-def parse_answer(raw, load_json=json.loads):
-    try:
-        data = load_json(raw)                       # 1. 문법
-    except ValueError:
-        return None, "json_error"
+obj, error = None, None
+try:
+    data = json.loads(raw)                          # 1. 문법
+except ValueError:
+    error = "json_error"
+else:
     try:
         obj = KnowledgeAnswer.model_validate(data)  # 2. 구조 · 자료형
     except ValidationError:
-        return None, "schema_error"
-    return obj, None                                # 출처 · 내용은 아직
+        error = "schema_error"
+# error가 None이어도 출처 · 내용은 아직
 ```
 
-▶ 실제로 돌려 보면 강의 parse_answer 그대로 · 입력은 교안 데모의 샘플 응답(fixture) 14개
+▶ 실제로 돌려 보면 json.loads → model_validate 두 단계 · 입력은 교안 데모의 샘플 응답(fixture) 14개
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -16431,19 +16410,20 @@ def parse_answer(raw, load_json=json.loads):
 | JSON 키 중복 | obj, None | 기본 json.loads는 마지막 값으로 덮어씀 → 통과 |
 | 비표준 NaN | None, schema_error | 기본 json.loads는 NaN을 float로 읽음 → 구조 단계에서 거부 |
 
-| 반환 | 뜻 |
+| 부분 | 뜻 |
 |---|---|
-| (None, "json_error") | JSON으로 못 읽음 — 객체 없음 |
-| (None, "schema_error") | 읽었지만 계약 구조가 아님 |
-| (obj, None) | 두 단계 통과 — 근거 평가 완료가 아님 |
+| json.loads(raw) | 문자열 → Python 객체. 못 읽으면 json.JSONDecodeError |
 | except ValueError | JSONDecodeError는 ValueError의 자식이라 이것으로 같이 잡힘 |
-| load_json= | 파서를 바꿔 끼울 자리 (아래 엄격 파서) |
+| Model.model_validate(data) | Pydantic v2 — dict를 계약대로 검사해 객체로. 어긋나면 ValidationError |
+| try … except … else | else는 예외가 없을 때만 실행 — 문법이 통과해야 구조를 봐요 |
+| error is None | 두 단계 통과 — 근거 평가 완료가 아님 |
 
-### 엄격한 JSON 파서 — 중복 키 · NaN 거부
+### json.loads(parse_constant=, object_pairs_hook=) — 중복 키 · NaN 거부
 
 ```
 import json
 
+# json.loads가 불러 줄 콜백 두 개 (이름은 자유)
 def reject_constant(value):
     raise ValueError("비표준 수치")
 def unique_object(pairs):
@@ -16454,115 +16434,40 @@ def unique_object(pairs):
         result[key] = value
     return result
 
-def load_json_strict(raw):
-    return json.loads(raw, parse_constant=reject_constant,
-                      object_pairs_hook=unique_object)
-# parse_answer(raw, load_json=load_json_strict)
+data = json.loads(raw, parse_constant=reject_constant,
+                  object_pairs_hook=unique_object)
 ```
 
-▶ 실제로 돌려 보면 강의 load_json_strict 그대로 · 같은 fixture
+▶ 실제로 돌려 보면 강의 콜백 두 개를 json.loads에 지정 · 같은 fixture
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
 | JSON 키 중복 — json.loads | '개인 폴더에 보관합니다.' | 앞의 값이 조용히 사라짐 |
-| JSON 키 중복 — load_json_strict | ValueError: 중복 JSON 키 | 중복을 오류로 |
+| JSON 키 중복 — 콜백 지정 | ValueError: 중복 JSON 키 | 중복을 오류로 |
 | NaN — json.loads | [nan] | Python 기본 파서는 NaN을 받아 줌(표준 JSON 아님) |
-| NaN — load_json_strict | ValueError: 비표준 수치 | 비표준 수치 거부 |
-| parse_answer(키 중복, load_json=load_json_strict) | json_error | 기본이면 통과(None) → 엄격이면 json_error |
+| NaN — 콜백 지정 | ValueError: 비표준 수치 | 비표준 수치 거부 |
+| 키 중복 · 콜백 지정 → 위 try/except | json_error | 기본이면 통과(None) → 엄격이면 json_error |
 
 | 인자 | 뜻 |
 |---|---|
 | parse_constant | NaN · Infinity · -Infinity를 만났을 때 부를 함수 — 여기선 거부 |
 | object_pairs_hook | 객체를 dict로 만들기 전 (키, 값) 쌍 목록을 받는 함수 — 중복 키 검사 |
+| 콜백에서 raise ValueError | json.loads 밖으로 그대로 나옴 → 위 except ValueError가 json_error로 잡음 |
 
-### check_rules() · final_rules() — 출처 범위 · 상태 조합
-
-```
-def check_rules(obj, provided_ids):
-    ids = obj.source_ids
-    if len(ids) != len(set(ids)):
-        return "duplicate_source"
-    if not set(ids) <= set(provided_ids):
-        return "unknown_source"
-    if obj.status == "answered":
-        if not ids or obj.missing_information != "":
-            return "status_rule"
-    else:
-        if ids or not obj.missing_information.strip():
-            return "status_rule"
-    return None
-
-def final_rules(obj, provided_ids):
-    error = check_rules(obj, provided_ids)
-    if error:
-        return error
-    if not obj.answer.strip():
-        return "blank_answer"
-    if obj.status == "insufficient_context":
-        if obj.answer != "제공된 지식으로는 답할 수 없습니다.":
-            return "status_rule"
-    return None   # 자동 규칙 통과 ≠ 의미 검증 완료
-```
-
-▶ 실제로 돌려 보면 강의 check_rules · final_rules 그대로 · 구조 검사를 통과한 fixture만
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 정상 답변 · provided_ids=[101] | None | None = 자동 규칙 통과 (의미 검증 완료 아님) |
-| 정상 정보 부족 · provided_ids=[101] | None | 정보 부족 + 출처 [] + 필요한 정보 → 정상 |
-| 제공하지 않은 999 · provided_ids=[101] | unknown_source | 999는 이번에 준 ID가 아님 |
-| 출처 ID 중복 · provided_ids=[101] | duplicate_source | [101, 101] |
-| 상태 조합 위반 · provided_ids=[101] | status_rule | 정보 부족인데 출처 [101] |
-| 공백만 있는 answer · provided_ids=[101] | blank_answer | 공백만 있는 답 |
-| ID는 있으나 잘못된 인용 · provided_ids=[101, 102, 103] | None | ⚠️ 통과 — 101은 이번에 준 ID라서. 하지만 101은 '파일 보관' 자료 |
-| JSON 키 중복 · provided_ids=[101] | None | 기본 파서로 읽었다면 여기까지 통과 |
-
-| 코드 | 뜻 |
-|---|---|
-| provided_ids | 이번 Prompt에 실제로 넣은 지식 ID |
-| source_ids | 응답이 인용한 ID |
-| set(ids) <= set(provided_ids) | 부분집합 검사 — 인용이 전부 제공 범위 안인가 |
-| .strip() | 앞뒤 공백 제거 — 공백만 있으면 빈 문자열 |
-
-### validate_answer() — 세 자동 단계 연결
+### pytest.mark.parametrize — 실패 입력 여러 개를 한 테스트로
 
 ```
-def validate_answer(raw, provided_ids, load_json):
-    obj, error = parse_answer(raw, load_json=load_json)
-    if error is not None:
-        return None, error          # 앞 단계 실패 → 뒤 규칙은 안 함
-    error = final_rules(obj, provided_ids)
-    if error is not None:
-        return None, error
-    return obj, None                # evidence_ok는 여전히 None
-```
-
-▶ 실제로 돌려 보면 validate_answer(raw, provided_ids, load_json_strict) · fixture 14개 실제 결과
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 오류 코드별 개수 | schema_error 4, None 3, json_error 3, unknown_source 1, duplicate_source 1, status_rule 1, blank_answer 1 | 자동 검사를 통과한 None은 3개 |
-| 통과한 3개 | 정상 답변, 정상 정보 부족, ID는 있으나 잘못된 인용 | 그중 '잘못된 인용'은 사람 근거 검토에서만 걸러져요 |
-
-| None의 위치 | 뜻 |
-|---|---|
-| obj가 None | 통과한 객체가 없음 |
-| error가 None | 그 검사에서 오류 없음 |
-| evidence_ok가 None | 사람의 근거 평가를 아직 안 함 |
-
-### pytest.mark.parametrize — 같은 검증기에 실패 입력 여러 개
-
-```
+import json
 import pytest
+from pydantic import ValidationError
 
 @pytest.mark.parametrize("raw, expected", [
-    ('{"status":', "json_error"),
-    ('{}', "schema_error"),
+    ('{"status":', json.JSONDecodeError),   # 문법 실패
+    ('{}', ValidationError),                # 구조 실패
 ])
 def test_invalid_outputs(raw, expected):
-    obj, error = parse_answer(raw)
-    assert obj is None
-    assert error == expected
+    with pytest.raises(expected):
+        KnowledgeAnswer.model_validate(json.loads(raw))
 ```
 
 ▶ 실제로 돌려 보면 강의 테스트 그대로 실제 pytest 실행
@@ -16570,12 +16475,12 @@ def test_invalid_outputs(raw, expected):
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
 | python -m pytest -q test_answer.py | 2 passed in …s | 같은 함수에 실패 입력 2개를 대조 |
-| --collect-only | test_invalid_outputs[{"status":-json_error], test_invalid_outputs[{}-schema_error] | parametrize가 케이스마다 테스트를 하나씩 만듦 |
+| --collect-only | test_invalid_outputs[{"status":-JSONDecodeError], test_invalid_outputs[{}-ValidationError] | parametrize가 케이스마다 테스트를 하나씩 만듦 |
 
 | 부분 | 뜻 |
 |---|---|
 | parametrize("raw, expected", [...]) | 목록의 쌍마다 테스트를 한 번씩 — 함수는 하나 |
-| assert | 틀리면 그 케이스 실패 |
+| with pytest.raises(예외) | 블록 안에서 그 예외가 나야 통과 · 안 나거나 다른 예외면 실패 |
 | python -m pytest -q 파일 | test_로 시작하는 함수를 찾아 실행 · -q는 짧게 |
 
 ⚠️ 테스트 통과 수는 검사기가 제대로 동작한다는 증거예요. 모델이 잘 답한다는 점수로 바꾸지 않아요.
@@ -16606,43 +16511,6 @@ repair_instruction = """[수정 요청]
 | 넣는 것 | 넣지 않는 것 |
 |---|---|
 | 같은 질문 · 문맥 · 계약 + 미리 정한 안전한 오류 요약 | 전체 traceback · 파일 경로 · 비밀 값 |
-
-### run_with_retry() — 최초 1회 + 형식 수정 1회
-
-```
-def run_with_retry(generate, prompt, validate):
-    history = []
-    for attempt in (1, 2):                       # 최대 두 번
-        raw = generate(prompt)
-        obj, error = validate(raw)
-        history.append({"attempt": attempt, "error": error})
-        if error is None:
-            return obj, history                  # → 사람 근거 검토로
-        if error not in {"json_error", "schema_error"}:
-            break                                # 규칙 위반은 재생성 안 함
-        if attempt == 2:
-            break
-        prompt = repair_prompt(prompt, error)
-    return None, history                         # 실패를 성공으로 돌려주지 않음
-```
-
-▶ 실제로 돌려 보면 강의 run_with_retry 그대로 · generate = fixture를 차례로 돌려주는 가짜 함수 (모델 호출 없음)
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 응답: 정상 | obj, 호출 1회 | 1회에 통과 → 근거 검토로 |
-| 응답: 정상 정보 부족 | obj, 호출 1회 | 정보 부족도 정상 종료 — 다시 묻지 않음 |
-| 응답: 괄호 누락 → 정상 | obj, [{"attempt": 1, "error": "json_error"}, {"attempt": 2, "error": None}] | 형식 오류 → 수정 요청 1회 (2번째 입력에 수정 요청 포함=True) |
-| 응답: 괄호 누락 → 문자열 "101" | None, [{"attempt": 1, "error": "json_error"}, {"attempt": 2, "error": "schema_error"}] | 두 번 다 형식 실패 → None (최대 2회) |
-| 응답: 제공하지 않은 999 (다음 응답은 정상이었더라도) | None, 호출 1회, [{"attempt": 1, "error": "unknown_source"}] | 규칙 위반은 자동 재생성 안 함 — 바로 중단 |
-
-| 오류 | 다음 행동 |
-|---|---|
-| json_error · schema_error | 같은 조건으로 형식 수정 1회 → 다시 검사 |
-| unknown_source · duplicate_source · status_rule · blank_answer | 바로 중단 — 문맥 · 규칙을 사람이 점검 |
-| 정상 정보 부족 | 정상 종료 — 답이 나올 때까지 반복하지 않음 |
-
-실행할 때 generate는 교안의 샘플 응답을 차례로 돌려주는 가짜 함수, repair_prompt는 원래 Prompt 뒤에 위 수정 요청을 붙이는 최소 구현을 썼어요(교안은 이름만 연결).
 
 ### 시도별 기록 — 첫 실패를 지우지 않기
 
@@ -16750,7 +16618,7 @@ python -m pip show openai pydantic python-dotenv   # 없는 것만 python -m pip
 |---|---|---|
 | 11/10~12 Day17~19 | FastAPI + PostgreSQL 지식 API | 원본 지식 101~103 |
 | 11/13 Day20 | LLM 원리 | Token · KV Cache · 디코딩 |
-| 11/16 Day21 | Prompt · Context · 출력 검증 | 그대로 재사용 (Prompt · KnowledgeAnswer · check_rules) |
+| 11/16 Day21 | Prompt · Context · 출력 검증 | 그대로 재사용 (Prompt · KnowledgeAnswer · 출처·상태 규칙) |
 | 11/17 오늘 | LLM API 클라이언트 | 실제 호출 · Streaming · 오류 · 비용 · 캐시 · 모델 선택 |
 | 이후 | 11/18 Embedding·Vector DB → 11/19 Chunking → 11/20 RAG | "어떤 지식을 넣을까"를 검색이 고르기 |
 
@@ -16800,16 +16668,16 @@ python -m pip show openai pydantic python-dotenv   # 없는 것만 python -m pip
 | JSON · Schema 오류 | — (200 응답) | 형식 수정 생성 1회 | 3번째 생성 |
 | 출처 · 상태 규칙 위반 | — (200 응답) | 중단 | 다시 물어 근거를 '만들기' |
 
-### 4. 함수별 입력 · 출력 · 보장하지 않는 것
+### 4. 단계별 입력 · 출력 · 보장하지 않는 것
 
-| 함수 | 입력 → 출력 | 보장하지 않는 것 |
+| 단계 | 입력 → 출력 | 보장하지 않는 것 |
 |---|---|---|
-| completed_text(response) | Response → (원문, None) 또는 (None, "refusal"\|status\|"empty_output") | JSON 문법 · 내용 |
-| inspect_answer(raw, provided_ids) | 원문 → {auto_status, answer_object, error} | 근거 적합성 |
-| choose_model(mode) | "fast"\|"quality" → (모델 ID, route_reason), 그 외 ValueError | 품질 · 속도 우열, 실제 사용 권한 |
-| retry_delay(…) · 대기 판단 | attempt · Retry-After · 남은 예산 → 대기 초 또는 deferred/attempt_limit | 다음 전송의 성공 |
+| 완료 판정 (response.status · output_text) | Response → 원문 또는 "refusal" · status 값 · "empty_output" | JSON 문법 · 내용 |
+| 자동 검사 (json.loads → model_validate → 규칙) | 원문 → 통과한 객체 또는 오류 코드 | 근거 적합성 |
+| 모델 선택 (Routing) | "fast"\|"quality" → 모델 ID + route_reason, 그 외는 호출 전 거부 | 품질 · 속도 우열, 실제 사용 권한 |
+| 대기 판단 | attempt · Retry-After · 남은 예산 → 대기 초 또는 deferred/attempt_limit | 다음 전송의 성공 |
 | 비용 계산 | usage · 단가 → estimated_usd 또는 None | 최종 청구액 |
-| cache_key(…) · read_cache(…) | 조건 → SHA-256 key · hit이면 {…, new_api_send_count: 0} | 답의 최신성 (TTL 하나로는) |
+| Cache key (hashlib.sha256) · 캐시 읽기 | 조건 → SHA-256 key · hit이면 {…, new_api_send_count: 0} | 답의 최신성 (TTL 하나로는) |
 
 ## ① LLM API · SDK · 인증
 
@@ -16955,7 +16823,7 @@ response = client.responses.create(**request, text={"format": output_format})
 
 ### "status"가 세 층
 
-[그림: 교안 8개 사례의 HTTP · response.status · completed_text 오류 · run_status · answer.status · 근거 표. 정상과 정보 부족은 validated, 거절은 refused, 불완전은 incomplete, 빈 텍스트 empty_output, JSON 오류 json_error, 999 unknown_source, 잘못된 인용은 validated지만 사람이 걸러냄] 무엇을 보나: 여덟 줄 모두 HTTP 200이에요. 통신은 다 성공했어요. 오른쪽으로 갈수록 걸러져요. 🤔 "정보 부족"이 초록이야? 네. 요청·생성·검사가 정상으로 끝났고, 업무 답이 '자료에 없음'일 뿐이에요. 반대로 마지막 줄 잘못된 인용은 기계 검사를 전부 통과해서 validated지만, 사람이 원문과 대조해야 걸러져요.
+[그림: 교안 8개 사례의 HTTP · response.status · 완료 판정 오류 · run_status · answer.status · 근거 표. 정상과 정보 부족은 validated, 거절은 refused, 불완전은 incomplete, 빈 텍스트 empty_output, JSON 오류 json_error, 999 unknown_source, 잘못된 인용은 validated지만 사람이 걸러냄] 무엇을 보나: 여덟 줄 모두 HTTP 200이에요. 통신은 다 성공했어요. 오른쪽으로 갈수록 걸러져요. 🤔 "정보 부족"이 초록이야? 네. 요청·생성·검사가 정상으로 끝났고, 업무 답이 '자료에 없음'일 뿐이에요. 반대로 마지막 줄 잘못된 인용은 기계 검사를 전부 통과해서 validated지만, 사람이 원문과 대조해야 걸러져요.
 
 ```
 HTTP 200                                   ← 통신 결과
@@ -16964,33 +16832,29 @@ HTTP 200                                   ← 통신 결과
 → 셋 다 동시에 정상일 수 있어요.
 ```
 
-### 검증기에 넘기기 전 관문 — completed_text
+### 검증기에 넘기기 전 관문 — 완료 판정
 
-🔧 거절 → 미완성 → 빈 출력 순서로 거르기 명령어 사전에서 자세히 →
+강의 코드는 응답을 검사기에 넘기기 전에 이 순서로 걸러요. 처음 걸린 곳에서 멈춰요.
 
-```
-for item in response.output:                    # 거절 콘텐츠가 있나
-    if item.type == "message":
-        for part in item.content:
-            if part.type == "refusal": return None, "refusal"
-if response.status != "completed": return None, response.status
-if not response.output_text.strip(): return None, "empty_output"
-return response.output_text, None                # None = 상태 검사 통과 (내용 보증 아님)
-```
+| 순서 | 확인 (SDK 객체) | 걸리면 |
+|---|---|---|
+| 1 | response.output의 message 안에 part.type == "refusal"인 조각이 있나 | refusal |
+| 2 | response.status != "completed" | 그 status 값 (incomplete 등) |
+| 3 | response.output_text.strip()이 비었나 | empty_output |
+| — | 모두 통과 | response.output_text를 검사기로 (상태 통과일 뿐, 내용 보증 아님) |
 
 🤔 왜 거절을 status보다 먼저 봐? 거절도 status="completed"로 올 수 있어서요(위 그림 3번째 줄). status만 보면 거절을 정상 답으로 착각해요. 그리고 refusal(API가 주는 콘텐츠 종류)과 refused(우리 앱의 실행 상태 이름)는 층이 다른 말이에요.
 
 ### 로컬 계약 · 규칙은 그대로
 
-🔧 KnowledgeAnswer · check_rules · inspect_answer 명령어 사전에서 자세히 →
+🔧 KnowledgeAnswer — strict 계약 명령어 사전에서 자세히 →
 
 ```
 SourceID = Annotated[int, Field(strict=True, gt=0)]      # "101" · True · 0 거부
-if not set(ids) <= set(provided_ids): return "unknown_source"
-report = inspect_answer(raw, provided_ids)                 # Day21 validate_answer + load_json_strict
+obj = KnowledgeAnswer.model_validate(json.loads(raw))    # 통과하면 Day21 출처·상태 규칙으로
 ```
 
-| 실제 실행 (check_rules) | 결과 |
+| 실제 실행 (Day21 규칙 검사) | 결과 |
 |---|---|
 | [101] 인용, 이번에 보낸 건 {102} (101은 DB에 있음) | unknown_source |
 | answered인데 출처 없음 / 정보 부족인데 출처 있음 | status_rule / status_rule |
@@ -16999,12 +16863,12 @@ report = inspect_answer(raw, provided_ids)                 # Day21 validate_answ
 
 ### 실행 기록에 남기는 것
 
-```
-raw, gate_error = completed_text(response)
-if gate_error: result = {"run_status": "refused" if gate_error == "refusal" else gate_error, "answer_object": None, "evidence_ok": None}
-else:          report = inspect_answer(raw, provided_ids)
-               result = {"run_status": "validated" if report["error"] is None else report["error"], ..., "evidence_ok": None}
-```
+| 완료 판정 | 자동 검사 | run_status | answer_object | evidence_ok |
+|---|---|---|---|---|
+| refusal | 안 함 | refused | None | None |
+| incomplete · empty_output 등 | 안 함 | 그 값 그대로 | None | None |
+| 통과 | 오류 코드 | 그 오류 코드 | None | None |
+| 통과 | 통과 | validated | 객체 | None — 사람이 확인할 때까지 |
 
 usage는 검증이 실패해도 따로 기록해요. 형식이 틀린 답에도 토큰(=돈)은 들었으니까요.
 
@@ -17042,7 +16906,7 @@ with client.responses.create(**request, text={"format": output_format}, stream=T
         elif event.type in {"response.completed", "response.failed", "response.incomplete"}:
             final = event.response                            # 판정 대상
         elif event.type == "error": stream_error = "stream_error"
-outcome = "interrupted" if final is None or stream_error else completed_text(final)
+raw = None if final is None or stream_error else final.output_text   # None → interrupted · 아니면 완료 판정으로
 ```
 
 [그림: 7개 스트림 시나리오: 정상 완료와 빈 delta 후 완료만 검증기로, 연결 끊김·완료 이벤트 없음·error 이벤트는 interrupted, incomplete는 incomplete, refusal은 refusal. usage는 끊기면 None] 무엇을 보나: 가짜 서버가 SSE 바이트를 보내고 openai SDK가 실제로 해석한 이벤트 순서예요. 초록 "→ 검증기로"는 두 줄뿐이에요. 🤔 "완료 이벤트 없이 종료" 줄은 조각 4개가 다 왔는데 왜 실패야? 조각이 다 왔는지 확인할 방법이 completed 이벤트뿐이라서요. 확인 못 한 건 성공으로 치지 않아요. "연결 끊김"은 SDK가 APIConnectionError를 던졌고 usage도 못 받아서 None이에요.
@@ -17103,17 +16967,19 @@ ms = 1/1000초. 시간은 time.perf_counter()(경과 시간 전용 시계)로 �
 
 ### Backoff · Jitter · Retry-After
 
-[그림: attempt 1~6의 대기: 본문 wait-main은 1,2,4,8,8,8초(상한 8), 부록 retry_delay는 1,2,4,8,16,32초. 각각 지터 범위 띠] 무엇을 보나: 강의의 두 대기 함수를 서버 힌트 없이 실제로 계산한 값이에요. 실패할수록 대기가 2배씩 늘어나요(Exponential backoff). 보라(본문)는 8초에서 멈추고, 분홍(부록)은 상한이 없어요. 띠의 두께가 Jitter예요. 🤔 왜 일부러 무작위로 흔들어? 수강생 30명이 같은 순간 429를 받고 모두 정확히 2초 뒤에 다시 보내면, 2초 뒤에 또 한꺼번에 몰려요. 0~0.25초씩 흩뜨리면 덜 몰려요.
+[그림: attempt 1~6의 대기: 본문 대기식은 1,2,4,8,8,8초(상한 8), 부록 대기식은 1,2,4,8,16,32초. 각각 지터 범위 띠] 무엇을 보나: 강의의 두 대기식을 서버 힌트 없이 실제로 계산한 값이에요. 실패할수록 대기가 2배씩 늘어나요(Exponential backoff). 보라(본문)는 8초에서 멈추고, 분홍(부록)은 상한이 없어요. 띠의 두께가 Jitter예요. 🤔 왜 일부러 무작위로 흔들어? 수강생 30명이 같은 순간 429를 받고 모두 정확히 2초 뒤에 다시 보내면, 2초 뒤에 또 한꺼번에 몰려요. 0~0.25초씩 흩뜨리면 덜 몰려요.
 
-🔧 대기 판단 명령어 사전에서 자세히 →
+강의 코드의 대기 판단 순서예요.
 
-```
-fallback = min(8.0, 2 ** (attempt - 1))
-base = retry_after_s if retry_after_s is not None else fallback   # 서버 값이 있으면 그게 최소
-wait_s = base + random.uniform(0, 0.25)
-if wait_s > remaining_s: return "deferred"         # 짧게 잘라 보내지 않고 미룸
-if sends_used >= MAX_SENDS_TOTAL: return "attempt_limit"
-```
+- 기본 대기 = min(8.0, 2 ** (attempt - 1))초 — 1 · 2 · 4 · 8 · 8 …
+
+- 서버가 Retry-After를 줬으면 기본 대기 대신 그 값을 써요 (서버 값이 최소).
+
+- 여기에 지터 random.uniform(0, 0.25)초를 더해요.
+
+- 그 대기가 남은 예산보다 길면 → deferred (짧게 잘라 보내지 않고 미룸).
+
+- 이미 총 4회 보냈으면 → attempt_limit. 둘 다 아니면 기다렸다가 다음 전송.
 
 | 실제 계산 | 결과 |
 |---|---|
@@ -17136,7 +17002,7 @@ OpenAI(timeout=30.0)은 요청 하나의 입출력 대기 설정이에요. 준�
 
 ### 전체 흐름 — 생성 × 전송
 
-[그림: 6개 시나리오: 401 1회 중단, 429 후 정상 2회 validated, 할당량 1회 중단, 500 두 번 2회 중단, 429·형식오류·429·정상 4회 validated, 형식오류 두 번 2회 json_error] 무엇을 보나: 각본대로 응답하는 가짜 서버에 강의 흐름(이 노트가 send_bounded를 최소 구현)을 돌렸어요. 다섯째 줄이 상한을 꽉 채운 경우예요. 생성1(429 → 받았는데 JSON 오류) + 생성2(429 → 정상)로 정확히 4회 보냈어요. 🤔 왜 마지막 성공만 남기면 안 돼? "4번 만에 됐다"와 "1번에 됐다"는 비용·시간·안정성이 전혀 달라서요. 첫 실패를 마지막 성공으로 덮지 않아요.
+[그림: 6개 시나리오: 401 1회 중단, 429 후 정상 2회 validated, 할당량 1회 중단, 500 두 번 2회 중단, 429·형식오류·429·정상 4회 validated, 형식오류 두 번 2회 json_error] 무엇을 보나: 각본대로 응답하는 가짜 서버에 강의 흐름(교안은 의사코드라 이 노트가 최소 구현)을 돌렸어요. 다섯째 줄이 상한을 꽉 채운 경우예요. 생성1(429 → 받았는데 JSON 오류) + 생성2(429 → 정상)로 정확히 4회 보냈어요. 🤔 왜 마지막 성공만 남기면 안 돼? "4번 만에 됐다"와 "1번에 됐다"는 비용·시간·안정성이 전혀 달라서요. 첫 실패를 마지막 성공으로 덮지 않아요.
 
 ## 🧪 재시도 시뮬레이터
 
@@ -17209,7 +17075,7 @@ send_attempt=2       → 이 생성 요청의 두 번째 전송
 
 ## ⑥ Response Cache · Prompt Caching
 
-[그림: 세 가지 캐시: Response Cache(앱, 승인된 답 재사용, 새 전송 0), Prompt Caching(API, 입력 앞부분 계산 재사용, 새 출력 생성), KV Cache(모델 내부). read_cache 실행: 30초 승인 hit, 60초 만료 miss, 승인 전 miss, provided 102 miss, 본문 수정 miss] 무엇을 보나: 위 세 상자는 '캐시'라는 이름만 같고 재사용하는 대상이 달라요. 아래 표는 강의 read_cache를 실제로 돌린 결과인데, 다섯 경우 중 hit은 하나뿐이에요. 🤔 "같은 key, provided {102}"는 key가 같은데 왜 miss야? 저장된 답은 103을 인용했는데, 이번 요청에서 보낸 건 102예요. 읽을 때 현재 규칙으로 다시 검사하니까 unknown_source가 나서 재사용하지 않아요.
+[그림: 세 가지 캐시: Response Cache(앱, 승인된 답 재사용, 새 전송 0), Prompt Caching(API, 입력 앞부분 계산 재사용, 새 출력 생성), KV Cache(모델 내부). 캐시 읽기 판정 실행: 30초 승인 hit, 60초 만료 miss, 승인 전 miss, provided 102 miss, 본문 수정 miss] 무엇을 보나: 위 세 상자는 '캐시'라는 이름만 같고 재사용하는 대상이 달라요. 아래 표는 강의의 캐시 읽기 판정을 실제로 돌린 결과인데, 다섯 경우 중 hit은 하나뿐이에요. 🤔 "같은 key, provided {102}"는 key가 같은데 왜 miss야? 저장된 답은 103을 인용했는데, 이번 요청에서 보낸 건 102예요. 읽을 때 현재 규칙으로 다시 검사하니까 unknown_source가 나서 재사용하지 않아요.
 
 |  | Response Cache | Prompt Caching | KV Cache |
 |---|---|---|---|
@@ -17250,7 +17116,7 @@ cache_key = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 현재 60초 → now ≥ expires_at → 만료, 재사용 안 함
 ```
 
-TTL(Time To Live) = 유효 기간. 그런데 기간이 남아도 지식·권한·모델·검증 규칙이 바뀌면 써선 안 돼요. 그래서 read_cache는 ① 만료 ② 사람 승인 ③ 현재 문맥으로 재검사를 모두 통과해야 hit이에요. 저장 자체도 사람이 근거를 확인한 answered만 해요. 실패·거절·미완성은 성공 캐시에 넣지 않아요. 재사용한 결과에는 처음 만든 실행 origin_run_id를 붙여서, 원래 비용을 새 비용으로 중복 합산하지 않아요.
+TTL(Time To Live) = 유효 기간. 그런데 기간이 남아도 지식·권한·모델·검증 규칙이 바뀌면 써선 안 돼요. 그래서 캐시를 읽을 때는 ① 만료 ② 사람 승인 ③ 현재 문맥으로 재검사를 모두 통과해야 hit이에요. 저장 자체도 사람이 근거를 확인한 answered만 해요. 실패·거절·미완성은 성공 캐시에 넣지 않아요. 재사용한 결과에는 처음 만든 실행 origin_run_id를 붙여서, 원래 비용을 새 비용으로 중복 합산하지 않아요.
 
 ## 🧪 비용 · Cache key 계산기
 
@@ -17260,19 +17126,18 @@ TTL(Time To Live) = 유효 기간. 그런데 기간이 남아도 지식·권한�
 
 ### Routing = 호출 전에 모델 고르기
 
-🔧 실행 모드 → 허용된 모델 명령어 사전에서 자세히 →
+강의 코드는 모드 이름 → 모델 ID 표(dict)를 하나 두고, 거기 있는 모드만 받아요.
 
-```
-MODELS = {"fast": "gpt-5.4-mini-2026-03-17", "quality": "gpt-5.4-2026-03-05"}
-def choose_model(mode):
-    if mode not in MODELS: raise ValueError("지원하지 않는 실행 모드")   # 호출 전 거부 = 비용 0
-    return MODELS[mode], f"explicit_mode:{mode}"                        # route_reason 기록
-```
+- MODELS = {"fast": "gpt-5.4-mini-2026-03-17", "quality": "gpt-5.4-2026-03-05"}
+
+- 표에 없는 모드면 호출 전에 ValueError — 보내지 않았으니 비용 0.
+
+- 고른 모델 ID와 함께 이유 route_reason = "explicit_mode:fast"를 기록해요.
 
 | 실제 실행 | 결과 |
 |---|---|
-| choose_model("fast") | ('gpt-5.4-mini-2026-03-17', 'explicit_mode:fast') |
-| choose_model("turbo") · ("Fast") | ValueError · ValueError (대소문자도 정확히) |
+| mode = "fast" | gpt-5.4-mini-2026-03-17 · route_reason explicit_mode:fast |
+| mode = "turbo" · "Fast" | ValueError · ValueError (대소문자도 정확히) |
 | fast 요청 key == quality 요청 key | False — 모델이 바뀌면 캐시도 새로 |
 
 - fast · quality는 모드 이름이에요. "quality가 더 좋다"는 판정이 아니고, quality 모델은 강사도 생성을 확인하지 못했어요.
@@ -17314,18 +17179,17 @@ def choose_model(mode):
 | 완료 판정 · 자동 검사 | completed → 네 필드 · 출처 103 · 상태 | completed + insufficient_context → 빈 출처 · 부족한 정보명 · 고정 안내문 | 현재 규칙으로 재검사 |
 | 끝 | 사람이 원문 대조 → 기록 | 형식 수정·큰 모델로 반복 안 함 | origin_run_id 연결 · 비용 중복 합산 안 함 |
 
-🔧 생성 시도 × 전송 시도 (의사코드) 명령어 사전에서 자세히 →
+### 생성 시도 × 전송 시도 — 교안 흐름
 
-```
-while generation < 2 and send_count < 4:
-    generation += 1
-    outcome = send_bounded(request, budget)      # 안에서 전송 ≤ 2, 전체 ≤ 4
-    if outcome.transport_failed: break
-    report = validate(outcome.response)
-    if report.is_success or report.is_insufficient: break
-    if not report.is_format_error or generation == 2: break
-    request = make_format_repair(request, report.safe_codes)
-```
+- 생성(generation_no)은 최대 2번, 실제 전송은 전체 4번까지.
+
+- 한 생성 안에서는 통신 실패(일시적 429 · 선별한 5xx)만 대기 후 한 번 더 보내요 — 생성당 최대 2번.
+
+- 통신이 끝내 실패하면(인증 · 권한 · 할당량 · timeout 포함) 거기서 중단.
+
+- 응답을 받으면 검사 — 통과 또는 정보 부족이면 끝.
+
+- 형식 오류(JSON · Schema)이고 첫 생성이었다면, 안전한 오류 요약을 붙여 두 번째 생성. 그 밖은 중단.
 
 ### 회귀 확인 — 이미 본 질문 H01~H03
 
@@ -17346,7 +17210,7 @@ H는 원래 Holdout(마지막까지 안 본 질문)이었지만 어제 이미 �
 | .env · OpenAI(...) | 인증 정보 · 연결 설정 | 모델 권한 · 잔액 |
 | responses.create | Response 객체 (status · output · usage) | 형식 · 사실 |
 | Streaming | 빠른 미리보기 · 최종 Response | 빠른 완료 · 완전한 JSON |
-| completed_text → inspect_answer | run_status · answer_object | 근거 적합성 |
+| 완료 판정 → 자동 검사 | run_status · answer_object | 근거 적합성 |
 | 재시도 · 대기 | 제한된 재전송 · 시도 기록 | 성공 · 없는 근거 |
 | usage · 비용 · 시간 | 관측값 · 추정치 · None | 청구액 |
 | Cache · Routing | 재사용 · 선택 이유 | 최신성 · 모델 우열 |
@@ -17376,12 +17240,11 @@ H는 원래 Holdout(마지막까지 안 본 질문)이었지만 어제 이미 �
 | 📦 필요한 패키지 | python -m pip show openai pydantic python-dotenv |
 | 📋 명세 | 실행 결과 구조 · 실패별 다음 행동 · 전송 상한 · 기록 필드 |
 | ① LLM API · 인증 | dotenv_values, OpenAI(timeout, max_retries=0), responses.create, models.list() |
-| ② 메시지 · Structured Outputs | json.dumps 요청 dict, WireAnswer, text={"format": …}, completed_text, check_rules |
+| ② 메시지 · Structured Outputs | json.dumps 요청 dict, WireAnswer(BaseModel) · model_json_schema(), text={"format": …}, KnowledgeAnswer strict |
 | ③ Streaming | stream=True, event.type, event.delta, perf_counter() |
-| ④ Rate Limit · 재시도 | RateLimitError · e.code, Retry-After, backoff · jitter, 전송 상한 |
+| ④ Rate Limit · 재시도 | OpenAI(max_retries=0), RateLimitError · e.code, APITimeoutError |
 | ⑤ Usage · 비용 · Latency | response.usage, getattr(…, None), Decimal 비용식 |
-| ⑥ Cache | hashlib.sha256 cache key, read_cache (TTL · 승인 · 재검사) |
-| ⑦ Routing · 클라이언트 | choose_model(mode), 실행 결과 dict |
+| ⑥ Cache | json.dumps(sort_keys=True) + hashlib.sha256 cache key |
 
 ### 기존 가상환경 선택 → 패키지 확인 (Git Bash)
 
@@ -17739,7 +17602,7 @@ output_format = {
 | model_json_schema() | Python 클래스 → JSON Schema dict |
 | "strict": True | API 쪽 구조 제약 설정 (Pydantic의 로컬 strict와 위치가 다름) |
 
-⚠️ Wire는 '전송 경계'라는 뜻이에요. 길이 제한·양의 정수·이번 문맥 범위는 여기 없어요 — 로컬 KnowledgeAnswer와 check_rules가 맡아요.
+⚠️ Wire는 '전송 경계'라는 뜻이에요. 길이 제한·양의 정수·이번 문맥 범위는 여기 없어요 — 로컬 KnowledgeAnswer와 Day21 출처·상태 규칙이 맡아요.
 
 ### 요청에 출력 형식 추가 — text={"format": …}
 
@@ -17753,14 +17616,8 @@ response = client.responses.create(
     text={"format": output_format},
 )
 
-# 순서: 완료 판정 → 원문 추출 → 로컬 검증
-# completed_text는 앞에서 설명한 응답 상태 확인 함수입니다.
-# validate_answer와 load_json_strict는 16일의 정의를 이어 사용합니다.
-raw, response_error = completed_text(response)
-if response_error is None:
-    answer, validation_error = validate_answer(
-        raw, provided_ids, load_json=load_json_strict
-    )
+print(response.status)        # "completed" · "incomplete" · …
+raw = response.output_text    # 모든 텍스트 조각을 이어 붙인 원문 (JSON 문자열)
 ```
 
 ▶ 실제로 돌려 보면 SDK + 가짜 서버 · SDK 가 실제로 보낸 본문에서 확인
@@ -17776,51 +17633,8 @@ if response_error is None:
 |---|---|
 | **request | dict를 키워드 인자로 펼치기 — f(**{"a": 1}) = f(a=1) |
 | text={"format": output_format} | Responses API에서 출력 형식을 지정하는 자리 |
-| completed_text(response) | 먼저 '검증기에 넘길 수 있는 응답인가' 판정 |
-| validate_answer(raw, provided_ids, load_json=load_json_strict) | 11/16 검사기 그대로 재사용 |
-
-### completed_text — 검증기에 넘길 수 있는 응답인가?
-
-```
-def completed_text(response):
-    # output에는 텍스트 외 다른 종류의 항목도 올 수 있습니다.
-    for item in response.output:
-        if item.type == "message":
-            for part in item.content:
-                if part.type == "refusal":
-                    return None, "refusal"
-    # 텍스트가 보여도 생성 완료가 아니면 부분 출력을 통과시키지 않습니다.
-    if response.status != "completed":
-        return None, response.status
-    if not response.output_text.strip():
-        return None, "empty_output"
-    # 두 번째 반환값 None은 응답 상태 검사 통과입니다. 내용이 맞다는 뜻은 아닙니다.
-    return response.output_text, None
-
-# 반환 error가 None일 때만 validate_answer 호출
-# check_rules는 제공 ID·상태 조합을 계속 확인
-```
-
-▶ 실제로 돌려 보면 교안 GATE_CASES 8개를 openai SDK 의 실제 Response 객체로 만들어 강의 함수 그대로
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 정상 답변 (response.status=completed) | (원문, None) | 통과 → 검사기로 |
-| 정보 부족 응답(정상 처리) (response.status=completed) | (원문, None) | 통과 — 정보 부족도 '완료된 응답' |
-| API의 요청 거절 (response.status=completed) | (… , 'refusal') | 거절 콘텐츠 먼저 확인 |
-| 불완전 응답 (response.status=incomplete) | (… , 'incomplete') | 텍스트가 있어도 미완성은 막음 |
-| 완료 + 빈 텍스트 (response.status=completed) | (… , 'empty_output') | 완료인데 비었음 |
-| 완료 + JSON 오류 (response.status=completed) | (원문, None) | 통과 — JSON 오류는 다음 단계가 잡음 |
-| 문맥 밖 출처 999 (response.status=completed) | (원문, None) | 통과 — 출처 범위는 다음 단계가 잡음 |
-| 존재하는 ID, 잘못된 인용 (response.status=completed) | (원문, None) | 통과 — 근거는 사람이 |
-
-| 부분 | 뜻 |
-|---|---|
-| for item in response.output | output에는 메시지 외 다른 종류(도구 호출 등)도 올 수 있어요 |
-| part.type == "refusal" | 모델이 거절한 콘텐츠 — 정보 부족과 다른 종류 |
-| response.status != "completed" | incomplete·failed 등 — 텍스트가 보여도 통과 안 시킴 |
-| output_text.strip() | 완료인데 비었으면 empty_output |
-| return raw, None | 두 번째 값 None = 응답 상태 검사 통과. 내용이 맞다는 뜻은 아님 |
+| response.status | 생성이 끝났는지 — completed가 아니면 텍스트가 보여도 부분 출력 |
+| response.output_text | SDK가 출력 텍스트를 이어 붙여 주는 속성 — 이걸 json.loads → model_validate로 검사 |
 
 ### KnowledgeAnswer — 기존 로컬 계약 유지
 
@@ -17861,133 +17675,6 @@ class KnowledgeAnswer(BaseModel):
 | Field(min_length=1, max_length=500) | 문자열 길이 (교안 정책값) |
 | list[SourceID] = Field(max_length=3) | 목록의 항목 수 상한 |
 
-### check_rules — 출처 범위와 상태 조합
-
-```
-# 16일의 check_rules + final_rules를 한 함수로 펼친 설명용 예시입니다.
-# 실제 실습의 함수·파일 구조는 그대로 두고, 동일한 검사 조건을 확인합니다.
-# KnowledgeAnswer의 자료형·길이 검사를 통과한 obj를 받습니다.
-def check_rules(obj, provided_ids):
-    ids = obj.source_ids
-    if len(ids) != len(set(ids)):
-        return "duplicate_source"
-    # 인용한 모든 ID가 이번에 전달한 provided_ids에 있어야 합니다.
-    if not set(ids) <= set(provided_ids):
-        return "unknown_source"
-    if obj.status == "answered":
-        if not ids or obj.missing_information != "":
-            return "status_rule"
-    elif ids or not obj.missing_information.strip():
-        return "status_rule"
-    if not obj.answer.strip():
-        return "blank_answer"
-    if obj.status == "insufficient_context":
-        if obj.answer != "제공된 지식으로는 답할 수 없습니다.":
-            return "status_rule"
-    # 자동 규칙 통과 후에도 주장과 출처 본문의 대조는 별도입니다.
-    return None
-```
-
-▶ 실제로 돌려 보면 교안 rules 그대로 · obj 는 KnowledgeAnswer 를 통과한 객체
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| [102] 인용, provided_ids={102} | None | 통과 (근거 검토는 별도) |
-| [101] 인용, provided_ids={102} (101 은 DB 에 있음) | 'unknown_source' | DB 에 있어도 이번에 안 보냈으면 범위 밖 |
-| [102,102] | 'duplicate_source' | 중복이 먼저 걸림 |
-| answered 인데 source_ids=[] | 'status_rule' | 답했으면 출처가 있어야 |
-| insufficient_context 인데 [101] | 'status_rule' | 정보 부족이면 출처 비움 |
-| insufficient_context, answer="몰라요" | 'status_rule' | 정보 부족 안내문은 고정 문장 |
-| answer=" " | 'blank_answer' | 공백만은 거부 (min_length=1 은 통과함) |
-
-| 부분 | 뜻 |
-|---|---|
-| len(ids) != len(set(ids)) | set은 중복을 없애므로 길이가 줄면 중복 |
-| set(ids) <= set(provided_ids) | 부분집합 검사 — 인용한 ID가 모두 이번에 보낸 것인가 |
-| answered | 출처 ≥ 1개, missing_information == "" |
-| insufficient_context | 출처 0개, 부족한 정보명 필수, answer는 고정 안내문 |
-
-⚠️ 이 함수가 None을 돌려줘도 근거 적합성은 몰라요. 이번에 보낸 다른 ID를 잘못 인용해도 통과해요.
-
-### inspect_answer — 11/16 검사 결과를 report dict로
-
-```
-# 16일의 validate_answer와 load_json_strict를 먼저 준비합니다.
-# validate_answer는 (검사를 통과한 객체, 오류 코드)를 반환합니다.
-# 아래 inspect_answer는 17일 설명용 연결 함수이며 OpenAI SDK 함수가 아닙니다.
-def inspect_answer(raw, provided_ids):
-    obj, error = validate_answer(
-        raw, provided_ids, load_json=load_json_strict
-    )
-    # error가 None이어야 자동 검사 통과입니다. 사람의 근거 검토는 별도입니다.
-    return {
-        "auto_status": (
-            "passed_needs_human_review" if error is None else "failed"
-        ),
-        "answer_object": obj if error is None else None,
-        "error": error,
-    }
-
-# 기존 실습에 같은 연결 함수가 있다면 그 함수를 사용합니다.
-# 전날 코드의 필수 파서 인자를 생략하거나, 반환 형태를 섞지 않습니다.
-```
-
-▶ 실제로 돌려 보면 교안 inspect_answer 그대로 · 16일 load_json_strict 사용
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| inspect_answer(정상 [102], {102}) | {'auto_status': 'passed_needs_human_review', 'answer_object': 'KnowledgeAnswer(...)', 'error': None} | 통과여도 '사람 검토 필요' |
-| inspect_answer(키 중복 "answer" 두 번, {101}) | {'auto_status': 'failed', 'answer_object': None, 'error': 'json_error'} | strict 파서 → json_error (기본 json.loads 라면 조용히 통과) |
-| inspect_answer(NaN, {101}) | {'auto_status': 'failed', 'answer_object': None, 'error': 'json_error'} | 비표준 NaN 도 파싱 단계에서 거부 |
-
-| 부분 | 뜻 |
-|---|---|
-| validate_answer(...) | (객체, 오류코드) 튜플 — 11/16 정의 |
-| "passed_needs_human_review" | 자동 검사 통과 = 사람 검토 대기 |
-| load_json=load_json_strict | 중복 키·NaN을 거부하는 엄격 파서를 명시 |
-
-### 완료 판정 → 검사기 → 실행 기록
-
-```
-# inspect_answer는 위에서 정의한 17일의 연결 함수입니다.
-raw, gate_error = completed_text(response)
-if gate_error is not None:
-    # refusal은 API 콘텐츠 유형, refused는 이 예제의 앱 실행 상태입니다.
-    run_status = "refused" if gate_error == "refusal" else gate_error
-    result = {"run_status": run_status, "answer_object": None, "evidence_ok": None}
-else:
-    # 16일의 JSON·Schema·출처 규칙을 검사하고 결과를 report로 받습니다.
-    report = inspect_answer(raw, provided_ids)
-    result = {
-        "run_status": ("validated" if report["error"] is None
-                       else report["error"]),
-        "answer_object": report["answer_object"],
-        "evidence_ok": None,  # 사람의 근거 검토 전
-    }
-# response의 usage는 검증 실패여도 별도로 기록합니다.
-# 자동 검사 통과만으로 evidence_ok를 True로 두지 않습니다.
-```
-
-▶ 실제로 돌려 보면 같은 8개 · completed_text → inspect_answer(16일 검사기) → 실행 기록
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 정상 답변 | run_status='validated', answer.status='answered', evidence_ok=None | 자동 검사 통과 = 사람 검토 대기 |
-| 정보 부족 응답(정상 처리) | run_status='validated', answer.status='insufficient_context', evidence_ok=None | 정상 실행 + 업무상 정보 부족 |
-| API의 요청 거절 | run_status='refused', answer.status=None, evidence_ok=None | 앱 상태 refused (정보 부족으로 위장 안 함) |
-| 불완전 응답 | run_status='incomplete', answer.status=None, evidence_ok=None | 부분 JSON 사용 안 함 |
-| 완료 + 빈 텍스트 | run_status='empty_output', answer.status=None, evidence_ok=None | 검사기로 못 넘김 |
-| 완료 + JSON 오류 | run_status='json_error', answer.status=None, evidence_ok=None | 16일 검사기가 json_error |
-| 문맥 밖 출처 999 | run_status='unknown_source', answer.status=None, evidence_ok=None | 16일 검사기가 unknown_source |
-| 존재하는 ID, 잘못된 인용 | run_status='validated', answer.status='answered', evidence_ok=None | 자동으로는 validated — 102를 실행 위치 근거로 101을 인용한 걸 못 잡음 |
-
-| 부분 | 뜻 |
-|---|---|
-| run_status | 앱이 본 실행 결과: validated·refused·incomplete·오류코드 |
-| answer_object | 검사를 통과한 업무 답변 (아니면 None) |
-| evidence_ok: None | 사람이 근거를 아직 안 봄 — 자동으로 True 금지 |
-| refusal / refused | API 콘텐츠 유형 / 이 앱의 실행 상태 이름 |
-
 ### Streaming 수신 루프 — stream=True
 
 ```
@@ -18019,23 +17706,21 @@ request_ms = (perf_counter()-t0)*1000
 if final is None or stream_error is not None:
     outcome = "interrupted"
 else:
-    raw, gate_error = completed_text(final)
-    # gate_error가 없을 때만 아래처럼 기존 검사기를 호출합니다.
-    # validate_answer(raw, provided_ids, load_json=load_json_strict)
-# 수신 중 예외의 try/except 처리는 기존 실습의 바깥 호출부에서 담당합니다.
+    raw = final.output_text   # 검사는 조각(parts)이 아니라 최종 Response로
+# 수신 중 예외(연결 끊김 등)는 바깥 try/except에서 잡습니다.
 ```
 
 ▶ 실제로 돌려 보면 SSE 바이트를 가짜 서버가 보내고, SDK 가 실제로 해석한 이벤트로 강의 루프 그대로 (시간 값은 의미 없어 관측 여부만)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| delta 여러 개 → completed | 조각 4개 · first_ms 관측=True · outcome='validate 로' · usage 합계=67 | 최종 response 를 기존 검증기로 |
-| delta → 연결 끊김 | 조각 2개 · first_ms 관측=True · outcome='interrupted' · usage 합계=None · 예외 APIConnectionError | 보인 조각이 있어도 최종 Response·usage 없음 |
-| delta → incomplete | 조각 2개 · first_ms 관측=True · outcome='incomplete' · usage 합계=67 | 끝났지만 미완성 — 부분 JSON 버림 |
-| refusal → completed | 조각 0개 · first_ms 관측=False · outcome='refusal' · usage 합계=67 | 거절 기록 · 형식 수정 요청 안 함 |
-| 빈 delta → completed | 조각 6개 · first_ms 관측=True · outcome='validate 로' · usage 합계=67 | 빈 조각은 첫 텍스트로 안 셈 |
-| 완료 이벤트 없이 종료 | 조각 4개 · first_ms 관측=True · outcome='interrupted' · usage 합계=None | 조각은 다 왔어도 완료 확인 못 함 |
-| error 이벤트 | 조각 1개 · first_ms 관측=True · outcome='interrupted' · usage 합계=None | error 이벤트 → interrupted |
+| delta 여러 개 → completed | 조각 4개 · first_ms 관측=True · final.status='completed' · output_text 104자 · usage 합계=67 | 완료 + 원문 있음 → json.loads → model_validate 로 |
+| delta → 연결 끊김 | 조각 2개 · first_ms 관측=True · interrupted · usage 합계=None · 예외 APIConnectionError | 보인 조각이 있어도 최종 Response·usage 없음 |
+| delta → incomplete | 조각 2개 · first_ms 관측=True · final.status='incomplete' · output_text 21자 · usage 합계=67 | 끝났지만 미완성 — 부분 JSON 버림 |
+| refusal → completed | 조각 0개 · first_ms 관측=False · final.status='completed' · output_text 0자 · usage 합계=67 | status 는 completed 인데 텍스트 0자 — 거절 콘텐츠라서 (status 만 보면 안 되는 이유) |
+| 빈 delta → completed | 조각 6개 · first_ms 관측=True · final.status='completed' · output_text 104자 · usage 합계=67 | 빈 조각은 첫 텍스트로 안 셈 |
+| 완료 이벤트 없이 종료 | 조각 4개 · first_ms 관측=True · interrupted · usage 합계=None | 조각은 다 왔어도 완료 확인 못 함 |
+| error 이벤트 | 조각 1개 · first_ms 관측=True · interrupted · usage 합계=None | error 이벤트 → interrupted |
 
 | 부분 | 뜻 |
 |---|---|
@@ -18050,25 +17735,26 @@ else:
 
 ⚠️ 부분 JSON을 보고 도구 실행·DB 변경·캐시 저장을 하지 않아요. 연결이 끊기면 SDK가 예외를 던지니 바깥에서 잡아 interrupted로 기록해요.
 
-### 재시도의 책임과 전송 상한 — SDK 예외 읽기
+### OpenAI(max_retries=0) · SDK 예외 읽기
 
 ```
-# OpenAI는 앞에서 import한 SDK 클래스입니다.
-# 아래 2·2·4는 이 교안의 작업별 정책값입니다.
+import openai
+from openai import OpenAI
+
 client = OpenAI(
     base_url="https://api.openai.com/v1",  # OpenAI 직접 연결
     timeout=30.0,
-    max_retries=0,   # 이 수업은 앱에서 횟수 관리
+    max_retries=0,   # SDK 자동 재시도 끄기 — 횟수는 앱이 셈
 )
 
-# 작업별 제한: 값을 키우는 것이 해결책 아님
-MAX_GENERATIONS = 2      # 최초 + 형식 수정
-MAX_SENDS_PER_GENERATION = 2
-MAX_SENDS_TOTAL = 4
-
-# 401·403·잘못된 요청·할당량: 중단
-# 일시적 429·선별한 5xx: 대기 후 제한적 재시도
-# timeout·stream 중단: 자동 재전송하지 않음
+try:
+    response = client.responses.create(**request)
+except openai.RateLimitError as e:        # 429
+    print(e.status_code, e.code)          # rate_limit_exceeded → 기다릴 문제 / insufficient_quota → 멈출 문제
+except openai.APITimeoutError:            # 응답을 못 받음 — 자동 재전송하지 않음
+    ...
+except openai.APIStatusError as e:        # 그 밖의 HTTP 오류 (401 · 403 · 400 · 5xx)
+    print(e.status_code)
 ```
 
 ▶ 실제로 돌려 보면 openai SDK + 가짜 서버가 오류만 돌려줌 · 같은 오류를 max_retries=0 과 SDK 기본값(2)으로 각각 보냄
@@ -18088,135 +17774,11 @@ MAX_SENDS_TOTAL = 4
 | 부분 | 뜻 |
 |---|---|
 | max_retries=0 | SDK가 몰래 재전송하지 않게 — 횟수는 앱이 셈 |
-| MAX_GENERATIONS = 2 | 최초 생성 + 형식 수정 1회 |
-| MAX_SENDS_PER_GENERATION = 2 | 한 생성 안에서 통신 재전송 포함 2회 |
-| MAX_SENDS_TOTAL = 4 | 작업 전체 실제 전송 상한 |
+| openai.APIStatusError | HTTP 상태가 있는 오류의 부모 — e.status_code로 401·403·400·5xx 구분 |
 | openai.RateLimitError | 429 — e.code가 rate_limit_exceeded(기다릴 문제)인지 insufficient_quota(멈출 문제)인지 갈라 읽기 |
 | openai.APITimeoutError | 응답을 못 받음 — HTTP 상태가 없어서 APIStatusError의 자식이 아님 |
 
 💡 아래 실행 결과처럼 SDK 기본값(max_retries=2)은 429 할당량·500·timeout을 앱이 모르게 3번 보내요. 앱 재시도까지 켜면 곱으로 늘어요.
-
-### 대기 판단 — Retry-After · Backoff · Jitter
-
-```
-# attempt·retry_after_s·remaining_s·sends_used는 호출부가 전달합니다.
-# retry_after_s: 검증·변환한 헤더 값 또는 None
-# remaining_s: 이번 작업의 남은 대기 예산
-import random
-
-fallback = min(8.0, 2 ** (attempt - 1))
-base = (retry_after_s if retry_after_s is not None
-        else fallback)
-wait_s = base + random.uniform(0, 0.25)
-
-if wait_s > remaining_s:
-    return "deferred"    # 짧게 줄여 재전송하지 않음
-if sends_used >= MAX_SENDS_TOTAL:
-    return "attempt_limit"
-# 이 조건을 통과한 경우에만 sleep → 다음 전송
-```
-
-▶ 실제로 돌려 보면 교안 발췌를 함수로 감싸 실행 · 지터는 random.uniform(0, 0.25) 의 양 끝(0, 0.25)을 넣어 범위로
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| attempt=1, Retry-After 없음, 남은 30초, 전송 1회 | 1.0 ~ 1.25 | 1초(2⁰) + 지터 |
-| attempt=3, Retry-After 없음 | 4.0 ~ 4.25 | 4초(2²) + 지터 |
-| attempt=6, Retry-After 없음 | 8.0 ~ 8.25 | 2⁵=32 이지만 min(8.0, …) 으로 8초가 상한 |
-| Retry-After=10, 남은 3초 | deferred | 서버 최소 대기를 줄여 보내지 않고 미룸 |
-| Retry-After=2, 남은 30초, 이미 4회 전송 | attempt_limit | 시간은 되지만 총 전송 상한 |
-| Retry-After=0.5, 남은 0.6초 | 0.5 / deferred | 지터에 따라 결과가 갈림 — 경계에서는 예산 여유를 둘 것 |
-
-| 부분 | 뜻 |
-|---|---|
-| 2 ** (attempt - 1) | Exponential backoff: 1·2·4·8초 |
-| min(8.0, …) | 대기 상한 8초 (교안 본문 정책) |
-| retry_after_s if … is not None else fallback | 서버가 알려준 최소 대기가 있으면 그것 |
-| random.uniform(0, 0.25) | Jitter — 여러 클라이언트가 같은 순간 재전송하지 않게 흩뜨리기 |
-| "deferred" | 기다릴 시간이 예산보다 길면 대기를 줄이지 않고 이번 실행을 미룸 |
-
-### 별도 예시 — 서버 최소 대기와 지수 대기 중 큰 값
-
-```
-# 본문의 대기 예시와 상수가 다릅니다. 이 함수는 별도 정책 예시입니다.
-import random
-
-def retry_delay(attempt, retry_after_s, remaining_s):
-    # 숫자·HTTP-date 헤더를 초 단위로 해석한 값을 받습니다.
-    hinted = 0.0 if retry_after_s is None else retry_after_s
-    if hinted < 0 or remaining_s <= 0:
-        return None
-    exponential = 2 ** (attempt - 1)
-    wait = max(hinted, exponential) + random.uniform(0, 0.5)
-    if wait >= remaining_s:
-        return None  # 이번 실행은 deferred로 종료
-    return wait
-
-# None이면 기다림을 줄여 재전송하지 않고 중단합니다.
-```
-
-▶ 실제로 돌려 보면 교안 retry_delay · 지터는 uniform(0, 0.5) 양 끝
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| retry_delay(1, None, 30) | 1.0 ~ 1.5 | 헤더 없으면 2⁰=1초 |
-| retry_delay(3, 1, 30) | 4.0 ~ 4.5 | max(서버 1초, 지수 4초) = 4초 — 더 긴 쪽 |
-| retry_delay(1, 10, 30) | 10.0 ~ 10.5 | 서버가 10초라면 10초 |
-| retry_delay(1, 10, 3) | None | None = deferred (짧게 잘라 보내지 않음) |
-| retry_delay(1, -5, 30) | None | 음수 헤더는 잘못된 값 → 중단 |
-| retry_delay(6, None, 100) | 32.0 ~ 32.5 | 본문 예시와 달리 상한 8초가 없음 — 교안이 '상수가 다른 별도 예시'라고 한 부분 |
-
-| 부분 | 뜻 |
-|---|---|
-| max(hinted, exponential) | 서버 값보다 짧게는 절대 안 기다림 |
-| hinted < 0 | 잘못된 헤더 값 → 재시도 안 함 |
-| return None | deferred |
-
-💡 Retry-After는 초 숫자(10) 또는 HTTP-date(Wed, 18 Nov 2026 01:00:00 GMT) 두 형식이 있어요. 파서가 초로 바꿔서 넘겨요.
-
-### 생성 시도와 전송 시도 — 전체 흐름 (의사코드)
-
-```
-# 정책의 흐름을 보여주는 의사코드입니다. 단독 실행 프로그램이 아닙니다.
-# send_bounded·validate·make_format_repair·budget은 선행 정의입니다.
-generation = 0
-send_count = 0
-while generation < 2 and send_count < 4:
-    generation += 1
-    # 내부 transport 함수도 최대 2회, 총 전송 4회 이하
-    outcome = send_bounded(request, budget)
-    send_count = budget.used
-    if outcome.transport_failed:
-        break
-    report = validate(outcome.response)
-    if report.is_success or report.is_insufficient:
-        break
-    if not report.is_format_error or generation == 2:
-        break
-    request = make_format_repair(request, report.safe_codes)
-# 시도마다 결과를 남깁니다. 마지막 값으로 첫 실패를 덮지 않습니다.
-```
-
-▶ 실제로 돌려 보면 교안 의사코드 + 노트의 send_bounded 최소 구현 · SDK + 가짜 서버가 각본대로 응답 (sleep 은 실제로 하지 않고 판단만 기록)
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 401 → 중단 | 최종 'AuthenticationError' · 실제 전송 1회 · 기록 생성1·전송1: AuthenticationError → 중단 | 1회로 끝 |
-| 429 일시적 제한 → 정상 | 최종 'validated' · 실제 전송 2회 · 기록 생성1·전송1: 429 rate_limit_exceeded → 대기 판단 1.0 / 생성1·전송2: 응답 수신 / 생성1·전송-: 검증 → passed_needs_human_review | 이전 429 도 기록에 남김 |
-| 429 할당량 → 중단 | 최종 'insufficient_quota' · 실제 전송 1회 · 기록 생성1·전송1: 429 insufficient_quota → 중단 | 같은 429 라도 기다리지 않음 |
-| 500 → 500 → 중단 | 최종 'server_error' · 실제 전송 2회 · 기록 생성1·전송1: 500 → 예산 안에서 1회 재시도 / 생성1·전송2: 500 → 생성당 2회 상한, 중단 | 생성당 전송 2회 상한 |
-| 429 + 형식 오류 + 수정 → 정상 | 최종 'validated' · 실제 전송 4회 · 기록 생성1·전송1: 429 rate_limit_exceeded → 대기 판단 1.0 / 생성1·전송2: 응답 수신 / 생성1·전송-: 검증 → json_error / 생성2·전송1: 429 rate_limit_exceeded → 대기 판단 1.0 / 생성2·전송2: 응답 수신 / 생성2·전송-: 검증 → passed_needs_human_review | 4회 = 전체 상한에 딱 맞음 |
-| 형식 오류 → 형식 오류 | 최종 'json_error' · 실제 전송 2회 · 기록 생성1·전송1: 응답 수신 / 생성1·전송-: 검증 → json_error / 생성2·전송1: 응답 수신 / 생성2·전송-: 검증 → json_error | 형식 수정은 1회까지 — 3번째 생성은 없음 |
-
-| 부분 | 뜻 |
-|---|---|
-| generation | 생성 번호: 1 = 최초, 2 = 형식 수정 |
-| send_count = budget.used | 공유 예산 — 모든 경로의 실제 전송 합 |
-| outcome.transport_failed | 통신 단계에서 끝남 (인증·할당량·서버 오류 계속·timeout) |
-| report.is_insufficient | 정보 부족은 정상 종료 — 다시 묻지 않음 |
-| make_format_repair(...) | JSON·Schema 형식 오류일 때만 1회 |
-
-💡 교안은 의사코드예요. 아래 실행 결과는 이 노트가 send_bounded를 최소 구현해서 SDK + 가짜 서버로 돌린 거예요.
 
 ### usage 읽기 — 누락값은 None
 
@@ -18339,90 +17901,6 @@ cache_key = hashlib.sha256(
 | hashlib.sha256(...).hexdigest() | 64글자 16진수 — 식별용. 암호화가 아님 |
 
 ⚠️ API 키·비밀번호는 key 재료에 넣지 않아요. 해시했다고 공개해도 되는 게 아니에요.
-
-### 캐시 읽기 — 재사용 전에도 검사
-
-```
-# key에 권한·모델·입력·계약·검증 버전이 포함되어 있다는 전제입니다.
-# 캐시에는 사람이 근거를 확인한 answered 결과만 저장합니다.
-def read_cache(cache, key, now, provided_ids):
-    entry = cache.get(key)
-    # TTL(Time To Live): 재사용하도록 정한 유효 기간입니다.
-    if entry is None or now >= entry["expires_at"]:
-        return None
-    if not entry["human_approved"]:
-        return None
-    # 현재 문맥의 ID와 현재 검사 규칙으로 다시 확인합니다.
-    report = inspect_answer(entry["raw"], provided_ids)
-    if report["auto_status"] != "passed_needs_human_review":
-        return None
-    return {
-        "answer_object": report["answer_object"],
-        "source_mode": "app_cache",
-        # 이 답이 처음 만들어진 실행을 추적합니다.
-        "origin_run_id": entry["origin_run_id"],
-        "new_api_send_count": 0,
-    }
-```
-
-▶ 실제로 돌려 보면 교안 read_cache 그대로 · TTL 60초 가상 시간
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| 저장 0초 · 현재 30초 · 승인됨 · provided {103} | {'answer_object': 'KnowledgeAnswer(...)', 'source_mode': 'app_cache', 'origin_run_id': 'demo-001', 'new_api_send_count': 0} | hit — 새 API 전송 0회 |
-| 현재 60초 (expires_at=60) | None (miss) | now >= expires_at → 만료 |
-| 승인 전 (human_approved=False) | None (miss) | 사람 검토 전 답은 재사용 안 함 |
-| 같은 key, 이번 provided {102} | None (miss) | 현재 문맥으로 재검사 → 103 이 범위 밖 → miss |
-| 지식 본문 수정 → 다른 key | None (miss) | key 자체가 달라 항목 없음 |
-
-| 부분 | 뜻 |
-|---|---|
-| now >= entry["expires_at"] | TTL(유효 기간) 만료 |
-| entry["human_approved"] | 사람이 근거를 확인한 answered만 저장·재사용 |
-| inspect_answer(entry["raw"], provided_ids) | 현재 문맥·규칙으로 다시 검사 |
-| "origin_run_id" | 이 답을 처음 만든 실행 — 비용을 중복 합산하지 않게 |
-| "new_api_send_count": 0 | 관측된 0 (None과 다름) |
-
-### Model Routing — 실행 모드 → 허용된 모델
-
-```
-# fast·quality는 이 교안의 모드명입니다. 속도·품질을 보장하는 값이 아닙니다.
-MODELS = {
-    "fast": "gpt-5.4-mini-2026-03-17",
-    "quality": "gpt-5.4-2026-03-05",
-}
-
-# 알려지지 않은 mode는 모델을 호출하기 전에 거부합니다.
-def choose_model(mode):
-    if mode not in MODELS:
-        raise ValueError("지원하지 않는 실행 모드")
-    return MODELS[mode], f"explicit_mode:{mode}"
-
-# route_reason은 모델을 선택한 이유를 기록할 필드입니다.
-model, route_reason = choose_model(mode)
-request["model"] = model
-# route_reason·model을 기록하고 한 번만 전송
-# 실제 권한·지원 설정·단가를 사전 확인
-```
-
-▶ 실제로 돌려 보면 교안 코드 그대로
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| choose_model("fast") | ('gpt-5.4-mini-2026-03-17', 'explicit_mode:fast') | 확인된 기본 실습 모델 + 선택 이유 |
-| choose_model("quality") | ('gpt-5.4-2026-03-05', 'explicit_mode:quality') | 비교 후보 — 생성은 강사도 미확인 (not_run) |
-| choose_model("turbo") | ValueError: 지원하지 않는 실행 모드 | 모르는 모드는 호출 전에 거부 |
-| choose_model("Fast") | ValueError: 지원하지 않는 실행 모드 | 대소문자도 그대로 비교 |
-| cache_key(fast 요청) == cache_key(quality 요청) | False | 모델을 바꾸면 key 도 다시 계산 |
-
-| 부분 | 뜻 |
-|---|---|
-| MODELS = {...} | 허용 목록. 없는 모드는 고를 수 없음 |
-| raise ValueError | 호출 전에 거부 — 비용 0 |
-| f"explicit_mode:{mode}" | route_reason — 왜 이 모델인지 기록 |
-| request["model"] = model | 모델이 바뀌면 Cache key도 다시 계산 |
-
-💡 fast·quality는 교안의 모드 이름이에요. 품질·속도 우열을 보장하지 않아요. Routing(호출 전 선택) ≠ Fallback(실패 후 대안).
 
 ## 📖 Day22 용어 (35개)
 - **KV cache** (Key/Value cache): 답을 한 토큰씩 만들 때 앞에서 계산한 Key·Value를 저장해 재사용하는 것. 빨라지지만 메모리를 차지해요.

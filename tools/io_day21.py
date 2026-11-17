@@ -416,16 +416,16 @@ note_parse = {
     "blank": "공백도 길이 3", "false_evidence": "구조 완벽", "dupkey": "기본 json.loads는 마지막 값으로 덮어씀 → 통과",
     "nan": "기본 json.loads는 NaN을 float로 읽음 → 구조 단계에서 거부",
 }
-IO["d21-parse-answer"] = ("강의 parse_answer 그대로 · 입력은 교안 데모의 샘플 응답(fixture) 14개", [
+IO["d21-parse-answer"] = ("json.loads → model_validate 두 단계 · 입력은 교안 데모의 샘플 응답(fixture) 14개", [
     (lab, f"{obj_s}", note_parse[k]) for (lab, obj_s, _), k in zip(rows_parse, FIXTURES)
 ])
 
-IO["d21-strict-json"] = ("강의 load_json_strict 그대로 · 같은 fixture", [
+IO["d21-strict-json"] = ("강의 콜백 두 개를 json.loads에 지정 · 같은 fixture", [
     ("JSON 키 중복 — json.loads", repr(json.loads(FIXTURES["dupkey"][2])["answer"]), "앞의 값이 조용히 사라짐"),
-    ("JSON 키 중복 — load_json_strict", err(lambda: load_json_strict(FIXTURES["dupkey"][2])), "중복을 오류로"),
+    ("JSON 키 중복 — 콜백 지정", err(lambda: load_json_strict(FIXTURES["dupkey"][2])), "중복을 오류로"),
     ("NaN — json.loads", repr(json.loads(FIXTURES["nan"][2])["source_ids"]), "Python 기본 파서는 NaN을 받아 줌(표준 JSON 아님)"),
-    ("NaN — load_json_strict", err(lambda: load_json_strict(FIXTURES["nan"][2])), "비표준 수치 거부"),
-    ("parse_answer(키 중복, load_json=load_json_strict)", str(parse_answer(FIXTURES["dupkey"][2], load_json_strict)[1]),
+    ("NaN — 콜백 지정", err(lambda: load_json_strict(FIXTURES["nan"][2])), "비표준 수치 거부"),
+    ("키 중복 · 콜백 지정 → 위 try/except", str(parse_answer(FIXTURES["dupkey"][2], load_json_strict)[1]),
      "기본이면 통과(None) → 엄격이면 json_error"),
 ])
 
@@ -465,24 +465,13 @@ class KnowledgeAnswer(BaseModel):
     answer: str = Field(min_length=1, max_length=500)
     source_ids: list[SourceID] = Field(max_length=3)
     missing_information: str = Field(max_length=200)
-def parse_answer(raw, load_json=json.loads):
-    try:
-        data = load_json(raw)
-    except ValueError:
-        return None, "json_error"
-    try:
-        obj = KnowledgeAnswer.model_validate(data)
-    except ValidationError:
-        return None, "schema_error"
-    return obj, None
 @pytest.mark.parametrize("raw, expected", [
-    ('{{"status":', "json_error"),
-    ('{{}}', "schema_error"),
+    ('{{"status":', json.JSONDecodeError),
+    ('{{}}', ValidationError),
 ])
 def test_invalid_outputs(raw, expected):
-    obj, error = parse_answer(raw)
-    assert obj is None
-    assert error == expected
+    with pytest.raises(expected):
+        KnowledgeAnswer.model_validate(json.loads(raw))
 '''
 with tempfile.TemporaryDirectory() as td:
     tp = Path(td) / "test_answer.py"
@@ -590,6 +579,8 @@ def box(title, rows):
 
 
 if __name__ == "__main__":
+    for _cid in ["d21-build-context", "d21-check-rules", "d21-validate", "d21-retry"]:
+        IO.pop(_cid, None)  # 명령어 사전에서 뺀 항목 (강의가 직접 만든 함수)
     for cid, (title, rows) in IO.items():
         print(f"== {cid}")
         for i, o, n in rows:

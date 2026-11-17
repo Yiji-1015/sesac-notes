@@ -8608,8 +8608,7 @@ window.GLOSSARY = [
  {
   "term": "재시도",
   "aliases": [
-   "Retry",
-   "run_with_retry"
+   "Retry"
   ],
   "full": "Retry",
   "short": "실패 원인을 확인한 뒤 정해 둔 조건·횟수 안에서 다시 요청하는 제어. 오늘 정책은 형식 오류만 1회 수정(최대 2회), 규칙 위반은 바로 중단.",
@@ -9139,7 +9138,6 @@ window.GLOSSARY = [
   "aliases": [
    "라우팅",
    "route_reason",
-   "choose_model",
    "Fallback"
   ],
   "full": "Model Routing",

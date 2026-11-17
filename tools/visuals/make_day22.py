@@ -73,7 +73,7 @@ def fig_layers():
     fig, ax = canvas(12.4, 5.6, 12.4, 5.6)
     ax.text(0.1, 5.3, "같은 'status'라도 세 층 — 교안 GATE_CASES 8개를 SDK Response로 만들어 실제로 판정", fontsize=10.2,
             fontweight="bold", color=C["ink"])
-    cols = ["사례", "HTTP", "response.status", "completed_text\n오류", "run_status\n(앱 실행 결과)", "answer.status\n(업무)", "근거"]
+    cols = ["사례", "HTTP", "response.status", "완료 판정\n오류", "run_status\n(앱 실행 결과)", "answer.status\n(업무)", "근거"]
     ws = [2.9, 0.9, 1.6, 1.7, 2.0, 1.8, 1.3]
     xs = [0.1]
     for w in ws[:-1]:
@@ -161,7 +161,7 @@ def fig_sdk_retry():
 def fig_bounded():
     b = R["bounded"]
     fig, ax = canvas(12.6, 5.2, 12.6, 5.2)
-    ax.text(0.1, 4.9, "생성 × 전송 — 각본대로 응답하는 가짜 서버로 send_bounded 실행 (생성 ≤ 2 · 생성당 전송 ≤ 2 · 전체 ≤ 4)",
+    ax.text(0.1, 4.9, "생성 × 전송 — 각본대로 응답하는 가짜 서버로 강의 재시도 흐름 실행 (생성 ≤ 2 · 생성당 전송 ≤ 2 · 전체 ≤ 4)",
             fontsize=10, fontweight="bold", color=C["ink"])
     h = 0.66
     for i, r in enumerate(b):
@@ -196,9 +196,9 @@ def fig_backoff():
     app_hi = [D.retry_delay(a, None, 1e9, 0.5) for a in att]
     fig, ax = plt.subplots(figsize=(9.5, 3.8))
     ax.fill_between(att, main_lo, main_hi, color=C["purple"], alpha=0.25)
-    ax.plot(att, main_lo, "o-", color=C["purple"], label="본문 wait-main: min(8, 2^(n-1)) + 지터 0~0.25")
+    ax.plot(att, main_lo, "o-", color=C["purple"], label="본문 대기식: min(8, 2^(n-1)) + 지터 0~0.25")
     ax.fill_between(att, app_lo, app_hi, color=C["pink"], alpha=0.2)
-    ax.plot(att, app_lo, "s--", color=C["pink"], label="부록 retry_delay: 2^(n-1) + 지터 0~0.5 (상한 없음)")
+    ax.plot(att, app_lo, "s--", color=C["pink"], label="부록 대기식: 2^(n-1) + 지터 0~0.5 (상한 없음)")
     for a, v in zip(att, app_lo):
         ax.text(a, v + 1.2, f"{v:g}", ha="center", fontsize=8.5, color=C["pink"])
     for a, v in zip(att, main_lo):
@@ -240,7 +240,7 @@ def fig_cache():
     rbox(ax, 0.1, 3.4, 3.9, 1.6, "Response Cache (우리 앱)\n승인된 최종 답변을 재사용\n유효한 hit → 새 API 전송 0회", fc="#e6fcf5", ec=C["mint"], fs=9.1)
     rbox(ax, 4.35, 3.4, 3.9, 1.6, "Prompt Caching (API 제공사)\n같은 입력 앞부분 계산 재사용\n요청·새 출력 생성은 계속\n→ usage.cached_tokens", fc="#f3f0ff", ec=C["purple"], fs=9.1)
     rbox(ax, 8.6, 3.4, 3.9, 1.6, "KV Cache (모델 내부)\n앞 토큰의 Key·Value 재사용\n다음 토큰 계산을 빠르게\n답변 저장소 아님", fc="#fff0f6", ec=C["pink"], fs=9.1)
-    ax.text(0.1, 2.85, "read_cache 실제 실행 (TTL 60초 · 가상 시간)", fontsize=9.8, fontweight="bold", color=C["ink"])
+    ax.text(0.1, 2.85, "캐시 읽기 판정 실제 실행 (TTL 60초 · 가상 시간)", fontsize=9.8, fontweight="bold", color=C["ink"])
     for i, (cond, res) in enumerate(R["cache"]):
         y = 2.25 - i * 0.48
         hit = not res.startswith("None")
