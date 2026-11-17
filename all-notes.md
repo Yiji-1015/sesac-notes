@@ -16696,3 +16696,1767 @@ print("수정 시도 수:", len(repair_attempts))
 - **근거 적합성** (Grounding / Evidence check): 인용한 자료의 본문이 답의 주장을 실제로 뒷받침하는지. 출처 ID가 '이번에 준 ID'라는 것(참조 검사)과는 별개라서 사람이 읽고 판단해요.
 - **재시도** (Retry): 실패 원인을 확인한 뒤 정해 둔 조건·횟수 안에서 다시 요청하는 제어. 오늘 정책은 형식 오류만 1회 수정(최대 2회), 규칙 위반은 바로 중단.
 - **pytest**: Python 테스트 도구. test_로 시작하는 함수를 찾아 실행하고, parametrize로 같은 테스트를 입력 여러 개에 돌려요.
+
+---
+
+# Day22 · LLM API 클라이언트 — 호출 · 검증 · 기록
+_2026-11-17(화) · API · SDK · 인증 · .env · Responses API · Structured Outputs · Streaming(SSE) · Rate Limit · 재시도 · Token Usage · 비용 · Latency · Cache · Model Routing_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day22.html
+
+📌 딱 3줄 요약
+
+- 어제 만든 Prompt·지식·출력 계약은 그대로 두고, 사람이 복사하던 응답을 Python이 API로 받는 방법만 바꿔요. 그 받는 코드에 우리 정책(대기·재시도·검증·기록)을 묶은 게 LLM Client예요.
+
+- HTTP 200 ≠ 생성 완료 ≠ 자동 검사 통과 ≠ 근거 맞음. 중간 조각(Streaming)이 보여도, 구조(Structured Outputs)가 맞아도 아직 확정이 아니에요.
+
+- 실패는 원인별로 기다리기·고치기·멈추기로 갈라요. 횟수는 앱이 세고(max_retries=0), 모르는 값은 0이 아니라 None으로 남기고, 캐시와 모델 선택도 조건과 이유를 기록해요.
+
+🔧 Day22 명령어 한눈에 — 이론 구역별 코드·인자 설명 명령어 사전에서 보기 →
+
+명령어 사전의 결과값은 강의 코드를 이 PC에서 실제로 실행한 거예요. 단, OpenAI 서버에는 요청하지 않았어요(API 키·비용 없음). 대신 openai SDK에 가짜 서버(httpx.MockTransport)를 붙여서, SDK가 실제로 만드는 요청 본문 · 실제로 던지는 예외 · 실제로 해석한 스트림 이벤트를 관찰했어요. 응답 내용은 강의 자료의 샘플 또는 강의에 실린 강사 실행 로그 값이에요.
+
+## 📦 필요한 패키지
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| openai | OpenAI 공식 Python SDK — 요청 전송 · 응답 객체 · 예외 · 스트림 이벤트 (HTTP는 안에서 httpx가 처리) | from openai import OpenAI |
+| pydantic (v2) | 전송용 Schema(WireAnswer) 생성 · 로컬 계약(KnowledgeAnswer) 검사 | from pydantic import BaseModel, ConfigDict, Field |
+| python-dotenv | .env 파일을 dict로 읽기 | from dotenv import dotenv_values |
+| 표준 라이브러리 | JSON · 시간 측정 · 해시 · 금액 계산 · 난수 — 설치 없음 | json · time.perf_counter · hashlib · decimal.Decimal · random |
+
+🔧 기존 가상환경에서 확인만 명령어 사전에서 자세히 →
+
+```
+python -c "import sys; print(sys.executable)"     # VS Code 인터프리터와 같은 Python인가
+python -m pip show openai pydantic python-dotenv   # 없는 것만 python -m pip install …
+```
+
+💡 .venv ≠ .env — .venv는 Python과 패키지가 든 실행 환경 폴더, .env는 키·모델 이름을 적은 설정 파일이에요. 가상환경은 매번 새로 만들지 않고, 일괄 --upgrade도 하지 않아요. 다른 실습의 버전 조건이 깨질 수 있거든요.
+
+## 이거 어디에 써?
+
+어제(Day21)는 Prompt를 조립하고, ChatGPT 화면에서 받은 답이나 교사가 쓴 샘플을 검사했어요. 실제 서비스는 사람이 복사·붙여넣기를 하지 않죠. Python 프로그램이 직접 모델을 부르고, 답을 받아 검사하고, 기록해야 해요. 그때 이런 일이 생겨요.
+
+- 답이 반쯤 오다가 연결이 끊김 → 반쪽 JSON을 저장해도 되나?
+
+- 429 오류 → 기다리면 되나, 돈이 없는 건가?
+
+- 같은 질문이 백 번 들어옴 → 매번 돈 내고 부를까?
+
+- "이번 달 얼마 썼지?" → 답 문장만 저장했다면 알 수 없음
+
+[그림: 질문·선택 지식·고정 Prompt → LLM Client(인증·모델 선택·캐시·전송·재시도) → 외부 LLM API → 응답 검증 → 기록·근거 검토. 검색과 도구 실행은 이후] 무엇을 보나: 왼쪽 끝(입력)과 오른쪽 둘(검증·기록)은 어제 만든 그대로예요. 가운데 LLM Client가 오늘 새로 생겨요. 🤔 왜 SDK만으로 안 돼? SDK는 '보내고 받기'만 해 줘요. 몇 번 다시 보낼지, 어떤 모델을 쓸지, 무엇을 기록할지는 우리 서비스의 정책이라 우리 코드가 정해야 해요.
+
+| 날짜 | 만든 것 | 오늘과의 관계 |
+|---|---|---|
+| 11/10~12 Day17~19 | FastAPI + PostgreSQL 지식 API | 원본 지식 101~103 |
+| 11/13 Day20 | LLM 원리 | Token · KV Cache · 디코딩 |
+| 11/16 Day21 | Prompt · Context · 출력 검증 | 그대로 재사용 (Prompt · KnowledgeAnswer · check_rules) |
+| 11/17 오늘 | LLM API 클라이언트 | 실제 호출 · Streaming · 오류 · 비용 · 캐시 · 모델 선택 |
+| 이후 | 11/18 Embedding·Vector DB → 11/19 Chunking → 11/20 RAG | "어떤 지식을 넣을까"를 검색이 고르기 |
+
+## 📋 명세 — 지식 답변 생성기 v2의 약속
+
+오늘 클라이언트가 주고받는 데이터 모양 · 상한 · 실패 처리 규칙을 한곳에 모았어요. 숫자는 모두 강의가 정한 값이에요(OpenAI 계정의 한도나 권장값이 아니에요).
+
+### 1. 실행 결과 — 호출 한 건이 돌려주는 것
+
+| 필드 | 값 | 뜻 |
+|---|---|---|
+| run_status | validated · refused · incomplete · empty_output · json_error · schema_error · unknown_source · duplicate_source · status_rule · blank_answer · interrupted · 전송 실패 사유 | 앱이 본 실행의 결과. validated = 자동 검사 통과(사람 승인 아님) |
+| answer_object | KnowledgeAnswer 또는 None | 업무 답변 네 필드 (Day21 계약 그대로) — status는 answered / insufficient_context |
+| evidence_ok | None → 사람이 본 뒤 True/False | 자동 검사로는 절대 True가 되지 않음 |
+| model · route_reason | 예: gpt-5.4-mini-2026-03-17 · explicit_mode:fast | 어떤 모델을 왜 골랐나 |
+| usage | input · output · cached · reasoning 토큰, 또는 None | 못 받았으면 None (0 아님) |
+| first_text_ms · request_ms · e2e_ms | 숫자 또는 None | 측정 구간이 서로 다름 (⑤) |
+| source_mode | api_live · simulated · app_cache · not_run | 결과를 얻은 방법 — 성능표에 섞지 않음 |
+| run_id · case_id · generation_no · send_attempt | 예: demo-001 · H01 · 1 · 2 | 앱의 작업 · 질문 · 생성 번호 · 그 생성의 전송 번호 (OpenAI의 response.id와 별개) |
+
+### 2. 상한 — 이 수업의 정책값
+
+| 항목 | 값 | 이유 |
+|---|---|---|
+| SDK 자동 재시도 max_retries | 0 | 재전송은 앱 한 곳에서만 결정 (SDK 기본값은 2) |
+| 요청 대기 timeout | 30.0초 | 요청 하나의 입출력 대기. 작업 전체 마감 아님 |
+| 생성 횟수 | 최대 2 (최초 + 형식 수정 1) | 형식 오류만 고칠 기회 |
+| 생성당 전송 | 최대 2 | 일시적 429 · 선별한 5xx만 1회 더 |
+| 작업 전체 전송 | 최대 4 | 2 × 2 — 상한은 목표 횟수가 아님 |
+| 대기 fallback | min(8, 2^(attempt−1)) + 지터 0~0.25초 | Retry-After 없을 때. 있으면 그 값이 최소 |
+| max_output_tokens | 1200 | 한 응답의 출력 상한 |
+| 개인 호출 예산 (예시) | 전체 실제 전송 20회 | 재시도·캐시 무효화 후 호출 포함 |
+
+### 3. 실패 → 다음 행동
+
+| 관측 | SDK 예외 | 다음 행동 | 하지 않는 것 |
+|---|---|---|---|
+| 401 인증 실패 | AuthenticationError | 중단 · 키/프로젝트 설정 확인 | 같은 키로 반복, 키를 오류 화면에 출력 |
+| 403 권한 없음 | PermissionDeniedError | 중단 · 허용 모델·권한 확인 | 다른 사람 키로 우회 |
+| 400 잘못된 요청 | BadRequestError | 요청 수정 후 별도 실행 | 같은 요청 반복 |
+| 429 rate_limit_exceeded | RateLimitError | Retry-After · 남은 시간 · 남은 횟수 안에서만 1회 더 | 서버 최소 대기를 줄여 재전송 |
+| 429 insufficient_quota | RateLimitError (같은 예외!) | 중단 · 잔액·결제·한도 확인 | 기다렸다 다시 보내기 |
+| 429 원인 불명 | RateLimitError | 원인 확인 전 중단 | HTTP 코드만 보고 '일시적'이라 추정 |
+| 500 (허용한 서버 오류) | InternalServerError | 예산 안에서 1회 재시도, 실패 기록 보존 | 무한 루프 |
+| Timeout · 스트림 끊김 | APITimeoutError · APIConnectionError | 이번 자동 흐름 중단 · usage는 None | 자동 재전송 (이미 생성·과금됐을 수 있음) |
+| 거절 · incomplete · 빈 출력 | — (200 응답) | 상태 기록 후 종료 | 정보 부족으로 위장 · 형식 수정 요청 |
+| JSON · Schema 오류 | — (200 응답) | 형식 수정 생성 1회 | 3번째 생성 |
+| 출처 · 상태 규칙 위반 | — (200 응답) | 중단 | 다시 물어 근거를 '만들기' |
+
+### 4. 함수별 입력 · 출력 · 보장하지 않는 것
+
+| 함수 | 입력 → 출력 | 보장하지 않는 것 |
+|---|---|---|
+| completed_text(response) | Response → (원문, None) 또는 (None, "refusal"\|status\|"empty_output") | JSON 문법 · 내용 |
+| inspect_answer(raw, provided_ids) | 원문 → {auto_status, answer_object, error} | 근거 적합성 |
+| choose_model(mode) | "fast"\|"quality" → (모델 ID, route_reason), 그 외 ValueError | 품질 · 속도 우열, 실제 사용 권한 |
+| retry_delay(…) · 대기 판단 | attempt · Retry-After · 남은 예산 → 대기 초 또는 deferred/attempt_limit | 다음 전송의 성공 |
+| 비용 계산 | usage · 단가 → estimated_usd 또는 None | 최종 청구액 |
+| cache_key(…) · read_cache(…) | 조건 → SHA-256 key · hit이면 {…, new_api_send_count: 0} | 답의 최신성 (TTL 하나로는) |
+
+## ① LLM API · SDK · 인증
+
+🤔 질문부터: ChatGPT에서 나눈 대화를 API가 기억해서 이어 받을까? → 아니요. API는 매 요청에 보낸 지시·문맥만 봐요. 오늘은 필요한 걸 매번 다 보내요.
+
+| 말 | 뜻 | 오늘의 실체 |
+|---|---|---|
+| API (Application Programming Interface) | 프로그램이 다른 프로그램 기능을 약속된 형식으로 쓰는 접점 | POST https://api.openai.com/v1/responses |
+| Client / Server | 요청을 보내는 쪽 / 처리하는 쪽 | 우리 FastAPI는 사용자에겐 서버, OpenAI 앞에선 클라이언트 |
+| SDK (Software Development Kit) | API 사용을 돕는 라이브러리 | openai 패키지 — Python 호출 ↔ HTTP 요청, 응답 ↔ 객체, 오류 ↔ 예외 |
+| LLM Client | 우리 서비스의 호출 정책을 묶은 모듈 | 입력 구성 · 모델 선택 · 대기/재시도 · 검증 · 기록 |
+
+```
+우리 LLM Client: 입력 구성 · 모델 선택 · 검증 · 기록
+  └ openai SDK: 요청 전송 · 응답 객체 · 예외
+       └ 외부 LLM API (OpenAI Responses)
+```
+
+### 인증과 권한은 다른 질문
+
+|  | 인증 Authentication (401) | 권한 Authorization (403) |
+|---|---|---|
+| 묻는 것 | 이 자격(API 키)이 유효한가? | 이 자격으로 이 모델·작업을 해도 되나? |
+| 실패 원인 | 키 오타 · 만료 · 폐기 · 다른 프로젝트 키 | 모델 접근 미허용 · 프로젝트 권한 |
+| 해결 | 설정 확인 | 권한 확인 (다른 사람 키로 우회 금지) |
+
+그리고 잔액·사용 한도는 또 별개예요(429 insufficient_quota). ChatGPT 구독료와 API 청구도 다른 계정·잔액이에요. 🤔 왜 이렇게 쪼개 봐? 원인마다 고치는 곳이 달라서요. 401을 "잠깐 기다리면 되겠지" 하고 반복하면 같은 실패만 쌓여요.
+
+### 설정은 실습별 .env, 읽기는 명시적으로
+
+🔧 실행 파일 옆 .env를 dict로 읽기 명령어 사전에서 자세히 →
+
+```
+ENV_PATH = Path(__file__).resolve().with_name(".env")    # 터미널 위치가 아니라 실행 파일 옆
+settings = dotenv_values(ENV_PATH, encoding="utf-8-sig", interpolate=False)
+os.environ["OPENAI_API_KEY"] = settings["OPENAI_API_KEY"].strip()   # 값 확인 후 · 출력은 절대 안 함
+```
+
+| 가짜 .env로 실제 실행 | 결과 |
+|---|---|
+| 정상 / 메모장 BOM 붙은 파일 | 둘 다 MODEL = gpt-5.4-mini-2026-03-17 · 키 설정됨 = True — utf-8-sig 덕분 |
+| OPENAI_API_KEY=본인_키 (예시 그대로) | RuntimeError: 이 실습의 .env에서 OPENAI_API_KEY을 설정하세요. |
+| .env 없음 | FileNotFoundError — 호출 전에 멈춤 |
+| NOTE=${HOME}/x | '${HOME}/x' 그대로 (interpolate=False) |
+
+⚠️ 키는 코드·HTML·Prompt·Git·채팅·화면 캡처·제출물 어디에도 넣지 않아요. .gitignore에 .env를 넣고, 결과 파일에는 "설정됨 True" 정도만 남겨요. 키를 가리는 것과 보낼 데이터 자체를 줄이는 것(실명·내부 문서 제외)은 둘 다 필요해요.
+
+### 모델 — "지원한다"와 "실제로 확인했다"는 다른 칸
+
+| 용도 · 모델 ID | 공식 기능 | 실제 확인 범위 |
+|---|---|---|
+| 기본 · fast gpt-5.4-mini-2026-03-17 | Responses · Streaming · Structured Outputs · reasoning none | 강사 환경: 일반 텍스트 생성 completed까지. Structured Outputs·Streaming은 별도 확인 필요 |
+| 비교 · quality gpt-5.4-2026-03-05 | 같음 | 강사 계정 목록에 있음 · 생성은 미확인 → 안 했으면 not_run |
+
+날짜가 붙은 ID는 snapshot(고정 버전)이라, 같은 이름이 나중에 다른 모델을 가리키지 않아요. client.models.list()로 내 키에 보이는 목록을 확인할 수 있는데, 목록에 있음 ≠ 생성 가능이에요(권한·잔액·요청 설정은 따로).
+
+### 첫 호출 — 요청이 어떻게 생겼나
+
+🔧 client.responses.create() 명령어 사전에서 자세히 →
+
+```
+client = OpenAI(base_url="https://api.openai.com/v1", timeout=30.0, max_retries=0)
+response = client.responses.create(
+    model=MODEL, instructions="한국어 한 문장으로 답하세요.",
+    input="API의 역할을 쉽게 설명해 주세요.",
+    reasoning={"effort": "none"}, max_output_tokens=1200, store=False)
+print(response.status, response.output_text, response.usage)
+```
+
+가짜 서버로 받아 보니, SDK가 실제로 보낸 건 POST /v1/responses + 아래 JSON이었어요. 키는 본문이 아니라 Authorization: Bearer … 헤더로 가요.
+
+```
+{"model": "gpt-5.4-mini-2026-03-17", "input": "API의 역할을 쉽게 설명해 주세요.",
+ "instructions": "한국어 한 문장으로 답하세요.", "max_output_tokens": 1200,
+ "reasoning": {"effort": "none"}, "store": false}
+```
+
+강의에 실린 강사의 실제 호출 로그는 이랬어요. (이 노트가 호출한 결과가 아니에요.)
+
+| 항목 | 값 |
+|---|---|
+| 요청 모델 = 응답 모델 | gpt-5.4-mini-2026-03-17 |
+| status | completed |
+| output_text | API는 서로 다른 프로그램들이 정해진 규칙으로 데이터를 주고받고 기능을 이용하게 해 주는 "중간 다리"입니다. |
+| usage | input 31 (cached 0) · output 36 (reasoning 0) · total 67 = 31 + 36 |
+| 없는 값 | 실행 시각 · SDK 버전 · 응답 시간 · 청구액 → 기록도 None |
+
+#### 응답 객체에서 읽을 것
+
+| 필드 | 뜻 | 헷갈리지 말 것 |
+|---|---|---|
+| response.id | OpenAI가 준 생성 응답 ID | 우리 앱의 작업 ID run_id |
+| response._request_id | HTTP 요청 추적 ID (헤더 x-request-id) | response.id |
+| response.status | completed · incomplete 등 생성 상태 | JSON 안의 answered |
+| response.output_text | 텍스트를 모아 읽는 편의 속성 | "output[0]이 항상 답"이라는 가정 |
+| response.usage | 관측된 토큰 수 | 청구 금액 · 글자 수 |
+
+💡 store=False는 "응답을 서버에 저장해 두지 말라"는 옵션 하나예요. 모든 로그·보존이 0이라는 뜻은 아니에요.
+
+## ② 메시지 구성 · Structured Outputs
+
+| 구역 | 담는 것 | 예 |
+|---|---|---|
+| instructions | 앱이 고정한 작업 · 제약 · 실패 기준 · 출력 규칙 (Day21 Prompt) | "제공 지식으로 답하고 네 필드 JSON을 반환…" |
+| input | 이번 질문 + 실제로 고른 지식 | [{"role": "user", "content": user_input}] |
+
+🔧 질문 + 선택 지식 → 요청 dict 명령어 사전에서 자세히 →
+
+```
+user_input = json.dumps({"question": question, "knowledge": selected}, ensure_ascii=False)
+provided_ids = {item["id"] for item in selected}        # 출처 허용 범위 = 이번에 보낸 것
+request = {"model": MODEL, "instructions": instructions_text,
+           "input": [{"role": "user", "content": user_input}], ...}
+```
+
+H01("오류 질문에 무엇을 적나요?") + 지식 103으로 실행하면 provided_ids = {103}이에요. DB에 101·102가 있어도 이번엔 안 보냈으니 출처가 될 수 없어요. 🤔 구역을 나누면 Prompt Injection이 막혀? 아니요. 구역은 읽기 쉽게 나눈 것이지 보안 장치가 아니에요. 자료 속 "이전 지시 무시" 같은 문장은 계속 데이터로 다뤄요.
+
+### Structured Outputs — 구조를 API에 약속받기
+
+|  | "JSON으로 답해" (Prompt) | Structured Outputs (API 설정) |
+|---|---|---|
+| 어디에 | 지시 문장 안 | text={"format": {"type": "json_schema", …}} |
+| 무엇을 | 부탁 | 필드 · 자료형 · 필수 · 허용 값을 Schema로 제약 |
+| 못 하는 것 | 근거가 맞는지 · 길이·범위 같은 업무 규칙 · 거절/불완전/API 오류 처리 |  |
+
+#### Schema가 둘 — WireAnswer(보낼 것) vs KnowledgeAnswer(받아들일 것)
+
+|  | WireAnswer · 전송용 | KnowledgeAnswer · 로컬 검증용 |
+|---|---|---|
+| 목적 | API에 넘길 최소 구조 (wire = 전송 경계) | Day21 계약 그대로 — 서비스가 받아들일 조건 |
+| 설정 | extra="forbid" | extra="forbid", strict=True + 길이·양수·최대 3개 |
+| source_ids=["101"] (실제 실행) | [101] — 문자열을 정수로 바꿔 줌 | ValidationError — 거부 |
+
+🔧 WireAnswer → JSON Schema → 요청에 추가 명령어 사전에서 자세히 →
+
+```
+output_format = {"type": "json_schema", "name": "knowledge_answer", "strict": True,
+                 "schema": WireAnswer.model_json_schema()}
+response = client.responses.create(**request, text={"format": output_format})
+```
+
+실제로 만든 Schema는 required에 네 필드 · additionalProperties: false · status는 enum이에요. 그런데 source_ids는 그냥 {"type": "array", "items": {"type": "integer"}} — 양수·최대 3개·"이번에 보낸 ID" 같은 조건은 없어요. 그래서 로컬 검사를 지우면 안 돼요.
+
+### "status"가 세 층
+
+[그림: 교안 8개 사례의 HTTP · response.status · completed_text 오류 · run_status · answer.status · 근거 표. 정상과 정보 부족은 validated, 거절은 refused, 불완전은 incomplete, 빈 텍스트 empty_output, JSON 오류 json_error, 999 unknown_source, 잘못된 인용은 validated지만 사람이 걸러냄] 무엇을 보나: 여덟 줄 모두 HTTP 200이에요. 통신은 다 성공했어요. 오른쪽으로 갈수록 걸러져요. 🤔 "정보 부족"이 초록이야? 네. 요청·생성·검사가 정상으로 끝났고, 업무 답이 '자료에 없음'일 뿐이에요. 반대로 마지막 줄 잘못된 인용은 기계 검사를 전부 통과해서 validated지만, 사람이 원문과 대조해야 걸러져요.
+
+```
+HTTP 200                                   ← 통신 결과
+  └ response.status = "completed"          ← 생성 완료
+       └ answer_object.status = "insufficient_context"   ← 업무 답변 상태
+→ 셋 다 동시에 정상일 수 있어요.
+```
+
+### 검증기에 넘기기 전 관문 — completed_text
+
+🔧 거절 → 미완성 → 빈 출력 순서로 거르기 명령어 사전에서 자세히 →
+
+```
+for item in response.output:                    # 거절 콘텐츠가 있나
+    if item.type == "message":
+        for part in item.content:
+            if part.type == "refusal": return None, "refusal"
+if response.status != "completed": return None, response.status
+if not response.output_text.strip(): return None, "empty_output"
+return response.output_text, None                # None = 상태 검사 통과 (내용 보증 아님)
+```
+
+🤔 왜 거절을 status보다 먼저 봐? 거절도 status="completed"로 올 수 있어서요(위 그림 3번째 줄). status만 보면 거절을 정상 답으로 착각해요. 그리고 refusal(API가 주는 콘텐츠 종류)과 refused(우리 앱의 실행 상태 이름)는 층이 다른 말이에요.
+
+### 로컬 계약 · 규칙은 그대로
+
+🔧 KnowledgeAnswer · check_rules · inspect_answer 명령어 사전에서 자세히 →
+
+```
+SourceID = Annotated[int, Field(strict=True, gt=0)]      # "101" · True · 0 거부
+if not set(ids) <= set(provided_ids): return "unknown_source"
+report = inspect_answer(raw, provided_ids)                 # Day21 validate_answer + load_json_strict
+```
+
+| 실제 실행 (check_rules) | 결과 |
+|---|---|
+| [101] 인용, 이번에 보낸 건 {102} (101은 DB에 있음) | unknown_source |
+| answered인데 출처 없음 / 정보 부족인데 출처 있음 | status_rule / status_rule |
+| 정보 부족인데 answer = "몰라요" | status_rule — 안내문은 "제공된 지식으로는 답할 수 없습니다." 고정 |
+| answer = " " (공백 3칸) | blank_answer — min_length=1은 통과하지만 규칙이 잡음 |
+
+### 실행 기록에 남기는 것
+
+```
+raw, gate_error = completed_text(response)
+if gate_error: result = {"run_status": "refused" if gate_error == "refusal" else gate_error, "answer_object": None, "evidence_ok": None}
+else:          report = inspect_answer(raw, provided_ids)
+               result = {"run_status": "validated" if report["error"] is None else report["error"], ..., "evidence_ok": None}
+```
+
+usage는 검증이 실패해도 따로 기록해요. 형식이 틀린 답에도 토큰(=돈)은 들었으니까요.
+
+## ③ Streaming — 먼저 보여도 아직 확정은 아님
+
+```
+일괄 수신:  [기다림──────────────] [완성된 응답]
+Streaming:  [기다림] [조각] [조각] [조각] [완료]   ← 앞부분을 먼저 보여 줄 수 있음
+                                                    총 완료 시간이 짧아진다는 뜻은 아님
+```
+
+### SSE · 이벤트 · delta
+
+SSE(Server-Sent Events)는 HTTP 연결 하나를 열어 두고 서버가 event: 이름 + data: JSON 묶음을 이어 보내는 방식이에요. SDK는 이걸 event 객체로 바꿔 주고, 우리는 event.type으로 갈라요.
+
+| event.type | 뜻 | 읽을 필드 |
+|---|---|---|
+| response.created | 생성 시작 | — |
+| response.output_text.delta | 새 텍스트 조각 | event.delta |
+| response.output_text.done | 텍스트 항목 하나의 끝 (전체 끝 아님) | event.text |
+| response.completed | 전체 응답 완료 | event.response (최종 Response · usage) |
+| response.incomplete · response.failed | 끝났지만 미완성 · 실패 | event.response |
+| error | 스트림 오류 | — |
+
+delta = 변화분. 조각 하나가 토큰 하나가 아니에요. 네트워크가 묶어 보내는 단위라서 "조각 10개 = 출력 10 Token"이 아니고, 중간 조각들은 {"status":처럼 완전한 JSON이 아닐 수 있어요.
+
+🔧 수신 루프 — 미리보기 버퍼와 최종 Response를 따로 명령어 사전에서 자세히 →
+
+```
+with client.responses.create(**request, text={"format": output_format}, stream=True) as events:
+    for event in events:
+        if event.type == "response.output_text.delta":
+            if event.delta and first_ms is None: first_ms = (perf_counter() - t0) * 1000
+            parts.append(event.delta)                         # 미리보기용
+        elif event.type in {"response.completed", "response.failed", "response.incomplete"}:
+            final = event.response                            # 판정 대상
+        elif event.type == "error": stream_error = "stream_error"
+outcome = "interrupted" if final is None or stream_error else completed_text(final)
+```
+
+[그림: 7개 스트림 시나리오: 정상 완료와 빈 delta 후 완료만 검증기로, 연결 끊김·완료 이벤트 없음·error 이벤트는 interrupted, incomplete는 incomplete, refusal은 refusal. usage는 끊기면 None] 무엇을 보나: 가짜 서버가 SSE 바이트를 보내고 openai SDK가 실제로 해석한 이벤트 순서예요. 초록 "→ 검증기로"는 두 줄뿐이에요. 🤔 "완료 이벤트 없이 종료" 줄은 조각 4개가 다 왔는데 왜 실패야? 조각이 다 왔는지 확인할 방법이 completed 이벤트뿐이라서요. 확인 못 한 건 성공으로 치지 않아요. "연결 끊김"은 SDK가 APIConnectionError를 던졌고 usage도 못 받아서 None이에요.
+
+| 관측 단계 (앱 이름) | 할 수 있는 것 | 아직 하면 안 되는 것 |
+|---|---|---|
+| partial · 부분 수신 | 검증 전 미리보기 | 부분 JSON으로 도구 실행·DB 변경 |
+| completed · 생성 완료 | 최종 원문·usage 확인 | 내용까지 맞다고 확정 |
+| validated · 자동 검사 통과 | 근거 검토로 전달 | evidence_ok 자동 True |
+| interrupted / refused | 중단·거절 이유 기록 | 성공 캐시에 저장 · 무조건 다시 요청 |
+
+### Latency — 어느 구간의 시간인가
+
+| 이름 | 시작 → 끝 | 주의 |
+|---|---|---|
+| first_text_ms | 요청 시작 → 첫 비어 있지 않은 delta | 서버 내부의 첫 토큰 시각(TTFT)과 같다고 단정하지 않음 · 없으면 None |
+| request_ms | 요청 시작 → 종료·실패 | API 요청 하나 |
+| e2e_ms (End-to-End) | 준비 → 대기 → 재시도 → 검증 → 끝 | 사용자가 실제로 기다린 전체 |
+
+```
+준비 │ API 요청 시작 ─ 첫 텍스트 ─────── 종료 │ 검증
+     │←first_text_ms→│                         │
+     │←────────── request_ms ────────────────→│
+│←──────────────────────── e2e_ms ─────────────────────→│
+```
+
+ms = 1/1000초. 시간은 time.perf_counter()(경과 시간 전용 시계)로 재요. 벽시계(time.time())는 시스템 시각이 바뀌면 거꾸로 갈 수도 있어요. 🤔 첫 글자가 빨리 보이면 좋은 거 아냐? 체감은 좋아요. 하지만 "첫 표시가 빠름 ≠ 총 완료가 빠름"이라, 비교할 땐 두 열을 따로 적어요.
+
+## ④ Rate Limit · 오류 · 재시도
+
+### Rate Limit — 무엇을 제한하나
+
+| 기준 | 뜻 | 가상 예시 |
+|---|---|---|
+| RPM Requests Per Minute | 분당 요청 수 | 요청 5개 × 100 Token = 500 Token |
+| TPM Tokens Per Minute | 분당 토큰 수 | 요청 1개 × 5,000 Token = 5,000 Token |
+
+요청이 적어도 입력이 크면 TPM에 닿아요. 같은 프로젝트의 한도는 여러 앱·사람이 공유할 수 있어요. 그리고 강의의 "생성 2 × 전송 2"는 우리 앱의 상한이지 OpenAI의 RPM·TPM이 아니에요.
+
+#### 같은 429, 다른 처방
+
+| e.code | 뜻 | 행동 |
+|---|---|---|
+| rate_limit_exceeded | 잠깐 너무 많이 보냄 | Retry-After 지키고 예산 안에서 1회 더 |
+| insufficient_quota | 잔액·결제·지출 한도 | 중단 — 기다려도 안 풀림 |
+| (알 수 없음) | — | 원인 확인 전 중단 |
+
+### SDK 재시도 vs 앱 재시도 — 한 곳에서만
+
+[그림: 오류별 실제 전송 수: max_retries=0이면 모두 1회. 기본값 2이면 401·403·400은 1회, 429 rate limit·429 insufficient_quota·500·timeout은 3회] 무엇을 보나: 같은 오류를 돌려주는 가짜 서버에 SDK 설정만 바꿔 보냈어요. 기본값(max_retries=2)이면 SDK가 429·500·timeout을 앱이 모르는 사이 3번 보내요. 🤔 제일 위험한 건? 분홍 막대 중 할당량 부족(insufficient_quota)이에요. SDK는 429라는 숫자만 보고 재시도해서, 기다려도 안 풀리는 문제에 요청을 3번 써요. 그리고 timeout 재전송은 서버가 이미 만든 답을 또 만들게 할 수 있어요. 그래서 수업은 max_retries=0으로 두고 앱이 e.code를 읽어 결정해요.
+
+|  | 통신 재시도 (Transport retry) | 형식 수정 (Format repair) |
+|---|---|---|
+| 언제 | 일시적 429 · 선별한 5xx | 응답은 왔는데 JSON·Schema 형식이 틀림 |
+| 무엇을 | 같은 요청을 다시 전송 | 같은 질문·문맥·계약 + 수정 요청으로 새 생성 |
+| 번호 | send_attempt 증가 | generation_no 증가 |
+| 대상 아님 | 정보 부족 · 거절 · 출처 오류 · timeout — 다시 보낸다고 없는 근거나 권한이 생기지 않음 |  |
+
+### Backoff · Jitter · Retry-After
+
+[그림: attempt 1~6의 대기: 본문 wait-main은 1,2,4,8,8,8초(상한 8), 부록 retry_delay는 1,2,4,8,16,32초. 각각 지터 범위 띠] 무엇을 보나: 강의의 두 대기 함수를 서버 힌트 없이 실제로 계산한 값이에요. 실패할수록 대기가 2배씩 늘어나요(Exponential backoff). 보라(본문)는 8초에서 멈추고, 분홍(부록)은 상한이 없어요. 띠의 두께가 Jitter예요. 🤔 왜 일부러 무작위로 흔들어? 수강생 30명이 같은 순간 429를 받고 모두 정확히 2초 뒤에 다시 보내면, 2초 뒤에 또 한꺼번에 몰려요. 0~0.25초씩 흩뜨리면 덜 몰려요.
+
+🔧 대기 판단 명령어 사전에서 자세히 →
+
+```
+fallback = min(8.0, 2 ** (attempt - 1))
+base = retry_after_s if retry_after_s is not None else fallback   # 서버 값이 있으면 그게 최소
+wait_s = base + random.uniform(0, 0.25)
+if wait_s > remaining_s: return "deferred"         # 짧게 잘라 보내지 않고 미룸
+if sends_used >= MAX_SENDS_TOTAL: return "attempt_limit"
+```
+
+| 실제 계산 | 결과 |
+|---|---|
+| Retry-After 10초, 남은 예산 3초 | deferred — 3초만 기다렸다 보내지 않음 |
+| Retry-After 2초, 이미 4회 전송 | attempt_limit |
+| Retry-After 0.5초, 남은 0.6초 | 지터 0 → 0.5초 대기 / 지터 0.25 → deferred — 경계에선 결과가 갈림 |
+
+Retry-After는 서버가 알려 주는 "최소 이만큼 기다려" 헤더예요. 초 숫자(10)나 날짜(Wed, 18 Nov 2026 01:00:00 GMT) 형식이 있어요. 지키지 않고 일찍 보내면 또 429를 받을 가능성만 커져요.
+
+### Timeout은 "서버가 아무것도 안 했다"가 아님
+
+```
+내 앱:  응답을 끝까지 받지 못함
+서버:   생성했을 수도 있음
+usage:  못 받았다면 None
+비용:   0이라고 확정하지 않음
+```
+
+OpenAI(timeout=30.0)은 요청 하나의 입출력 대기 설정이에요. 준비·대기·여러 시도를 합친 30초 마감이 아니에요. timeout과 스트림 끊김은 자동으로 다시 보내지 않아요. 다시 보내면 새 생성 + 새 비용이에요. 끊긴 지점부터 이어받는 기능도 오늘은 없어요.
+
+### 전체 흐름 — 생성 × 전송
+
+[그림: 6개 시나리오: 401 1회 중단, 429 후 정상 2회 validated, 할당량 1회 중단, 500 두 번 2회 중단, 429·형식오류·429·정상 4회 validated, 형식오류 두 번 2회 json_error] 무엇을 보나: 각본대로 응답하는 가짜 서버에 강의 흐름(이 노트가 send_bounded를 최소 구현)을 돌렸어요. 다섯째 줄이 상한을 꽉 채운 경우예요. 생성1(429 → 받았는데 JSON 오류) + 생성2(429 → 정상)로 정확히 4회 보냈어요. 🤔 왜 마지막 성공만 남기면 안 돼? "4번 만에 됐다"와 "1번에 됐다"는 비용·시간·안정성이 전혀 달라서요. 첫 실패를 마지막 성공으로 덮지 않아요.
+
+## 🧪 재시도 시뮬레이터
+
+서버가 전송마다 무엇을 돌려줄지 각본을 짜고, 클라이언트가 몇 번 보내고 어디서 멈추는지 보세요. 강의 정책(생성 ≤ 2 · 생성당 전송 ≤ 2 · 전체 ≤ 4 · 대기 판단)을 브라우저로 옮긴 거라, 위 그림 여섯 줄과 결과가 같아요.
+
+## ⑤ Token Usage · 비용 · 기록
+
+### usage — 포함 관계부터
+
+```
+input_tokens  = 전체 입력      ⊃  cached_tokens     (일부)
+output_tokens = 전체 출력      ⊃  reasoning_tokens  (일부)
+total_tokens  = input_tokens + output_tokens        ← 부분 항목을 또 더하지 않음
+강사 로그: 31 + 36 = 67 (cached 0 · reasoning 0)
+```
+
+🔧 usage 읽기 — 없는 값은 None 명령어 사전에서 자세히 →
+
+```
+u = response.usage
+usage = None if u is None else {
+    "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
+    "cached_tokens": getattr(u.input_tokens_details, "cached_tokens", None),
+    "reasoning_tokens": getattr(u.output_tokens_details, "reasoning_tokens", None)}
+```
+
+### None · 0 · not_run은 서로 다른 기록
+
+| 표기 | 뜻 | 예 |
+|---|---|---|
+| None | 관측 못 함 — 모름 | timeout으로 usage 미수신 · 사람이 근거 아직 안 봄(evidence_ok=None) |
+| 0 | 관측된 0 | 캐시 재사용 확인 → new_api_send_count=0 · 응답에 cached_tokens: 0 |
+| not_run | 실행하지 않음 (이유 기록) | 비교 모델 권한 없음 · 예산 부족 |
+
+실제로 돌려 보니 세부 필드가 없는 응답에서 getattr(…, None)은 None, 흔히 쓰는 … or 0은 0이 나왔어요. 🤔 그게 왜 문제야? 나중에 비용을 합산할 때 "모르는 비용"이 "공짜"로 둔갑해서, 실제보다 적게 쓴 것처럼 보여요.
+
+### 비용 추정 — 사용량 × 단가, 중복 없이
+
+[(입력 − 캐시 입력) × 일반 단가 + 캐시 입력 × 캐시 단가 + 출력 × 출력 단가] ÷ 1,000,000 단가 단위 = USD / 1M tokens
+
+[그림: 올바른 계산: 일반 입력 0.00045 + 캐시 입력 0.00003 + 출력 0.0009 = 0.00138 USD. 잘못된 계산(캐시를 일반 입력에도 포함) = 0.00168] 무엇을 보나: 강의의 가상 사용량(입력 1000 · 캐시 400 · 출력 200)과 가상 단가(0.75 · 0.075 · 4.50)로 Decimal 계산한 결과예요. 위가 올바른 $0.00138(강의 값과 같음), 아래 회색은 캐시 400을 일반 입력에도 넣은 실수예요. 🤔 출력이 200밖에 안 되는데 왜 제일 커? 출력 단가가 일반 입력의 6배라서요. 그래서 max_output_tokens 상한이 비용 관리에도 중요해요.
+
+| 바꿔 본 조건 (실제 계산) | estimated_usd |
+|---|---|
+| 기준 1000 · 400 · 200 | 0.00138 |
+| cached = 0 | 0.00165 (캐시가 0.00027 아낌) |
+| output = 2000 | 0.00948 |
+| usage = None | None — 0으로 쓰지 않음 |
+| 강사 로그 31 · 0 · 36에 같은 가상 단가 | 0.00018525 (청구액 아님) |
+
+💡 금액은 Decimal("0.75")처럼 문자열로 만들어요. 0.1 + 0.2는 float로 0.30000000000000004예요. 그리고 비용 표에는 적용 범위를 같이 적어요: 단가 버전·확인 날짜·통화·서비스 등급(Batch·Priority는 단가가 다름)·모달리티(이미지·음성·도구는 별도). 실행별 추정과 최종 청구서는 별개예요.
+
+### 한 작업 · 한 생성 · 한 전송
+
+```
+run_id="demo-001"    → 우리 앱의 작업 1건
+case_id="H01"        → 어떤 질문 (H = 어제의 Holdout 접두사 — 오늘은 이미 본 회귀 확인용)
+generation_no=1      → 최초 생성
+send_attempt=2       → 이 생성 요청의 두 번째 전송
+```
+
+| source_mode | 무엇을 했나 | 주장할 수 있는 것 |
+|---|---|---|
+| api_live | 실제 서버로 요청·응답 | 그 호출의 응답·usage·시간 |
+| simulated | 직접 만든 응답·이벤트·오류 | 클라이언트의 분기·계산·횟수 (이 노트의 결과 대부분) |
+| app_cache | 승인된 이전 결과 재사용 | 새 전송 0회 · 원래 결과 출처 추적 |
+| not_run | 권한·네트워크·예산으로 미실행 | 이유만 · 성공값을 만들지 않음 |
+
+🤔 왜 이렇게 꼼꼼히 나눠? 모의 테스트가 전부 통과해도 인증·실제 스트림·요금·모델 품질을 검증한 건 아니에요. 섞어서 한 표에 넣으면 "속도 0ms, 비용 0원" 같은 가짜 성능이 생겨요.
+
+## ⑥ Response Cache · Prompt Caching
+
+[그림: 세 가지 캐시: Response Cache(앱, 승인된 답 재사용, 새 전송 0), Prompt Caching(API, 입력 앞부분 계산 재사용, 새 출력 생성), KV Cache(모델 내부). read_cache 실행: 30초 승인 hit, 60초 만료 miss, 승인 전 miss, provided 102 miss, 본문 수정 miss] 무엇을 보나: 위 세 상자는 '캐시'라는 이름만 같고 재사용하는 대상이 달라요. 아래 표는 강의 read_cache를 실제로 돌린 결과인데, 다섯 경우 중 hit은 하나뿐이에요. 🤔 "같은 key, provided {102}"는 key가 같은데 왜 miss야? 저장된 답은 103을 인용했는데, 이번 요청에서 보낸 건 102예요. 읽을 때 현재 규칙으로 다시 검사하니까 unknown_source가 나서 재사용하지 않아요.
+
+|  | Response Cache | Prompt Caching | KV Cache |
+|---|---|---|---|
+| 누가 | 우리 앱 | API 제공사 | 모델 내부 (Day20) |
+| 재사용 | 승인된 최종 답변 | 같은 입력 앞부분(prefix)의 계산 | 앞 토큰의 Key·Value |
+| API 호출 | hit이면 생략 | 계속함 · 새 출력도 생성 | — |
+| 보이는 곳 | source_mode="app_cache" | usage.cached_tokens | — |
+
+Prompt Caching은 최소 길이·유효 기간·과금이 모델마다 달라요. 오늘처럼 짧은 문맥이면 cached_tokens=0이 정상이에요. 캐시를 만들려고 쓸데없는 자료를 늘리지 않아요.
+
+### Cache key — 결과가 달라질 조건을 전부
+
+🔧 정렬된 JSON → SHA-256 명령어 사전에서 자세히 →
+
+```
+cache_basis = {"scope": "classroom-demo", "model": request["model"], "request": request,
+               "format": output_format, "validator_version": "day21-v1"}
+canonical = json.dumps(cache_basis, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+cache_key = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+```
+
+| H01 요청에서 하나만 바꿈 (실제 실행) | key 앞 16자 | 기준과 |
+|---|---|---|
+| 기준 | a14ed63e72e25c6b… | — |
+| dict 키 순서만 바꿈 | a14ed63e72e25c6b… | 같음 (sort_keys) |
+| 지식 103 본문 수정 (ID는 같음) | 405320f07168e731… | 다름 |
+| 모델 → quality | ee9765f151f5011f… | 다름 |
+| scope → 다른 조직 | 5e3c3577e90d2d9d… | 다름 — 권한 범위가 다르면 재사용 금지 |
+| validator_version → day22-v1 | 5bcc33962d0b563d… | 다름 |
+
+⚠️ 해시는 식별용이지 암호화가 아니에요. API 키·비밀번호는 key 재료에 넣지 않아요. 같은 질문 문자열만으로 key를 만들면, 지식 본문이 고쳐진 뒤에도 옛 답을 돌려주게 돼요.
+
+### TTL과 읽을 때의 재검사
+
+```
+저장 0초 · expires_at = 60초 (시연값)
+현재 30초 → 기간은 유효 → 승인 여부 · 현재 출처 규칙도 검사
+현재 60초 → now ≥ expires_at → 만료, 재사용 안 함
+```
+
+TTL(Time To Live) = 유효 기간. 그런데 기간이 남아도 지식·권한·모델·검증 규칙이 바뀌면 써선 안 돼요. 그래서 read_cache는 ① 만료 ② 사람 승인 ③ 현재 문맥으로 재검사를 모두 통과해야 hit이에요. 저장 자체도 사람이 근거를 확인한 answered만 해요. 실패·거절·미완성은 성공 캐시에 넣지 않아요. 재사용한 결과에는 처음 만든 실행 origin_run_id를 붙여서, 원래 비용을 새 비용으로 중복 합산하지 않아요.
+
+## 🧪 비용 · Cache key 계산기
+
+왼쪽은 비용식, 오른쪽은 강의의 cache key를 브라우저에서 같은 방식으로 만든 거예요. 처음 값은 위 표의 기준 key(a14ed63e…)와 같고, 이 요청이 승인된 답으로 0초에 저장돼 있다고 가정해요.
+
+## ⑦ Model Routing · 클라이언트 설계
+
+### Routing = 호출 전에 모델 고르기
+
+🔧 실행 모드 → 허용된 모델 명령어 사전에서 자세히 →
+
+```
+MODELS = {"fast": "gpt-5.4-mini-2026-03-17", "quality": "gpt-5.4-2026-03-05"}
+def choose_model(mode):
+    if mode not in MODELS: raise ValueError("지원하지 않는 실행 모드")   # 호출 전 거부 = 비용 0
+    return MODELS[mode], f"explicit_mode:{mode}"                        # route_reason 기록
+```
+
+| 실제 실행 | 결과 |
+|---|---|
+| choose_model("fast") | ('gpt-5.4-mini-2026-03-17', 'explicit_mode:fast') |
+| choose_model("turbo") · ("Fast") | ValueError · ValueError (대소문자도 정확히) |
+| fast 요청 key == quality 요청 key | False — 모델이 바뀌면 캐시도 새로 |
+
+- fast · quality는 모드 이름이에요. "quality가 더 좋다"는 판정이 아니고, quality 모델은 강사도 생성을 확인하지 못했어요.
+
+- Routing ≠ Fallback. Routing은 호출 전 선택, Fallback은 실패 후 다른 대안으로 바꾸기예요. 오늘은 자동 Fallback이 없어요.
+
+- 정보 부족·거절을 더 큰 모델에 계속 보내서 해결하려 하지 않아요. 없는 근거는 모델을 바꿔도 안 생겨요.
+
+### 모델 비교도 조건 고정 (Day21 A/B와 같은 원칙)
+
+| 고정 | 비교 | 기록 |
+|---|---|---|
+| 질문 · 지식 · Prompt | 선택 모델 | 실제 모델 ID · 모델별 지원 설정 |
+| 출력 계약 · Validator | 형식 · 출처 · 근거 | 자동 결과와 사람 평가 분리 |
+| 앱 응답 캐시 OFF | request_ms · usage · 추정 비용 | Prompt Cache 사용량은 별도 |
+| 같은 평가 기준 | 품질 · 속도 · 비용 | 권한 없음 → not_run |
+
+한두 번 결과로 우열을 확정하지 않아요. 관찰하기 전에는 승자·정확도·응답시간 칸을 비워 둬요.
+
+### 책임 나누기 — 바뀌는 이유가 다른 것끼리
+
+| 모듈 | 책임 | 바뀌는 때 |
+|---|---|---|
+| llm_client | 인증 · 전송 · Streaming · API 응답 처리 | SDK·API가 바뀔 때 |
+| contracts | KnowledgeAnswer · 출처 · 상태 규칙 | 업무 규칙이 바뀔 때 |
+| metrics · cache · routing | 측정 · 재사용 · 모델 선택 | 운영 정책이 바뀔 때 |
+| main | 전체 연결 | — |
+
+폴더 개수가 중요한 게 아니라 각 책임을 설명할 수 있는가가 중요해요. FastAPI에 붙일 때도 Router는 인증·HTTP, Retriever는 검색, 클라이언트는 호출·검증·기록이에요. 모델 응답을 기다리는 동안 DB 트랜잭션을 잡고 있지 않아요.
+
+## ⑧ 전체 연결 — 요청 하나가 끝날 때까지
+
+| 단계 | H01 · 정상 | H02 · 정보 부족 | 승인된 같은 요청 |
+|---|---|---|---|
+| 입력 | H01 + 지식 103 + 고정 Prompt | 비밀번호 질문 + 지식 102 (실행 위치만) | 질문·지식·Prompt·모델·권한·계약 동일 |
+| 모델 선택 | fast + route_reason | fast | — |
+| 캐시 | miss → 예산 확인 | miss | hit (TTL·승인·재검사) |
+| 전송 | 1회 (Streaming 미리보기) | 1회 | 0회 |
+| 완료 판정 · 자동 검사 | completed → 네 필드 · 출처 103 · 상태 | completed + insufficient_context → 빈 출처 · 부족한 정보명 · 고정 안내문 | 현재 규칙으로 재검사 |
+| 끝 | 사람이 원문 대조 → 기록 | 형식 수정·큰 모델로 반복 안 함 | origin_run_id 연결 · 비용 중복 합산 안 함 |
+
+🔧 생성 시도 × 전송 시도 (의사코드) 명령어 사전에서 자세히 →
+
+```
+while generation < 2 and send_count < 4:
+    generation += 1
+    outcome = send_bounded(request, budget)      # 안에서 전송 ≤ 2, 전체 ≤ 4
+    if outcome.transport_failed: break
+    report = validate(outcome.response)
+    if report.is_success or report.is_insufficient: break
+    if not report.is_format_error or generation == 2: break
+    request = make_format_repair(request, report.safe_codes)
+```
+
+### 회귀 확인 — 이미 본 질문 H01~H03
+
+| 질문 | 보낼 지식 | 기대 행동 (채점 기준이지, 이미 얻은 응답이 아님) |
+|---|---|---|
+| H01 · 오류 질문에 무엇을 적나요? | 103 | 오류 메시지 · 시도한 작업 포함, 출처 103 |
+| H02 · 서버 접속 비밀번호는? | 102 | 근거 없음 → insufficient_context. 거절이면 따로 기록 |
+| H03 · 세 안내의 핵심 요약 | 101 · 102 · 103 | 세 원문에 맞는 요약 + 실제 인용 |
+
+H는 원래 Holdout(마지막까지 안 본 질문)이었지만 어제 이미 봤어요. 그래서 오늘은 "새 성능"이 아니라 API로 바꿔도 같은 동작이 유지되나(회귀·연동)를 확인하는 용도예요.
+
+### Agent로 가도 남는 것
+
+다음 단계에서 검색(RAG)과 도구 실행(Agent)이 붙어도, 호출 · 실패 정책 · 출력 검증 · 사용량·시간 기록은 오늘 만든 계층을 그대로 써요. 자동화가 늘수록 계약과 기록은 더 분명해야 해요. 특히 모델이 돌려준 JSON은 도구를 실행해도 된다는 권한이 아니에요. 도구 권한은 따로 설계해요.
+
+| 단계 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| .env · OpenAI(...) | 인증 정보 · 연결 설정 | 모델 권한 · 잔액 |
+| responses.create | Response 객체 (status · output · usage) | 형식 · 사실 |
+| Streaming | 빠른 미리보기 · 최종 Response | 빠른 완료 · 완전한 JSON |
+| completed_text → inspect_answer | run_status · answer_object | 근거 적합성 |
+| 재시도 · 대기 | 제한된 재전송 · 시도 기록 | 성공 · 없는 근거 |
+| usage · 비용 · 시간 | 관측값 · 추정치 · None | 청구액 |
+| Cache · Routing | 재사용 · 선택 이유 | 최신성 · 모델 우열 |
+| 사람의 근거 검토 | evidence_ok | — |
+
+## 다음 단계
+
+| 날짜 | 주제 | 오늘과의 연결 |
+|---|---|---|
+| 11/18 | Embedding · Vector DB | 오늘은 사람이 지식 ID를 골랐다면, 이제 검색이 고르기 |
+| 11/19 | Parsing · Chunking | 긴 문서를 검색 단위로 나누기 — 각 조각이 출처 ID가 됨 |
+| 11/20 | Retriever · RAG | 검색 결과 → selected → 오늘의 클라이언트로 호출 · 검증 · 기록 |
+
+## 원본 자료
+
+- 강의: 20261117.html (생성형 AI·LLM 및 RAG 엔지니어링 · Day22 LLM API 클라이언트 오프라인 인터랙티브 교안 · 8개 장 · 화면 84개 · 코드 24개) — ① LLM API 개요와 인증 · ② 메시지 구성과 Structured Outputs · ③ Streaming과 응답 처리 · ④ Rate Limit과 오류·재시도 · ⑤ Token Usage·비용·Latency · ⑥ Response Cache와 Prompt Caching · ⑦ Model Routing과 클라이언트 설계 · ⑧ 전체 연결 + 핵심요약. 강사 실행 로그(일반 텍스트 1회)는 교안에 실린 값을 그대로 옮김
+
+- 노트·명령어 사전의 결과 값: 강의 코드를 이 PC에서 실제로 실행 (Python 3.13 · openai 3.52.0 · pydantic 2.14.3 · python-dotenv 1.2.4 · httpx 0.28.1). OpenAI 서버 호출 없음 — httpx.MockTransport 가짜 서버로 SDK의 요청 직렬화 · 예외 · 스트림 해석을 관찰(source_mode = simulated). 스크립트 tools/io_day22.py, 그림 tools/visuals/make_day22.py
+
+- 강의가 참고한 공식 문서: Responses / Text generation · Structured Outputs · Streaming responses · Streaming events · Error codes · Rate limits · Pricing · Prompt caching · Model selection · Data controls · API key safety
+
+- 그 밖: python-dotenv · time.perf_counter · hashlib · decimal · httpx MockTransport
+
+## 🔧 Day22 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day22)
+| 이론 | 대응 명령어 |
+|---|---|
+| 📦 필요한 패키지 | python -m pip show openai pydantic python-dotenv |
+| 📋 명세 | 실행 결과 구조 · 실패별 다음 행동 · 전송 상한 · 기록 필드 |
+| ① LLM API · 인증 | dotenv_values, OpenAI(timeout, max_retries=0), responses.create, models.list() |
+| ② 메시지 · Structured Outputs | json.dumps 요청 dict, WireAnswer, text={"format": …}, completed_text, check_rules |
+| ③ Streaming | stream=True, event.type, event.delta, perf_counter() |
+| ④ Rate Limit · 재시도 | RateLimitError · e.code, Retry-After, backoff · jitter, 전송 상한 |
+| ⑤ Usage · 비용 · Latency | response.usage, getattr(…, None), Decimal 비용식 |
+| ⑥ Cache | hashlib.sha256 cache key, read_cache (TTL · 승인 · 재검사) |
+| ⑦ Routing · 클라이언트 | choose_model(mode), 실행 결과 dict |
+
+### 기존 가상환경 선택 → 패키지 확인 (Git Bash)
+
+```
+# 이 과정에서 이미 만든 가상환경을 계속 사용합니다.
+# VS Code: Python: Select Interpreter → 기존 환경의 Python 선택
+# 기본 터미널: Terminal: Select Default Profile → Git Bash
+
+# 현재 폴더에 기존 .venv가 있을 때의 예시입니다.
+# 다른 위치에 있다면 그 실제 경로를 쓰며, 새 환경을 만들지 않습니다.
+# 이미 원하는 환경이 활성화돼 있다면 source 줄은 생략합니다.
+source .venv/Scripts/activate
+python -c "import sys; print(sys.executable)"
+
+# 먼저 설치 여부를 확인합니다. VS Code에서 실행하는 Python과 같아야 합니다.
+python -m pip show openai pydantic python-dotenv
+
+# 아래는 없는 패키지만 추가하는 예시입니다.
+# 필요한 줄의 맨 앞 #을 지우고 실행합니다. 전부 재설치하지 않습니다.
+# python -m pip install openai
+# python -m pip install pydantic
+# python -m pip install python-dotenv
+# 기존 실습의 버전 조건을 우선하며, 일괄 --upgrade는 하지 않습니다.
+```
+
+▶ 실제로 돌려 보면 이 노트를 만든 가상환경에서 실제로 확인 (python -m pip show 대신 import)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| import openai, pydantic, dotenv, httpx | openai 3.52.0 · pydantic 2.14.3 · python-dotenv 1.2.4 · httpx 0.28.1 | 없는 패키지만 추가 — 일괄 --upgrade 하지 않음 |
+| python --version | 3.13.16 | 이 버전 기준 결과 |
+
+| 부분 | 뜻 |
+|---|---|
+| source .venv/Scripts/activate | Git Bash에서 Windows 가상환경 켜기 (PowerShell은 .venv\Scripts\Activate.ps1) |
+| python -c "import sys; print(sys.executable)" | 지금 실행되는 Python의 실제 경로 — VS Code 인터프리터와 같은지 확인 |
+| python -m pip show 패키지… | 설치 여부·버전 확인. 없으면 경고만 나와요 |
+| python -m pip install openai | 없는 것만 추가. --upgrade 일괄 실행은 다른 실습의 버전 조건을 깰 수 있어요 |
+
+💡 .venv ≠ .env — .venv는 Python과 패키지가 든 실행 환경 폴더, .env는 키·모델 이름을 적은 설정 파일이에요. 가상환경 하나로 실습마다 다른 .env를 읽을 수 있어요.
+
+### .env — 실습 실행 파일 옆에 두는 설정 파일
+
+```
+# 실제 키는 해당 실습의 .env에만 입력합니다.
+# .env는 설정 파일입니다. Git·화면 캡처·제출물에서 제외합니다.
+OPENAI_API_KEY=본인_키
+
+# 이 과정의 기본 모델: 강사 환경에서 일반 텍스트 호출 확인
+# 수강생도 각자의 승인된 키·기존 가상환경에서 첫 호출을 확인합니다.
+OPENAI_MODEL=gpt-5.4-mini-2026-03-17
+```
+
+| 부분 | 뜻 |
+|---|---|
+| OPENAI_API_KEY=… | API 키. 한 줄로. Git·캡처·제출물에서 제외 (.gitignore) |
+| OPENAI_MODEL=gpt-5.4-mini-2026-03-17 | 날짜가 붙은 ID = snapshot(고정 버전). 별칭과 달리 나중에 가리키는 모델이 바뀌지 않아요 |
+| # … | 주석 줄 — dotenv가 무시 |
+
+⚠️ 키를 HTML·Prompt·Git·채팅·화면 캡처에 넣지 않아요. ChatGPT 구독과 API 청구는 별개의 계정·잔액이에요.
+
+### 실습별 .env를 명시적으로 읽기 — dotenv_values
+
+```
+from pathlib import Path
+from dotenv import dotenv_values
+import os
+
+# 이 코드는 각 실습의 실행 파일에 둡니다.
+# 터미널의 현재 폴더가 아니라, 실행 파일 옆의 .env를 선택합니다.
+ENV_PATH = Path(__file__).resolve().with_name(".env")
+if not ENV_PATH.is_file():
+    raise FileNotFoundError("이 실습 실행 파일 옆에 .env를 작성하세요.")
+
+# dotenv_values는 파일을 딕셔너리로 읽습니다. 자동으로 환경을 바꾸지 않습니다.
+# utf-8-sig는 UTF-8 파일과 BOM이 붙은 UTF-8 파일을 함께 읽습니다.
+# interpolate=False: ${...} 형태를 다른 환경변수로 치환하지 않습니다.
+settings = dotenv_values(ENV_PATH, encoding="utf-8-sig", interpolate=False)
+for name in ("OPENAI_API_KEY", "OPENAI_MODEL"):
+    value = (settings.get(name) or "").strip()
+    if not value or value == "본인_키":
+        raise RuntimeError(f"이 실습의 .env에서 {name}을 설정하세요.")
+    # 이전 터미널 값 대신, 이 실습 파일의 값을 현재 Python 프로세스에 반영합니다.
+    os.environ[name] = value
+
+MODEL = os.environ["OPENAI_MODEL"]
+# OpenAI()는 위에서 설정한 OPENAI_API_KEY를 읽습니다. 키는 출력하지 않습니다.
+```
+
+▶ 실제로 돌려 보면 임시 폴더에 가짜 키로 .env 를 만들어 강의 코드 그대로 실행 (키 값은 출력하지 않음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| .env 정상 (UTF-8) | MODEL = gpt-5.4-mini-2026-03-17 · 키 설정됨 = True | 키는 '설정됐는지'만 확인 — 값은 화면에 안 냄 |
+| .env 정상 (BOM 붙은 UTF-8 — 메모장 저장) | MODEL = gpt-5.4-mini-2026-03-17 · 키 설정됨 = True | utf-8-sig 덕분에 첫 키 이름이 깨지지 않음 |
+| OPENAI_API_KEY=본인_키 (예시 그대로) | RuntimeError: 이 실습의 .env에서 OPENAI_API_KEY을 설정하세요. | 자리표시자를 그대로 두면 호출 전에 멈춤 |
+| .env 파일 없음 | FileNotFoundError: 이 실습 실행 파일 옆에 .env를 작성하세요. | 터미널 현재 폴더가 아니라 실행 파일 옆을 찾음 |
+| NOTE=${HOME}/x (interpolate=False) | NOTE = '${HOME}/x' | ${...} 를 다른 환경변수로 바꾸지 않고 글자 그대로 |
+| OPENAI_MODEL 줄 없음 | RuntimeError: 이 실습의 .env에서 OPENAI_MODEL을 설정하세요. | 모델 미설정도 같은 방식으로 거부 |
+
+| 부분 | 뜻 |
+|---|---|
+| Path(__file__).resolve().with_name(".env") | 실행 파일 옆의 .env — 터미널 현재 폴더(cwd)가 어디든 같은 파일 |
+| dotenv_values(...) | 파일을 dict로만 읽음 — load_dotenv와 달리 환경변수를 자동으로 바꾸지 않아요 |
+| encoding="utf-8-sig" | 메모장이 붙이는 BOM(맨 앞의 보이지 않는 3바이트)을 떼고 읽기 |
+| interpolate=False | ${HOME} 같은 글자를 다른 변수 값으로 치환하지 않음 |
+| value == "본인_키" | 예시 문구를 그대로 둔 실수를 호출 전에 잡기 |
+| os.environ[name] = value | 이 Python 프로세스에만 반영 — OpenAI()가 OPENAI_API_KEY를 여기서 읽어요 |
+
+💡 이전 터미널에서 export한 키가 남아 있어도, 이 코드는 이 실습의 .env 값으로 덮어써요. 실습마다 다른 키·모델을 써도 섞이지 않아요.
+
+### 내 계정의 모델 목록 확인 — client.models.list()
+
+```
+# 앞 화면의 .env 설정 코드를 실행한 뒤 사용합니다.
+# MODEL은 기본 실습 모델입니다. 두 번째 ID는 선택 비교 후보입니다.
+from openai import OpenAI, APIError
+
+candidate_ids = [MODEL, "gpt-5.4-2026-03-05"]
+with OpenAI(
+    base_url="https://api.openai.com/v1",
+    timeout=30.0, max_retries=0,
+) as client:
+    try:
+        # 모델 목록 조회입니다. 답변 생성·Streaming 시험이 아닙니다.
+        listed_ids = {item.id for item in client.models.list()}
+    except APIError as exc:
+        # 원문 오류나 키는 출력하지 않고 오류 종류·HTTP 상태만 확인합니다.
+        print("목록 조회 실패:", type(exc).__name__, getattr(exc, "status_code", None))
+    else:
+        for model_id in dict.fromkeys(candidate_ids):
+            status = "목록에 있음" if model_id in listed_ids else "목록에서 확인되지 않음"
+            print(model_id, status)
+
+# 목록에 있어도 생성 권한·잔액·요청 설정의 성공을 보장하지 않습니다.
+# 목록 조회 권한과 모델 요청 권한도 별개입니다.
+# 이어지는 첫 호출 → Structured Outputs → Streaming에서 실제 사용을 확인합니다.
+# 실제 생성 호출에는 비용이 발생할 수 있습니다. 키를 HTML이나 채팅에 넣지 않습니다.
+```
+
+▶ 실제로 돌려 보면 SDK + 가짜 서버 · 목록은 이 노트가 만든 2개짜리 가짜 (실제 계정 목록 아님)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| for model_id in dict.fromkeys([MODEL, 비교후보, MODEL]) | gpt-5.4-mini-2026-03-17 목록에 있음 / gpt-5.4-2026-03-05 목록에서 확인되지 않음 | dict.fromkeys = 순서 유지 중복 제거 (3개 → 2줄) |
+| 목록 조회가 403 | 목록 조회 실패: PermissionDeniedError 403 | 원문 오류·키 대신 예외 이름과 상태만 |
+
+| 부분 | 뜻 |
+|---|---|
+| client.models.list() | GET /v1/models — 이 키로 볼 수 있는 모델 ID 목록. 생성 요청이 아니라 생성 비용 없음 |
+| with OpenAI(...) as client: | 블록이 끝나면 연결을 닫아요 (client.close()와 같음) |
+| except APIError as exc | openai 예외의 공통 부모. 원문 메시지 대신 종류·상태만 출력 |
+| dict.fromkeys(candidate_ids) | 순서를 지키며 중복 제거 |
+
+⚠️ 목록에 있음 ≠ 생성 가능. 목록 조회 권한, 모델 사용 권한, 잔액, 요청 설정은 각각 따로예요.
+
+### Git Bash · 기존 Python 경로로 다른 실습 실행
+
+```
+# Windows에서 이미 만든 수업용 가상환경의 Python을 지정합니다.
+# 아래 경로는 예시입니다. 기존 환경의 실제 위치를 사용합니다.
+PYTHON="./.venv/Scripts/python.exe"
+"$PYTHON" -c "import sys; print(sys.executable)"
+"$PYTHON" -m pip show openai pydantic python-dotenv
+
+# 같은 Python으로 각 실습을 실행합니다. 폴더·파일명은 배치 예시입니다.
+# 환경을 다시 만들거나 다른 실습 폴더로 복사하지 않습니다.
+"$PYTHON" "./실습01/main.py"
+"$PYTHON" "./실습02/main.py"
+
+# 각 실행 파일의 .env는 Python 코드가 읽습니다. source .env는 하지 않습니다.
+```
+
+| 부분 | 뜻 |
+|---|---|
+| PYTHON="./.venv/Scripts/python.exe" | 활성화 없이 그 Python을 직접 지정 — 어느 환경으로 돌았는지 헷갈리지 않음 |
+| "$PYTHON" "./실습01/main.py" | 같은 환경, 다른 실습 폴더 — 각 main.py가 자기 옆 .env를 읽음 |
+| source .env | 하지 않음 — .env는 셸 스크립트가 아니라 Python 코드가 읽는 설정 |
+
+### 첫 호출 — client.responses.create()
+
+```
+# 앞 화면의 MODEL과 OPENAI_API_KEY가 준비되어 있어야 합니다.
+from openai import OpenAI
+
+# SDK 자동 재시도를 끄고, 실제 전송 횟수는 앱에서 관리합니다.
+# 별도 기관 프록시가 아닌 OpenAI의 공식 API 주소로 직접 연결합니다.
+client = OpenAI(
+    base_url="https://api.openai.com/v1",
+    timeout=30.0, max_retries=0,
+)
+response = client.responses.create(
+    model=MODEL,
+    # 수행할 작업을 전달하는 지시문입니다.
+    instructions="한국어 한 문장으로 답하세요.",
+    # 이번 요청에서 처리할 내용입니다.
+    input="API의 역할을 쉽게 설명해 주세요.",
+    # 아래 설정은 기본 모델과 선택 비교 후보에 맞춘 예시입니다.
+    reasoning={"effort": "none"},
+    max_output_tokens=1200,
+    store=False,  # 응답 저장 옵션. 모든 보존을 없애는 뜻은 아닙니다.
+)
+# 완료 상태와 텍스트를 관찰합니다. 아직 지식 답변 검증은 아닙니다.
+print("요청한 모델:", MODEL)
+print("응답의 모델:", response.model)
+print("생성 상태:", response.status)
+print("답변:", response.output_text)
+# 사용량이 없으면 0으로 만들지 않고 None으로 남깁니다.
+print("토큰 사용량:", response.usage.model_dump() if response.usage is not None else None)
+client.close()  # 이 독립 연결 예제의 클라이언트를 닫습니다.
+```
+
+▶ 실제로 돌려 보면 openai SDK + 가짜 서버 · 위쪽 2줄은 SDK 가 실제로 보낸 요청, 아래는 강사 제공 로그 값을 넣은 응답
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| (SDK가 보낸 주소) | POST https://api.openai.com/v1/responses | responses.create = POST /v1/responses |
+| (SDK가 보낸 JSON 본문) | {"model": "gpt-5.4-mini-2026-03-17", "input": "API의 역할을 쉽게 설명해 주세요.", "instructions": "한국어 한 문장으로 답하세요.", "max_output_tokens": 1200, "reasoning": {"effort": "none"}, "store": false} | 키는 본문이 아니라 Authorization 헤더(Bearer …)로 감 |
+| print("응답의 모델:", response.model) | 응답의 모델: gpt-5.4-mini-2026-03-17 | 요청한 모델과 같은지 따로 확인 |
+| print("생성 상태:", response.status) | 생성 상태: completed | 생성 완료 — 내용이 맞다는 뜻은 아님 |
+| print("답변:", response.output_text) | 답변: API는 서로 다른 프로그램들이 정해진 규칙으로 데이터를 주고받고 기능을 이용하게 해 주는 “중간 다리”입니다. | 강사 제공 로그의 문장 (이 노트가 호출한 결과 아님) |
+| print("토큰 사용량:", response.usage.model_dump()) | 토큰 사용량: {'input_tokens': 31, 'input_tokens_details': {'cache_write_tokens': None, 'cached_tokens': 0, 'cache_write_tokens_details': None}, 'output_tokens': 36, 'output_tokens_details': {'reasoning_tokens': 0}, 'total_tokens': 67} | 31 + 36 = 67 · 가짜 응답에 없던 칸은 SDK 가 None 으로 채움 (강사 로그에는 cache_write_tokens 0 이 실제로 있었음) |
+| response.id · response._request_id | resp_demo01 · req_demo01 | 생성 응답 ID ≠ HTTP 요청 추적 ID ≠ 우리 run_id |
+
+| 부분 | 뜻 |
+|---|---|
+| base_url="https://api.openai.com/v1" | OpenAI 공식 주소로 직접 연결 (기본값과 같지만 명시) |
+| timeout=30.0 | 요청 하나의 입출력 대기 상한(초). 작업 전체 마감이 아니에요 |
+| max_retries=0 | SDK 자동 재시도 끄기 — 재전송은 앱이 결정 (SDK 기본값은 2) |
+| instructions= | 앱이 정한 지시(역할·제약·형식) |
+| input= | 이번 요청에서 처리할 내용 (문자열 또는 메시지 목록) |
+| reasoning={"effort": "none"} | 추론 단계 최소화 — 이 모델이 지원하는 설정에서만 |
+| max_output_tokens=1200 | 한 응답의 출력 토큰 상한 (교안 정책값) |
+| store=False | 응답을 서버에 저장해 두지 않는 옵션. 모든 로그·보존이 0이라는 뜻은 아님 |
+| response.output_text | 출력 중 텍스트를 모아 주는 편의 속성. output[0]이 항상 답이라고 가정하지 않기 |
+| response.usage | 관측된 토큰 수. 없으면 None 그대로 |
+
+💡 HTTP 200 → response.status="completed" → 답 내용이 맞음 — 이 셋은 서로 다른 단계예요. 첫 호출은 '연결 확인'까지만이에요.
+
+### 강사 제공 로그 읽기 — usage 포함 관계
+
+```
+# 교안에 실린 강사 콘솔 출력 (일반 텍스트 1회 · 스트리밍 아님)
+# requested_model = returned_model = gpt-5.4-mini-2026-03-17
+# status = completed
+usage = {"input_tokens": 31,
+         "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+         "output_tokens": 36,
+         "output_tokens_details": {"reasoning_tokens": 0},
+         "total_tokens": 67}
+```
+
+▶ 실제로 돌려 보면 교안에 실린 강사 제공 로그의 숫자로 계산만
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 31 + 36 | 67 | total_tokens 67 과 일치 — cached·reasoning 은 이미 각 합 안의 일부라 더하지 않음 |
+| est(31, 0, 36) # 교안 가상 단가 적용 | 0.00018525 | 강사 1회 호출의 추정치 (교안 단가 기준 · 청구액 아님) |
+
+| 부분 | 뜻 |
+|---|---|
+| input_tokens | 입력 전체 — cached_tokens는 이 안의 일부 |
+| output_tokens | 출력 전체 — reasoning_tokens는 이 안의 일부 |
+| total_tokens | 입력 + 출력. 부분 항목을 다시 더하지 않아요 |
+| 빠진 값 | 실행 시각·SDK 버전·응답 시간·청구액은 로그에 없음 → 기록할 때도 None |
+
+⚠️ 강사 환경에서 확인된 건 일반 텍스트 생성 1회뿐이에요. Structured Outputs·Streaming·비교 모델 생성은 '미확인'으로 남아 있어요.
+
+### 질문 + 선택 지식 → Responses 요청 dict
+
+```
+# question·selected·instructions_text·MODEL은 먼저 준비합니다.
+import json
+
+# instructions_text: 16일에 고정한 Prompt
+# selected: 이번 요청에 포함할 지식만
+payload = {
+    "question": question,
+    "knowledge": selected,
+}
+# Python 자료를 한글이 보이는 JSON 문자열로 직렬화합니다.
+user_input = json.dumps(payload, ensure_ascii=False)
+# 출처 허용 범위는 전체 DB가 아니라, 이번에 보낸 지식입니다.
+provided_ids = {item["id"] for item in selected}
+
+# 이 딕셔너리의 키가 responses.create의 인자 이름입니다.
+request = {
+    "model": MODEL,
+    "instructions": instructions_text,
+    # user는 메시지 역할, content는 실제로 보낼 내용입니다.
+    "input": [{"role": "user", "content": user_input}],
+    "reasoning": {"effort": "none"},
+    "max_output_tokens": 1200, "store": False,
+}
+```
+
+▶ 실제로 돌려 보면 H01 질문 + 지식 103 (instructions_text 는 이 노트가 짧게 쓴 예)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(user_input) | {"question": "오류 질문에 무엇을 적나요?", "knowledge": [{"id": 103, "title": "질문 작성", "content": "오류 메시지와 시도한 작업을 함께 적습니다."}]} | DB 전체가 아니라 고른 지식 1개만 |
+| print(provided_ids) | {103} | 이번 요청의 출처 허용 범위 = {103} |
+| print(sorted(request)) | ['input', 'instructions', 'max_output_tokens', 'model', 'reasoning', 'store'] | 이 키들이 그대로 responses.create 의 인자 이름 |
+| print(request["input"][0]["role"]) | user | role = 메시지 역할, content = 실제 내용 |
+
+| 부분 | 뜻 |
+|---|---|
+| payload = {"question": …, "knowledge": selected} | 이번에 고른 지식만 — DB 전체가 자동으로 가지 않아요 |
+| json.dumps(payload, ensure_ascii=False) | 한글을 \uXXXX로 바꾸지 않고 그대로 직렬화 |
+| provided_ids = {item["id"] for …} | set 컴프리헨션 — 이번 요청의 출처 허용 범위 |
+| {"role": "user", "content": …} | 메시지 한 개: role = 역할, content = 내용 |
+| request = {...} | 인자를 dict로 모아 두면 기록·캐시 key·재전송에 그대로 재사용 |
+
+💡 Responses API는 instructions + input, Chat Completions는 messages 목록이에요. 두 형식을 섞지 않아요.
+
+### WireAnswer — API에 보낼 JSON Schema
+
+```
+from typing import Literal
+from pydantic import BaseModel, ConfigDict
+
+# Wire는 전송 경계를 뜻합니다. API용 Schema 생성에 사용하는 이름입니다.
+class WireAnswer(BaseModel):
+    # 정의하지 않은 추가 필드를 금지합니다.
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["answered", "insufficient_context"]
+    answer: str
+    source_ids: list[int]
+    missing_information: str
+
+# model_json_schema(): 위 Python 모델을 JSON Schema로 표현합니다.
+# KnowledgeAnswer의 전체 업무 규칙을 대체하는 모델이 아닙니다.
+output_format = {
+    "type": "json_schema", "name": "knowledge_answer",
+    "strict": True,
+    "schema": WireAnswer.model_json_schema(),
+}
+```
+
+▶ 실제로 돌려 보면 강의 코드 그대로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| WireAnswer.model_json_schema()["required"] | ['status', 'answer', 'source_ids', 'missing_information'] | 기본값 없는 네 필드 = 모두 필수 |
+| …["additionalProperties"] | False | extra="forbid" → 추가 필드 금지 |
+| …["properties"]["status"] | {"enum": ["answered", "insufficient_context"], "title": "Status", "type": "string"} | Literal → enum (허용 값 목록) |
+| …["properties"]["source_ids"] | {"items": {"type": "integer"}, "title": "Source Ids", "type": "array"} | 정수 목록 — 길이·양수 제한은 여기에 없음 |
+| WireAnswer.model_validate({..., "source_ids": ["101"]}).source_ids | [101] | Wire 는 strict 가 아니라 "101" → 101 로 바꿔 줌 — 로컬 검증은 KnowledgeAnswer 가 맡는 이유 |
+
+| 부분 | 뜻 |
+|---|---|
+| class WireAnswer(BaseModel) | 응답 구조를 정하는 Pydantic 데이터 모델 (언어모델 아님) |
+| ConfigDict(extra="forbid") | Schema에 additionalProperties: false — 정의 안 한 필드 금지 |
+| Literal[...] | 허용 값 목록 → Schema의 enum |
+| model_json_schema() | Python 클래스 → JSON Schema dict |
+| "strict": True | API 쪽 구조 제약 설정 (Pydantic의 로컬 strict와 위치가 다름) |
+
+⚠️ Wire는 '전송 경계'라는 뜻이에요. 길이 제한·양의 정수·이번 문맥 범위는 여기 없어요 — 로컬 KnowledgeAnswer와 check_rules가 맡아요.
+
+### 요청에 출력 형식 추가 — text={"format": …}
+
+```
+# client는 열려 있어야 하며, request에는 text 키를 중복해서 넣지 않습니다.
+# request: 앞서 만든 질문·문맥·모델 설정
+# output_format: WireAnswer로 만든 전송 계약
+response = client.responses.create(
+    **request,  # 딕셔너리의 항목들을 함수의 키워드 인자로 펼칩니다.
+    # Responses API의 출력 형식은 text.format에 지정합니다.
+    text={"format": output_format},
+)
+
+# 순서: 완료 판정 → 원문 추출 → 로컬 검증
+# completed_text는 앞에서 설명한 응답 상태 확인 함수입니다.
+# validate_answer와 load_json_strict는 16일의 정의를 이어 사용합니다.
+raw, response_error = completed_text(response)
+if response_error is None:
+    answer, validation_error = validate_answer(
+        raw, provided_ids, load_json=load_json_strict
+    )
+```
+
+▶ 실제로 돌려 보면 SDK + 가짜 서버 · SDK 가 실제로 보낸 본문에서 확인
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| body["text"]["format"]["type"], ["name"], ["strict"] | json_schema, knowledge_answer, True | 출력 형식은 text.format 에 들어감 |
+| sorted(body["text"]["format"]["schema"]["properties"]) | ['answer', 'missing_information', 'source_ids', 'status'] | WireAnswer 의 네 필드가 그대로 전송 |
+| sorted(body) | ['input', 'instructions', 'max_output_tokens', 'model', 'reasoning', 'store', 'text'] | **request 로 펼친 키 + text |
+| client.responses.create(**request, text=..., model="x") | TypeError: openai.resources.responses.responses.Responses.create() got multiple values for keyword argument 'model' | 같은 키를 두 번 주면 Python 이 바로 거부 — request 안에 text 를 중복으로 넣지 말라는 이유 |
+
+| 부분 | 뜻 |
+|---|---|
+| **request | dict를 키워드 인자로 펼치기 — f(**{"a": 1}) = f(a=1) |
+| text={"format": output_format} | Responses API에서 출력 형식을 지정하는 자리 |
+| completed_text(response) | 먼저 '검증기에 넘길 수 있는 응답인가' 판정 |
+| validate_answer(raw, provided_ids, load_json=load_json_strict) | 11/16 검사기 그대로 재사용 |
+
+### completed_text — 검증기에 넘길 수 있는 응답인가?
+
+```
+def completed_text(response):
+    # output에는 텍스트 외 다른 종류의 항목도 올 수 있습니다.
+    for item in response.output:
+        if item.type == "message":
+            for part in item.content:
+                if part.type == "refusal":
+                    return None, "refusal"
+    # 텍스트가 보여도 생성 완료가 아니면 부분 출력을 통과시키지 않습니다.
+    if response.status != "completed":
+        return None, response.status
+    if not response.output_text.strip():
+        return None, "empty_output"
+    # 두 번째 반환값 None은 응답 상태 검사 통과입니다. 내용이 맞다는 뜻은 아닙니다.
+    return response.output_text, None
+
+# 반환 error가 None일 때만 validate_answer 호출
+# check_rules는 제공 ID·상태 조합을 계속 확인
+```
+
+▶ 실제로 돌려 보면 교안 GATE_CASES 8개를 openai SDK 의 실제 Response 객체로 만들어 강의 함수 그대로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 정상 답변 (response.status=completed) | (원문, None) | 통과 → 검사기로 |
+| 정보 부족 응답(정상 처리) (response.status=completed) | (원문, None) | 통과 — 정보 부족도 '완료된 응답' |
+| API의 요청 거절 (response.status=completed) | (… , 'refusal') | 거절 콘텐츠 먼저 확인 |
+| 불완전 응답 (response.status=incomplete) | (… , 'incomplete') | 텍스트가 있어도 미완성은 막음 |
+| 완료 + 빈 텍스트 (response.status=completed) | (… , 'empty_output') | 완료인데 비었음 |
+| 완료 + JSON 오류 (response.status=completed) | (원문, None) | 통과 — JSON 오류는 다음 단계가 잡음 |
+| 문맥 밖 출처 999 (response.status=completed) | (원문, None) | 통과 — 출처 범위는 다음 단계가 잡음 |
+| 존재하는 ID, 잘못된 인용 (response.status=completed) | (원문, None) | 통과 — 근거는 사람이 |
+
+| 부분 | 뜻 |
+|---|---|
+| for item in response.output | output에는 메시지 외 다른 종류(도구 호출 등)도 올 수 있어요 |
+| part.type == "refusal" | 모델이 거절한 콘텐츠 — 정보 부족과 다른 종류 |
+| response.status != "completed" | incomplete·failed 등 — 텍스트가 보여도 통과 안 시킴 |
+| output_text.strip() | 완료인데 비었으면 empty_output |
+| return raw, None | 두 번째 값 None = 응답 상태 검사 통과. 내용이 맞다는 뜻은 아님 |
+
+### KnowledgeAnswer — 기존 로컬 계약 유지
+
+```
+from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field
+
+# 문자열 "101"이나 불리언 True를 정수 ID로 자동 변환하지 않습니다.
+SourceID = Annotated[int, Field(strict=True, gt=0)]
+class KnowledgeAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    status: Literal["answered", "insufficient_context"]
+    # 길이 제한은 이 수업의 정책값입니다. 모델의 보편적 한도가 아닙니다.
+    answer: str = Field(min_length=1, max_length=500)
+    source_ids: list[SourceID] = Field(max_length=3)
+    missing_information: str = Field(max_length=200)
+
+# API의 WireAnswer보다 엄격한 로컬 규칙입니다.
+# "101"·true를 정수 ID로 자동 변환하지 않습니다.
+# 제공 ID의 범위와 실제 근거는 다음 단계에서 검사합니다.
+```
+
+▶ 실제로 돌려 보면 교안 local-contract 그대로 (KnowledgeAnswer.model_validate 에 dict 직접)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| source_ids=[101] | [101] | 통과 |
+| source_ids=["101"] | ValidationError: 1 validation error for KnowledgeAnswer … | 문자열 ID 거부 (Wire 와 다름) |
+| source_ids=[True] | ValidationError: 1 validation error for KnowledgeAnswer … | 불리언도 정수로 안 바꿈 |
+| source_ids=[0] | ValidationError: 1 validation error for KnowledgeAnswer … | gt=0 → 양의 정수만 |
+| source_ids=[101,102,103,104] | ValidationError: 1 validation error for KnowledgeAnswer … | 교안 정책: 최대 3개 |
+| answer="가"×501 | ValidationError: 1 validation error for KnowledgeAnswer … | 교안 정책: 1~500자 |
+
+| 부분 | 뜻 |
+|---|---|
+| Annotated[int, Field(strict=True, gt=0)] | 타입 + 제약을 묶은 별칭 — 양의 정수만, 자동 변환 없음 |
+| ConfigDict(extra="forbid", strict=True) | 추가 필드 금지 + 전체 strict |
+| Field(min_length=1, max_length=500) | 문자열 길이 (교안 정책값) |
+| list[SourceID] = Field(max_length=3) | 목록의 항목 수 상한 |
+
+### check_rules — 출처 범위와 상태 조합
+
+```
+# 16일의 check_rules + final_rules를 한 함수로 펼친 설명용 예시입니다.
+# 실제 실습의 함수·파일 구조는 그대로 두고, 동일한 검사 조건을 확인합니다.
+# KnowledgeAnswer의 자료형·길이 검사를 통과한 obj를 받습니다.
+def check_rules(obj, provided_ids):
+    ids = obj.source_ids
+    if len(ids) != len(set(ids)):
+        return "duplicate_source"
+    # 인용한 모든 ID가 이번에 전달한 provided_ids에 있어야 합니다.
+    if not set(ids) <= set(provided_ids):
+        return "unknown_source"
+    if obj.status == "answered":
+        if not ids or obj.missing_information != "":
+            return "status_rule"
+    elif ids or not obj.missing_information.strip():
+        return "status_rule"
+    if not obj.answer.strip():
+        return "blank_answer"
+    if obj.status == "insufficient_context":
+        if obj.answer != "제공된 지식으로는 답할 수 없습니다.":
+            return "status_rule"
+    # 자동 규칙 통과 후에도 주장과 출처 본문의 대조는 별도입니다.
+    return None
+```
+
+▶ 실제로 돌려 보면 교안 rules 그대로 · obj 는 KnowledgeAnswer 를 통과한 객체
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| [102] 인용, provided_ids={102} | None | 통과 (근거 검토는 별도) |
+| [101] 인용, provided_ids={102} (101 은 DB 에 있음) | 'unknown_source' | DB 에 있어도 이번에 안 보냈으면 범위 밖 |
+| [102,102] | 'duplicate_source' | 중복이 먼저 걸림 |
+| answered 인데 source_ids=[] | 'status_rule' | 답했으면 출처가 있어야 |
+| insufficient_context 인데 [101] | 'status_rule' | 정보 부족이면 출처 비움 |
+| insufficient_context, answer="몰라요" | 'status_rule' | 정보 부족 안내문은 고정 문장 |
+| answer=" " | 'blank_answer' | 공백만은 거부 (min_length=1 은 통과함) |
+
+| 부분 | 뜻 |
+|---|---|
+| len(ids) != len(set(ids)) | set은 중복을 없애므로 길이가 줄면 중복 |
+| set(ids) <= set(provided_ids) | 부분집합 검사 — 인용한 ID가 모두 이번에 보낸 것인가 |
+| answered | 출처 ≥ 1개, missing_information == "" |
+| insufficient_context | 출처 0개, 부족한 정보명 필수, answer는 고정 안내문 |
+
+⚠️ 이 함수가 None을 돌려줘도 근거 적합성은 몰라요. 이번에 보낸 다른 ID를 잘못 인용해도 통과해요.
+
+### inspect_answer — 11/16 검사 결과를 report dict로
+
+```
+# 16일의 validate_answer와 load_json_strict를 먼저 준비합니다.
+# validate_answer는 (검사를 통과한 객체, 오류 코드)를 반환합니다.
+# 아래 inspect_answer는 17일 설명용 연결 함수이며 OpenAI SDK 함수가 아닙니다.
+def inspect_answer(raw, provided_ids):
+    obj, error = validate_answer(
+        raw, provided_ids, load_json=load_json_strict
+    )
+    # error가 None이어야 자동 검사 통과입니다. 사람의 근거 검토는 별도입니다.
+    return {
+        "auto_status": (
+            "passed_needs_human_review" if error is None else "failed"
+        ),
+        "answer_object": obj if error is None else None,
+        "error": error,
+    }
+
+# 기존 실습에 같은 연결 함수가 있다면 그 함수를 사용합니다.
+# 전날 코드의 필수 파서 인자를 생략하거나, 반환 형태를 섞지 않습니다.
+```
+
+▶ 실제로 돌려 보면 교안 inspect_answer 그대로 · 16일 load_json_strict 사용
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| inspect_answer(정상 [102], {102}) | {'auto_status': 'passed_needs_human_review', 'answer_object': 'KnowledgeAnswer(...)', 'error': None} | 통과여도 '사람 검토 필요' |
+| inspect_answer(키 중복 "answer" 두 번, {101}) | {'auto_status': 'failed', 'answer_object': None, 'error': 'json_error'} | strict 파서 → json_error (기본 json.loads 라면 조용히 통과) |
+| inspect_answer(NaN, {101}) | {'auto_status': 'failed', 'answer_object': None, 'error': 'json_error'} | 비표준 NaN 도 파싱 단계에서 거부 |
+
+| 부분 | 뜻 |
+|---|---|
+| validate_answer(...) | (객체, 오류코드) 튜플 — 11/16 정의 |
+| "passed_needs_human_review" | 자동 검사 통과 = 사람 검토 대기 |
+| load_json=load_json_strict | 중복 키·NaN을 거부하는 엄격 파서를 명시 |
+
+### 완료 판정 → 검사기 → 실행 기록
+
+```
+# inspect_answer는 위에서 정의한 17일의 연결 함수입니다.
+raw, gate_error = completed_text(response)
+if gate_error is not None:
+    # refusal은 API 콘텐츠 유형, refused는 이 예제의 앱 실행 상태입니다.
+    run_status = "refused" if gate_error == "refusal" else gate_error
+    result = {"run_status": run_status, "answer_object": None, "evidence_ok": None}
+else:
+    # 16일의 JSON·Schema·출처 규칙을 검사하고 결과를 report로 받습니다.
+    report = inspect_answer(raw, provided_ids)
+    result = {
+        "run_status": ("validated" if report["error"] is None
+                       else report["error"]),
+        "answer_object": report["answer_object"],
+        "evidence_ok": None,  # 사람의 근거 검토 전
+    }
+# response의 usage는 검증 실패여도 별도로 기록합니다.
+# 자동 검사 통과만으로 evidence_ok를 True로 두지 않습니다.
+```
+
+▶ 실제로 돌려 보면 같은 8개 · completed_text → inspect_answer(16일 검사기) → 실행 기록
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 정상 답변 | run_status='validated', answer.status='answered', evidence_ok=None | 자동 검사 통과 = 사람 검토 대기 |
+| 정보 부족 응답(정상 처리) | run_status='validated', answer.status='insufficient_context', evidence_ok=None | 정상 실행 + 업무상 정보 부족 |
+| API의 요청 거절 | run_status='refused', answer.status=None, evidence_ok=None | 앱 상태 refused (정보 부족으로 위장 안 함) |
+| 불완전 응답 | run_status='incomplete', answer.status=None, evidence_ok=None | 부분 JSON 사용 안 함 |
+| 완료 + 빈 텍스트 | run_status='empty_output', answer.status=None, evidence_ok=None | 검사기로 못 넘김 |
+| 완료 + JSON 오류 | run_status='json_error', answer.status=None, evidence_ok=None | 16일 검사기가 json_error |
+| 문맥 밖 출처 999 | run_status='unknown_source', answer.status=None, evidence_ok=None | 16일 검사기가 unknown_source |
+| 존재하는 ID, 잘못된 인용 | run_status='validated', answer.status='answered', evidence_ok=None | 자동으로는 validated — 102를 실행 위치 근거로 101을 인용한 걸 못 잡음 |
+
+| 부분 | 뜻 |
+|---|---|
+| run_status | 앱이 본 실행 결과: validated·refused·incomplete·오류코드 |
+| answer_object | 검사를 통과한 업무 답변 (아니면 None) |
+| evidence_ok: None | 사람이 근거를 아직 안 봄 — 자동으로 True 금지 |
+| refusal / refused | API 콘텐츠 유형 / 이 앱의 실행 상태 이름 |
+
+### Streaming 수신 루프 — stream=True
+
+```
+from time import perf_counter
+
+t0 = perf_counter()
+# None은 아직 관측하지 못했다는 뜻입니다. 0ms와 다릅니다.
+first_ms, final = None, None
+stream_error = None
+parts = []  # 중간 미리보기 버퍼. 최종 검증은 final.output_text를 사용합니다.
+with client.responses.create(
+    **request, text={"format": output_format},
+    stream=True,
+) as events:
+    for event in events:
+        # delta는 새로 도착한 텍스트 조각이며 토큰 1개와 같지 않습니다.
+        if event.type == "response.output_text.delta":
+            if event.delta and first_ms is None:
+                first_ms = (perf_counter()-t0)*1000
+            parts.append(event.delta)
+        elif event.type == "response.completed":
+            final = event.response
+        elif event.type in {"response.failed", "response.incomplete"}:
+            final = event.response
+        elif event.type == "error":
+            stream_error = "stream_error"
+
+request_ms = (perf_counter()-t0)*1000
+if final is None or stream_error is not None:
+    outcome = "interrupted"
+else:
+    raw, gate_error = completed_text(final)
+    # gate_error가 없을 때만 아래처럼 기존 검사기를 호출합니다.
+    # validate_answer(raw, provided_ids, load_json=load_json_strict)
+# 수신 중 예외의 try/except 처리는 기존 실습의 바깥 호출부에서 담당합니다.
+```
+
+▶ 실제로 돌려 보면 SSE 바이트를 가짜 서버가 보내고, SDK 가 실제로 해석한 이벤트로 강의 루프 그대로 (시간 값은 의미 없어 관측 여부만)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| delta 여러 개 → completed | 조각 4개 · first_ms 관측=True · outcome='validate 로' · usage 합계=67 | 최종 response 를 기존 검증기로 |
+| delta → 연결 끊김 | 조각 2개 · first_ms 관측=True · outcome='interrupted' · usage 합계=None · 예외 APIConnectionError | 보인 조각이 있어도 최종 Response·usage 없음 |
+| delta → incomplete | 조각 2개 · first_ms 관측=True · outcome='incomplete' · usage 합계=67 | 끝났지만 미완성 — 부분 JSON 버림 |
+| refusal → completed | 조각 0개 · first_ms 관측=False · outcome='refusal' · usage 합계=67 | 거절 기록 · 형식 수정 요청 안 함 |
+| 빈 delta → completed | 조각 6개 · first_ms 관측=True · outcome='validate 로' · usage 합계=67 | 빈 조각은 첫 텍스트로 안 셈 |
+| 완료 이벤트 없이 종료 | 조각 4개 · first_ms 관측=True · outcome='interrupted' · usage 합계=None | 조각은 다 왔어도 완료 확인 못 함 |
+| error 이벤트 | 조각 1개 · first_ms 관측=True · outcome='interrupted' · usage 합계=None | error 이벤트 → interrupted |
+
+| 부분 | 뜻 |
+|---|---|
+| stream=True | 응답을 SSE 이벤트로 이어 받기. with … as events로 연결을 닫아요 |
+| event.type | 이벤트 종류 문자열로 분기 |
+| "response.output_text.delta" | 새 텍스트 조각 event.delta — 토큰 1개가 아님 |
+| first_ms is None | 아직 관측 안 됨 (0ms와 다름). 빈 조각은 세지 않음 |
+| "response.completed" | 전체 완료 — event.response가 최종 Response |
+| "response.failed" / "response.incomplete" | 끝났지만 실패·미완성 — final에 담고 상태로 판정 |
+| perf_counter() | 경과 시간 측정용 시계 (벽시계 시각이 아님) |
+| parts | 미리보기 버퍼 — 검증은 final.output_text로 |
+
+⚠️ 부분 JSON을 보고 도구 실행·DB 변경·캐시 저장을 하지 않아요. 연결이 끊기면 SDK가 예외를 던지니 바깥에서 잡아 interrupted로 기록해요.
+
+### 재시도의 책임과 전송 상한 — SDK 예외 읽기
+
+```
+# OpenAI는 앞에서 import한 SDK 클래스입니다.
+# 아래 2·2·4는 이 교안의 작업별 정책값입니다.
+client = OpenAI(
+    base_url="https://api.openai.com/v1",  # OpenAI 직접 연결
+    timeout=30.0,
+    max_retries=0,   # 이 수업은 앱에서 횟수 관리
+)
+
+# 작업별 제한: 값을 키우는 것이 해결책 아님
+MAX_GENERATIONS = 2      # 최초 + 형식 수정
+MAX_SENDS_PER_GENERATION = 2
+MAX_SENDS_TOTAL = 4
+
+# 401·403·잘못된 요청·할당량: 중단
+# 일시적 429·선별한 5xx: 대기 후 제한적 재시도
+# timeout·stream 중단: 자동 재전송하지 않음
+```
+
+▶ 실제로 돌려 보면 openai SDK + 가짜 서버가 오류만 돌려줌 · 같은 오류를 max_retries=0 과 SDK 기본값(2)으로 각각 보냄
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 401 invalid_api_key | AuthenticationError · e.code='invalid_api_key' · 전송 1회 (max_retries=0) / 1회 (SDK 기본 2) | 인증 — 중단 |
+| 403 permission_denied | PermissionDeniedError · e.code='permission_denied' · 전송 1회 (max_retries=0) / 1회 (SDK 기본 2) | 권한 — 중단 |
+| 400 invalid_request | BadRequestError · e.code='invalid_request' · 전송 1회 (max_retries=0) / 1회 (SDK 기본 2) | 요청 수정 후 별도 실행 |
+| 429 rate_limit_exceeded | RateLimitError · e.code='rate_limit_exceeded' · 전송 1회 (max_retries=0) / 3회 (SDK 기본 2) | 대기 후 제한 재시도 가능 |
+| 429 insufficient_quota | RateLimitError · e.code='insufficient_quota' · 전송 1회 (max_retries=0) / 3회 (SDK 기본 2) | 같은 RateLimitError 인데 SDK 기본값은 할당량 문제도 3번 보냄 — e.code 로 갈라야 |
+| 500 server_error | InternalServerError · e.code='server_error' · 전송 1회 (max_retries=0) / 3회 (SDK 기본 2) | SDK 기본값이면 앱 모르게 3번 전송 |
+| timeout (응답이 안 옴) | APITimeoutError · 전송 1회 (max_retries=0) / 3회 (SDK 기본 2) | 서버가 이미 생성했을 수도 — 자동 재전송 안 함 |
+| issubclass(openai.RateLimitError, openai.APIStatusError) | True | 모든 HTTP 오류 예외의 부모 = APIStatusError |
+| issubclass(openai.APITimeoutError, openai.APIStatusError) | False | timeout 은 HTTP 상태가 없음 → APIConnectionError 쪽 |
+
+| 부분 | 뜻 |
+|---|---|
+| max_retries=0 | SDK가 몰래 재전송하지 않게 — 횟수는 앱이 셈 |
+| MAX_GENERATIONS = 2 | 최초 생성 + 형식 수정 1회 |
+| MAX_SENDS_PER_GENERATION = 2 | 한 생성 안에서 통신 재전송 포함 2회 |
+| MAX_SENDS_TOTAL = 4 | 작업 전체 실제 전송 상한 |
+| openai.RateLimitError | 429 — e.code가 rate_limit_exceeded(기다릴 문제)인지 insufficient_quota(멈출 문제)인지 갈라 읽기 |
+| openai.APITimeoutError | 응답을 못 받음 — HTTP 상태가 없어서 APIStatusError의 자식이 아님 |
+
+💡 아래 실행 결과처럼 SDK 기본값(max_retries=2)은 429 할당량·500·timeout을 앱이 모르게 3번 보내요. 앱 재시도까지 켜면 곱으로 늘어요.
+
+### 대기 판단 — Retry-After · Backoff · Jitter
+
+```
+# attempt·retry_after_s·remaining_s·sends_used는 호출부가 전달합니다.
+# retry_after_s: 검증·변환한 헤더 값 또는 None
+# remaining_s: 이번 작업의 남은 대기 예산
+import random
+
+fallback = min(8.0, 2 ** (attempt - 1))
+base = (retry_after_s if retry_after_s is not None
+        else fallback)
+wait_s = base + random.uniform(0, 0.25)
+
+if wait_s > remaining_s:
+    return "deferred"    # 짧게 줄여 재전송하지 않음
+if sends_used >= MAX_SENDS_TOTAL:
+    return "attempt_limit"
+# 이 조건을 통과한 경우에만 sleep → 다음 전송
+```
+
+▶ 실제로 돌려 보면 교안 발췌를 함수로 감싸 실행 · 지터는 random.uniform(0, 0.25) 의 양 끝(0, 0.25)을 넣어 범위로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| attempt=1, Retry-After 없음, 남은 30초, 전송 1회 | 1.0 ~ 1.25 | 1초(2⁰) + 지터 |
+| attempt=3, Retry-After 없음 | 4.0 ~ 4.25 | 4초(2²) + 지터 |
+| attempt=6, Retry-After 없음 | 8.0 ~ 8.25 | 2⁵=32 이지만 min(8.0, …) 으로 8초가 상한 |
+| Retry-After=10, 남은 3초 | deferred | 서버 최소 대기를 줄여 보내지 않고 미룸 |
+| Retry-After=2, 남은 30초, 이미 4회 전송 | attempt_limit | 시간은 되지만 총 전송 상한 |
+| Retry-After=0.5, 남은 0.6초 | 0.5 / deferred | 지터에 따라 결과가 갈림 — 경계에서는 예산 여유를 둘 것 |
+
+| 부분 | 뜻 |
+|---|---|
+| 2 ** (attempt - 1) | Exponential backoff: 1·2·4·8초 |
+| min(8.0, …) | 대기 상한 8초 (교안 본문 정책) |
+| retry_after_s if … is not None else fallback | 서버가 알려준 최소 대기가 있으면 그것 |
+| random.uniform(0, 0.25) | Jitter — 여러 클라이언트가 같은 순간 재전송하지 않게 흩뜨리기 |
+| "deferred" | 기다릴 시간이 예산보다 길면 대기를 줄이지 않고 이번 실행을 미룸 |
+
+### 별도 예시 — 서버 최소 대기와 지수 대기 중 큰 값
+
+```
+# 본문의 대기 예시와 상수가 다릅니다. 이 함수는 별도 정책 예시입니다.
+import random
+
+def retry_delay(attempt, retry_after_s, remaining_s):
+    # 숫자·HTTP-date 헤더를 초 단위로 해석한 값을 받습니다.
+    hinted = 0.0 if retry_after_s is None else retry_after_s
+    if hinted < 0 or remaining_s <= 0:
+        return None
+    exponential = 2 ** (attempt - 1)
+    wait = max(hinted, exponential) + random.uniform(0, 0.5)
+    if wait >= remaining_s:
+        return None  # 이번 실행은 deferred로 종료
+    return wait
+
+# None이면 기다림을 줄여 재전송하지 않고 중단합니다.
+```
+
+▶ 실제로 돌려 보면 교안 retry_delay · 지터는 uniform(0, 0.5) 양 끝
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| retry_delay(1, None, 30) | 1.0 ~ 1.5 | 헤더 없으면 2⁰=1초 |
+| retry_delay(3, 1, 30) | 4.0 ~ 4.5 | max(서버 1초, 지수 4초) = 4초 — 더 긴 쪽 |
+| retry_delay(1, 10, 30) | 10.0 ~ 10.5 | 서버가 10초라면 10초 |
+| retry_delay(1, 10, 3) | None | None = deferred (짧게 잘라 보내지 않음) |
+| retry_delay(1, -5, 30) | None | 음수 헤더는 잘못된 값 → 중단 |
+| retry_delay(6, None, 100) | 32.0 ~ 32.5 | 본문 예시와 달리 상한 8초가 없음 — 교안이 '상수가 다른 별도 예시'라고 한 부분 |
+
+| 부분 | 뜻 |
+|---|---|
+| max(hinted, exponential) | 서버 값보다 짧게는 절대 안 기다림 |
+| hinted < 0 | 잘못된 헤더 값 → 재시도 안 함 |
+| return None | deferred |
+
+💡 Retry-After는 초 숫자(10) 또는 HTTP-date(Wed, 18 Nov 2026 01:00:00 GMT) 두 형식이 있어요. 파서가 초로 바꿔서 넘겨요.
+
+### 생성 시도와 전송 시도 — 전체 흐름 (의사코드)
+
+```
+# 정책의 흐름을 보여주는 의사코드입니다. 단독 실행 프로그램이 아닙니다.
+# send_bounded·validate·make_format_repair·budget은 선행 정의입니다.
+generation = 0
+send_count = 0
+while generation < 2 and send_count < 4:
+    generation += 1
+    # 내부 transport 함수도 최대 2회, 총 전송 4회 이하
+    outcome = send_bounded(request, budget)
+    send_count = budget.used
+    if outcome.transport_failed:
+        break
+    report = validate(outcome.response)
+    if report.is_success or report.is_insufficient:
+        break
+    if not report.is_format_error or generation == 2:
+        break
+    request = make_format_repair(request, report.safe_codes)
+# 시도마다 결과를 남깁니다. 마지막 값으로 첫 실패를 덮지 않습니다.
+```
+
+▶ 실제로 돌려 보면 교안 의사코드 + 노트의 send_bounded 최소 구현 · SDK + 가짜 서버가 각본대로 응답 (sleep 은 실제로 하지 않고 판단만 기록)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 401 → 중단 | 최종 'AuthenticationError' · 실제 전송 1회 · 기록 생성1·전송1: AuthenticationError → 중단 | 1회로 끝 |
+| 429 일시적 제한 → 정상 | 최종 'validated' · 실제 전송 2회 · 기록 생성1·전송1: 429 rate_limit_exceeded → 대기 판단 1.0 / 생성1·전송2: 응답 수신 / 생성1·전송-: 검증 → passed_needs_human_review | 이전 429 도 기록에 남김 |
+| 429 할당량 → 중단 | 최종 'insufficient_quota' · 실제 전송 1회 · 기록 생성1·전송1: 429 insufficient_quota → 중단 | 같은 429 라도 기다리지 않음 |
+| 500 → 500 → 중단 | 최종 'server_error' · 실제 전송 2회 · 기록 생성1·전송1: 500 → 예산 안에서 1회 재시도 / 생성1·전송2: 500 → 생성당 2회 상한, 중단 | 생성당 전송 2회 상한 |
+| 429 + 형식 오류 + 수정 → 정상 | 최종 'validated' · 실제 전송 4회 · 기록 생성1·전송1: 429 rate_limit_exceeded → 대기 판단 1.0 / 생성1·전송2: 응답 수신 / 생성1·전송-: 검증 → json_error / 생성2·전송1: 429 rate_limit_exceeded → 대기 판단 1.0 / 생성2·전송2: 응답 수신 / 생성2·전송-: 검증 → passed_needs_human_review | 4회 = 전체 상한에 딱 맞음 |
+| 형식 오류 → 형식 오류 | 최종 'json_error' · 실제 전송 2회 · 기록 생성1·전송1: 응답 수신 / 생성1·전송-: 검증 → json_error / 생성2·전송1: 응답 수신 / 생성2·전송-: 검증 → json_error | 형식 수정은 1회까지 — 3번째 생성은 없음 |
+
+| 부분 | 뜻 |
+|---|---|
+| generation | 생성 번호: 1 = 최초, 2 = 형식 수정 |
+| send_count = budget.used | 공유 예산 — 모든 경로의 실제 전송 합 |
+| outcome.transport_failed | 통신 단계에서 끝남 (인증·할당량·서버 오류 계속·timeout) |
+| report.is_insufficient | 정보 부족은 정상 종료 — 다시 묻지 않음 |
+| make_format_repair(...) | JSON·Schema 형식 오류일 때만 1회 |
+
+💡 교안은 의사코드예요. 아래 실행 결과는 이 노트가 send_bounded를 최소 구현해서 SDK + 가짜 서버로 돌린 거예요.
+
+### usage 읽기 — 누락값은 None
+
+```
+# response는 API가 반환한 객체입니다. Streaming은 최종 Response에서 읽습니다.
+u = response.usage
+usage = None if u is None else {
+    "input_tokens": u.input_tokens,
+    "output_tokens": u.output_tokens,
+    # cached_tokens는 input_tokens의 일부입니다.
+    "cached_tokens": getattr(
+        u.input_tokens_details, "cached_tokens", None
+    ),
+    # reasoning_tokens는 output_tokens의 일부입니다.
+    "reasoning_tokens": getattr(
+        u.output_tokens_details, "reasoning_tokens", None
+    ),
+}
+
+# stream은 완료 Response에서 읽습니다.
+# 없는 값에 `or 0`을 사용하지 않습니다.
+```
+
+▶ 실제로 돌려 보면 교안 USAGE 사례(가상값)를 SDK Response 로 파싱해 강의 코드 그대로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 일반 응답 | {'input_tokens': 1000, 'output_tokens': 200, 'cached_tokens': 400, 'reasoning_tokens': 0} | cached 400 은 input 1000 안의 일부 |
+| cached_tokens 가 실제 0 | {'input_tokens': 1000, 'output_tokens': 200, 'cached_tokens': 0, 'reasoning_tokens': 0} | 0 은 '관측된 0' |
+| 캐시 세부 필드가 없음 | {'input_tokens': 1000, 'output_tokens': 200, 'cached_tokens': None, 'reasoning_tokens': None} | 필드 없음 → None (0 이라고 단정 안 함) |
+| Timeout 으로 usage 미수신 | None | usage 자체가 None → 비용 미확인 |
+| (잘못된 방법) getattr(...) or 0 | 0 | 모르는 값이 0 으로 둔갑 — 교안이 or 0 을 금지한 이유 |
+
+| 부분 | 뜻 |
+|---|---|
+| u is None | timeout·스트림 중단이면 usage 자체가 없음 |
+| getattr(obj, "cached_tokens", None) | 속성이 없거나 obj가 None이어도 기본값 None |
+| or 0 | 쓰지 않음 — 모르는 값이 0으로 둔갑 |
+
+### 비용 추정 — 세 항목 · Decimal
+
+```
+# 입력 1,000 · 캐시 400 · 출력 200: 계산용 가상값
+from decimal import Decimal  # 금액 계산에 십진수를 사용합니다.
+
+input_tokens, cached_tokens, output_tokens = 1000, 400, 200
+p_in, p_cached, p_out = Decimal("0.75"), Decimal("0.075"), Decimal("4.50")
+
+# 캐시 입력을 일반 입력과 중복해서 계산하지 않습니다.
+uncached_tokens = input_tokens - cached_tokens
+estimated_usd = (
+    uncached_tokens*p_in
+    + cached_tokens*p_cached
+    + output_tokens*p_out
+) / Decimal(1_000_000)
+print(estimated_usd)   # 0.00138
+```
+
+▶ 실제로 돌려 보면 교안 코드 그대로 (단가·사용량은 교안의 가상값)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| print(estimated_usd) # 1000 · 400 · 200 | 0.00138 | 교안 주석 0.00138 과 같음 |
+| 항목별 | 일반 입력 0.00045 + 캐시 입력 0.00003 + 출력 0.0009 | 출력 200 토큰이 전체의 65% — 출력 단가가 6배 |
+| cached_tokens = 0 이면 | 0.00165 | 캐시 400 이 0.000270 아낀 셈 |
+| (잘못) 입력 1000 전체 + 캐시 400 을 또 더함 | 0.00168 | 캐시 입력을 두 번 셈 → 과대 추정 |
+| output_tokens = 2000 이면 | 0.00948 | 출력이 늘면 비용 대부분이 출력 |
+| usage = None (timeout) | None | estimated_usd=None — 0 으로 쓰지 않음 |
+| 0.1 + 0.2 (float) | 0.30000000000000004 | 금액에 Decimal 을 쓰는 이유 |
+
+| 부분 | 뜻 |
+|---|---|
+| Decimal("0.75") | 십진수 — 문자열로 만들어야 0.1 같은 값이 정확 |
+| input_tokens - cached_tokens | 캐시 입력을 일반 입력에서 빼야 두 번 세지 않음 |
+| / Decimal(1_000_000) | 단가가 '100만 토큰당 USD'라서. 1_000_000의 _는 자릿수 구분 |
+| 단가 0.75 / 0.075 / 4.50 | 교안의 계산용 값 — 현재 공식 단가는 수업 전에 다시 확인 |
+
+💡 비용 기록에는 price_version · checked_at · currency · service_tier를 함께 남겨요. 실행별 추정 ≠ 최종 청구서.
+
+### Cache key — 입력·모델·권한 범위 → SHA-256
+
+```
+import hashlib, json
+
+# scope는 예시의 권한 범위. 운영에서는 신뢰할 수 있는 서버 값입니다.
+cache_basis = {
+    "scope": "classroom-demo",
+    "model": request["model"],
+    "request": request,
+    "format": output_format,
+    "validator_version": "day21-v1",
+}
+# 딕셔너리 키 순서만 정렬합니다. 질문의 의미나 문맥 순서는 바꾸지 않습니다.
+canonical = json.dumps(
+    cache_basis, ensure_ascii=False, sort_keys=True,
+    separators=(",", ":"),
+)
+# SHA-256은 식별용 해시이며, 비밀을 암호화하는 기능이 아닙니다.
+cache_key = hashlib.sha256(
+    canonical.encode("utf-8")
+).hexdigest()
+```
+
+▶ 실제로 돌려 보면 교안 코드 그대로 · H01 request 기준 (앞 16글자만 표시)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 기준 | a14ed63e72e25c6b… | 기준과 같음 — 64글자 16진수 |
+| 키 순서만 바꿈 | a14ed63e72e25c6b… | 기준과 같음 — sort_keys 덕분 |
+| 지식 103 본문 수정 (ID 같음) | 405320f07168e731… | 기준과 다름 — 같은 ID 라도 본문이 바뀌면 다른 요청 |
+| 모델 → quality | ee9765f151f5011f… | 기준과 다름 — 모델을 바꾸면 캐시도 새로 |
+| scope 다른 조직 | 5e3c3577e90d2d9d… | 기준과 다름 — 권한 범위가 다르면 재사용 금지 |
+| validator_version day22-v1 | 5bcc33962d0b563d… | 기준과 다름 — 검사 규칙이 바뀌어도 새로 |
+
+| 부분 | 뜻 |
+|---|---|
+| "scope" | 이 답을 재사용해도 되는 사용자·조직 범위 |
+| "validator_version" | 검사 규칙이 바뀌면 다른 key |
+| sort_keys=True, separators=(",", ":") | dict 키 순서·공백 차이를 없앤 표준 문자열 |
+| hashlib.sha256(...).hexdigest() | 64글자 16진수 — 식별용. 암호화가 아님 |
+
+⚠️ API 키·비밀번호는 key 재료에 넣지 않아요. 해시했다고 공개해도 되는 게 아니에요.
+
+### 캐시 읽기 — 재사용 전에도 검사
+
+```
+# key에 권한·모델·입력·계약·검증 버전이 포함되어 있다는 전제입니다.
+# 캐시에는 사람이 근거를 확인한 answered 결과만 저장합니다.
+def read_cache(cache, key, now, provided_ids):
+    entry = cache.get(key)
+    # TTL(Time To Live): 재사용하도록 정한 유효 기간입니다.
+    if entry is None or now >= entry["expires_at"]:
+        return None
+    if not entry["human_approved"]:
+        return None
+    # 현재 문맥의 ID와 현재 검사 규칙으로 다시 확인합니다.
+    report = inspect_answer(entry["raw"], provided_ids)
+    if report["auto_status"] != "passed_needs_human_review":
+        return None
+    return {
+        "answer_object": report["answer_object"],
+        "source_mode": "app_cache",
+        # 이 답이 처음 만들어진 실행을 추적합니다.
+        "origin_run_id": entry["origin_run_id"],
+        "new_api_send_count": 0,
+    }
+```
+
+▶ 실제로 돌려 보면 교안 read_cache 그대로 · TTL 60초 가상 시간
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 저장 0초 · 현재 30초 · 승인됨 · provided {103} | {'answer_object': 'KnowledgeAnswer(...)', 'source_mode': 'app_cache', 'origin_run_id': 'demo-001', 'new_api_send_count': 0} | hit — 새 API 전송 0회 |
+| 현재 60초 (expires_at=60) | None (miss) | now >= expires_at → 만료 |
+| 승인 전 (human_approved=False) | None (miss) | 사람 검토 전 답은 재사용 안 함 |
+| 같은 key, 이번 provided {102} | None (miss) | 현재 문맥으로 재검사 → 103 이 범위 밖 → miss |
+| 지식 본문 수정 → 다른 key | None (miss) | key 자체가 달라 항목 없음 |
+
+| 부분 | 뜻 |
+|---|---|
+| now >= entry["expires_at"] | TTL(유효 기간) 만료 |
+| entry["human_approved"] | 사람이 근거를 확인한 answered만 저장·재사용 |
+| inspect_answer(entry["raw"], provided_ids) | 현재 문맥·규칙으로 다시 검사 |
+| "origin_run_id" | 이 답을 처음 만든 실행 — 비용을 중복 합산하지 않게 |
+| "new_api_send_count": 0 | 관측된 0 (None과 다름) |
+
+### Model Routing — 실행 모드 → 허용된 모델
+
+```
+# fast·quality는 이 교안의 모드명입니다. 속도·품질을 보장하는 값이 아닙니다.
+MODELS = {
+    "fast": "gpt-5.4-mini-2026-03-17",
+    "quality": "gpt-5.4-2026-03-05",
+}
+
+# 알려지지 않은 mode는 모델을 호출하기 전에 거부합니다.
+def choose_model(mode):
+    if mode not in MODELS:
+        raise ValueError("지원하지 않는 실행 모드")
+    return MODELS[mode], f"explicit_mode:{mode}"
+
+# route_reason은 모델을 선택한 이유를 기록할 필드입니다.
+model, route_reason = choose_model(mode)
+request["model"] = model
+# route_reason·model을 기록하고 한 번만 전송
+# 실제 권한·지원 설정·단가를 사전 확인
+```
+
+▶ 실제로 돌려 보면 교안 코드 그대로
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| choose_model("fast") | ('gpt-5.4-mini-2026-03-17', 'explicit_mode:fast') | 확인된 기본 실습 모델 + 선택 이유 |
+| choose_model("quality") | ('gpt-5.4-2026-03-05', 'explicit_mode:quality') | 비교 후보 — 생성은 강사도 미확인 (not_run) |
+| choose_model("turbo") | ValueError: 지원하지 않는 실행 모드 | 모르는 모드는 호출 전에 거부 |
+| choose_model("Fast") | ValueError: 지원하지 않는 실행 모드 | 대소문자도 그대로 비교 |
+| cache_key(fast 요청) == cache_key(quality 요청) | False | 모델을 바꾸면 key 도 다시 계산 |
+
+| 부분 | 뜻 |
+|---|---|
+| MODELS = {...} | 허용 목록. 없는 모드는 고를 수 없음 |
+| raise ValueError | 호출 전에 거부 — 비용 0 |
+| f"explicit_mode:{mode}" | route_reason — 왜 이 모델인지 기록 |
+| request["model"] = model | 모델이 바뀌면 Cache key도 다시 계산 |
+
+💡 fast·quality는 교안의 모드 이름이에요. 품질·속도 우열을 보장하지 않아요. Routing(호출 전 선택) ≠ Fallback(실패 후 대안).
+
+## 📖 Day22 용어 (35개)
+- **KV cache** (Key/Value cache): 답을 한 토큰씩 만들 때 앞에서 계산한 Key·Value를 저장해 재사용하는 것. 빨라지지만 메모리를 차지해요.
+- **.env** (.env 파일 (환경 설정)): DB 주소·계정·비밀번호처럼 코드 밖에 둘 설정을 '이름=값'으로 적은 파일. .gitignore로 Git에서 빼고, 값 없는 .env.example만 공유해요. 암호화는 아니에요.
+- **LLM API** (LLM Application Programming Interface): 내 프로그램이 외부 언어모델에 약속된 형식으로 요청을 보내고 응답 객체를 받는 접점. ChatGPT 화면의 대화 기록을 자동으로 읽지 않아요.
+- **SDK** (Software Development Kit): API 사용을 돕는 라이브러리. openai 패키지가 Python 호출을 HTTP 요청으로 바꾸고, 응답·오류를 Python 객체·예외로 돌려줘요.
+- **LLM Client**: 우리 서비스의 호출 정책(입력 구성·모델 선택·대기·재시도·검증·기록)을 묶은 모듈. SDK 위에 얹는 우리 코드예요.
+- **API 키** (API Key): 요청의 자격을 확인하는 비밀 값. 실습별 .env에만 두고 코드·Git·화면·채팅에 넣지 않아요. 키가 있어도 모든 모델을 쓸 수 있는 건 아니에요.
+- **인증 · 권한** (Authentication / Authorization): 인증(401)은 '이 자격이 유효한가', 권한(403)은 '이 자격으로 이 모델·작업을 해도 되는가'. 둘 다 기다려서 해결되지 않아요.
+- **Responses API** (OpenAI Responses API): OpenAI의 생성 API. instructions(앱의 지시) + input(이번 내용)을 보내고, status·output·usage가 든 Response를 받아요. Chat Completions의 messages 형식과 섞지 않아요.
+- **instructions · input** (instructions / input): instructions는 앱이 고정한 작업·제약·형식, input은 이번 질문과 고른 지식. input 안의 메시지는 role(역할)과 content(내용)로 구성돼요.
+- **Structured Outputs**: JSON Schema를 API에 넘겨 응답의 필드·자료형을 제약하는 기능. 'JSON으로 답해'라는 Prompt 요청과 달라요. 구조 통과 ≠ 근거 적합.
+- **WireAnswer** (WireAnswer (wire schema)): API에 보낼 최소 구조(네 필드·허용 status·추가 필드 금지)를 정한 Pydantic 모델. 로컬 계약 KnowledgeAnswer보다 느슨해서 "101"을 101로 바꿔 줘요.
+- **refusal** (Refusal): 모델이 요청을 거절한 콘텐츠 유형. 앱에서는 refused로 기록하고, 정보 부족(insufficient_context)이나 형식 오류로 위장하지 않아요.
+- **response.status** (Response status): 생성 응답의 완료 상태(completed·incomplete·failed 등). HTTP 200(통신)이나 답변 JSON의 status(업무 상태)와 다른 층이에요.
+- **Streaming**: 전체 응답을 기다리지 않고 생성 중 도착하는 조각을 이벤트로 먼저 받는 방식. 첫 표시는 빨라지지만 총 완료 시간이 짧아진다는 뜻은 아니고, 마지막 완료 이벤트로 확정해요.
+- **SSE** (Server-Sent Events): HTTP 연결 하나로 서버가 'event: 이름 / data: JSON' 묶음을 이어 보내는 방식. SDK가 이를 event 객체로 바꿔 줘요.
+- **delta** (Delta): 새로 도착한 텍스트 변화분. 조각 수 ≠ 토큰 수이고, 중간 조각은 완전한 JSON이 아닐 수 있어요. 토큰은 최종 usage에서 읽어요.
+- **Latency**: 요청 시작부터 결과까지의 지연. first_text_ms(첫 텍스트), request_ms(한 요청), e2e_ms(준비·대기·재시도·검증 포함 전체)처럼 측정 구간을 정해야 비교할 수 있어요.
+- **Rate Limit**: 일정 시간당 요청 수(RPM)·토큰 수(TPM)를 제한하는 정책. 같은 429라도 rate_limit_exceeded(기다릴 문제)와 insufficient_quota(잔액·한도 — 멈출 문제)는 달라요.
+- **Retry-After** (Retry-After header): 서버가 알려 주는 '최소 이만큼 기다린 뒤 다시 보내라'는 응답 헤더. 초 숫자 또는 HTTP-date. 이보다 짧게 잘라 재전송하지 않아요.
+- **Backoff** (Exponential Backoff): 실패가 반복될수록 대기 시간을 1·2·4·8초처럼 늘리는 재시도 정책. 교안 본문은 상한 8초.
+- **Jitter**: 재시도 시점을 흩뜨리는 작은 무작위 지연. 모두가 정확히 2초 뒤 재전송하면 요청이 다시 한꺼번에 몰리기 때문이에요.
+- **Timeout**: 클라이언트가 정한 대기 조건을 넘었다는 뜻. 서버는 이미 생성했을 수도 있어 비용을 0으로 확정하지 않고, 이 수업은 자동 재전송하지 않아요.
+- **max_retries** (max_retries (SDK automatic retry)): openai SDK가 연결 오류·408·409·429·5xx를 스스로 다시 보내는 횟수(기본 2). 이 수업은 0으로 끄고 앱이 원인을 보고 결정해요 — 둘 다 켜면 전송이 곱으로 늘어요.
+- **generation_no · send_attempt** (Generation number / Send attempt): generation_no는 최초(1)·형식 수정(2) 생성의 번호, send_attempt는 그 생성 요청의 통신 전송 번호. 교안 상한: 생성 2 × 전송 2, 전체 4회.
+- **Token Usage**: API가 보고한 그 호출의 입력·출력 토큰 수. cached_tokens는 input_tokens의 일부, reasoning_tokens는 output_tokens의 일부라 다시 더하지 않아요.
+- **None · 0 · not_run** (None / 0 / not_run): None은 관측 못 함(모름), 0은 관측된 0, not_run은 실행하지 않음. 없는 값을 or 0으로 채우면 모르는 비용이 사라진 것처럼 보여요.
+- **source_mode**: 결과를 얻은 방법. api_live(실제 서버), simulated(직접 만든 응답·이벤트·오류), app_cache(승인된 이전 결과 재사용), not_run(미실행). 섞어서 성능표에 넣지 않아요.
+- **비용 추정** (Cost Estimate): [(입력−캐시) × 일반 단가 + 캐시 × 캐시 단가 + 출력 × 출력 단가] ÷ 1,000,000 (USD / 1M tokens). 실행별 추정이지 청구서가 아니에요. 금액은 Decimal로.
+- **Response Cache** (Response Cache (application)): 앱이 사람이 승인한 최종 답변을 보관해 같은 조건이면 재사용하는 저장소. 유효한 hit이면 새 API 전송 0회.
+- **Prompt Caching**: API 제공사가 같은 입력 앞부분(prefix)의 계산을 재사용하는 기능. 새 요청과 새 출력 생성은 계속돼요. 결과는 usage의 cached_tokens로 보여요.
+- **Cache key**: 보관한 항목을 찾는 식별값. scope·model·request·format·validator_version을 정렬된 JSON으로 만들어 SHA-256. 결과가 달라질 조건이 바뀌면 다른 key.
+- **TTL** (Time To Live): 캐시 항목을 유효하게 볼 기간. now ≥ expires_at이면 만료. TTL이 남아도 지식·권한·규칙이 바뀌면 재사용하지 않아요.
+- **Model Routing**: 호출 전에 요청 조건·권한·기능·예산에 맞는 모델을 고르고 이유(route_reason)를 기록하는 정책. 실패 후 대안으로 바꾸는 Fallback과 달라요.
+- **run_status**: 앱이 본 실행의 결과(validated·refused·incomplete·오류코드). 답변 객체의 status(answered·insufficient_context)와 별도로 반환해요. validated ≠ 사람 승인.
+- **store=False** (store = False): 생성 응답을 공급자 쪽에 저장해 두지 않게 하는 요청 옵션. 모든 로그·보존이 0이라는 뜻은 아니라서, 보낼 데이터 자체를 줄이는 것도 함께 필요해요.

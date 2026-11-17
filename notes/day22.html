@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day22 · LLM API 클라이언트 — 호출 · 검증 · 기록 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag llm">LLM·RAG</span>
+      <h1>Day22 · LLM API 클라이언트 — 호출 · 검증 · 기록</h1>
+      <div class="meta">2026-11-17(화) · API · SDK · 인증 · .env · Responses API · Structured Outputs · Streaming(SSE) · Rate Limit · 재시도 · Token Usage · 비용 · Latency · Cache · Model Routing</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li>어제 만든 Prompt·지식·출력 계약은 <b>그대로</b> 두고, 사람이 복사하던 응답을 <b>Python이 API로 받는 방법</b>만 바꿔요. 그 받는 코드에 우리 정책(대기·재시도·검증·기록)을 묶은 게 <b>LLM Client</b>예요.</li>
+          <li><b>HTTP 200 ≠ 생성 완료 ≠ 자동 검사 통과 ≠ 근거 맞음.</b> 중간 조각(Streaming)이 보여도, 구조(Structured Outputs)가 맞아도 아직 확정이 아니에요.</li>
+          <li>실패는 <b>원인별로</b> 기다리기·고치기·멈추기로 갈라요. 횟수는 앱이 세고(<code>max_retries=0</code>), 모르는 값은 0이 아니라 <code>None</code>으로 남기고, 캐시와 모델 선택도 조건과 이유를 기록해요.</li>
+        </ol>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Day22 명령어 한눈에 — 이론 구역별 코드·인자 설명 <a href="../commands.html#day22">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">명령어 사전의 결과값은 강의 코드를 이 PC에서 <b>실제로 실행</b>한 거예요. 단, <b>OpenAI 서버에는 요청하지 않았어요</b>(API 키·비용 없음). 대신 openai SDK에 <b>가짜 서버</b>(<code>httpx.MockTransport</code>)를 붙여서, SDK가 실제로 만드는 요청 본문 · 실제로 던지는 예외 · 실제로 해석한 스트림 이벤트를 관찰했어요. 응답 내용은 강의 자료의 샘플 또는 강의에 실린 강사 실행 로그 값이에요.</p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 필요한 패키지</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>openai</code></td><td>OpenAI 공식 Python SDK — 요청 전송 · 응답 객체 · 예외 · 스트림 이벤트 (HTTP는 안에서 <code>httpx</code>가 처리)</td><td><code>from openai import OpenAI</code></td></tr>
+        <tr><td><code>pydantic</code> (v2)</td><td>전송용 Schema(<code>WireAnswer</code>) 생성 · 로컬 계약(<code>KnowledgeAnswer</code>) 검사</td><td><code>from pydantic import BaseModel, ConfigDict, Field</code></td></tr>
+        <tr><td><code>python-dotenv</code></td><td><code>.env</code> 파일을 dict로 읽기</td><td><code>from dotenv import dotenv_values</code></td></tr>
+        <tr><td>표준 라이브러리</td><td>JSON · 시간 측정 · 해시 · 금액 계산 · 난수 — 설치 없음</td><td><code>json</code> · <code>time.perf_counter</code> · <code>hashlib</code> · <code>decimal.Decimal</code> · <code>random</code></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 기존 가상환경에서 확인만 <a href="../commands.html#d22-env-shell">명령어 사전에서 자세히 →</a></div>
+<pre><code>python -c "import sys; print(sys.executable)"     # VS Code 인터프리터와 같은 Python인가
+python -m pip show openai pydantic python-dotenv   # 없는 것만 python -m pip install …</code></pre>
+      </div>
+      <div class="callout">💡 <b>.venv ≠ .env</b> — <code>.venv</code>는 Python과 패키지가 든 <b>실행 환경 폴더</b>, <code>.env</code>는 키·모델 이름을 적은 <b>설정 파일</b>이에요. 가상환경은 매번 새로 만들지 않고, 일괄 <code>--upgrade</code>도 하지 않아요. 다른 실습의 버전 조건이 깨질 수 있거든요.</div>
+
+      <!-- ============================================================ -->
+      <h2>이거 어디에 써?</h2>
+      <p>어제(Day21)는 Prompt를 조립하고, ChatGPT 화면에서 받은 답이나 교사가 쓴 샘플을 검사했어요. 실제 서비스는 사람이 복사·붙여넣기를 하지 않죠. <b>Python 프로그램이 직접 모델을 부르고</b>, 답을 받아 검사하고, 기록해야 해요. 그때 이런 일이 생겨요.</p>
+      <ul>
+        <li>답이 반쯤 오다가 연결이 끊김 → 반쪽 JSON을 저장해도 되나?</li>
+        <li><code>429</code> 오류 → 기다리면 되나, 돈이 없는 건가?</li>
+        <li>같은 질문이 백 번 들어옴 → 매번 돈 내고 부를까?</li>
+        <li>"이번 달 얼마 썼지?" → 답 문장만 저장했다면 알 수 없음</li>
+      </ul>
+      <figure id="fig-flow"><img class="smooth" src="img/day22/flow.png" alt="질문·선택 지식·고정 Prompt → LLM Client(인증·모델 선택·캐시·전송·재시도) → 외부 LLM API → 응답 검증 → 기록·근거 검토. 검색과 도구 실행은 이후"><figcaption><b>무엇을 보나:</b> 왼쪽 끝(입력)과 오른쪽 둘(검증·기록)은 어제 만든 그대로예요. 가운데 <b>LLM Client</b>가 오늘 새로 생겨요. 🤔 <b>왜 SDK만으로 안 돼?</b> SDK는 '보내고 받기'만 해 줘요. 몇 번 다시 보낼지, 어떤 모델을 쓸지, 무엇을 기록할지는 <b>우리 서비스의 정책</b>이라 우리 코드가 정해야 해요.</figcaption></figure>
+      <table>
+        <tr><th>날짜</th><th>만든 것</th><th>오늘과의 관계</th></tr>
+        <tr><td>11/10~12 Day17~19</td><td>FastAPI + PostgreSQL 지식 API</td><td>원본 지식 101~103</td></tr>
+        <tr><td>11/13 Day20</td><td>LLM 원리</td><td>Token · KV Cache · 디코딩</td></tr>
+        <tr><td>11/16 Day21</td><td>Prompt · Context · 출력 검증</td><td>그대로 재사용 (Prompt · <code>KnowledgeAnswer</code> · <code>check_rules</code>)</td></tr>
+        <tr><td><b>11/17 오늘</b></td><td>LLM API 클라이언트</td><td>실제 호출 · Streaming · 오류 · 비용 · 캐시 · 모델 선택</td></tr>
+        <tr><td>이후</td><td>11/18 Embedding·Vector DB → 11/19 Chunking → 11/20 RAG</td><td>"어떤 지식을 넣을까"를 검색이 고르기</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 지식 답변 생성기 v2의 약속</h2>
+      <p>오늘 클라이언트가 주고받는 <b>데이터 모양 · 상한 · 실패 처리 규칙</b>을 한곳에 모았어요. 숫자는 모두 강의가 정한 값이에요(OpenAI 계정의 한도나 권장값이 아니에요).</p>
+
+      <h3 id="spec-result">1. 실행 결과 — 호출 한 건이 돌려주는 것</h3>
+      <table>
+        <tr><th>필드</th><th>값</th><th>뜻</th></tr>
+        <tr><td><code>run_status</code></td><td><code>validated</code> · <code>refused</code> · <code>incomplete</code> · <code>empty_output</code> · <code>json_error</code> · <code>schema_error</code> · <code>unknown_source</code> · <code>duplicate_source</code> · <code>status_rule</code> · <code>blank_answer</code> · <code>interrupted</code> · 전송 실패 사유</td><td>앱이 본 <b>실행</b>의 결과. <code>validated</code> = 자동 검사 통과(사람 승인 아님)</td></tr>
+        <tr><td><code>answer_object</code></td><td><code>KnowledgeAnswer</code> 또는 <code>None</code></td><td>업무 답변 네 필드 (Day21 계약 그대로) — <code>status</code>는 <code>answered</code> / <code>insufficient_context</code></td></tr>
+        <tr><td><code>evidence_ok</code></td><td><code>None</code> → 사람이 본 뒤 <code>True</code>/<code>False</code></td><td>자동 검사로는 절대 True가 되지 않음</td></tr>
+        <tr><td><code>model</code> · <code>route_reason</code></td><td>예: <code>gpt-5.4-mini-2026-03-17</code> · <code>explicit_mode:fast</code></td><td>어떤 모델을 왜 골랐나</td></tr>
+        <tr><td><code>usage</code></td><td>input · output · cached · reasoning 토큰, 또는 <code>None</code></td><td>못 받았으면 None (0 아님)</td></tr>
+        <tr><td><code>first_text_ms</code> · <code>request_ms</code> · <code>e2e_ms</code></td><td>숫자 또는 <code>None</code></td><td>측정 구간이 서로 다름 (⑤)</td></tr>
+        <tr><td><code>source_mode</code></td><td><code>api_live</code> · <code>simulated</code> · <code>app_cache</code> · <code>not_run</code></td><td>결과를 얻은 방법 — 성능표에 섞지 않음</td></tr>
+        <tr><td><code>run_id</code> · <code>case_id</code> · <code>generation_no</code> · <code>send_attempt</code></td><td>예: <code>demo-001</code> · <code>H01</code> · 1 · 2</td><td>앱의 작업 · 질문 · 생성 번호 · 그 생성의 전송 번호 (OpenAI의 <code>response.id</code>와 별개)</td></tr>
+      </table>
+
+      <h3 id="spec-limits">2. 상한 — 이 수업의 정책값</h3>
+      <table>
+        <tr><th>항목</th><th>값</th><th>이유</th></tr>
+        <tr><td>SDK 자동 재시도 <code>max_retries</code></td><td>0</td><td>재전송은 앱 한 곳에서만 결정 (SDK 기본값은 2)</td></tr>
+        <tr><td>요청 대기 <code>timeout</code></td><td>30.0초</td><td>요청 하나의 입출력 대기. 작업 전체 마감 아님</td></tr>
+        <tr><td>생성 횟수</td><td>최대 2 (최초 + 형식 수정 1)</td><td>형식 오류만 고칠 기회</td></tr>
+        <tr><td>생성당 전송</td><td>최대 2</td><td>일시적 429 · 선별한 5xx만 1회 더</td></tr>
+        <tr><td>작업 전체 전송</td><td>최대 4</td><td>2 × 2 — 상한은 목표 횟수가 아님</td></tr>
+        <tr><td>대기 <code>fallback</code></td><td><code>min(8, 2^(attempt−1))</code> + 지터 0~0.25초</td><td>Retry-After 없을 때. 있으면 그 값이 최소</td></tr>
+        <tr><td><code>max_output_tokens</code></td><td>1200</td><td>한 응답의 출력 상한</td></tr>
+        <tr><td>개인 호출 예산 (예시)</td><td>전체 실제 전송 20회</td><td>재시도·캐시 무효화 후 호출 포함</td></tr>
+      </table>
+
+      <h3 id="spec-errors">3. 실패 → 다음 행동</h3>
+      <table>
+        <tr><th>관측</th><th>SDK 예외</th><th>다음 행동</th><th>하지 않는 것</th></tr>
+        <tr><td>401 인증 실패</td><td><code>AuthenticationError</code></td><td>중단 · 키/프로젝트 설정 확인</td><td>같은 키로 반복, 키를 오류 화면에 출력</td></tr>
+        <tr><td>403 권한 없음</td><td><code>PermissionDeniedError</code></td><td>중단 · 허용 모델·권한 확인</td><td>다른 사람 키로 우회</td></tr>
+        <tr><td>400 잘못된 요청</td><td><code>BadRequestError</code></td><td>요청 수정 후 <b>별도</b> 실행</td><td>같은 요청 반복</td></tr>
+        <tr><td>429 <code>rate_limit_exceeded</code></td><td><code>RateLimitError</code></td><td>Retry-After · 남은 시간 · 남은 횟수 안에서만 1회 더</td><td>서버 최소 대기를 줄여 재전송</td></tr>
+        <tr><td>429 <code>insufficient_quota</code></td><td><code>RateLimitError</code> (같은 예외!)</td><td>중단 · 잔액·결제·한도 확인</td><td>기다렸다 다시 보내기</td></tr>
+        <tr><td>429 원인 불명</td><td><code>RateLimitError</code></td><td>원인 확인 전 중단</td><td>HTTP 코드만 보고 '일시적'이라 추정</td></tr>
+        <tr><td>500 (허용한 서버 오류)</td><td><code>InternalServerError</code></td><td>예산 안에서 1회 재시도, 실패 기록 보존</td><td>무한 루프</td></tr>
+        <tr><td>Timeout · 스트림 끊김</td><td><code>APITimeoutError</code> · <code>APIConnectionError</code></td><td>이번 자동 흐름 중단 · usage는 None</td><td>자동 재전송 (이미 생성·과금됐을 수 있음)</td></tr>
+        <tr><td>거절 · incomplete · 빈 출력</td><td>— (200 응답)</td><td>상태 기록 후 종료</td><td>정보 부족으로 위장 · 형식 수정 요청</td></tr>
+        <tr><td>JSON · Schema 오류</td><td>— (200 응답)</td><td>형식 수정 생성 1회</td><td>3번째 생성</td></tr>
+        <tr><td>출처 · 상태 규칙 위반</td><td>— (200 응답)</td><td>중단</td><td>다시 물어 근거를 '만들기'</td></tr>
+      </table>
+
+      <h3 id="spec-fn">4. 함수별 입력 · 출력 · 보장하지 않는 것</h3>
+      <table>
+        <tr><th>함수</th><th>입력 → 출력</th><th>보장하지 않는 것</th></tr>
+        <tr><td><code>completed_text(response)</code></td><td>Response → <code>(원문, None)</code> 또는 <code>(None, "refusal"|status|"empty_output")</code></td><td>JSON 문법 · 내용</td></tr>
+        <tr><td><code>inspect_answer(raw, provided_ids)</code></td><td>원문 → <code>{auto_status, answer_object, error}</code></td><td>근거 적합성</td></tr>
+        <tr><td><code>choose_model(mode)</code></td><td><code>"fast"|"quality"</code> → <code>(모델 ID, route_reason)</code>, 그 외 ValueError</td><td>품질 · 속도 우열, 실제 사용 권한</td></tr>
+        <tr><td><code>retry_delay(…)</code> · 대기 판단</td><td>attempt · Retry-After · 남은 예산 → 대기 초 또는 <code>deferred</code>/<code>attempt_limit</code></td><td>다음 전송의 성공</td></tr>
+        <tr><td>비용 계산</td><td>usage · 단가 → <code>estimated_usd</code> 또는 <code>None</code></td><td>최종 청구액</td></tr>
+        <tr><td><code>cache_key(…)</code> · <code>read_cache(…)</code></td><td>조건 → SHA-256 key · hit이면 <code>{…, new_api_send_count: 0}</code></td><td>답의 최신성 (TTL 하나로는)</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="api">① LLM API · SDK · 인증</h2>
+      <div class="callout">🤔 <b>질문부터</b>: ChatGPT에서 나눈 대화를 API가 기억해서 이어 받을까? → <b>아니요.</b> API는 매 요청에 보낸 지시·문맥만 봐요. 오늘은 필요한 걸 <b>매번 다 보내요</b>.</div>
+      <table>
+        <tr><th>말</th><th>뜻</th><th>오늘의 실체</th></tr>
+        <tr><td><b>API</b> (Application Programming Interface)</td><td>프로그램이 다른 프로그램 기능을 <b>약속된 형식</b>으로 쓰는 접점</td><td><code>POST https://api.openai.com/v1/responses</code></td></tr>
+        <tr><td><b>Client / Server</b></td><td>요청을 보내는 쪽 / 처리하는 쪽</td><td>우리 FastAPI는 사용자에겐 서버, OpenAI 앞에선 <b>클라이언트</b></td></tr>
+        <tr><td><b>SDK</b> (Software Development Kit)</td><td>API 사용을 돕는 라이브러리</td><td><code>openai</code> 패키지 — Python 호출 ↔ HTTP 요청, 응답 ↔ 객체, 오류 ↔ 예외</td></tr>
+        <tr><td><b>LLM Client</b></td><td>우리 서비스의 호출 <b>정책</b>을 묶은 모듈</td><td>입력 구성 · 모델 선택 · 대기/재시도 · 검증 · 기록</td></tr>
+      </table>
+<pre><code>우리 LLM Client: 입력 구성 · 모델 선택 · 검증 · 기록
+  └ openai SDK: 요청 전송 · 응답 객체 · 예외
+       └ 외부 LLM API (OpenAI Responses)</code></pre>
+
+      <h3 id="auth">인증과 권한은 다른 질문</h3>
+      <table>
+        <tr><th></th><th>인증 Authentication (401)</th><th>권한 Authorization (403)</th></tr>
+        <tr><td>묻는 것</td><td>이 자격(API 키)이 유효한가?</td><td>이 자격으로 <b>이 모델·작업</b>을 해도 되나?</td></tr>
+        <tr><td>실패 원인</td><td>키 오타 · 만료 · 폐기 · 다른 프로젝트 키</td><td>모델 접근 미허용 · 프로젝트 권한</td></tr>
+        <tr><td>해결</td><td>설정 확인</td><td>권한 확인 (다른 사람 키로 우회 금지)</td></tr>
+      </table>
+      <p>그리고 <b>잔액·사용 한도</b>는 또 별개예요(429 <code>insufficient_quota</code>). ChatGPT 구독료와 API 청구도 다른 계정·잔액이에요. 🤔 <b>왜 이렇게 쪼개 봐?</b> 원인마다 고치는 곳이 달라서요. 401을 "잠깐 기다리면 되겠지" 하고 반복하면 같은 실패만 쌓여요.</p>
+
+      <h3 id="env">설정은 실습별 <code>.env</code>, 읽기는 명시적으로</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 실행 파일 옆 .env를 dict로 읽기 <a href="../commands.html#d22-env-python">명령어 사전에서 자세히 →</a></div>
+<pre><code>ENV_PATH = Path(__file__).resolve().with_name(".env")    # 터미널 위치가 아니라 실행 파일 옆
+settings = dotenv_values(ENV_PATH, encoding="utf-8-sig", interpolate=False)
+os.environ["OPENAI_API_KEY"] = settings["OPENAI_API_KEY"].strip()   # 값 확인 후 · 출력은 절대 안 함</code></pre>
+      </div>
+      <table>
+        <tr><th>가짜 .env로 실제 실행</th><th>결과</th></tr>
+        <tr><td>정상 / 메모장 BOM 붙은 파일</td><td>둘 다 <code>MODEL = gpt-5.4-mini-2026-03-17 · 키 설정됨 = True</code> — <code>utf-8-sig</code> 덕분</td></tr>
+        <tr><td><code>OPENAI_API_KEY=본인_키</code> (예시 그대로)</td><td><code>RuntimeError: 이 실습의 .env에서 OPENAI_API_KEY을 설정하세요.</code></td></tr>
+        <tr><td>.env 없음</td><td><code>FileNotFoundError</code> — 호출 <b>전에</b> 멈춤</td></tr>
+        <tr><td><code>NOTE=${HOME}/x</code></td><td><code>'${HOME}/x'</code> 그대로 (<code>interpolate=False</code>)</td></tr>
+      </table>
+      <div class="callout">⚠️ 키는 <b>코드·HTML·Prompt·Git·채팅·화면 캡처·제출물</b> 어디에도 넣지 않아요. <code>.gitignore</code>에 <code>.env</code>를 넣고, 결과 파일에는 "설정됨 True" 정도만 남겨요. 키를 가리는 것과 <b>보낼 데이터 자체를 줄이는 것</b>(실명·내부 문서 제외)은 둘 다 필요해요.</div>
+
+      <h3 id="models">모델 — "지원한다"와 "실제로 확인했다"는 다른 칸</h3>
+      <table>
+        <tr><th>용도 · 모델 ID</th><th>공식 기능</th><th>실제 확인 범위</th></tr>
+        <tr><td>기본 · fast<br><code>gpt-5.4-mini-2026-03-17</code></td><td>Responses · Streaming · Structured Outputs · reasoning none</td><td>강사 환경: <b>일반 텍스트 생성 completed</b>까지. Structured Outputs·Streaming은 별도 확인 필요</td></tr>
+        <tr><td>비교 · quality<br><code>gpt-5.4-2026-03-05</code></td><td>같음</td><td>강사 계정 목록에 있음 · <b>생성은 미확인</b> → 안 했으면 <code>not_run</code></td></tr>
+      </table>
+      <p>날짜가 붙은 ID는 <b>snapshot</b>(고정 버전)이라, 같은 이름이 나중에 다른 모델을 가리키지 않아요. <code>client.models.list()</code>로 내 키에 보이는 목록을 확인할 수 있는데, <b>목록에 있음 ≠ 생성 가능</b>이에요(권한·잔액·요청 설정은 따로).</p>
+
+      <h3 id="first">첫 호출 — 요청이 어떻게 생겼나</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>client.responses.create()</code> <a href="../commands.html#d22-first">명령어 사전에서 자세히 →</a></div>
+<pre><code>client = OpenAI(base_url="https://api.openai.com/v1", timeout=30.0, max_retries=0)
+response = client.responses.create(
+    model=MODEL, instructions="한국어 한 문장으로 답하세요.",
+    input="API의 역할을 쉽게 설명해 주세요.",
+    reasoning={"effort": "none"}, max_output_tokens=1200, store=False)
+print(response.status, response.output_text, response.usage)</code></pre>
+      </div>
+      <p>가짜 서버로 받아 보니, SDK가 실제로 보낸 건 <code>POST /v1/responses</code> + 아래 JSON이었어요. <b>키는 본문이 아니라 <code>Authorization: Bearer …</code> 헤더</b>로 가요.</p>
+<pre><code>{"model": "gpt-5.4-mini-2026-03-17", "input": "API의 역할을 쉽게 설명해 주세요.",
+ "instructions": "한국어 한 문장으로 답하세요.", "max_output_tokens": 1200,
+ "reasoning": {"effort": "none"}, "store": false}</code></pre>
+      <p>강의에 실린 <b>강사의 실제 호출 로그</b>는 이랬어요. (이 노트가 호출한 결과가 아니에요.)</p>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>요청 모델 = 응답 모델</td><td><code>gpt-5.4-mini-2026-03-17</code></td></tr>
+        <tr><td><code>status</code></td><td><code>completed</code></td></tr>
+        <tr><td><code>output_text</code></td><td>API는 서로 다른 프로그램들이 정해진 규칙으로 데이터를 주고받고 기능을 이용하게 해 주는 "중간 다리"입니다.</td></tr>
+        <tr><td><code>usage</code></td><td>input 31 (cached 0) · output 36 (reasoning 0) · total <b>67 = 31 + 36</b></td></tr>
+        <tr><td>없는 값</td><td>실행 시각 · SDK 버전 · 응답 시간 · 청구액 → 기록도 <code>None</code></td></tr>
+      </table>
+      <h4>응답 객체에서 읽을 것</h4>
+      <table>
+        <tr><th>필드</th><th>뜻</th><th>헷갈리지 말 것</th></tr>
+        <tr><td><code>response.id</code></td><td>OpenAI가 준 생성 응답 ID</td><td>우리 앱의 작업 ID <code>run_id</code></td></tr>
+        <tr><td><code>response._request_id</code></td><td>HTTP 요청 추적 ID (헤더 <code>x-request-id</code>)</td><td><code>response.id</code></td></tr>
+        <tr><td><code>response.status</code></td><td><code>completed</code> · <code>incomplete</code> 등 <b>생성</b> 상태</td><td>JSON 안의 <code>answered</code></td></tr>
+        <tr><td><code>response.output_text</code></td><td>텍스트를 모아 읽는 편의 속성</td><td>"<code>output[0]</code>이 항상 답"이라는 가정</td></tr>
+        <tr><td><code>response.usage</code></td><td>관측된 토큰 수</td><td>청구 금액 · 글자 수</td></tr>
+      </table>
+      <div class="callout">💡 <code>store=False</code>는 "응답을 서버에 저장해 두지 말라"는 <b>옵션 하나</b>예요. 모든 로그·보존이 0이라는 뜻은 아니에요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="request">② 메시지 구성 · Structured Outputs</h2>
+      <table>
+        <tr><th>구역</th><th>담는 것</th><th>예</th></tr>
+        <tr><td><code>instructions</code></td><td>앱이 고정한 작업 · 제약 · 실패 기준 · 출력 규칙 (Day21 Prompt)</td><td>"제공 지식으로 답하고 네 필드 JSON을 반환…"</td></tr>
+        <tr><td><code>input</code></td><td>이번 질문 + <b>실제로 고른</b> 지식</td><td><code>[{"role": "user", "content": user_input}]</code></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 질문 + 선택 지식 → 요청 dict <a href="../commands.html#d22-request">명령어 사전에서 자세히 →</a></div>
+<pre><code>user_input = json.dumps({"question": question, "knowledge": selected}, ensure_ascii=False)
+provided_ids = {item["id"] for item in selected}        # 출처 허용 범위 = 이번에 보낸 것
+request = {"model": MODEL, "instructions": instructions_text,
+           "input": [{"role": "user", "content": user_input}], ...}</code></pre>
+      </div>
+      <p>H01("오류 질문에 무엇을 적나요?") + 지식 103으로 실행하면 <code>provided_ids = {103}</code>이에요. DB에 101·102가 있어도 이번엔 안 보냈으니 출처가 될 수 없어요. 🤔 <b>구역을 나누면 Prompt Injection이 막혀?</b> 아니요. 구역은 읽기 쉽게 나눈 것이지 보안 장치가 아니에요. 자료 속 "이전 지시 무시" 같은 문장은 계속 <b>데이터</b>로 다뤄요.</p>
+
+      <h3 id="structured">Structured Outputs — 구조를 API에 약속받기</h3>
+      <table>
+        <tr><th></th><th>"JSON으로 답해" (Prompt)</th><th>Structured Outputs (API 설정)</th></tr>
+        <tr><td>어디에</td><td>지시 문장 안</td><td><code>text={"format": {"type": "json_schema", …}}</code></td></tr>
+        <tr><td>무엇을</td><td>부탁</td><td>필드 · 자료형 · 필수 · 허용 값을 Schema로 <b>제약</b></td></tr>
+        <tr><td>못 하는 것</td><td colspan="2">근거가 맞는지 · 길이·범위 같은 업무 규칙 · 거절/불완전/API 오류 처리</td></tr>
+      </table>
+      <h4>Schema가 둘 — <code>WireAnswer</code>(보낼 것) vs <code>KnowledgeAnswer</code>(받아들일 것)</h4>
+      <table>
+        <tr><th></th><th><code>WireAnswer</code> · 전송용</th><th><code>KnowledgeAnswer</code> · 로컬 검증용</th></tr>
+        <tr><td>목적</td><td>API에 넘길 최소 구조 (wire = 전송 경계)</td><td>Day21 계약 그대로 — 서비스가 받아들일 조건</td></tr>
+        <tr><td>설정</td><td><code>extra="forbid"</code></td><td><code>extra="forbid", strict=True</code> + 길이·양수·최대 3개</td></tr>
+        <tr><td><code>source_ids=["101"]</code> (실제 실행)</td><td><code>[101]</code> — 문자열을 정수로 <b>바꿔 줌</b></td><td><code>ValidationError</code> — 거부</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>WireAnswer</code> → JSON Schema → 요청에 추가 <a href="../commands.html#d22-wire">명령어 사전에서 자세히 →</a></div>
+<pre><code>output_format = {"type": "json_schema", "name": "knowledge_answer", "strict": True,
+                 "schema": WireAnswer.model_json_schema()}
+response = client.responses.create(**request, text={"format": output_format})</code></pre>
+      </div>
+      <p>실제로 만든 Schema는 <code>required</code>에 네 필드 · <code>additionalProperties: false</code> · status는 <code>enum</code>이에요. 그런데 <code>source_ids</code>는 그냥 <code>{"type": "array", "items": {"type": "integer"}}</code> — 양수·최대 3개·"이번에 보낸 ID" 같은 조건은 <b>없어요</b>. 그래서 로컬 검사를 지우면 안 돼요.</p>
+
+      <h3 id="states">"status"가 세 층</h3>
+      <figure id="fig-layers"><img class="smooth" src="img/day22/status_layers.png" alt="교안 8개 사례의 HTTP · response.status · completed_text 오류 · run_status · answer.status · 근거 표. 정상과 정보 부족은 validated, 거절은 refused, 불완전은 incomplete, 빈 텍스트 empty_output, JSON 오류 json_error, 999 unknown_source, 잘못된 인용은 validated지만 사람이 걸러냄"><figcaption><b>무엇을 보나:</b> 여덟 줄 모두 <b>HTTP 200</b>이에요. 통신은 다 성공했어요. 오른쪽으로 갈수록 걸러져요. 🤔 <b>"정보 부족"이 초록이야?</b> 네. 요청·생성·검사가 정상으로 끝났고, 업무 답이 '자료에 없음'일 뿐이에요. 반대로 마지막 줄 <b>잘못된 인용</b>은 기계 검사를 전부 통과해서 <code>validated</code>지만, 사람이 원문과 대조해야 걸러져요.</figcaption></figure>
+<pre><code>HTTP 200                                   ← 통신 결과
+  └ response.status = "completed"          ← 생성 완료
+       └ answer_object.status = "insufficient_context"   ← 업무 답변 상태
+→ 셋 다 동시에 정상일 수 있어요.</code></pre>
+
+      <h3 id="gate">검증기에 넘기기 전 관문 — <code>completed_text</code></h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 거절 → 미완성 → 빈 출력 순서로 거르기 <a href="../commands.html#d22-gate">명령어 사전에서 자세히 →</a></div>
+<pre><code>for item in response.output:                    # 거절 콘텐츠가 있나
+    if item.type == "message":
+        for part in item.content:
+            if part.type == "refusal": return None, "refusal"
+if response.status != "completed": return None, response.status
+if not response.output_text.strip(): return None, "empty_output"
+return response.output_text, None                # None = 상태 검사 통과 (내용 보증 아님)</code></pre>
+      </div>
+      <p>🤔 <b>왜 거절을 status보다 먼저 봐?</b> 거절도 <code>status="completed"</code>로 올 수 있어서요(위 그림 3번째 줄). status만 보면 거절을 정상 답으로 착각해요. 그리고 <code>refusal</code>(API가 주는 콘텐츠 종류)과 <code>refused</code>(우리 앱의 실행 상태 이름)는 층이 다른 말이에요.</p>
+
+      <h3 id="local">로컬 계약 · 규칙은 그대로</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>KnowledgeAnswer</code> · <code>check_rules</code> · <code>inspect_answer</code> <a href="../commands.html#d22-rules">명령어 사전에서 자세히 →</a></div>
+<pre><code>SourceID = Annotated[int, Field(strict=True, gt=0)]      # "101" · True · 0 거부
+if not set(ids) &lt;= set(provided_ids): return "unknown_source"
+report = inspect_answer(raw, provided_ids)                 # Day21 validate_answer + load_json_strict</code></pre>
+      </div>
+      <table>
+        <tr><th>실제 실행 (<code>check_rules</code>)</th><th>결과</th></tr>
+        <tr><td>[101] 인용, 이번에 보낸 건 {102} (101은 DB에 있음)</td><td><code>unknown_source</code></td></tr>
+        <tr><td>answered인데 출처 없음 / 정보 부족인데 출처 있음</td><td><code>status_rule</code> / <code>status_rule</code></td></tr>
+        <tr><td>정보 부족인데 answer = "몰라요"</td><td><code>status_rule</code> — 안내문은 "제공된 지식으로는 답할 수 없습니다." 고정</td></tr>
+        <tr><td>answer = "   " (공백 3칸)</td><td><code>blank_answer</code> — <code>min_length=1</code>은 통과하지만 규칙이 잡음</td></tr>
+      </table>
+
+      <h3 id="result">실행 기록에 남기는 것</h3>
+<pre><code>raw, gate_error = completed_text(response)
+if gate_error: result = {"run_status": "refused" if gate_error == "refusal" else gate_error, "answer_object": None, "evidence_ok": None}
+else:          report = inspect_answer(raw, provided_ids)
+               result = {"run_status": "validated" if report["error"] is None else report["error"], ..., "evidence_ok": None}</code></pre>
+      <p>usage는 검증이 실패해도 <b>따로</b> 기록해요. 형식이 틀린 답에도 토큰(=돈)은 들었으니까요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="stream">③ Streaming — 먼저 보여도 아직 확정은 아님</h2>
+<pre><code>일괄 수신:  [기다림──────────────] [완성된 응답]
+Streaming:  [기다림] [조각] [조각] [조각] [완료]   ← 앞부분을 먼저 보여 줄 수 있음
+                                                    총 완료 시간이 짧아진다는 뜻은 아님</code></pre>
+      <h3 id="sse">SSE · 이벤트 · delta</h3>
+      <p><b>SSE</b>(Server-Sent Events)는 HTTP 연결 하나를 열어 두고 서버가 <code>event: 이름</code> + <code>data: JSON</code> 묶음을 이어 보내는 방식이에요. SDK는 이걸 <code>event</code> 객체로 바꿔 주고, 우리는 <code>event.type</code>으로 갈라요.</p>
+      <table>
+        <tr><th><code>event.type</code></th><th>뜻</th><th>읽을 필드</th></tr>
+        <tr><td><code>response.created</code></td><td>생성 시작</td><td>—</td></tr>
+        <tr><td><code>response.output_text.delta</code></td><td>새 텍스트 조각</td><td><code>event.delta</code></td></tr>
+        <tr><td><code>response.output_text.done</code></td><td><b>텍스트 항목 하나</b>의 끝 (전체 끝 아님)</td><td><code>event.text</code></td></tr>
+        <tr><td><code>response.completed</code></td><td>전체 응답 완료</td><td><code>event.response</code> (최종 Response · usage)</td></tr>
+        <tr><td><code>response.incomplete</code> · <code>response.failed</code></td><td>끝났지만 미완성 · 실패</td><td><code>event.response</code></td></tr>
+        <tr><td><code>error</code></td><td>스트림 오류</td><td>—</td></tr>
+      </table>
+      <p><b>delta</b> = 변화분. 조각 하나가 토큰 하나가 아니에요. 네트워크가 묶어 보내는 단위라서 "조각 10개 = 출력 10 Token"이 아니고, 중간 조각들은 <code>{"status":</code>처럼 <b>완전한 JSON이 아닐</b> 수 있어요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 수신 루프 — 미리보기 버퍼와 최종 Response를 따로 <a href="../commands.html#d22-stream">명령어 사전에서 자세히 →</a></div>
+<pre><code>with client.responses.create(**request, text={"format": output_format}, stream=True) as events:
+    for event in events:
+        if event.type == "response.output_text.delta":
+            if event.delta and first_ms is None: first_ms = (perf_counter() - t0) * 1000
+            parts.append(event.delta)                         # 미리보기용
+        elif event.type in {"response.completed", "response.failed", "response.incomplete"}:
+            final = event.response                            # 판정 대상
+        elif event.type == "error": stream_error = "stream_error"
+outcome = "interrupted" if final is None or stream_error else completed_text(final)</code></pre>
+      </div>
+      <figure id="fig-stream"><img class="smooth" src="img/day22/stream_cases.png" alt="7개 스트림 시나리오: 정상 완료와 빈 delta 후 완료만 검증기로, 연결 끊김·완료 이벤트 없음·error 이벤트는 interrupted, incomplete는 incomplete, refusal은 refusal. usage는 끊기면 None"><figcaption><b>무엇을 보나:</b> 가짜 서버가 SSE 바이트를 보내고 <b>openai SDK가 실제로 해석한</b> 이벤트 순서예요. 초록 "→ 검증기로"는 두 줄뿐이에요. 🤔 <b>"완료 이벤트 없이 종료" 줄은 조각 4개가 다 왔는데 왜 실패야?</b> 조각이 다 왔는지 <b>확인할 방법이 completed 이벤트뿐</b>이라서요. 확인 못 한 건 성공으로 치지 않아요. "연결 끊김"은 SDK가 <code>APIConnectionError</code>를 던졌고 usage도 못 받아서 None이에요.</figcaption></figure>
+      <table>
+        <tr><th>관측 단계 (앱 이름)</th><th>할 수 있는 것</th><th>아직 하면 안 되는 것</th></tr>
+        <tr><td>partial · 부분 수신</td><td>검증 전 미리보기</td><td>부분 JSON으로 도구 실행·DB 변경</td></tr>
+        <tr><td>completed · 생성 완료</td><td>최종 원문·usage 확인</td><td>내용까지 맞다고 확정</td></tr>
+        <tr><td>validated · 자동 검사 통과</td><td>근거 검토로 전달</td><td><code>evidence_ok</code> 자동 True</td></tr>
+        <tr><td>interrupted / refused</td><td>중단·거절 이유 기록</td><td>성공 캐시에 저장 · 무조건 다시 요청</td></tr>
+      </table>
+
+      <h3 id="latency">Latency — 어느 구간의 시간인가</h3>
+      <table>
+        <tr><th>이름</th><th>시작 → 끝</th><th>주의</th></tr>
+        <tr><td><code>first_text_ms</code></td><td>요청 시작 → 첫 <b>비어 있지 않은</b> delta</td><td>서버 내부의 첫 토큰 시각(TTFT)과 같다고 단정하지 않음 · 없으면 None</td></tr>
+        <tr><td><code>request_ms</code></td><td>요청 시작 → 종료·실패</td><td>API 요청 하나</td></tr>
+        <tr><td><code>e2e_ms</code> (End-to-End)</td><td>준비 → 대기 → 재시도 → 검증 → 끝</td><td>사용자가 실제로 기다린 전체</td></tr>
+      </table>
+<pre><code>준비 │ API 요청 시작 ─ 첫 텍스트 ─────── 종료 │ 검증
+     │←first_text_ms→│                         │
+     │←────────── request_ms ────────────────→│
+│←──────────────────────── e2e_ms ─────────────────────→│</code></pre>
+      <p>ms = 1/1000초. 시간은 <code>time.perf_counter()</code>(경과 시간 전용 시계)로 재요. 벽시계(<code>time.time()</code>)는 시스템 시각이 바뀌면 거꾸로 갈 수도 있어요. 🤔 <b>첫 글자가 빨리 보이면 좋은 거 아냐?</b> 체감은 좋아요. 하지만 "첫 표시가 빠름 ≠ 총 완료가 빠름"이라, 비교할 땐 두 열을 따로 적어요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="retry">④ Rate Limit · 오류 · 재시도</h2>
+      <h3 id="rate">Rate Limit — 무엇을 제한하나</h3>
+      <table>
+        <tr><th>기준</th><th>뜻</th><th>가상 예시</th></tr>
+        <tr><td><b>RPM</b> Requests Per Minute</td><td>분당 요청 수</td><td>요청 5개 × 100 Token = 500 Token</td></tr>
+        <tr><td><b>TPM</b> Tokens Per Minute</td><td>분당 토큰 수</td><td>요청 1개 × 5,000 Token = 5,000 Token</td></tr>
+      </table>
+      <p>요청이 적어도 입력이 크면 TPM에 닿아요. 같은 프로젝트의 한도는 여러 앱·사람이 <b>공유</b>할 수 있어요. 그리고 강의의 "생성 2 × 전송 2"는 우리 앱의 상한이지 OpenAI의 RPM·TPM이 아니에요.</p>
+      <h4>같은 429, 다른 처방</h4>
+      <table>
+        <tr><th><code>e.code</code></th><th>뜻</th><th>행동</th></tr>
+        <tr><td><code>rate_limit_exceeded</code></td><td>잠깐 너무 많이 보냄</td><td>Retry-After 지키고 예산 안에서 1회 더</td></tr>
+        <tr><td><code>insufficient_quota</code></td><td>잔액·결제·지출 한도</td><td><b>중단</b> — 기다려도 안 풀림</td></tr>
+        <tr><td>(알 수 없음)</td><td>—</td><td>원인 확인 전 중단</td></tr>
+      </table>
+
+      <h3>SDK 재시도 vs 앱 재시도 — 한 곳에서만</h3>
+      <figure id="fig-sdk"><img class="smooth" src="img/day22/sdk_retries.png" alt="오류별 실제 전송 수: max_retries=0이면 모두 1회. 기본값 2이면 401·403·400은 1회, 429 rate limit·429 insufficient_quota·500·timeout은 3회"><figcaption><b>무엇을 보나:</b> 같은 오류를 돌려주는 가짜 서버에 SDK 설정만 바꿔 보냈어요. 기본값(<code>max_retries=2</code>)이면 SDK가 429·500·timeout을 <b>앱이 모르는 사이 3번</b> 보내요. 🤔 <b>제일 위험한 건?</b> 분홍 막대 중 <b>할당량 부족(insufficient_quota)</b>이에요. SDK는 429라는 숫자만 보고 재시도해서, 기다려도 안 풀리는 문제에 요청을 3번 써요. 그리고 timeout 재전송은 서버가 이미 만든 답을 <b>또 만들게</b> 할 수 있어요. 그래서 수업은 <code>max_retries=0</code>으로 두고 앱이 <code>e.code</code>를 읽어 결정해요.</figcaption></figure>
+      <table>
+        <tr><th></th><th>통신 재시도 (Transport retry)</th><th>형식 수정 (Format repair)</th></tr>
+        <tr><td>언제</td><td>일시적 429 · 선별한 5xx</td><td>응답은 왔는데 JSON·Schema 형식이 틀림</td></tr>
+        <tr><td>무엇을</td><td><b>같은</b> 요청을 다시 전송</td><td>같은 질문·문맥·계약 + 수정 요청으로 <b>새 생성</b></td></tr>
+        <tr><td>번호</td><td><code>send_attempt</code> 증가</td><td><code>generation_no</code> 증가</td></tr>
+        <tr><td>대상 아님</td><td colspan="2">정보 부족 · 거절 · 출처 오류 · timeout — 다시 보낸다고 없는 근거나 권한이 생기지 않음</td></tr>
+      </table>
+
+      <h3 id="backoff">Backoff · Jitter · Retry-After</h3>
+      <figure id="fig-backoff"><img class="smooth" src="img/day22/backoff.png" alt="attempt 1~6의 대기: 본문 wait-main은 1,2,4,8,8,8초(상한 8), 부록 retry_delay는 1,2,4,8,16,32초. 각각 지터 범위 띠"><figcaption><b>무엇을 보나:</b> 강의의 두 대기 함수를 서버 힌트 없이 실제로 계산한 값이에요. 실패할수록 대기가 2배씩 늘어나요(<b>Exponential backoff</b>). 보라(본문)는 8초에서 멈추고, 분홍(부록)은 상한이 없어요. 띠의 두께가 <b>Jitter</b>예요. 🤔 <b>왜 일부러 무작위로 흔들어?</b> 수강생 30명이 같은 순간 429를 받고 모두 정확히 2초 뒤에 다시 보내면, 2초 뒤에 또 한꺼번에 몰려요. 0~0.25초씩 흩뜨리면 덜 몰려요.</figcaption></figure>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 대기 판단 <a href="../commands.html#d22-wait-main">명령어 사전에서 자세히 →</a></div>
+<pre><code>fallback = min(8.0, 2 ** (attempt - 1))
+base = retry_after_s if retry_after_s is not None else fallback   # 서버 값이 있으면 그게 최소
+wait_s = base + random.uniform(0, 0.25)
+if wait_s &gt; remaining_s: return "deferred"         # 짧게 잘라 보내지 않고 미룸
+if sends_used &gt;= MAX_SENDS_TOTAL: return "attempt_limit"</code></pre>
+      </div>
+      <table>
+        <tr><th>실제 계산</th><th>결과</th></tr>
+        <tr><td>Retry-After 10초, 남은 예산 3초</td><td><code>deferred</code> — 3초만 기다렸다 보내지 않음</td></tr>
+        <tr><td>Retry-After 2초, 이미 4회 전송</td><td><code>attempt_limit</code></td></tr>
+        <tr><td>Retry-After 0.5초, 남은 0.6초</td><td>지터 0 → 0.5초 대기 / 지터 0.25 → <code>deferred</code> — 경계에선 결과가 갈림</td></tr>
+      </table>
+      <p><b>Retry-After</b>는 서버가 알려 주는 "최소 이만큼 기다려" 헤더예요. 초 숫자(<code>10</code>)나 날짜(<code>Wed, 18 Nov 2026 01:00:00 GMT</code>) 형식이 있어요. 지키지 않고 일찍 보내면 또 429를 받을 가능성만 커져요.</p>
+
+      <h3 id="timeout">Timeout은 "서버가 아무것도 안 했다"가 아님</h3>
+<pre><code>내 앱:  응답을 끝까지 받지 못함
+서버:   생성했을 수도 있음
+usage:  못 받았다면 None
+비용:   0이라고 확정하지 않음</code></pre>
+      <p><code>OpenAI(timeout=30.0)</code>은 <b>요청 하나의 입출력 대기</b> 설정이에요. 준비·대기·여러 시도를 합친 30초 마감이 아니에요. timeout과 스트림 끊김은 자동으로 다시 보내지 않아요. 다시 보내면 <b>새 생성 + 새 비용</b>이에요. 끊긴 지점부터 이어받는 기능도 오늘은 없어요.</p>
+
+      <h3>전체 흐름 — 생성 × 전송</h3>
+      <figure id="fig-bounded"><img class="smooth" src="img/day22/bounded.png" alt="6개 시나리오: 401 1회 중단, 429 후 정상 2회 validated, 할당량 1회 중단, 500 두 번 2회 중단, 429·형식오류·429·정상 4회 validated, 형식오류 두 번 2회 json_error"><figcaption><b>무엇을 보나:</b> 각본대로 응답하는 가짜 서버에 강의 흐름(이 노트가 <code>send_bounded</code>를 최소 구현)을 돌렸어요. 다섯째 줄이 상한을 꽉 채운 경우예요. 생성1(429 → 받았는데 JSON 오류) + 생성2(429 → 정상)로 <b>정확히 4회</b> 보냈어요. 🤔 <b>왜 마지막 성공만 남기면 안 돼?</b> "4번 만에 됐다"와 "1번에 됐다"는 비용·시간·안정성이 전혀 달라서요. 첫 실패를 마지막 성공으로 덮지 않아요.</figcaption></figure>
+
+      <h2 id="lab-retry">🧪 재시도 시뮬레이터</h2>
+      <p>서버가 전송마다 무엇을 돌려줄지 <b>각본</b>을 짜고, 클라이언트가 몇 번 보내고 어디서 멈추는지 보세요. 강의 정책(생성 ≤ 2 · 생성당 전송 ≤ 2 · 전체 ≤ 4 · 대기 판단)을 브라우저로 옮긴 거라, 위 그림 여섯 줄과 결과가 같아요.</p>
+      <div class="lab" id="rt-lab">
+        <div class="readout" style="gap:8px;flex-wrap:wrap" id="rt-presets"></div>
+        <div class="readout" style="gap:8px;flex-wrap:wrap" id="rt-script"></div>
+        <div class="readout" style="gap:14px;flex-wrap:wrap">
+          <label>Retry-After <input type="number" id="rt-ra" value="1" min="0" step="0.5" style="width:4.5em">초</label>
+          <label>남은 대기 예산 <input type="number" id="rt-rem" value="30" min="0" step="1" style="width:4.5em">초</label>
+          <label>지터 <input type="range" id="rt-jit" min="0" max="0.25" step="0.05" value="0"> <span id="rt-jitv">0.00</span>초</label>
+        </div>
+        <div class="readout" id="rt-log" style="gap:6px;flex-wrap:wrap"></div>
+        <p class="verdict" id="rt-why"></p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="metrics">⑤ Token Usage · 비용 · 기록</h2>
+      <h3 id="usage">usage — 포함 관계부터</h3>
+<pre><code>input_tokens  = 전체 입력      ⊃  cached_tokens     (일부)
+output_tokens = 전체 출력      ⊃  reasoning_tokens  (일부)
+total_tokens  = input_tokens + output_tokens        ← 부분 항목을 또 더하지 않음
+강사 로그: 31 + 36 = 67 (cached 0 · reasoning 0)</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 usage 읽기 — 없는 값은 None <a href="../commands.html#d22-usage">명령어 사전에서 자세히 →</a></div>
+<pre><code>u = response.usage
+usage = None if u is None else {
+    "input_tokens": u.input_tokens, "output_tokens": u.output_tokens,
+    "cached_tokens": getattr(u.input_tokens_details, "cached_tokens", None),
+    "reasoning_tokens": getattr(u.output_tokens_details, "reasoning_tokens", None)}</code></pre>
+      </div>
+      <h3 id="unknown">None · 0 · not_run은 서로 다른 기록</h3>
+      <table>
+        <tr><th>표기</th><th>뜻</th><th>예</th></tr>
+        <tr><td><code>None</code></td><td>관측 못 함 — <b>모름</b></td><td>timeout으로 usage 미수신 · 사람이 근거 아직 안 봄(<code>evidence_ok=None</code>)</td></tr>
+        <tr><td><code>0</code></td><td><b>관측된</b> 0</td><td>캐시 재사용 확인 → <code>new_api_send_count=0</code> · 응답에 <code>cached_tokens: 0</code></td></tr>
+        <tr><td><code>not_run</code></td><td>실행하지 않음 (이유 기록)</td><td>비교 모델 권한 없음 · 예산 부족</td></tr>
+      </table>
+      <p>실제로 돌려 보니 세부 필드가 없는 응답에서 <code>getattr(…, None)</code>은 <code>None</code>, 흔히 쓰는 <code>… or 0</code>은 <b><code>0</code></b>이 나왔어요. 🤔 <b>그게 왜 문제야?</b> 나중에 비용을 합산할 때 "모르는 비용"이 "공짜"로 둔갑해서, 실제보다 적게 쓴 것처럼 보여요.</p>
+
+      <h3 id="cost">비용 추정 — 사용량 × 단가, 중복 없이</h3>
+      <p style="text-align:center;font-size:1.05rem"><b>[(입력 − 캐시 입력) × 일반 단가 + 캐시 입력 × 캐시 단가 + 출력 × 출력 단가] ÷ 1,000,000</b><br><small>단가 단위 = USD / 1M tokens</small></p>
+      <figure id="fig-cost"><img class="smooth" src="img/day22/cost.png" alt="올바른 계산: 일반 입력 0.00045 + 캐시 입력 0.00003 + 출력 0.0009 = 0.00138 USD. 잘못된 계산(캐시를 일반 입력에도 포함) = 0.00168"><figcaption><b>무엇을 보나:</b> 강의의 가상 사용량(입력 1000 · 캐시 400 · 출력 200)과 가상 단가(0.75 · 0.075 · 4.50)로 <code>Decimal</code> 계산한 결과예요. 위가 올바른 <b>$0.00138</b>(강의 값과 같음), 아래 회색은 캐시 400을 일반 입력에도 넣은 실수예요. 🤔 <b>출력이 200밖에 안 되는데 왜 제일 커?</b> 출력 단가가 일반 입력의 6배라서요. 그래서 <code>max_output_tokens</code> 상한이 비용 관리에도 중요해요.</figcaption></figure>
+      <table>
+        <tr><th>바꿔 본 조건 (실제 계산)</th><th>estimated_usd</th></tr>
+        <tr><td>기준 1000 · 400 · 200</td><td>0.00138</td></tr>
+        <tr><td>cached = 0</td><td>0.00165 (캐시가 0.00027 아낌)</td></tr>
+        <tr><td>output = 2000</td><td>0.00948</td></tr>
+        <tr><td>usage = None</td><td><code>None</code> — 0으로 쓰지 않음</td></tr>
+        <tr><td>강사 로그 31 · 0 · 36에 같은 가상 단가</td><td>0.00018525 (청구액 아님)</td></tr>
+      </table>
+      <div class="callout">💡 금액은 <code>Decimal("0.75")</code>처럼 <b>문자열로</b> 만들어요. <code>0.1 + 0.2</code>는 float로 <code>0.30000000000000004</code>예요. 그리고 비용 표에는 <b>적용 범위</b>를 같이 적어요: 단가 버전·확인 날짜·통화·서비스 등급(Batch·Priority는 단가가 다름)·모달리티(이미지·음성·도구는 별도). 실행별 추정과 최종 청구서는 별개예요.</div>
+
+      <h3>한 작업 · 한 생성 · 한 전송</h3>
+<pre><code>run_id="demo-001"    → 우리 앱의 작업 1건
+case_id="H01"        → 어떤 질문 (H = 어제의 Holdout 접두사 — 오늘은 이미 본 회귀 확인용)
+generation_no=1      → 최초 생성
+send_attempt=2       → 이 생성 요청의 두 번째 전송</code></pre>
+      <table>
+        <tr><th><code>source_mode</code></th><th>무엇을 했나</th><th>주장할 수 있는 것</th></tr>
+        <tr><td><code>api_live</code></td><td>실제 서버로 요청·응답</td><td>그 호출의 응답·usage·시간</td></tr>
+        <tr><td><code>simulated</code></td><td>직접 만든 응답·이벤트·오류</td><td>클라이언트의 분기·계산·횟수 (이 노트의 결과 대부분)</td></tr>
+        <tr><td><code>app_cache</code></td><td>승인된 이전 결과 재사용</td><td>새 전송 0회 · 원래 결과 출처 추적</td></tr>
+        <tr><td><code>not_run</code></td><td>권한·네트워크·예산으로 미실행</td><td>이유만 · 성공값을 만들지 않음</td></tr>
+      </table>
+      <p>🤔 <b>왜 이렇게 꼼꼼히 나눠?</b> 모의 테스트가 전부 통과해도 인증·실제 스트림·요금·모델 품질을 검증한 건 아니에요. 섞어서 한 표에 넣으면 "속도 0ms, 비용 0원" 같은 가짜 성능이 생겨요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="cache">⑥ Response Cache · Prompt Caching</h2>
+      <figure id="fig-cache"><img class="smooth" src="img/day22/cache.png" alt="세 가지 캐시: Response Cache(앱, 승인된 답 재사용, 새 전송 0), Prompt Caching(API, 입력 앞부분 계산 재사용, 새 출력 생성), KV Cache(모델 내부). read_cache 실행: 30초 승인 hit, 60초 만료 miss, 승인 전 miss, provided 102 miss, 본문 수정 miss"><figcaption><b>무엇을 보나:</b> 위 세 상자는 '캐시'라는 이름만 같고 <b>재사용하는 대상</b>이 달라요. 아래 표는 강의 <code>read_cache</code>를 실제로 돌린 결과인데, 다섯 경우 중 hit은 <b>하나뿐</b>이에요. 🤔 <b>"같은 key, provided {102}"는 key가 같은데 왜 miss야?</b> 저장된 답은 103을 인용했는데, 이번 요청에서 보낸 건 102예요. 읽을 때 <b>현재 규칙으로 다시 검사</b>하니까 <code>unknown_source</code>가 나서 재사용하지 않아요.</figcaption></figure>
+      <table>
+        <tr><th></th><th>Response Cache</th><th>Prompt Caching</th><th>KV Cache</th></tr>
+        <tr><td>누가</td><td>우리 앱</td><td>API 제공사</td><td>모델 내부 (Day20)</td></tr>
+        <tr><td>재사용</td><td>승인된 <b>최종 답변</b></td><td>같은 입력 <b>앞부분(prefix)</b>의 계산</td><td>앞 토큰의 Key·Value</td></tr>
+        <tr><td>API 호출</td><td>hit이면 <b>생략</b></td><td>계속함 · 새 출력도 생성</td><td>—</td></tr>
+        <tr><td>보이는 곳</td><td><code>source_mode="app_cache"</code></td><td><code>usage.cached_tokens</code></td><td>—</td></tr>
+      </table>
+      <p>Prompt Caching은 최소 길이·유효 기간·과금이 모델마다 달라요. 오늘처럼 짧은 문맥이면 <code>cached_tokens=0</code>이 정상이에요. 캐시를 만들려고 쓸데없는 자료를 늘리지 않아요.</p>
+
+      <h3 id="cachekey">Cache key — 결과가 달라질 조건을 전부</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 정렬된 JSON → SHA-256 <a href="../commands.html#d22-cache-key">명령어 사전에서 자세히 →</a></div>
+<pre><code>cache_basis = {"scope": "classroom-demo", "model": request["model"], "request": request,
+               "format": output_format, "validator_version": "day21-v1"}
+canonical = json.dumps(cache_basis, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+cache_key = hashlib.sha256(canonical.encode("utf-8")).hexdigest()</code></pre>
+      </div>
+      <table>
+        <tr><th>H01 요청에서 하나만 바꿈 (실제 실행)</th><th>key 앞 16자</th><th>기준과</th></tr>
+        <tr><td>기준</td><td><code>a14ed63e72e25c6b…</code></td><td>—</td></tr>
+        <tr><td>dict 키 순서만 바꿈</td><td><code>a14ed63e72e25c6b…</code></td><td>같음 (<code>sort_keys</code>)</td></tr>
+        <tr><td>지식 103 본문 수정 (ID는 같음)</td><td><code>405320f07168e731…</code></td><td>다름</td></tr>
+        <tr><td>모델 → quality</td><td><code>ee9765f151f5011f…</code></td><td>다름</td></tr>
+        <tr><td>scope → 다른 조직</td><td><code>5e3c3577e90d2d9d…</code></td><td>다름 — 권한 범위가 다르면 재사용 금지</td></tr>
+        <tr><td>validator_version → day22-v1</td><td><code>5bcc33962d0b563d…</code></td><td>다름</td></tr>
+      </table>
+      <div class="callout">⚠️ 해시는 <b>식별</b>용이지 암호화가 아니에요. API 키·비밀번호는 key 재료에 넣지 않아요. 같은 질문 문자열만으로 key를 만들면, 지식 본문이 고쳐진 뒤에도 <b>옛 답</b>을 돌려주게 돼요.</div>
+
+      <h3 id="ttl">TTL과 읽을 때의 재검사</h3>
+<pre><code>저장 0초 · expires_at = 60초 (시연값)
+현재 30초 → 기간은 유효 → 승인 여부 · 현재 출처 규칙도 검사
+현재 60초 → now ≥ expires_at → 만료, 재사용 안 함</code></pre>
+      <p><b>TTL</b>(Time To Live) = 유효 기간. 그런데 기간이 남아도 지식·권한·모델·검증 규칙이 바뀌면 써선 안 돼요. 그래서 <code>read_cache</code>는 ① 만료 ② 사람 승인 ③ <b>현재</b> 문맥으로 재검사를 모두 통과해야 hit이에요. 저장 자체도 <b>사람이 근거를 확인한 answered</b>만 해요. 실패·거절·미완성은 성공 캐시에 넣지 않아요. 재사용한 결과에는 처음 만든 실행 <code>origin_run_id</code>를 붙여서, 원래 비용을 새 비용으로 중복 합산하지 않아요.</p>
+
+      <h2 id="lab-cache">🧪 비용 · Cache key 계산기</h2>
+      <p>왼쪽은 비용식, 오른쪽은 강의의 cache key를 <b>브라우저에서 같은 방식으로</b> 만든 거예요. 처음 값은 위 표의 기준 key(<code>a14ed63e…</code>)와 같고, 이 요청이 승인된 답으로 0초에 저장돼 있다고 가정해요.</p>
+      <div class="lab" id="ck-lab">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+          <div>
+            <b>💰 비용</b>
+            <div class="readout" style="gap:8px;flex-wrap:wrap;justify-content:flex-start">
+              <label>input <input type="number" id="ck-in" value="1000" min="0" style="width:5.5em"></label>
+              <label>cached <input type="number" id="ck-ca" value="400" min="0" style="width:5em"></label>
+              <label>output <input type="number" id="ck-out" value="200" min="0" style="width:5em"></label>
+              <label><input type="checkbox" id="ck-none"> usage 못 받음 (timeout)</label>
+            </div>
+            <div id="ck-bar" style="display:flex;height:26px;border-radius:8px;overflow:hidden;margin:10px 0 4px;background:#f1f3f5"></div>
+            <p id="ck-cost" style="margin:4px 0"></p>
+          </div>
+          <div>
+            <b>🔑 Cache key</b>
+            <div class="readout" style="gap:8px;flex-wrap:wrap;justify-content:flex-start">
+              <label>mode <select id="ck-mode"><option value="fast">fast</option><option value="quality">quality</option></select></label>
+              <label>scope <select id="ck-scope"><option>classroom-demo</option><option>other-org</option></select></label>
+              <label>validator <select id="ck-val"><option>day21-v1</option><option>day22-v1</option></select></label>
+            </div>
+            <label style="display:block;margin-top:6px">지식 103 본문 <input type="text" id="ck-kb" style="width:100%"></label>
+            <div class="readout" style="gap:8px;flex-wrap:wrap;justify-content:flex-start">
+              <label>현재 시각 <input type="range" id="ck-now" min="0" max="90" step="5" value="30"> <span id="ck-nowv">30</span>초</label>
+              <label><input type="checkbox" id="ck-appr" checked> 사람 승인됨</label>
+              <label>provided <select id="ck-prov"><option value="103">{103}</option><option value="102">{102}</option></select></label>
+            </div>
+            <p style="margin:6px 0"><b>key</b> <code id="ck-key" style="word-break:break-all"></code></p>
+          </div>
+        </div>
+        <p class="verdict" id="ck-why"></p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="route">⑦ Model Routing · 클라이언트 설계</h2>
+      <h3 id="routing">Routing = 호출 <b>전에</b> 모델 고르기</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 실행 모드 → 허용된 모델 <a href="../commands.html#d22-routing">명령어 사전에서 자세히 →</a></div>
+<pre><code>MODELS = {"fast": "gpt-5.4-mini-2026-03-17", "quality": "gpt-5.4-2026-03-05"}
+def choose_model(mode):
+    if mode not in MODELS: raise ValueError("지원하지 않는 실행 모드")   # 호출 전 거부 = 비용 0
+    return MODELS[mode], f"explicit_mode:{mode}"                        # route_reason 기록</code></pre>
+      </div>
+      <table>
+        <tr><th>실제 실행</th><th>결과</th></tr>
+        <tr><td><code>choose_model("fast")</code></td><td><code>('gpt-5.4-mini-2026-03-17', 'explicit_mode:fast')</code></td></tr>
+        <tr><td><code>choose_model("turbo")</code> · <code>("Fast")</code></td><td><code>ValueError</code> · <code>ValueError</code> (대소문자도 정확히)</td></tr>
+        <tr><td>fast 요청 key == quality 요청 key</td><td><code>False</code> — 모델이 바뀌면 캐시도 새로</td></tr>
+      </table>
+      <ul>
+        <li><b>fast · quality는 모드 이름</b>이에요. "quality가 더 좋다"는 판정이 아니고, quality 모델은 강사도 생성을 확인하지 못했어요.</li>
+        <li><b>Routing ≠ Fallback.</b> Routing은 호출 전 선택, Fallback은 실패 후 다른 대안으로 바꾸기예요. 오늘은 자동 Fallback이 없어요.</li>
+        <li>정보 부족·거절을 <b>더 큰 모델</b>에 계속 보내서 해결하려 하지 않아요. 없는 근거는 모델을 바꿔도 안 생겨요.</li>
+      </ul>
+      <h3>모델 비교도 조건 고정 (Day21 A/B와 같은 원칙)</h3>
+      <table>
+        <tr><th>고정</th><th>비교</th><th>기록</th></tr>
+        <tr><td>질문 · 지식 · Prompt</td><td>선택 모델</td><td>실제 모델 ID · 모델별 지원 설정</td></tr>
+        <tr><td>출력 계약 · Validator</td><td>형식 · 출처 · 근거</td><td>자동 결과와 사람 평가 분리</td></tr>
+        <tr><td>앱 응답 캐시 OFF</td><td>request_ms · usage · 추정 비용</td><td>Prompt Cache 사용량은 별도</td></tr>
+        <tr><td>같은 평가 기준</td><td>품질 · 속도 · 비용</td><td>권한 없음 → <code>not_run</code></td></tr>
+      </table>
+      <p>한두 번 결과로 우열을 확정하지 않아요. 관찰하기 전에는 승자·정확도·응답시간 칸을 <b>비워 둬요</b>.</p>
+
+      <h3>책임 나누기 — 바뀌는 이유가 다른 것끼리</h3>
+      <table>
+        <tr><th>모듈</th><th>책임</th><th>바뀌는 때</th></tr>
+        <tr><td><code>llm_client</code></td><td>인증 · 전송 · Streaming · API 응답 처리</td><td>SDK·API가 바뀔 때</td></tr>
+        <tr><td><code>contracts</code></td><td>KnowledgeAnswer · 출처 · 상태 규칙</td><td>업무 규칙이 바뀔 때</td></tr>
+        <tr><td><code>metrics</code> · <code>cache</code> · <code>routing</code></td><td>측정 · 재사용 · 모델 선택</td><td>운영 정책이 바뀔 때</td></tr>
+        <tr><td><code>main</code></td><td>전체 연결</td><td>—</td></tr>
+      </table>
+      <p>폴더 개수가 중요한 게 아니라 <b>각 책임을 설명할 수 있는가</b>가 중요해요. FastAPI에 붙일 때도 Router는 인증·HTTP, Retriever는 검색, 클라이언트는 호출·검증·기록이에요. 모델 응답을 기다리는 동안 <b>DB 트랜잭션을 잡고 있지 않아요</b>.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="whole">⑧ 전체 연결 — 요청 하나가 끝날 때까지</h2>
+      <table>
+        <tr><th>단계</th><th>H01 · 정상</th><th>H02 · 정보 부족</th><th>승인된 같은 요청</th></tr>
+        <tr><td>입력</td><td>H01 + 지식 103 + 고정 Prompt</td><td>비밀번호 질문 + 지식 102 (실행 위치만)</td><td>질문·지식·Prompt·모델·권한·계약 동일</td></tr>
+        <tr><td>모델 선택</td><td>fast + route_reason</td><td>fast</td><td>—</td></tr>
+        <tr><td>캐시</td><td>miss → 예산 확인</td><td>miss</td><td><b>hit</b> (TTL·승인·재검사)</td></tr>
+        <tr><td>전송</td><td>1회 (Streaming 미리보기)</td><td>1회</td><td><b>0회</b></td></tr>
+        <tr><td>완료 판정 · 자동 검사</td><td>completed → 네 필드 · 출처 103 · 상태</td><td>completed + <code>insufficient_context</code> → 빈 출처 · 부족한 정보명 · 고정 안내문</td><td>현재 규칙으로 재검사</td></tr>
+        <tr><td>끝</td><td>사람이 원문 대조 → 기록</td><td>형식 수정·큰 모델로 반복 안 함</td><td><code>origin_run_id</code> 연결 · 비용 중복 합산 안 함</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 생성 시도 × 전송 시도 (의사코드) <a href="../commands.html#d22-bounded">명령어 사전에서 자세히 →</a></div>
+<pre><code>while generation &lt; 2 and send_count &lt; 4:
+    generation += 1
+    outcome = send_bounded(request, budget)      # 안에서 전송 ≤ 2, 전체 ≤ 4
+    if outcome.transport_failed: break
+    report = validate(outcome.response)
+    if report.is_success or report.is_insufficient: break
+    if not report.is_format_error or generation == 2: break
+    request = make_format_repair(request, report.safe_codes)</code></pre>
+      </div>
+      <h3>회귀 확인 — 이미 본 질문 H01~H03</h3>
+      <table>
+        <tr><th>질문</th><th>보낼 지식</th><th>기대 행동 (채점 기준이지, 이미 얻은 응답이 아님)</th></tr>
+        <tr><td>H01 · 오류 질문에 무엇을 적나요?</td><td>103</td><td>오류 메시지 · 시도한 작업 포함, 출처 103</td></tr>
+        <tr><td>H02 · 서버 접속 비밀번호는?</td><td>102</td><td>근거 없음 → <code>insufficient_context</code>. 거절이면 따로 기록</td></tr>
+        <tr><td>H03 · 세 안내의 핵심 요약</td><td>101 · 102 · 103</td><td>세 원문에 맞는 요약 + 실제 인용</td></tr>
+      </table>
+      <p>H는 원래 Holdout(마지막까지 안 본 질문)이었지만 어제 이미 봤어요. 그래서 오늘은 "새 성능"이 아니라 <b>API로 바꿔도 같은 동작이 유지되나</b>(회귀·연동)를 확인하는 용도예요.</p>
+      <h3>Agent로 가도 남는 것</h3>
+      <p>다음 단계에서 검색(RAG)과 도구 실행(Agent)이 붙어도, <b>호출 · 실패 정책 · 출력 검증 · 사용량·시간 기록</b>은 오늘 만든 계층을 그대로 써요. 자동화가 늘수록 계약과 기록은 더 분명해야 해요. 특히 <b>모델이 돌려준 JSON은 도구를 실행해도 된다는 권한이 아니에요</b>. 도구 권한은 따로 설계해요.</p>
+      <table>
+        <tr><th>단계</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td><code>.env</code> · <code>OpenAI(...)</code></td><td>인증 정보 · 연결 설정</td><td>모델 권한 · 잔액</td></tr>
+        <tr><td><code>responses.create</code></td><td>Response 객체 (status · output · usage)</td><td>형식 · 사실</td></tr>
+        <tr><td>Streaming</td><td>빠른 미리보기 · 최종 Response</td><td>빠른 완료 · 완전한 JSON</td></tr>
+        <tr><td><code>completed_text</code> → <code>inspect_answer</code></td><td>run_status · answer_object</td><td>근거 적합성</td></tr>
+        <tr><td>재시도 · 대기</td><td>제한된 재전송 · 시도 기록</td><td>성공 · 없는 근거</td></tr>
+        <tr><td>usage · 비용 · 시간</td><td>관측값 · 추정치 · None</td><td>청구액</td></tr>
+        <tr><td>Cache · Routing</td><td>재사용 · 선택 이유</td><td>최신성 · 모델 우열</td></tr>
+        <tr><td>사람의 근거 검토</td><td><code>evidence_ok</code></td><td>—</td></tr>
+      </table>
+
+      <h2 id="next">다음 단계</h2>
+      <table>
+        <tr><th>날짜</th><th>주제</th><th>오늘과의 연결</th></tr>
+        <tr><td>11/18</td><td>Embedding · Vector DB</td><td>오늘은 사람이 지식 ID를 골랐다면, 이제 <b>검색이</b> 고르기</td></tr>
+        <tr><td>11/19</td><td>Parsing · Chunking</td><td>긴 문서를 검색 단위로 나누기 — 각 조각이 출처 ID가 됨</td></tr>
+        <tr><td>11/20</td><td>Retriever · RAG</td><td>검색 결과 → <code>selected</code> → 오늘의 클라이언트로 호출 · 검증 · 기록</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2>원본 자료</h2>
+      <ul>
+        <li>강의: <code>20261117.html</code> (생성형 AI·LLM 및 RAG 엔지니어링 · Day22 LLM API 클라이언트 오프라인 인터랙티브 교안 · 8개 장 · 화면 84개 · 코드 24개) — ① LLM API 개요와 인증 · ② 메시지 구성과 Structured Outputs · ③ Streaming과 응답 처리 · ④ Rate Limit과 오류·재시도 · ⑤ Token Usage·비용·Latency · ⑥ Response Cache와 Prompt Caching · ⑦ Model Routing과 클라이언트 설계 · ⑧ 전체 연결 + 핵심요약. 강사 실행 로그(일반 텍스트 1회)는 교안에 실린 값을 그대로 옮김</li>
+        <li>노트·명령어 사전의 결과 값: 강의 코드를 이 PC에서 실제로 실행 (Python 3.13 · openai 3.52.0 · pydantic 2.14.3 · python-dotenv 1.2.4 · httpx 0.28.1). <b>OpenAI 서버 호출 없음</b> — <code>httpx.MockTransport</code> 가짜 서버로 SDK의 요청 직렬화 · 예외 · 스트림 해석을 관찰(source_mode = simulated). 스크립트 <code>tools/io_day22.py</code>, 그림 <code>tools/visuals/make_day22.py</code></li>
+        <li>강의가 참고한 공식 문서: <a href="https://developers.openai.com/api/docs/guides/text" target="_blank">Responses / Text generation</a> · <a href="https://developers.openai.com/api/docs/guides/structured-outputs" target="_blank">Structured Outputs</a> · <a href="https://developers.openai.com/api/docs/guides/streaming-responses" target="_blank">Streaming responses</a> · <a href="https://developers.openai.com/api/reference/resources/responses/streaming-events" target="_blank">Streaming events</a> · <a href="https://developers.openai.com/api/docs/guides/error-codes" target="_blank">Error codes</a> · <a href="https://developers.openai.com/api/docs/guides/rate-limits" target="_blank">Rate limits</a> · <a href="https://developers.openai.com/api/docs/pricing" target="_blank">Pricing</a> · <a href="https://developers.openai.com/api/docs/guides/prompt-caching" target="_blank">Prompt caching</a> · <a href="https://developers.openai.com/api/docs/guides/model-selection" target="_blank">Model selection</a> · <a href="https://developers.openai.com/api/docs/guides/your-data" target="_blank">Data controls</a> · <a href="https://help.openai.com/en/articles/5112595-best-practices-for-api-key-safety" target="_blank">API key safety</a></li>
+        <li>그 밖: <a href="https://bbc2.github.io/python-dotenv/" target="_blank">python-dotenv</a> · <a href="https://docs.python.org/3/library/time.html#time.perf_counter" target="_blank">time.perf_counter</a> · <a href="https://docs.python.org/3/library/hashlib.html" target="_blank">hashlib</a> · <a href="https://docs.python.org/3/library/decimal.html" target="_blank">decimal</a> · <a href="https://www.python-httpx.org/advanced/transports/#mock-transports" target="_blank">httpx MockTransport</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day21.html">← 이전: Day21</a>
+      <span></span>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  (() => {
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    /* ---------------- 재시도 시뮬레이터 ---------------- */
+    const KIND = {
+      good: '200 정상 답', missing: '200 정보 부족', broken: '200 JSON 오류', refusal: '200 거절', unknown: '200 출처 999',
+      rate: '429 rate_limit', quota: '429 quota', auth: '401', perm: '403', bad: '400', server: '500', timeout: 'timeout',
+    };
+    const PRESETS = {
+      '401 → 중단': ['auth'], '429 → 정상': ['rate', 'good'], '429 할당량': ['quota'], '500 → 500': ['server', 'server'],
+      '429 + 형식 오류 + 수정': ['rate', 'broken', 'rate', 'good'], '형식 오류 × 2': ['broken', 'broken'],
+      '정보 부족': ['missing'], '거절': ['refusal'], 'timeout': ['timeout'], '429 × 4': ['rate', 'rate', 'rate', 'rate'],
+    };
+    const MAX_TOTAL = 4;
+    function waitMain(attempt, ra, remaining, used, jitter) {
+      const fallback = Math.min(8, 2 ** (attempt - 1));
+      const w = (ra !== null ? ra : fallback) + jitter;
+      if (w > remaining) return 'deferred';
+      if (used >= MAX_TOTAL) return 'attempt_limit';
+      return Math.round(w * 100) / 100;
+    }
+    const EXC = { auth: 'AuthenticationError', perm: 'PermissionDeniedError', bad: 'BadRequestError' };
+    function bounded(script, ra = 1, remaining = 30, jitter = 0) {
+      let i = 0, used = 0, gen = 0, final = null; const log = [];
+      const sendBounded = g => {
+        for (const sa of [1, 2]) {
+          if (used >= MAX_TOTAL) return { fail: 'attempt_limit' };
+          if (i >= script.length) { log.push([g, sa, '(각본 끝 — 칸을 더 채우세요)', 'skip']); return { fail: 'script_end' }; }
+          used++; const k = script[i++];
+          if (k === 'rate') {
+            const w = waitMain(sa, ra, remaining, used, jitter);
+            log.push([g, sa, `429 rate_limit_exceeded → 대기 판단 ${typeof w === 'number' ? w.toFixed(2) + '초' : w}`, 'warn']);
+            if (typeof w !== 'number' || sa === 2) return { fail: typeof w === 'string' ? w : 'rate_limited' };
+            continue;
+          }
+          if (k === 'quota') { log.push([g, sa, '429 insufficient_quota → 중단', 'bad']); return { fail: 'insufficient_quota' }; }
+          if (k === 'server') {
+            log.push([g, sa, sa === 1 ? '500 → 예산 안에서 1회 재시도' : '500 → 생성당 2회 상한, 중단', 'warn']);
+            if (sa === 2) return { fail: 'server_error' }; continue;
+          }
+          if (EXC[k]) { log.push([g, sa, `${EXC[k]} → 중단`, 'bad']); return { fail: EXC[k] }; }
+          if (k === 'timeout') { log.push([g, sa, 'timeout → 자동 재전송 안 함', 'bad']); return { fail: 'timeout' }; }
+          log.push([g, sa, '응답 수신', 'ok']); return { resp: k };
+        }
+        return { fail: 'send_limit' };
+      };
+      while (gen < 2 && used < MAX_TOTAL) {
+        gen++;
+        const o = sendBounded(gen);
+        if (o.fail) { final = o.fail; break; }
+        const err = { good: null, missing: null, broken: 'json_error', refusal: 'refusal', unknown: 'unknown_source' }[o.resp];
+        log.push([gen, '-', '검증 → ' + (err || 'passed_needs_human_review'), err ? (err === 'json_error' ? 'warn' : 'bad') : 'ok']);
+        if (err === null) { final = 'validated'; break; }
+        if (err !== 'json_error' || gen === 2) { final = err; break; }
+      }
+      return { final, sends: used, log };
+    }
+    window.__day22bounded = bounded;
+
+    let script = PRESETS['429 + 형식 오류 + 수정'].slice();
+    const pre = $('rt-presets');
+    pre.innerHTML = '<b style="align-self:center">각본 예시</b> ' + Object.keys(PRESETS).map(k => `<button type="button" class="filter-btn" data-p="${esc(k)}">${esc(k)}</button>`).join('');
+    pre.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; script = PRESETS[b.dataset.p].slice(); drawScript(); runRetry(); });
+    function drawScript() {
+      $('rt-script').innerHTML = '<b style="align-self:center">서버 응답 각본</b> ' + [0, 1, 2, 3].map(n =>
+        `<label>${n + 1}번째 전송 <select data-n="${n}"><option value="">(없음)</option>${Object.entries(KIND).map(([k, v]) =>
+          `<option value="${k}"${script[n] === k ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></label>`).join('');
+    }
+    $('rt-script').addEventListener('change', e => {
+      const s = e.target.closest('select'); if (!s) return;
+      const arr = [0, 1, 2, 3].map(n => $('rt-script').querySelector(`select[data-n="${n}"]`).value);
+      const cut = arr.indexOf(''); script = (cut < 0 ? arr : arr.slice(0, cut)); drawScript(); runRetry();
+    });
+    const COL = { ok: '#d3f9d8', warn: '#fff3bf', bad: '#ffe3e3', skip: '#f1f3f5' };
+    function runRetry() {
+      const raV = $('rt-ra').value.trim(); const ra = raV === '' ? null : Number(raV);
+      const rem = Number($('rt-rem').value); const jit = Number($('rt-jit').value);
+      $('rt-jitv').textContent = jit.toFixed(2);
+      const r = bounded(script, ra, rem, jit);
+      $('rt-log').innerHTML = r.log.map(([g, s, m, c]) =>
+        `<span class="step" style="background:${COL[c]};border-color:${COL[c]}">${s === '-' ? `생성${g} 검사` : `생성${g}·전송${s}`}<br><small>${esc(m)}</small></span>`).join(' → ');
+      const used = script.length > r.sends ? ` · 각본의 ${script.length - r.sends}칸은 쓰이지 않음` : '';
+      const why = {
+        validated: '자동 검사 통과 → 이제 사람이 근거를 대조할 차례예요.',
+        json_error: '형식 수정은 1회까지 — 3번째 생성은 없어요. 실패를 실패로 기록해요.',
+        insufficient_quota: '같은 429라도 잔액·한도 문제는 기다려도 안 풀려요. 바로 멈춰요.',
+        deferred: '서버가 요구한 대기가 남은 예산보다 길어요. 대기를 줄여 보내지 않고 미뤄요.',
+        attempt_limit: '전체 전송 상한 4회에 닿았어요.', rate_limited: '이 생성의 전송 2회를 다 썼어요.',
+        server_error: '생성당 전송 2회 상한 — 성공으로 위장하지 않아요.', timeout: '서버가 이미 생성했을 수도 있어서 자동으로 다시 보내지 않아요. usage는 None.',
+        refusal: '거절은 정보 부족으로 바꾸거나 형식 수정을 요청하지 않아요 → run_status = refused.',
+        unknown_source: '출처 규칙 위반은 다시 물어도 근거가 생기지 않아요 → 중단.',
+        script_end: '각본이 모자라요. 다음 전송 칸을 채워 보세요.',
+      }[r.final] || '인증·권한·요청 오류는 기다려서 해결되지 않아요. 설정을 고친 뒤 별도로 실행해요.';
+      $('rt-why').innerHTML = `최종 <code>${esc(r.final)}</code> · 실제 전송 <b>${r.sends}회</b>${used}<br><span style="font-weight:400">${why}</span>`;
+    }
+    ['rt-ra', 'rt-rem', 'rt-jit'].forEach(id => $(id).addEventListener('input', runRetry));
+    drawScript(); runRetry();
+
+    /* ---------------- 비용 · Cache key ---------------- */
+    const P = { in: 750, ca: 75, out: 4500 };   // 단가 × 1000 (0.75 · 0.075 · 4.50 USD / 1M)
+    function cost() {
+      const none = $('ck-none').checked;
+      const i = Math.floor(+$('ck-in').value), c = Math.floor(+$('ck-ca').value), o = Math.floor(+$('ck-out').value);
+      const bar = $('ck-bar'), out = $('ck-cost');
+      if (none) { bar.innerHTML = ''; out.innerHTML = '<code>usage = None</code> → <code>estimated_usd = None</code> — 0으로 쓰지 않아요. 서버는 이미 생성했을 수도 있어요.'; return; }
+      if ([i, c, o].some(v => !(v >= 0))) { bar.innerHTML = ''; out.textContent = '0 이상의 정수를 넣어 주세요.'; return; }
+      if (c > i) { bar.innerHTML = ''; out.innerHTML = '⚠️ <code>cached_tokens</code>는 <code>input_tokens</code>의 <b>일부</b>라 더 클 수 없어요.'; return; }
+      const parts = [['일반 입력', (i - c) * P.in, '#4dabf7'], ['캐시 입력', c * P.ca, '#0fb5a6'], ['출력', o * P.out, '#ff922b']];
+      const tot = parts.reduce((s, p) => s + p[1], 0);          // 단위: 1e-9 USD (정수)
+      const usd = v => { const s = (v / 1e9).toFixed(9).replace(/0+$/, '').replace(/\.$/, ''); return s; };
+      bar.innerHTML = tot ? parts.map(([k, v, col]) => `<div title="${k}" style="width:${v / tot * 100}%;background:${col}"></div>`).join('') : '';
+      const wrong = i * P.in + c * P.ca + o * P.out;
+      out.innerHTML = parts.map(([k, v, col]) => `<span style="color:${col};font-weight:700">${k}</span> $${usd(v)}`).join(' + ') +
+        ` = <b>$${usd(tot)}</b>` + (tot ? ` · 출력 비중 ${Math.round(parts[2][1] / tot * 100)}%` : '') +
+        (c ? `<br><small>캐시를 일반 입력에도 넣는 실수라면 $${usd(wrong)} (과대 추정)</small>` : '');
+    }
+    ['ck-in', 'ck-ca', 'ck-out', 'ck-none'].forEach(id => $(id).addEventListener('input', cost));
+
+    // Python json.dumps 흉내: 기본(", ", ": ") / 표준(sort_keys + (",", ":"))
+    const pyStr = s => JSON.stringify(s);
+    function pyDumps(v, sortKeys, sep) {
+      if (v === null) return 'null';
+      if (typeof v === 'boolean') return v ? 'true' : 'false';
+      if (typeof v === 'number') return String(v);
+      if (typeof v === 'string') return pyStr(v);
+      if (Array.isArray(v)) return '[' + v.map(x => pyDumps(x, sortKeys, sep)).join(sep[0]) + ']';
+      let ks = Object.keys(v); if (sortKeys) ks = ks.slice().sort();
+      return '{' + ks.map(k => pyStr(k) + sep[1] + pyDumps(v[k], sortKeys, sep)).join(sep[0]) + '}';
+    }
+    const MODELS = { fast: 'gpt-5.4-mini-2026-03-17', quality: 'gpt-5.4-2026-03-05' };
+    const KB103 = '오류 메시지와 시도한 작업을 함께 적습니다.';
+    const INSTR = '제공 지식으로만 답하고 status·answer·source_ids·missing_information 네 필드 JSON을 반환하세요.';
+    const FORMAT = {"type": "json_schema", "name": "knowledge_answer", "strict": true, "schema": {"additionalProperties": false, "properties": {"status": {"enum": ["answered", "insufficient_context"], "title": "Status", "type": "string"}, "answer": {"title": "Answer", "type": "string"}, "source_ids": {"items": {"type": "integer"}, "title": "Source Ids", "type": "array"}, "missing_information": {"title": "Missing Information", "type": "string"}}, "required": ["status", "answer", "source_ids", "missing_information"], "title": "WireAnswer", "type": "object"}};
+    async function keyOf(mode, scope, validator, kb) {
+      const userInput = pyDumps({ question: '오류 질문에 무엇을 적나요?', knowledge: [{ id: 103, title: '질문 작성', content: kb }] }, false, [', ', ': ']);
+      const request = { model: MODELS[mode], instructions: INSTR, input: [{ role: 'user', content: userInput }],
+        reasoning: { effort: 'none' }, max_output_tokens: 1200, store: false };
+      const canonical = pyDumps({ scope, model: request.model, request, format: FORMAT, validator_version: validator }, true, [',', ':']);
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    window.__day22key = keyOf;
+    let STORED = null;
+    async function cacheRun() {
+      const now = +$('ck-now').value; $('ck-nowv').textContent = now;
+      const key = await keyOf($('ck-mode').value, $('ck-scope').value, $('ck-val').value, $('ck-kb').value);
+      if (STORED === null) STORED = await keyOf('fast', 'classroom-demo', 'day21-v1', KB103);
+      $('ck-key').textContent = key.slice(0, 16) + '…' + (key === STORED ? ' (저장된 key와 같음)' : ' (저장된 key와 다름)');
+      let res, why;
+      if (key !== STORED) { res = 'miss'; why = '조건이 하나라도 바뀌면 key가 달라져 항목 자체가 없어요 → 새 호출 검토.'; }
+      else if (now >= 60) { res = 'miss'; why = `now(${now}) ≥ expires_at(60) → 만료.`; }
+      else if (!$('ck-appr').checked) { res = 'miss'; why = '사람이 근거를 확인하지 않은 답은 재사용하지 않아요.'; }
+      else if ($('ck-prov').value !== '103') { res = 'miss'; why = '저장된 답은 103을 인용했는데 이번에 보낸 건 102 → 현재 규칙으로 재검사하면 unknown_source.'; }
+      else { res = 'hit'; why = 'key 일치 · TTL 유효 · 승인됨 · 재검사 통과 → source_mode = app_cache, new_api_send_count = 0, origin_run_id = demo-001.'; }
+      $('ck-why').innerHTML = `<span style="color:${res === 'hit' ? '#2b8a3e' : '#e03131'}">${res}</span> <span style="font-weight:400">— ${why}</span>`;
+    }
+    $('ck-kb').value = KB103;
+    ['ck-mode', 'ck-scope', 'ck-val', 'ck-kb', 'ck-now', 'ck-appr', 'ck-prov'].forEach(id => $(id).addEventListener('input', cacheRun));
+    ['ck-mode', 'ck-scope', 'ck-val', 'ck-appr', 'ck-prov'].forEach(id => $(id).addEventListener('change', cacheRun));
+    cost(); cacheRun();
+  })();
+  </script>
+</body>
+</html>

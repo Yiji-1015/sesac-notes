@@ -6271,14 +6271,16 @@ window.GLOSSARY = [
   "term": "KV cache",
   "aliases": [
    "Key/Value cache",
-   "use_cache"
+   "use_cache",
+   "Key-Value Cache"
   ],
   "full": "Key/Value cache",
   "short": "답을 한 토큰씩 만들 때 앞에서 계산한 Key·Value를 저장해 재사용하는 것. 빨라지지만 메모리를 차지해요.",
   "analogy": "",
   "first": 16,
   "days": [
-   16
+   16,
+   22
   ],
   "keyDays": []
  },
@@ -7611,14 +7613,18 @@ window.GLOSSARY = [
   "term": ".env",
   "aliases": [
    "환경변수",
-   ".env.example"
+   ".env.example",
+   "dotenv",
+   "dotenv_values",
+   "python-dotenv"
   ],
   "full": ".env 파일 (환경 설정)",
   "short": "DB 주소·계정·비밀번호처럼 코드 밖에 둘 설정을 '이름=값'으로 적은 파일. .gitignore로 Git에서 빼고, 값 없는 .env.example만 공유해요. 암호화는 아니에요.",
   "analogy": "열쇠를 코드 안이 아니라 따로 둔 열쇠함.",
   "first": 19,
   "days": [
-   19
+   19,
+   22
   ],
   "keyDays": []
  },
@@ -8628,6 +8634,551 @@ window.GLOSSARY = [
   "first": 21,
   "days": [
    21
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LLM API",
+  "aliases": [
+   "API",
+   "Application Programming Interface"
+  ],
+  "full": "LLM Application Programming Interface",
+  "short": "내 프로그램이 외부 언어모델에 약속된 형식으로 요청을 보내고 응답 객체를 받는 접점. ChatGPT 화면의 대화 기록을 자동으로 읽지 않아요.",
+  "analogy": "식당의 주문 창구 — 메뉴판 형식대로 주문서를 넣으면 음식이 나와요.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "SDK",
+  "aliases": [
+   "Software Development Kit",
+   "openai 패키지"
+  ],
+  "full": "Software Development Kit",
+  "short": "API 사용을 돕는 라이브러리. openai 패키지가 Python 호출을 HTTP 요청으로 바꾸고, 응답·오류를 Python 객체·예외로 돌려줘요.",
+  "analogy": "주문서 대신 써 주는 대행 앱.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LLM Client",
+  "aliases": [
+   "llm_client",
+   "클라이언트"
+  ],
+  "full": "LLM Client",
+  "short": "우리 서비스의 호출 정책(입력 구성·모델 선택·대기·재시도·검증·기록)을 묶은 모듈. SDK 위에 얹는 우리 코드예요.",
+  "analogy": "주문 대행 앱을 쓰는 우리 가게의 주문 담당 직원 — 몇 번 재주문할지, 무엇을 확인할지 정함.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "API 키",
+  "aliases": [
+   "OPENAI_API_KEY",
+   "API Key"
+  ],
+  "full": "API Key",
+  "short": "요청의 자격을 확인하는 비밀 값. 실습별 .env에만 두고 코드·Git·화면·채팅에 넣지 않아요. 키가 있어도 모든 모델을 쓸 수 있는 건 아니에요.",
+  "analogy": "건물 출입증 — 있다고 모든 층에 들어갈 수 있는 건 아님.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "인증 · 권한",
+  "aliases": [
+   "Authentication",
+   "Authorization",
+   "401",
+   "403"
+  ],
+  "full": "Authentication / Authorization",
+  "short": "인증(401)은 '이 자격이 유효한가', 권한(403)은 '이 자격으로 이 모델·작업을 해도 되는가'. 둘 다 기다려서 해결되지 않아요.",
+  "analogy": "출입증이 진짜인가(인증) vs 이 층에 들어갈 수 있는가(권한).",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Responses API",
+  "aliases": [
+   "responses.create",
+   "client.responses.create"
+  ],
+  "full": "OpenAI Responses API",
+  "short": "OpenAI의 생성 API. instructions(앱의 지시) + input(이번 내용)을 보내고, status·output·usage가 든 Response를 받아요. Chat Completions의 messages 형식과 섞지 않아요.",
+  "analogy": "지시서와 자료 봉투를 따로 넣는 주문 양식.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "instructions · input",
+  "aliases": [
+   "instructions",
+   "input",
+   "role",
+   "content"
+  ],
+  "full": "instructions / input",
+  "short": "instructions는 앱이 고정한 작업·제약·형식, input은 이번 질문과 고른 지식. input 안의 메시지는 role(역할)과 content(내용)로 구성돼요.",
+  "analogy": "업무 매뉴얼(instructions)과 오늘 들어온 민원 서류(input).",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Structured Outputs",
+  "aliases": [
+   "구조화 출력",
+   "json_schema",
+   "text.format"
+  ],
+  "full": "Structured Outputs",
+  "short": "JSON Schema를 API에 넘겨 응답의 필드·자료형을 제약하는 기능. 'JSON으로 답해'라는 Prompt 요청과 달라요. 구조 통과 ≠ 근거 적합.",
+  "analogy": "빈칸이 정해진 답안지 — 칸은 맞춰도 내용이 틀릴 수 있음.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "WireAnswer",
+  "aliases": [
+   "Wire",
+   "전송 계약"
+  ],
+  "full": "WireAnswer (wire schema)",
+  "short": "API에 보낼 최소 구조(네 필드·허용 status·추가 필드 금지)를 정한 Pydantic 모델. 로컬 계약 KnowledgeAnswer보다 느슨해서 \"101\"을 101로 바꿔 줘요.",
+  "analogy": "택배 상자 규격 — 상자 안 물건이 맞는지는 따로 확인.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "refusal",
+  "aliases": [
+   "refused",
+   "거절"
+  ],
+  "full": "Refusal",
+  "short": "모델이 요청을 거절한 콘텐츠 유형. 앱에서는 refused로 기록하고, 정보 부족(insufficient_context)이나 형식 오류로 위장하지 않아요.",
+  "analogy": "'모르겠습니다'와 '말씀드릴 수 없습니다'는 다른 대답.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "response.status",
+  "aliases": [
+   "completed",
+   "incomplete",
+   "생성 상태"
+  ],
+  "full": "Response status",
+  "short": "생성 응답의 완료 상태(completed·incomplete·failed 등). HTTP 200(통신)이나 답변 JSON의 status(업무 상태)와 다른 층이에요.",
+  "analogy": "택배 '배송 완료' 표시 — 물건이 주문한 그것인지는 열어 봐야 앎.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "Streaming",
+  "aliases": [
+   "스트리밍",
+   "stream=True"
+  ],
+  "full": "Streaming",
+  "short": "전체 응답을 기다리지 않고 생성 중 도착하는 조각을 이벤트로 먼저 받는 방식. 첫 표시는 빨라지지만 총 완료 시간이 짧아진다는 뜻은 아니고, 마지막 완료 이벤트로 확정해요.",
+  "analogy": "라이브 자막 — 먼저 보이지만 방송이 끝나야 전체 대본이 확정.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "SSE",
+  "aliases": [
+   "Server-Sent Events"
+  ],
+  "full": "Server-Sent Events",
+  "short": "HTTP 연결 하나로 서버가 'event: 이름 / data: JSON' 묶음을 이어 보내는 방식. SDK가 이를 event 객체로 바꿔 줘요.",
+  "analogy": "한 번 걸어 둔 전화로 상대가 계속 소식을 불러 주는 것.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "delta",
+  "aliases": [
+   "output_text.delta",
+   "텍스트 조각"
+  ],
+  "full": "Delta",
+  "short": "새로 도착한 텍스트 변화분. 조각 수 ≠ 토큰 수이고, 중간 조각은 완전한 JSON이 아닐 수 있어요. 토큰은 최종 usage에서 읽어요.",
+  "analogy": "퍼즐 조각 — 몇 조각 받았는지가 그림 크기는 아님.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Latency",
+  "aliases": [
+   "지연 시간",
+   "first_text_ms",
+   "request_ms",
+   "e2e_ms",
+   "TTFT"
+  ],
+  "full": "Latency",
+  "short": "요청 시작부터 결과까지의 지연. first_text_ms(첫 텍스트), request_ms(한 요청), e2e_ms(준비·대기·재시도·검증 포함 전체)처럼 측정 구간을 정해야 비교할 수 있어요.",
+  "analogy": "주문 후 첫 접시가 나온 시간 vs 코스 전체가 끝난 시간.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "Rate Limit",
+  "aliases": [
+   "RPM",
+   "TPM",
+   "429",
+   "요청 제한"
+  ],
+  "full": "Rate Limit",
+  "short": "일정 시간당 요청 수(RPM)·토큰 수(TPM)를 제한하는 정책. 같은 429라도 rate_limit_exceeded(기다릴 문제)와 insufficient_quota(잔액·한도 — 멈출 문제)는 달라요.",
+  "analogy": "놀이기구 탑승 인원 제한(기다리면 됨) vs 이용권 잔액 부족(기다려도 안 됨).",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "Retry-After",
+  "aliases": [
+   "retry-after",
+   "retry-after-ms"
+  ],
+  "full": "Retry-After header",
+  "short": "서버가 알려 주는 '최소 이만큼 기다린 뒤 다시 보내라'는 응답 헤더. 초 숫자 또는 HTTP-date. 이보다 짧게 잘라 재전송하지 않아요.",
+  "analogy": "'10분 뒤에 다시 오세요' 안내판.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Backoff",
+  "aliases": [
+   "Exponential backoff",
+   "지수 백오프"
+  ],
+  "full": "Exponential Backoff",
+  "short": "실패가 반복될수록 대기 시간을 1·2·4·8초처럼 늘리는 재시도 정책. 교안 본문은 상한 8초.",
+  "analogy": "전화가 안 되면 1분, 2분, 4분 간격으로 다시 걸기.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Jitter",
+  "aliases": [
+   "지터"
+  ],
+  "full": "Jitter",
+  "short": "재시도 시점을 흩뜨리는 작은 무작위 지연. 모두가 정확히 2초 뒤 재전송하면 요청이 다시 한꺼번에 몰리기 때문이에요.",
+  "analogy": "수업 끝나고 매점에 몇 초씩 다르게 출발하기.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Timeout",
+  "aliases": [
+   "APITimeoutError",
+   "타임아웃"
+  ],
+  "full": "Timeout",
+  "short": "클라이언트가 정한 대기 조건을 넘었다는 뜻. 서버는 이미 생성했을 수도 있어 비용을 0으로 확정하지 않고, 이 수업은 자동 재전송하지 않아요.",
+  "analogy": "보낸 편지 답장이 안 온다고 상대가 안 읽었다는 뜻은 아님.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "max_retries",
+  "aliases": [
+   "SDK 재시도",
+   "max_retries=0"
+  ],
+  "full": "max_retries (SDK automatic retry)",
+  "short": "openai SDK가 연결 오류·408·409·429·5xx를 스스로 다시 보내는 횟수(기본 2). 이 수업은 0으로 끄고 앱이 원인을 보고 결정해요 — 둘 다 켜면 전송이 곱으로 늘어요.",
+  "analogy": "비서도 다시 걸고 나도 다시 걸면 상대는 전화를 네 번 받음.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "generation_no · send_attempt",
+  "aliases": [
+   "generation_no",
+   "send_attempt",
+   "생성 시도",
+   "전송 시도"
+  ],
+  "full": "Generation number / Send attempt",
+  "short": "generation_no는 최초(1)·형식 수정(2) 생성의 번호, send_attempt는 그 생성 요청의 통신 전송 번호. 교안 상한: 생성 2 × 전송 2, 전체 4회.",
+  "analogy": "원고 1차·2차 수정본(생성)과, 각 원고를 팩스로 몇 번 보냈는지(전송).",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Token Usage",
+  "aliases": [
+   "usage",
+   "input_tokens",
+   "output_tokens",
+   "cached_tokens",
+   "reasoning_tokens"
+  ],
+  "full": "Token Usage",
+  "short": "API가 보고한 그 호출의 입력·출력 토큰 수. cached_tokens는 input_tokens의 일부, reasoning_tokens는 output_tokens의 일부라 다시 더하지 않아요.",
+  "analogy": "전기 계량기 — 심야 전력량은 전체 사용량 안에 들어 있음.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "None · 0 · not_run",
+  "aliases": [
+   "unknown",
+   "미관측",
+   "not_run"
+  ],
+  "full": "None / 0 / not_run",
+  "short": "None은 관측 못 함(모름), 0은 관측된 0, not_run은 실행하지 않음. 없는 값을 or 0으로 채우면 모르는 비용이 사라진 것처럼 보여요.",
+  "analogy": "'시험 안 봄'과 '0점'과 '채점 전'은 다른 기록.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "source_mode",
+  "aliases": [
+   "api_live",
+   "simulated",
+   "app_cache"
+  ],
+  "full": "source_mode",
+  "short": "결과를 얻은 방법. api_live(실제 서버), simulated(직접 만든 응답·이벤트·오류), app_cache(승인된 이전 결과 재사용), not_run(미실행). 섞어서 성능표에 넣지 않아요.",
+  "analogy": "실험 노트의 '실측 / 모의 / 이전 데이터 인용' 표시.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "비용 추정",
+  "aliases": [
+   "estimated_usd",
+   "Decimal",
+   "단가"
+  ],
+  "full": "Cost Estimate",
+  "short": "[(입력−캐시) × 일반 단가 + 캐시 × 캐시 단가 + 출력 × 출력 단가] ÷ 1,000,000 (USD / 1M tokens). 실행별 추정이지 청구서가 아니에요. 금액은 Decimal로.",
+  "analogy": "장바구니 예상 금액 — 실제 결제 금액과 다를 수 있음.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Response Cache",
+  "aliases": [
+   "응답 캐시",
+   "app_cache",
+   "Cache"
+  ],
+  "full": "Response Cache (application)",
+  "short": "앱이 사람이 승인한 최종 답변을 보관해 같은 조건이면 재사용하는 저장소. 유효한 hit이면 새 API 전송 0회.",
+  "analogy": "자주 묻는 질문 게시판 — 검토된 답을 그대로 안내.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "Prompt Caching",
+  "aliases": [
+   "프롬프트 캐싱",
+   "prefix cache"
+  ],
+  "full": "Prompt Caching",
+  "short": "API 제공사가 같은 입력 앞부분(prefix)의 계산을 재사용하는 기능. 새 요청과 새 출력 생성은 계속돼요. 결과는 usage의 cached_tokens로 보여요.",
+  "analogy": "같은 서론을 매번 다시 읽지 않고 책갈피부터 읽기 — 결론은 새로 씀.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Cache key",
+  "aliases": [
+   "cache_key",
+   "캐시 키",
+   "hit",
+   "miss"
+  ],
+  "full": "Cache key",
+  "short": "보관한 항목을 찾는 식별값. scope·model·request·format·validator_version을 정렬된 JSON으로 만들어 SHA-256. 결과가 달라질 조건이 바뀌면 다른 key.",
+  "analogy": "도서관 청구기호 — 판(版)이 다르면 번호도 다름.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "TTL",
+  "aliases": [
+   "Time To Live",
+   "expires_at",
+   "유효 기간"
+  ],
+  "full": "Time To Live",
+  "short": "캐시 항목을 유효하게 볼 기간. now ≥ expires_at이면 만료. TTL이 남아도 지식·권한·규칙이 바뀌면 재사용하지 않아요.",
+  "analogy": "우유 유통기한 — 기한 전이라도 상했으면 안 마심.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Model Routing",
+  "aliases": [
+   "라우팅",
+   "route_reason",
+   "choose_model",
+   "Fallback"
+  ],
+  "full": "Model Routing",
+  "short": "호출 전에 요청 조건·권한·기능·예산에 맞는 모델을 고르고 이유(route_reason)를 기록하는 정책. 실패 후 대안으로 바꾸는 Fallback과 달라요.",
+  "analogy": "택배 접수 때 일반·특급을 고르는 것 — 배송 실패 후 다른 택배사로 바꾸는 것과는 별개.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": [
+   22
+  ]
+ },
+ {
+  "term": "run_status",
+  "aliases": [
+   "validated",
+   "실행 결과"
+  ],
+  "full": "run_status",
+  "short": "앱이 본 실행의 결과(validated·refused·incomplete·오류코드). 답변 객체의 status(answered·insufficient_context)와 별도로 반환해요. validated ≠ 사람 승인.",
+  "analogy": "'서류 접수 완료'와 '심사 결과: 반려'는 다른 칸.",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "store=False",
+  "aliases": [
+   "store"
+  ],
+  "full": "store = False",
+  "short": "생성 응답을 공급자 쪽에 저장해 두지 않게 하는 요청 옵션. 모든 로그·보존이 0이라는 뜻은 아니라서, 보낼 데이터 자체를 줄이는 것도 함께 필요해요.",
+  "analogy": "'영수증 보관 안 함'에 체크해도 카드사 기록은 남음.",
+  "first": 22,
+  "days": [
+   22
   ],
   "keyDays": []
  }
