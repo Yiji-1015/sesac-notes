@@ -101,7 +101,7 @@ src = torch.ones(2, requires_grad=True)
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     wrapped = torch.tensor(src)
-IO["d9-torch-tensor"] = ("노트 코드 그대로", [
+IO["d9-torch-tensor"] = ("위 코드 그대로", [
     ("x.shape, x.dtype, x.device", f"{tuple(x.shape)}, {x.dtype}, {x.device}", "2×2 실수, CPU에 만들어짐"),
     ("y.dtype", str(y.dtype), "torch.long = int64 (클래스 번호)"),
     ("torch.tensor([0, 1]).dtype   (dtype 생략)", str(torch.tensor([0, 1]).dtype), "정수 list면 알아서 int64"),
@@ -302,7 +302,7 @@ model.eval()
 with torch.no_grad():
     pred = model(X.to(device)).argmax(dim=1)
     acc = (pred.cpu() == y).float().mean().item()
-IO["d9-준비-batch-반복"] = (f"노트 코드 그대로 (seed 42, 직선 경계 데이터 200개, device={device})", [
+IO["d9-준비-batch-반복"] = (f"위 코드 그대로 (seed 42, 직선 경계 데이터 200개, device={device})", [
     ("학습 전 정확도", f"{acc0:.3f}", "무작위 가중치라 찍기 수준"),
     ("첫 batch loss → 마지막 batch loss", f"{first_loss:.4f} → {last_loss:.4f}", "batch마다 step하며 줄어듦"),
     ("optimizer.step() 호출 수", repr(steps), "7 batch × 80 epoch"),
@@ -339,9 +339,9 @@ ep2 = train_one_epoch(model, loader, loss_fn, optimizer, device, [])
 IO["d9-epoch-평균-loss를-제대로-내기"] = ("같은 데이터 200개, batch 32 (마지막 batch 8개)", [
     ("epoch 1 batch 크기", repr([n for _, n in log]), ""),
     ("epoch 1 마지막 batch loss", f"{log[-1][0]:.4f}", "8개짜리 batch의 평균"),
-    ("train_one_epoch(...)  (샘플 가중 평균)", f"{ep1:.4f}", "샘플 하나하나의 평균"),
+    ("total_loss / len(loader.dataset)  (샘플 가중 평균)", f"{ep1:.4f}", "샘플 하나하나의 평균"),
     ("batch loss들을 그냥 평균", f"{naive:.4f}", "8개 batch가 32개와 같은 무게라 살짝 다름"),
-    ("epoch 2 train_one_epoch(...)", f"{ep2:.4f}", "다음 epoch엔 더 내려감"),
+    ("epoch 2 total_loss / len(loader.dataset)", f"{ep2:.4f}", "다음 epoch엔 더 내려감"),
 ])
 
 

@@ -69,12 +69,12 @@ def fig_request_flow():
     save(fig, 17, "request_flow")
 
 
-# ------------------------------------------------------------ 2. 플랫폼 안에서 오늘 만드는 부분
+# ------------------------------------------------------------ 2. 플랫폼 안에서 지식 관리 API의 자리
 def fig_platform():
     fig, ax = canvas(9.5, 4.6, 10, 5.6)
-    rbox(ax, 0.5, 4.55, 9, 0.75, "사용자 / 사내 업무 화면   (오늘은 /docs가 임시 클라이언트)", fc="#fff", fs=10)
+    rbox(ax, 0.5, 4.55, 9, 0.75, "사용자 / 사내 업무 화면   (개발 중에는 /docs가 임시 클라이언트)", fc="#fff", fs=10)
     rbox(ax, 0.5, 3.35, 9, 0.8, "FastAPI — 서비스 입구: 요청 받기 · 입력 검증 · 함수 연결 · 응답", fc=C["soft"], fs=10.5, bold=True)
-    cols = [("지식 관리 API\nCRUD · 원본 관리", "JSON 파일\n(오늘의 저장소)", True),
+    cols = [("지식 관리 API\nCRUD · 원본 관리", "JSON 파일\n(이 API의 저장소)", True),
             ("RAG\n근거 검색 · LLM 답변", "Vector DB · 모델", False),
             ("AI Agent\n도구 선택 · 결과 확인", "Tool Registry", False)]
     for i, (top, bot, today) in enumerate(cols):
@@ -86,10 +86,10 @@ def fig_platform():
         rbox(ax, x, 0.3, 2.8, 0.95, bot, fc=fc, ec=ec, ls=ls, fs=9.5)
         arrow(ax, x + 1.4, 3.35, x + 1.4, 2.9, color=ec)
         arrow(ax, x + 1.4, 1.75, x + 1.4, 1.25, color=ec)
-        ax.text(x + 2.72, 2.78, "오늘" if today else "이후", ha="right", va="top", fontsize=9,
+        ax.text(x + 2.72, 2.78, "지금 다룸" if today else "나중에", ha="right", va="top", fontsize=9,
                 fontweight="bold", color=ec)
     arrow(ax, 5, 4.55, 5, 4.15)
-    ax.set_title("AI 플랫폼 안에서 오늘 만드는 부분 (초록 실선) — RAG·Agent는 나중에 붙인다", loc="left")
+    ax.set_title("AI 플랫폼 안에서 지식 관리 API의 자리 (초록 실선) — RAG·Agent는 그 위에 붙는다", loc="left")
     save(fig, 17, "platform_map")
 
 
@@ -116,7 +116,7 @@ def fig_id_policy():
     fig, axes = plt.subplots(2, 1, figsize=(9.5, 4.4))
     rows = [
         ("len(entries) + 1 로 번호 매기기", [[1, 2, 3], [1, 3], [1, 3, 3]], ["처음", "ID 2 삭제", "새로 등록"], True),
-        ("next_id 를 따로 저장 (강의 방식)", [[1, 2, 3], [1, 3], [1, 3, 4]], ["처음 · next_id=4", "ID 2 삭제 · next_id=4 그대로", "새로 등록 → 4 · next_id=5"], False),
+        ("next_id 를 따로 저장 (권장 방식)", [[1, 2, 3], [1, 3], [1, 3, 4]], ["처음 · next_id=4", "ID 2 삭제 · next_id=4 그대로", "새로 등록 → 4 · next_id=5"], False),
     ]
     for ax, (title, states, caps, bad) in zip(axes, rows):
         ax.set_xlim(0, 12)

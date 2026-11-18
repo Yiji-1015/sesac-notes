@@ -27,33 +27,8 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day6 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day6">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
-      <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>scikit-learn</code></td><td>모델(선형·로지스틱·KNN), 전처리, 지표, Pipeline 전부</td><td><code>from sklearn.linear_model import LinearRegression</code> 등</td></tr>
-        <tr><td><code>numpy</code></td><td>숫자 배열 계산 (<code>np.array</code>, <code>np.exp</code>)</td><td><code>import numpy as np</code></td></tr>
-        <tr><td><code>pandas</code></td><td>표(DataFrame)로 데이터 읽고 비교표 만들기</td><td><code>import pandas as pd</code></td></tr>
-        <tr><td><code>joblib</code></td><td>학습한 Pipeline을 파일로 저장·불러오기 (scikit-learn 설치 시 함께 깔림)</td><td><code>import joblib</code></td></tr>
-        <tr><td>(표준 라이브러리)</td><td><code>pathlib</code>·<code>tempfile</code> — 저장 경로·임시 폴더 (설치 불필요)</td><td><code>from pathlib import Path</code>, <code>import tempfile</code></td></tr>
-      </table>
-      <h3>🔧 설치 · 확인</h3>
-<pre><code>python -m pip install numpy pandas scikit-learn     # 새 환경이면 강사가 검증한 requirements로 준비
-python --version
-python -m pip show numpy pandas scikit-learn
-python -c "import sklearn; print(sklearn.__version__)"
-.venv\Scripts\python.exe -m pip check               # Windows: 프로젝트 인터프리터로 의존성 충돌 확인</code></pre>
-      <div class="callout">💡 pip 이름과 import 이름이 달라요: <code>scikit-learn</code>으로 설치하고 코드에서는 <code>sklearn</code>으로 불러요.</div>
-      <div class="callout warn">⚠️ 기존 가상환경을 유지하고, 수업 직전에 무조건 최신 버전으로 올리지 말 것. 강의 자료는 Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0에서 검증됐어요(PDF 6쪽). VS Code 인터프리터가 프로젝트의 <code>.venv</code>인지 먼저 확인하세요.</div>
-      <div class="callout">🤔 <strong>왜?</strong> — 라이브러리 버전이 바뀌면 함수 이름·기본값이 달라질 수 있어요(예: <code>root_mean_squared_error</code>는 최근 버전에 생긴 함수). 같은 코드가 같은 숫자를 내려면 <b>검증된 환경</b>을 그대로 쓰는 게 안전해요.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
+      <h2 id="map">🗺️ 큰 그림 — 같은 데이터로 숫자를 맞히거나, 종류를 맞히거나</h2>
       <p>같은 데이터로도 <b>질문을 두 가지</b>로 만들 수 있어요. 예를 들어 AI 요청 기록이 있다면 "이 요청은 <b>몇 ms</b> 걸릴까?"(회귀)와 "이 요청은 <b>실패할까?</b>"(분류)를 따로 물을 수 있죠.</p>
       <div class="usecases">
         <div class="usecase"><div class="emoji">⏱️</div><strong>소요 시간 예측</strong><span>요청이 몇 ms 걸릴지 숫자로 (회귀)</span></div>
@@ -70,7 +45,23 @@ python -c "import sklearn; print(sklearn.__version__)"
       </table>
       <div class="callout warn">⚠️ <b>누수 주의</b> — <code>elapsed_ms</code>는 회귀의 <b>정답</b>은 될 수 있지만, "실행 전" 예측의 <b>입력 X</b>로 넣으면 안 돼요. 실행이 끝나야 알 수 있는 값이니까요. ID·실행 후 정보(<code>status</code>, <code>retry_count</code>)도 입력에서 빼요.</div>
       <div class="callout">🤔 <strong>왜?</strong> — 모델은 실제로 쓰일 때 <b>예측 시점에 존재하는 값</b>만 받을 수 있어요. 실행 후에야 생기는 값을 학습에 넣으면 연습 점수는 높게 나와도, 실전에서는 그 값이 없어서 쓸 수 없는 모델이 돼요. 또 회귀·분류의 지표가 다른 이유는 <b>정답의 모양이 달라서</b>예요. 숫자는 "얼마나 빗나갔나(오차 크기)"를, 종류는 "맞혔나·틀렸나(어떤 오류인가)"를 세야 하거든요.</div>
-      <div class="callout">💡 강의의 공통 데이터는 <b>수업용 합성 데이터 100건</b>(일부 결측 포함)이고, 분할은 train 60 · valid 20 · test 20이에요. 아래 숫자들은 "이 작은 자료에서 나온 결과"일 뿐, 실서비스 성능의 근거가 아니에요.</div>
+      <div class="callout">💡 예시 숫자는 <b>합성 데이터 100건</b>(AI 요청 기록 · 일부 결측 포함)을 train 60 · valid 20 · test 20으로 나눠 얻은 값이에요(<a href="#spec">📋 명세</a>). "이 작은 자료에서 나온 결과"일 뿐, 실서비스 성능의 근거가 아니에요.</div>
+      <p>예측 모델 하나를 고르기까지는 아래 일곱 단계를 지나요. 이 페이지의 ①~⑦이 이 순서예요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#linear">① 선형회귀</a></td><td>입력의 가중합 · 잔차제곱합 최소화</td><td>직선 하나로 숫자를 어떻게 맞히나?</td></tr>
+        <tr><td><a href="#regmetrics">② 회귀 지표 · 기준선</a></td><td>train / valid / test · MAE · RMSE · R² · Dummy</td><td>얼마나 빗나갔고, 평균만 찍는 것보다 나은가?</td></tr>
+        <tr><td><a href="#logistic">③ 로지스틱회귀</a></td><td>시그모이드 확률 · 혼동행렬 · F1 · 임계값</td><td>확률을 어디서 잘라, 어떤 오류를 감수하나?</td></tr>
+        <tr><td><a href="#knn">④ KNN</a></td><td>거리 · K개 이웃의 투표 / 평균</td><td>무엇을 "비슷하다"고 보나?</td></tr>
+        <tr><td><a href="#scaling">⑤ 스케일링 · Pipeline</a></td><td>표준화 · MinMax · ColumnTransformer</td><td>전처리 통계를 train에서만 배우나?</td></tr>
+        <tr><td><a href="#compare">⑥ 공정한 비교</a></td><td>하이퍼파라미터 · 고정 조건 · 기준선 · 진단</td><td>한 조건만 바꿔 valid로 골랐나?</td></tr>
+        <tr><td><a href="#checks">⑦ 검사 · 저장</a></td><td>학습 통계 불변 · 저장 · 복원 대조</td><td>다시 불러도 같은 예측이 나오나?</td></tr>
+      </table>
+<pre><code>문제 정의: 무엇을 예측? (회귀 → elapsed_ms · 분류 → failed) · 예측 시점에 있는 입력만
+  ├ 모델: LinearRegression · LogisticRegression · KNeighbors…
+  ├ 전처리: SimpleImputer → StandardScaler / OneHotEncoder  (ColumnTransformer)
+  └ Pipeline = 전처리 + 모델 한 객체 → fit(train) · predict(valid)
+→ valid로 후보 선택 → 검사 · 저장 → test는 모든 선택이 끝난 뒤 한 번</code></pre>
 
       <!-- ============================================================ -->
       <h2 id="linear">① 선형회귀 — 입력의 가중합으로 숫자를 예측</h2>
@@ -120,7 +111,7 @@ print("6시간:", model.predict([[6]]).round(1)) # [98.1]</code></pre>
           <text x="570" y="104" text-anchor="middle" style="fill:var(--text,#2a2340);font-size:15px;font-weight:700">확인한다</text>
           <text x="570" y="126" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:13px">모든 선택이 끝난 뒤</text>
           <text x="570" y="145" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:13px">딱 한 번</text>
-          <text x="320" y="171" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:12px">강의 공통 자료 100건 · 같은 분할 ID를 모든 실험에서 고정</text>
+          <text x="320" y="171" text-anchor="middle" style="fill:var(--muted,#7a7191);font-size:12px">예시 자료 100건 · 같은 분할 ID를 모든 실험에서 고정</text>
         </svg>
         <figcaption><b>무엇을 보나:</b> 100건이 세 칸으로 나뉘고, 칸마다 <b>하는 일이 하나씩</b> 정해져 있어요. 오른쪽으로 갈수록 "덜 만진" 자료예요. <b>🤔 왜?</b> 점수는 "그 자료를 얼마나 안 봤나"만큼만 믿을 수 있어요. valid는 고르는 데 여러 번 봤으니 살짝 낙관적이고, test는 한 번도 안 봤으니 가장 정직한 마지막 확인이 돼요.</figcaption>
       </figure></div>
@@ -135,7 +126,7 @@ print("6시간:", model.predict([[6]]).round(1)) # [98.1]</code></pre>
       <div class="callout">💡 소요 시간을 ms로 예측하면 MAE·RMSE도 <b>ms</b>예요(RMSE 640 → 640ms). "정확도 90%" 같은 말로 바꾸면 안 돼요.</div>
       <div class="callout">🤔 <strong>왜 RMSE는 제곱했다가 다시 루트를 씌우지?</strong> — 제곱(MSE)으로 큰 오차에 큰 벌점을 주고 싶지만, 그러면 단위가 ms²가 돼서 읽기 어려워요. 루트를 씌우면 <b>벌점 성질은 남기고 단위만 ms로 되돌릴</b> 수 있어요.</div>
 
-      <h3>MAE와 RMSE가 다른 선택을 할 때</h3>
+      <h3 id="mae-rmse">MAE와 RMSE가 다른 선택을 할 때</h3>
       <table>
         <tr><th>모델</th><th>오차</th><th>MAE</th><th>RMSE</th></tr>
         <tr><td>A</td><td>0, 0, 100 (큰 실수 1번)</td><td><b>33.33</b></td><td>57.74</td></tr>
@@ -145,7 +136,7 @@ print("6시간:", model.predict([[6]]).round(1)) # [98.1]</code></pre>
       <div class="callout">🤔 <strong>왜 결과가 뒤집히지?</strong> — MAE는 오차를 그대로 평균: A = (0+0+100)/3 = 33.33, B = 40. RMSE는 제곱해서 평균: A = √(100²/3) = √3333 ≈ 57.74, B = √(40²) = 40. 제곱하면 100은 10000이 되어 혼자 튀어 오르니까, <b>큰 실수 한 번</b>이 있는 A가 RMSE에서 불리해져요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day06/mae_vs_rmse.png" alt="모델 A와 B의 요청별 오차 막대와 MAE, RMSE 비교 막대"><figcaption><b>무엇을 보나:</b> 왼쪽은 요청별 오차(A는 한 번 100, B는 고르게 40), 오른쪽은 같은 오차로 계산한 MAE·RMSE예요. MAE로는 A(33.3)가, RMSE로는 B(40.0)가 이겨요. <b>🤔 왜?</b> RMSE는 오차를 <b>제곱</b>한 뒤 평균을 내니 100이 10000으로 부풀어 A를 57.7까지 끌어올려요. 같은 예측인데도 지표가 "큰 실수 한 번"을 얼마나 무겁게 보느냐에 따라 1등이 바뀌는 거예요.</figcaption></figure></div>
 
-      <h3>R²가 음수라는 뜻</h3>
+      <h3 id="r2-negative">R²가 음수라는 뜻</h3>
       <p>R²의 기준은 "평가 자료의 y 평균을 항상 예측하는 경우"예요. 내 모델의 제곱 오차가 그 기준보다 크면 R²는 0보다 작아져요. <b>코드가 틀렸다는 뜻이 아니라</b>, 평균만 찍는 것보다도 못하다는 뜻이에요.</p>
       <div class="callout">🤔 <strong>왜 음수가 나올 수 있지?</strong> — R² = 1 − (내 모델의 잔차제곱합) / (평균만 찍었을 때의 제곱합)이에요. 내 모델의 오차가 "평균 찍기"보다 크면 분수가 1보다 커지고, 1에서 빼면 음수가 돼요. 위쪽 한계는 오차 0일 때의 1이지만 아래쪽은 한계가 없어요. 단, 이 기준의 평균은 <b>평가 중인 y(valid)의 평균</b>이라 계산 기준일 뿐, 학습 때 미리 알 수 있는 값이 아니에요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day06/r2_three_cases.png" alt="좋은 모델, 평균만 찍기, 평균보다 나쁜 모델의 R² 비교 세 그림"><figcaption><b>무엇을 보나:</b> 같은 점들에 세 가지 예측선을 그렸어요. 세로선(오차)이 짧으면 R²가 1에 가깝고(0.93), 평균선이면 정확히 0, 엉뚱한 선이면 <b>음수</b>(-3.66)예요. <b>🤔 왜?</b> R²는 "평균만 찍기"의 오차를 기준(분모)으로 삼아요. 오른쪽처럼 세로선이 가운데 그림보다 길어지면 분수가 1을 넘어서 1에서 빼면 음수가 돼요. 계산 실수가 아니라 "평균보다 못하다"는 진단이에요.</figcaption></figure></div>
@@ -156,7 +147,7 @@ print("6시간:", model.predict([[6]]).round(1)) # [98.1]</code></pre>
 <pre><code>print("MAE:", round(mean_absolute_error(y_true, y_pred), 2))       # 33.33
 print("RMSE:", round(root_mean_squared_error(y_true, y_pred), 2))  # 38.3</code></pre>
       </div>
-      <div class="figs"><figure><img class="smooth" src="img/day06/real_chars_vs_ms.png" alt="수업 데이터 train의 글자수와 소요시간 산점도, 회귀 직선과 평균선"><figcaption><b>무엇을 보나:</b> 수업 데이터 train에서 글자수(가로)와 실제 소요시간(세로)을 찍은 그림이에요. 보라 직선은 위로 조금 기울었지만 점들이 위아래로 아주 넓게 흩어져 있어요. <b>🤔 왜?</b> 직선과 평균선(점선)이 점들을 설명하는 정도가 거의 비슷하죠. 입력만으로 소요시간을 맞힐 신호가 약하니, valid에서 선형회귀의 R²가 -0.097처럼 0 근처·음수로 나오는 게 이상한 일이 아니에요.</figcaption></figure></div>
+      <div class="figs"><figure><img class="smooth" src="img/day06/real_chars_vs_ms.png" alt="예시 데이터 train의 글자수와 소요시간 산점도, 회귀 직선과 평균선"><figcaption><b>무엇을 보나:</b> 예시 데이터 train에서 글자수(가로)와 실제 소요시간(세로)을 찍은 그림이에요. 보라 직선은 위로 조금 기울었지만 점들이 위아래로 아주 넓게 흩어져 있어요. <b>🤔 왜?</b> 직선과 평균선(점선)이 점들을 설명하는 정도가 거의 비슷하죠. 입력만으로 소요시간을 맞힐 신호가 약하니, valid에서 선형회귀의 R²가 -0.097처럼 0 근처·음수로 나오는 게 이상한 일이 아니에요.</figcaption></figure></div>
 
       <!-- ============================================================ -->
       <h2 id="logistic">③ 로지스틱회귀 — 이름은 회귀지만 분류 모델</h2>
@@ -177,7 +168,7 @@ z =  2.0  →  p = 0.881  →  1 (실패)</code></pre>
       <div class="callout">🤔 <strong>왜 로그 손실을 쓰지?</strong> — 실제 y=1인데 p=0.9를 주면 손실은 −log(0.9) ≈ 0.11, p=0.1을 주면 −log(0.1) ≈ 2.30이에요. <b>틀린 쪽에 자신 있게 말할수록 벌점이 폭발적으로 커져서</b>, 모델이 확률을 조심스럽게 맞추도록 만들어요. F1은 0/1로 끊은 뒤 세는 값이라 계수를 조금씩 고치는 학습에 쓰기 어려워요(조금 바꿔도 값이 계단처럼 안 변함).</div>
       <div class="figs"><figure><img class="smooth" src="img/day06/logloss.png" alt="실제 정답이 1일 때 예측 확률에 따른 로그 손실 곡선"><figcaption><b>무엇을 보나:</b> 실제로 실패(y=1)인 요청에 모델이 준 확률 p별 벌점이에요. p=0.9면 0.11로 작지만, p=0.1이면 2.30으로 커지고, p가 0에 가까워질수록 곡선이 <b>하늘로 치솟아요</b>. <b>🤔 왜?</b> -log(p)는 p→0에서 무한대로 가요. "틀린 쪽에 자신만만"한 답을 강하게 벌주니까, 모델은 확신이 없을 땐 0.5 근처로 조심스럽게 말하도록 학습돼요.</figcaption></figure></div>
 
-      <h3>혼동행렬 — 오류 두 종류를 나눠 읽기</h3>
+      <h3 id="confusion">혼동행렬 — 오류 두 종류를 나눠 읽기</h3>
       <p>실패(1)를 <b>양성</b>으로 정해요. 행 = 실제, 열 = 예측.</p>
       <table>
         <tr><th></th><th>예측 성공(0)</th><th>예측 실패(1)</th></tr>
@@ -206,7 +197,7 @@ p = clf.predict_proba(X_valid)[:, pos]                  # 실패 확률</code></
 <pre><code>pred = (p &gt;= threshold).astype(int)                 # True/False → 1/0
 tn, fp, fn, tp = confusion_matrix(truth, pred, labels=[0, 1]).ravel()</code></pre>
       </div>
-      <p>아래 슬라이더로 임계값을 움직여 보세요. 명령어 사전 코드의 6건(실제 <code>[0, 0, 0, 1, 1, 1]</code>, 확률 <code>[0.10, 0.40, 0.70, 0.35, 0.60, 0.90]</code>)을 그대로 씁니다.</p>
+      <p>아래 슬라이더로 임계값을 움직여 보세요. 명령어 사전 예제의 6건(실제 <code>[0, 0, 0, 1, 1, 1]</code>, 확률 <code>[0.10, 0.40, 0.70, 0.35, 0.60, 0.90]</code>)을 그대로 씁니다.</p>
       <div class="lab">
         <div class="readout">
           <label>임계값 t <input type="range" id="thrRange" min="0.05" max="0.95" step="0.05" value="0.5"> <b id="thrVal">0.50</b></label>
@@ -293,7 +284,7 @@ a = StandardScaler().fit(X)</code></pre>
       <div class="callout">🤔 <strong>왜 이런 숫자가 나오지?</strong> — 표준화: 평균 200, 표준편차 약 81.6 → (100−200)/81.6 ≈ −1.225. MinMax: (x − 최소 100) / (최대 300 − 최소 100) → 500이면 400/200 = <b>2.0</b>. 최소·최대는 <b>train에서 정한 값을 고정</b>해서 쓰니, 그 범위를 넘는 새 값은 0~1 밖으로 나가요. 둘 다 "빼고 나누기"만 하는 선형 변환이라 분포 모양(치우침 등)은 그대로예요.</div>
       <div class="figs"><figure><img class="smooth" src="img/day06/scaler_numberline.png" alt="원래 값, StandardScaler, MinMaxScaler 결과를 숫자선에 비교"><figcaption><b>무엇을 보나:</b> train 100·200·300(보라)과 새 값 500(주황 마름모)을 세 가지 눈금에 올렸어요. 세 줄 모두 점들의 <b>간격 비율과 순서는 그대로</b>이고, 위치와 눈금 크기만 바뀌었어요. <b>🤔 왜?</b> 두 스케일러 모두 "빼고 나누기"만 하는 선형 변환이라 모양을 바꾸지 않아요. MinMax의 0~1(초록 띠)은 train 최소·최대로 정한 범위라, 그보다 큰 새 값 500은 띠 밖의 2.0으로 나가요.</figcaption></figure></div>
 
-      <h3>수치형·범주형은 각자의 길로</h3>
+      <h3 id="columns">수치형·범주형은 각자의 길로</h3>
       <div class="flow">
         <span class="step">입력 X<br><small>4개 열</small></span><span class="arrow">→</span>
         <span class="step"><b>수치 2열</b><br><small>중앙값 대체 → 스케일링</small><br><b>범주 2열</b><br><small>최빈값 대체 → One-hot</small></span><span class="arrow">→</span>
@@ -382,9 +373,9 @@ model = build(KNeighborsClassifier(n_neighbors=5), scale="standard")</code></pre
           <li>실제 곡선은 매끄럽거나 단조롭지 않을 수 있어요(train F1도 K=5 0.462 → K=9 0.519로 오르내림). K=3은 <b>이 고정 실험 안의 잠정 선택</b>이에요.</li>
         </ul>
       </div>
-      <div class="figs"><figure><img class="smooth" src="img/day06/knn_k_search.png" alt="K별 분류 train·valid F1과 회귀 valid RMSE 그래프"><figcaption><b>무엇을 보나:</b> 수업 데이터로 K를 바꿔 가며 직접 계산한 결과예요(위 표 + K=7·11 추가). 왼쪽 분류는 회색 train이 K=1에서 1.0이지만 보라 valid는 K=3에서 최고, 오른쪽 회귀 RMSE는 K가 클수록 계속 내려가요. <b>🤔 왜?</b> K=1은 자기 자신을 이웃으로 삼아 train만 만점이에요(두 선의 큰 격차 = 과적합 신호). 분류는 K가 커지면 다수인 "성공" 표에 묻혀 실패 F1이 0으로 떨어지고, 회귀는 많은 이웃을 평균할수록 극단 예측이 줄어 RMSE가 낮아져요. 그래서 목표마다 최적 K가 달라요. 곡선이 들쭉날쭉한 건 valid가 20건뿐이라서예요.</figcaption></figure></div>
+      <div class="figs"><figure><img class="smooth" src="img/day06/knn_k_search.png" alt="K별 분류 train·valid F1과 회귀 valid RMSE 그래프"><figcaption><b>무엇을 보나:</b> 예시 데이터로 K를 바꿔 가며 직접 계산한 결과예요(위 표 + K=7·11 추가). 왼쪽 분류는 회색 train이 K=1에서 1.0이지만 보라 valid는 K=3에서 최고, 오른쪽 회귀 RMSE는 K가 클수록 계속 내려가요. <b>🤔 왜?</b> K=1은 자기 자신을 이웃으로 삼아 train만 만점이에요(두 선의 큰 격차 = 과적합 신호). 분류는 K가 커지면 다수인 "성공" 표에 묻혀 실패 F1이 0으로 떨어지고, 회귀는 많은 이웃을 평균할수록 극단 예측이 줄어 RMSE가 낮아져요. 그래서 목표마다 최적 K가 달라요. 곡선이 들쭉날쭉한 건 valid가 20건뿐이라서예요.</figcaption></figure></div>
 
-      <h3>지표로 진단하기</h3>
+      <h3 id="diagnose">지표로 진단하기</h3>
       <table>
         <tr><th>이렇게 나오면</th><th>의심할 것</th></tr>
         <tr><td>train은 좋은데 valid는 크게 나쁨 (K=1: 1.000 vs 0.400)</td><td>과적합</td></tr>
@@ -448,10 +439,87 @@ print("통계 불변:", np.array_equal(before, after))                    # True
 restored = joblib.load(path)                # 본인이 만든 파일만 읽기</code></pre>
       </div>
 
+      <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>부품</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td><code>LinearRegression</code></td><td>잔차제곱합이 가장 작은 계수 · 절편</td><td>인과관계 · 학습 범위 밖(외삽) 예측</td></tr>
+        <tr><td><code>LogisticRegression</code> · <code>predict_proba</code></td><td>0~1 사이 추정 확률</td><td>"80% 확실" · 어떤 오류가 더 비싼지</td></tr>
+        <tr><td>임계값</td><td>확률 → 0/1 판단 규칙</td><td>공짜 개선 — FN을 줄이면 FP가 늘 수 있음</td></tr>
+        <tr><td>KNN</td><td>가까운 K개 이웃의 투표 · 평균</td><td>단위가 다른 특성 사이의 공정한 거리 · 본 적 없는 범위의 값</td></tr>
+        <tr><td>스케일러</td><td>train 통계로 맞춘 같은 눈금</td><td>정규분포 · 0~1 범위 유지 · 점수 상승</td></tr>
+        <tr><td><code>Pipeline</code> + <code>ColumnTransformer</code></td><td>train에서만 fit, valid · test는 transform만</td><td>fit에 valid · test를 넣는 실수 방지</td></tr>
+        <tr><td>valid 비교 · 기준선</td><td>같은 조건에서의 잠정 선택</td><td>최종 성능 (선택 편향) — 그건 test 한 번</td></tr>
+        <tr><td>통계 불변 · 저장 · 복원 대조</td><td>누수 · 재현성 확인</td><td>남이 준 파일의 안전 · 다른 버전에서의 같은 결과</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-data">예시 데이터 · 분할</h3>
+      <table>
+        <tr><th>항목</th><th>예시 값</th></tr>
+        <tr><td>자료</td><td>AI 요청 기록 합성 데이터 100건 (일부 결측 포함)</td></tr>
+        <tr><td>분할</td><td>train 60 · valid 20 · test 20 — 같은 분할 ID를 모든 실험에서 고정</td></tr>
+        <tr><td>입력 X (4열)</td><td>수치 <code>input_chars</code> · <code>allowed_tools</code> / 범주 <code>task_type</code> · <code>priority</code></td></tr>
+        <tr><td>정답 y</td><td>회귀 <code>elapsed_ms</code> · 분류 <code>failed</code> (1 = 실패 = 양성)</td></tr>
+        <tr><td>입력에서 뺄 열</td><td>ID · 실행 후 정보 (<code>status</code> · <code>retry_count</code>) · 정답 열</td></tr>
+      </table>
+      <h3 id="spec-rule">전처리 · 비교 규칙 — 예시 설정</h3>
+      <table>
+        <tr><th>항목</th><th>예시 값</th></tr>
+        <tr><td>수치 전처리</td><td>train 중앙값 대체 → 표준화</td></tr>
+        <tr><td>범주 전처리</td><td>train 최빈값 대체 → One-hot (<code>handle_unknown="ignore"</code>) — 변환 후 8열</td></tr>
+        <tr><td>KNN 고정 조건</td><td><code>weights="uniform"</code> · <code>p=2</code></td></tr>
+        <tr><td>K 후보</td><td>1, 3, 5, 9, 15</td></tr>
+        <tr><td>선택 규칙</td><td>분류: valid 실패 F1 최대 · 회귀: valid RMSE 최소 · 동점이면 작은 K</td></tr>
+        <tr><td>기준선</td><td><code>DummyClassifier(strategy="most_frequent")</code> · <code>DummyRegressor(strategy="mean")</code></td></tr>
+      </table>
+      <h3 id="spec-env">환경 — 예시</h3>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>검증 버전</td><td>Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0</td></tr>
+        <tr><td>환경</td><td>기존 프로젝트 <code>.venv</code> 유지</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>scikit-learn</code></td><td>모델(선형·로지스틱·KNN), 전처리, 지표, Pipeline 전부</td><td><code>from sklearn.linear_model import LinearRegression</code> 등</td></tr>
+        <tr><td><code>numpy</code></td><td>숫자 배열 계산 (<code>np.array</code>, <code>np.exp</code>)</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>pandas</code></td><td>표(DataFrame)로 데이터 읽고 비교표 만들기</td><td><code>import pandas as pd</code></td></tr>
+        <tr><td><code>joblib</code></td><td>학습한 Pipeline을 파일로 저장·불러오기 (scikit-learn 설치 시 함께 깔림)</td><td><code>import joblib</code></td></tr>
+        <tr><td>(표준 라이브러리)</td><td><code>pathlib</code>·<code>tempfile</code> — 저장 경로·임시 폴더 (설치 불필요)</td><td><code>from pathlib import Path</code>, <code>import tempfile</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python -m pip install numpy pandas scikit-learn     # 새 환경이면 버전을 고정한 requirements 파일로 준비
+python --version
+python -m pip show numpy pandas scikit-learn
+python -c "import sklearn; print(sklearn.__version__)"
+.venv\Scripts\python.exe -m pip check               # Windows: 프로젝트 인터프리터로 의존성 충돌 확인</code></pre>
+      <div class="callout">💡 pip 이름과 import 이름이 달라요: <code>scikit-learn</code>으로 설치하고 코드에서는 <code>sklearn</code>으로 불러요.</div>
+      <div class="callout warn">⚠️ 기존 가상환경을 유지하고, 작업 도중에 무조건 최신 버전으로 올리지 않아요. 예시 결과는 <a href="#spec-env">📋 명세 — 환경</a>의 버전에서 나온 값이에요. VS Code 인터프리터가 프로젝트의 <code>.venv</code>인지 먼저 확인하세요.</div>
+      <div class="callout">🤔 <strong>왜?</strong> — 라이브러리 버전이 바뀌면 함수 이름·기본값이 달라질 수 있어요(예: <code>root_mean_squared_error</code>는 최근 버전에 생긴 함수). 같은 코드가 같은 숫자를 내려면 <b>검증된 환경</b>을 그대로 쓰는 게 안전해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day6">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 실제로 실행해서 얻은 값이에요.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day07.html#tree">Decision Tree · 앙상블</a></td><td>스케일링이 필요 없는 트리 · Random Forest · XGBoost</td></tr>
+        <tr><td><a href="day07.html#cv">교차검증</a></td><td>valid 20건 한 번에 덜 의존하는 비교</td></tr>
+        <tr><td><a href="day08.html#clsmetrics">분류 지표 · ROC-AUC</a></td><td>Precision · Recall의 분모 · 임계값과 무관한 순위 지표</td></tr>
+        <tr><td><a href="day08.html#final">최종 평가 흐름</a></td><td>선택을 잠그고 재학습 → test 한 번</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
-        <li>강의: <code>20261026월_머신러닝_회귀_분류_KNN_모델비교_Day6 (2).pdf</code> — ① 선형회귀 10~14쪽 · ② 회귀 지표 15~23쪽 · ③ 로지스틱·분류 지표 24~35쪽 · ④ KNN 36~43쪽 · ⑤ 스케일링·Pipeline 44~54쪽 · ⑥ 비교 55~69쪽 · ⑦ 검사·저장 72~73, 77쪽</li>
+        <li>원본: <code>20261026월_머신러닝_회귀_분류_KNN_모델비교_Day6 (2).pdf</code> — ① 선형회귀 10~14쪽 · ② 회귀 지표 15~23쪽 · ③ 로지스틱·분류 지표 24~35쪽 · ④ KNN 36~43쪽 · ⑤ 스케일링·Pipeline 44~54쪽 · ⑥ 비교 55~69쪽 · ⑦ 검사·저장 72~73, 77쪽</li>
         <li>공식 문서: <a href="https://scikit-learn.org/stable/modules/linear_model.html" target="_blank">scikit-learn · Linear models</a> · <a href="https://scikit-learn.org/stable/modules/neighbors.html" target="_blank">Nearest neighbors</a> · <a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank">Metrics and scoring</a> · <a href="https://scikit-learn.org/stable/common_pitfalls.html" target="_blank">Common pitfalls</a></li>
+        <li>결과 값: 명령어 사전의 결과 상자는 <code>tools/io_day06.py</code>, 그림은 <code>tools/visuals/make_day06.py</code>로 실제 실행해 만든 값 (검증 버전은 원본 PDF 6쪽 기준)</li>
       </ul>
     </article>
 

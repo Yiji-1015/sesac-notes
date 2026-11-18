@@ -53,7 +53,7 @@
   document.body.appendChild(box);
 })();
 
-// 2) 용어: 페이지 맨 위 "📖 오늘 나오는 용어" 상자 + 본문 용어에 말풍선
+// 2) 용어: 페이지 맨 위 "📖 핵심 용어" 상자 + 본문 용어에 말풍선
 //    (데이터는 glossary.js — terms/*.json 을 고치고 build_glossary.py 실행)
 (() => {
   const G = window.GLOSSARY;
@@ -65,7 +65,7 @@
   const pageDay = m ? parseInt(m[1], 10) : null;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  // (a) 오늘 나오는 용어 상자
+  // (a) 핵심 용어 상자
   const note = document.querySelector('article.note');
   if (note && pageDay) {
     const keys = G.filter(e => e.keyDays.includes(pageDay));
@@ -73,7 +73,7 @@
     if (keys.length) {
       const box = document.createElement('section');
       box.className = 'term-box';
-      box.innerHTML = `<h2 class="term-box-title">📖 오늘 나오는 용어 <small>— 이것만 알고 시작해요</small></h2>
+      box.innerHTML = `<h2 class="term-box-title">📖 핵심 용어 <small>— 이것만 알고 시작해요</small></h2>
         <div class="term-cards">${keys.map(e => `
           <div class="term-card">
             <div class="term-name">${esc(e.term)}</div>

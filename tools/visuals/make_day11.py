@@ -264,7 +264,7 @@ def fig_feature_maps():
             axes[row, i + 1].set_title(f"ch{i}: {kn}\n평균 {mean:.2f}", fontsize=10.5)
     for a in axes.flat:
         grid_ax(a)
-    fig.text(0.5, -0.03, "수업 예제 데이터 두 장 · Conv(1→4채널, Kernel은 손으로 정함, 학습 X) → ReLU.  "
+    fig.text(0.5, -0.03, "예제 데이터 두 장 · Conv(1→4채널, Kernel은 손으로 정함, 학습 X) → ReLU.  "
              "밝을수록 강한 반응. 채널 하나 = Feature Map 한 장", ha="center", fontsize=10)
     save(fig, DAY, "feature_maps")
 

@@ -225,7 +225,7 @@ def canny_thresholds():
     g = cv2.GaussianBlur(cv2.cvtColor(noisy, cv2.COLOR_BGR2GRAY), (5, 5), 0)
     fig, axs = plt.subplots(1, 3, figsize=(10.5, 3.0))
     for ax, (t1, t2, note) in zip(axs, [(20, 50, "낮게: 잡음 결까지 경계"),
-                                        (70, 150, "강의 예시값"),
+                                        (70, 150, "예시 설정값"),
                                         (200, 400, "높게: 약한 경계를 놓침")]):
         e = cv2.Canny(g, t1, t2)
         show(ax, 255 - e, f"Canny({t1}, {t2}) · 경계 {int((e > 0).sum()):,}칸\n{note}")

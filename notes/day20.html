@@ -27,77 +27,24 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day20 명령어 한눈에 — 이론 구역별 코드·인자 설명 <a href="../commands.html#day20">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 강의 코드를 이 PC의 <b>CPU</b>에서 실제로 돌린 거예요 (Tokenizer·문장 모델은 Hugging Face에서 내려받아 실행).</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
-      <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>torch</code></td><td>Tensor 계산 · <code>nn.Embedding</code> · <code>nn.TransformerEncoderLayer</code> · Softmax</td><td><code>import torch</code> · <code>import torch.nn.functional as F</code></td></tr>
-        <tr><td><code>transformers</code></td><td>Hugging Face — 모델 이름으로 Tokenizer·모델을 내려받아 씀</td><td><code>from transformers import AutoTokenizer</code></td></tr>
-        <tr><td><code>sentence-transformers</code> (선택)</td><td>문장 하나 → 벡터 하나 (문장 Embedding)</td><td><code>from sentence_transformers import SentenceTransformer</code></td></tr>
-      </table>
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 설치 · 버전 확인 <a href="../commands.html#d20-pip-install">명령어 사전에서 자세히 →</a></div>
-<pre><code>python -m pip install torch transformers sentence-transformers</code></pre>
-      </div>
-      <div class="callout">💡 오늘 코드는 모두 <b>작은 Tensor</b>라 CPU로 충분해요. Tokenizer·문장 모델은 <b>처음 한 번</b> 인터넷에서 내려받아요. 숫자 자체보다 <b>shape · Mask · 입력과 출력의 의미</b>를 보는 날이에요.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
-      <p>"FastAPI에서 PostgreSQL 연결이 안 됩니다." — 이런 문의에 AI 도우미가 <b>증상 설명 · 근거 문서 · 확인 절차</b>를 답하려면, 지난 3일에 만든 API·DB 위에 "문장을 읽고 만드는" 부품이 하나 더 필요해요. 그게 LLM이에요. 오늘은 그 부품의 <b>안쪽</b>을 열어 봐요.</p>
-      <figure id="fig-system"><img class="smooth" src="img/day20/system_map.png" alt="사용자 → FastAPI → Agent 처리 → LLM → 응답. LLM 위에 RAG 검색 근거가 Context로 들어가고, Agent 아래 Tool 실행은 Backend가 권한을 확인"><figcaption><b>무엇을 보나:</b> AI 도우미 서비스 한 건의 흐름이에요. <b>LLM(보라)</b>은 문맥을 읽고 다음 Token을 만드는 부분이에요. 근거 문서는 <b>RAG(초록)</b>가 찾아 LLM 입력(Context)에 넣어 주고, 실제 시스템을 바꾸는 <b>Tool(분홍)</b> 실행은 Backend가 권한을 확인해요. 🤔 <b>왜 나눠?</b> LLM은 그럴듯한 문장을 만들 뿐, 문서를 찾거나 DB를 고칠 권한을 스스로 판단하지 못하니까요.</figcaption></figure>
-      <table>
-        <tr><th>날짜</th><th>만든 것</th><th>역할</th></tr>
-        <tr><td>11/10 Day17</td><td>FastAPI <code>/api/knowledge</code></td><td>서비스 입구</td></tr>
-        <tr><td>11/11 Day18</td><td>PostgreSQL 지식·분류 표</td><td>원본 지식 저장</td></tr>
-        <tr><td>11/12 Day19</td><td>API ↔ DB 연동</td><td>API 요청이 실제 행으로</td></tr>
-        <tr><td><b>11/13 오늘</b></td><td>LLM 원리</td><td>그 위에서 동작할 언어 모델 이해</td></tr>
-        <tr><td>이후</td><td>11/16 Prompt → 11/17 LLM API → 11/18 Embedding·Vector DB → 11/19 Chunking → 11/20 Basic RAG</td><td>검색·생성·도구</td></tr>
-      </table>
-      <figure id="fig-zoom"><img class="smooth" src="img/day20/zoom_map.png" alt="AI Agent 서비스 안에 LLM 호출, 그 안에 Transformer 층 반복, Block, Self-Attention, Q/K/V 계산이 차례로 들어 있는 확대 지도"><figcaption><b>무엇을 보나:</b> 오늘의 확대 지도예요. 바깥(서비스)에서 안쪽(Attention 계산 한 줄)으로 6단계 들어가요. 노트도 이 순서를 거꾸로 — 바깥 생태계(①)부터 안쪽 계산(⑤)까지 — 따라가요. ⚠️ <b>Tokenizer는 이 상자들 밖</b>이에요. 모델 입력을 준비하는 별도 단계라서요.</figcaption></figure>
-
-      <!-- ============================================================ -->
-      <h2 id="spec">📋 명세 — 문장 하나가 다음 Token이 되기까지</h2>
-      <p>오늘 다룬 단계들의 <b>입력과 출력 약속</b>을 한곳에 모았어요. shape는 명령어 사전에서 실제로 돌린 예(배치 B=2, Token T=5, feature D=8, 어휘 V=100)예요.</p>
+      <h2 id="map">🗺️ 큰 그림 — 문장 하나가 다음 Token이 되기까지</h2>
       <figure id="fig-pipeline"><img class="smooth" src="img/day20/pipeline.png" alt="문자열, Tokenizer, Token ID, Embedding, Transformer, LM Head, Decode 일곱 단계. Tokenizer와 Token ID 칸에 실제 실행 결과, 마지막에서 처음으로 돌아가는 반복 화살표"><figcaption><b>무엇을 보나:</b> "실습 파일은 개인 폴더에 보관합니다."(공백 포함 20글자)를 실제 Tokenizer에 넣었더니 <b>Token 17개</b>(앞뒤 구분용 2개 포함)가 됐어요. 그 뒤로는 ID → 벡터 → 문맥 표현 → 어휘 전체 점수 → 하나 선택 → <b>문맥 끝에 붙여 다시</b>(초록 점선). 🤔 <b>왜 한 번에 문장 전체를 안 만들어?</b> LLM은 "다음 Token 하나"의 점수만 계산하는 기계라서, 문장은 그걸 반복해서 만들어져요.</figcaption></figure>
-
-      <h3>1. 단계별 입력 · 출력</h3>
+      <p>"FastAPI에서 PostgreSQL 연결이 안 됩니다." 같은 문의에 AI 도우미가 <b>증상 설명 · 근거 문서 · 확인 절차</b>를 답하려면, <a href="day19.html">지식 관리 API · DB</a> 위에 "문장을 읽고 만드는" 부품이 하나 더 필요해요. 그게 LLM이에요. 이 페이지는 그 부품의 <b>안쪽</b>을 열어 봐요.</p>
       <table>
-        <tr><th>단계</th><th>입력</th><th>출력</th><th>자료형 · shape 예</th><th>하지 않는 일</th></tr>
-        <tr><td><b>Tokenizer</b></td><td>문자열</td><td>Token 조각 · <code>input_ids</code> · <code>attention_mask</code></td><td>정수 리스트 / <code>(B, T)</code></td><td>의미 계산 (규칙대로 자르고 번호 찾기만)</td></tr>
-        <tr><td><b>Embedding</b></td><td><code>input_ids</code></td><td>Token 벡터</td><td>실수 <code>(B, T, D)</code> = <code>(2, 5, 8)</code></td><td>문맥 반영 (같은 ID면 같은 벡터)</td></tr>
-        <tr><td><b>Transformer Block × N</b></td><td>Token 벡터 + 위치 정보</td><td>문맥 표현 (Hidden State)</td><td><code>(B, T, D)</code> 그대로</td><td>shape 변경</td></tr>
-        <tr><td><b>LM Head</b></td><td>Hidden State</td><td>Logit (어휘 전체 점수)</td><td><code>(B, T, V)</code> = <code>(2, 5, 100)</code></td><td>확률 만들기 (음수도 됨)</td></tr>
-        <tr><td><b>Softmax</b></td><td>마지막 위치 Logit <code>/ temperature</code></td><td>확률 분포</td><td><code>(B, V)</code> · 합 1</td><td>Token 고르기</td></tr>
-        <tr><td><b>Decode</b></td><td>확률 분포</td><td>다음 Token 하나</td><td>정수 ID</td><td>사실 확인</td></tr>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#eco">① 생태계 · 역할</a></td><td>모델 · Runtime · 서비스 · 데이터 · 운영 계층</td><td>LLM은 서비스에서 어떤 부품이고, 무엇을 못 하나?</td></tr>
+        <tr><td><a href="#token">② Tokenizer</a></td><td>문자열 → Token → Token ID · Mask · Context Window</td><td>모델은 글자를 어떤 단위로 받나?</td></tr>
+        <tr><td><a href="#embedding">③ Embedding</a></td><td>ID → 벡터 · 위치 정보 · 유사도</td><td>번호를 어떻게 계산 가능한 값으로 바꾸나?</td></tr>
+        <tr><td><a href="#block">④ Transformer Block</a></td><td>Attention · FFN · Residual · Norm × N층</td><td>벡터가 어떻게 문맥 표현이 되나?</td></tr>
+        <tr><td><a href="#attention">⑤ Self-Attention</a></td><td>Q·Kᵀ/√d → Mask → Softmax → V 가중합</td><td>누구의 정보를 얼마나 섞나?</td></tr>
+        <tr><td><a href="#infer">⑥ 학습 · 추론 · 디코딩</a></td><td>Logit → Softmax · Temperature → Token 선택 반복</td><td>다음 Token은 어떻게 고르고, 가중치는 언제 바뀌나?</td></tr>
+        <tr><td><a href="#limits">⑦ 한계 · 검증</a></td><td>틀릴 수 있는 위치 · RAG/Agent 경계</td><td>이 출력을 믿어도 되나, 무엇을 붙여야 하나?</td></tr>
       </table>
+      <figure id="fig-zoom"><img class="smooth" src="img/day20/zoom_map.png" alt="AI Agent 서비스 안에 LLM 호출, 그 안에 Transformer 층 반복, Block, Self-Attention, Q/K/V 계산이 차례로 들어 있는 확대 지도"><figcaption><b>무엇을 보나:</b> LLM의 확대 지도예요. 바깥(서비스)에서 안쪽(Attention 계산 한 줄)으로 6단계 들어가요. 이 페이지의 ①~⑤도 바깥 생태계부터 안쪽 계산까지 이 순서로 들어가요. ⚠️ <b>Tokenizer는 이 상자들 밖</b>이에요. 모델 입력을 준비하는 별도 단계라서요.</figcaption></figure>
 
-      <h3 id="spec-mask">2. Mask 네 가지 — True·1의 뜻이 다르다</h3>
-      <table>
-        <tr><th>어디서</th><th>값</th><th>뜻</th><th>막는 것</th></tr>
-        <tr><td>Tokenizer <code>attention_mask</code></td><td><code>1</code> / <code>0</code></td><td><b>1 = 본다</b> (실제 Token)</td><td>PAD</td></tr>
-        <tr><td>PyTorch <code>src_key_padding_mask</code></td><td><code>True</code> / <code>False</code></td><td><b>True = 안 본다</b></td><td>PAD</td></tr>
-        <tr><td>직접 <code>masked_fill(mask, -inf)</code></td><td><code>True</code> / <code>False</code></td><td><b>True = 가린다</b></td><td>미래 (Causal)</td></tr>
-        <tr><td><code>F.scaled_dot_product_attention(attn_mask=)</code></td><td><code>True</code> / <code>False</code></td><td><b>True = 본다</b></td><td>미래 또는 PAD</td></tr>
-      </table>
-      <p style="color:var(--muted);font-size:0.9rem">아래 두 줄은 실제로 돌려 확인했어요: Tokenizer의 <code>attention_mask</code>를 <code>== 0</code>으로 뒤집어 <code>src_key_padding_mask</code>에 줘야 PAD 값이 결과에 안 섞이고, SDPA에는 <code>masked_fill</code>용 Mask를 <code>~</code>로 뒤집어 줘야 <code>is_causal=True</code>와 같아요.</p>
-
-      <h3>3. 숫자 읽는 규칙</h3>
-      <table>
-        <tr><th>숫자</th><th>맞는 해석</th><th>틀린 해석</th></tr>
-        <tr><td>Token ID (예: 119081)</td><td>Vocabulary 안의 번호</td><td>클수록 중요한 단어</td></tr>
-        <tr><td>Token 수</td><td>Context·요금·속도의 단위</td><td>글자 수 · 단어 수와 같음</td></tr>
-        <tr><td>Logit</td><td>후보별 점수 (음수 가능)</td><td>확률 %</td></tr>
-        <tr><td>Attention Weight 행</td><td>그 Query가 각 Key를 참고한 비율 · 행 합 1</td><td>모델 판단의 유일한 이유</td></tr>
-        <tr><td>Cosine 유사도</td><td>두 벡터의 방향이 얼마나 같은가</td><td>답이 맞을 확률</td></tr>
-      </table>
-
-      <!-- ============================================================ -->
       <h2 id="eco">① LLM 생태계 · 서비스 속 역할</h2>
+      <figure id="fig-system"><img class="smooth" src="img/day20/system_map.png" alt="사용자 → FastAPI → Agent 처리 → LLM → 응답. LLM 위에 RAG 검색 근거가 Context로 들어가고, Agent 아래 Tool 실행은 Backend가 권한을 확인"><figcaption><b>무엇을 보나:</b> AI 도우미 서비스 한 건의 흐름이에요. <b>LLM(보라)</b>은 문맥을 읽고 다음 Token을 만드는 부분이에요. 근거 문서는 <b>RAG(초록)</b>가 찾아 LLM 입력(Context)에 넣어 주고, 실제 시스템을 바꾸는 <b>Tool(분홍)</b> 실행은 Backend가 권한을 확인해요. 🤔 <b>왜 나눠?</b> LLM은 그럴듯한 문장을 만들 뿐, 문서를 찾거나 DB를 고칠 권한을 스스로 판단하지 못하니까요.</figcaption></figure>
       <table>
         <tr><th>용어</th><th>뜻</th></tr>
         <tr><td><b>AI</b></td><td>언어·시각·판단 등 넓은 지능적 작업을 하는 기술 전체</td></tr>
@@ -116,7 +63,7 @@
         <tr><td>데이터</td><td>PostgreSQL · 문서 · Metadata</td><td>어떤 지식과 출처를 보관하나?</td></tr>
         <tr><td>운영</td><td>권한 · 평가 · 로그 · 비용</td><td>어디까지 신뢰하고 통제하나?</td></tr>
       </table>
-      <div class="callout">🤔 <strong>모델만 설치하면 서비스가 되는 거 아냐?</strong> — 아니에요. 모델은 첫 줄 하나예요. 인증·근거·정확성은 아래 계층들이 따로 보장해야 해요. Day17~19에서 만든 API·DB가 바로 그 아래 계층이에요.</div>
+      <div class="callout">🤔 <strong>모델만 설치하면 서비스가 되는 거 아냐?</strong> — 아니에요. 모델은 첫 줄 하나예요. 인증·근거·정확성은 아래 계층들이 따로 보장해야 해요. <a href="day19.html">FastAPI–PostgreSQL 연동</a>으로 만든 지식 API·DB가 바로 그 아래 계층이에요.</div>
 
       <h3>잘 맞는 일 vs 검증 없이는 위험한 일</h3>
       <table>
@@ -136,7 +83,7 @@
         <tr><td><b>Context · 비용</b></td><td>입력 길이 · 요금 · 응답 시간 · 장비 자원의 제약이 있어요</td></tr>
         <tr><td><b>보안 · 권한</b></td><td>프롬프트만으로 권한 판단과 개인정보 보호가 완성되지 않아요</td></tr>
       </table>
-      <div class="callout">🤔 <strong>그럼 Day18~19에 만든 지식 DB는 왜 필요해?</strong> — "지식 시점" 한계 때문이에요. LLM이 모르는 최신·사내 지식을 <b>검색해서 입력에 붙여 주면</b>(Retriever → LLM) 그걸 근거로 답할 수 있어요. 이게 RAG예요. 단, DB가 있다고 자동으로 RAG가 되진 않아요 — 검색·입력 구성·출처 확인을 따로 만들어야 해요(11/20). 그리고 검색해서 붙이는 건 <b>학습이 아니에요</b>. 모델 가중치는 그대로예요.</div>
+      <div class="callout">🤔 <strong>그럼 따로 만든 지식 DB는 왜 필요해?</strong> — "지식 시점" 한계 때문이에요. LLM이 모르는 최신·사내 지식을 <b>검색해서 입력에 붙여 주면</b>(Retriever → LLM) 그걸 근거로 답할 수 있어요. 이게 RAG예요. 단, DB가 있다고 자동으로 RAG가 되진 않아요 — 검색·입력 구성·출처 확인을 따로 만들어야 해요. 그리고 검색해서 붙이는 건 <b>학습이 아니에요</b>. 모델 가중치는 그대로예요.</div>
 
       <!-- ============================================================ -->
       <h2 id="token">② Tokenizer — 문자열이 정수 ID가 되기까지</h2>
@@ -197,7 +144,7 @@ batch["input_ids"].shape          # → torch.Size([2, 9])</code></pre>
 
       <h3 id="context">Context Window — 한 요청에서 모델이 보는 Token 범위</h3>
       <p>Context Window에는 <b>시스템 지시 · 질문 · 대화 이력 · 검색 근거 · 출력</b>까지 전부 들어가요. 출력도 같은 예산을 나눠 써요.</p>
-      <figure id="fig-budget"><img class="smooth" src="img/day20/context_budget.png" alt="System 300, 이전 대화 1200, 검색 근거 2000, User 질문 150, 출력 예약 850 Token을 이어 붙인 막대, 합계 4500"><figcaption><b>무엇을 보나:</b> 강의의 산술 예시(합계 4,500 Token)를 그린 거예요. 실제 모델의 한도나 요금이 아니에요. 검색 근거가 가장 큰 덩어리고, 답변을 쓸 자리(850)도 미리 남겨 둬야 해요. 🤔 <b>그럼 많이 넣을수록 좋아?</b> 아니에요. 너무 긴 문맥은 잡음이 되고, 잘리거나 중요한 근거를 놓치기도 해요. 그리고 Context Window는 <b>영구 기억(Memory)이 아니에요</b> — 요청이 끝나면 사라져요.</figcaption></figure>
+      <figure id="fig-budget"><img class="smooth" src="img/day20/context_budget.png" alt="System 300, 이전 대화 1200, 검색 근거 2000, User 질문 150, 출력 예약 850 Token을 이어 붙인 막대, 합계 4500"><figcaption><b>무엇을 보나:</b> 산술 예시(합계 4,500 Token)를 그린 거예요. 실제 모델의 한도나 요금이 아니에요. 검색 근거가 가장 큰 덩어리고, 답변을 쓸 자리(850)도 미리 남겨 둬야 해요. 🤔 <b>그럼 많이 넣을수록 좋아?</b> 아니에요. 너무 긴 문맥은 잡음이 되고, 잘리거나 중요한 근거를 놓치기도 해요. 그리고 Context Window는 <b>영구 기억(Memory)이 아니에요</b> — 요청이 끝나면 사라져요.</figcaption></figure>
       <table>
         <tr><th>Token 수를 세야 하는 이유</th><th>내용</th></tr>
         <tr><td>계산량 · 지연</td><td>입력 길이와 생성 길이가 응답 시간에 영향</td></tr>
@@ -235,12 +182,12 @@ emb(torch.tensor([7, 3, 99, 3, 0])).shape        # → torch.Size([5, 4])</code>
       <table>
         <tr><th></th><th>Token Embedding</th><th>Sentence Embedding</th></tr>
         <tr><td>단위</td><td>Token 하나 → 벡터 하나</td><td>문장·문서 전체 → 벡터 하나</td></tr>
-        <tr><td>쓰임</td><td>모델 입력 — 뒤의 Attention을 거치며 문맥에 따른 Hidden State가 됨</td><td>의미가 가까운 문장 찾기 · <b>검색</b> (11/18 Vector DB)</td></tr>
+        <tr><td>쓰임</td><td>모델 입력 — 뒤의 Attention을 거치며 문맥에 따른 Hidden State가 됨</td><td>의미가 가까운 문장 찾기 · <b>검색</b> (<a href="day23.html">Vector Search</a>)</td></tr>
         <tr><td>주의</td><td>위치 정보는 따로 반영</td><td>Pooling·학습 목적에 따라 표현이 달라짐 — Token 벡터를 그냥 평균한다고 좋은 문장 벡터가 되진 않음</td></tr>
       </table>
 
       <h3 id="cosine">Cosine Similarity — 방향이 얼마나 같은가</h3>
-      <figure id="fig-cos"><img class="smooth" src="img/day20/cosine_2d.png" alt="원점에서 뻗은 화살표 a [1,0], b [0.8,0.2], c [-1,0], d [3,0]과 a와의 cosine 값 0.9701, -1, 1"><figcaption><b>무엇을 보나:</b> 강의 코드 값으로 그린 그림이에요. a와 b는 거의 같은 방향이라 <b>0.9701</b>, c는 정반대라 <b>-1</b>. 점선 d <code>[3, 0]</code>은 a보다 3배 길지만 방향이 같아서 <b>1</b>이에요. 🤔 <b>왜 길이를 무시해?</b> 문장이 길어 벡터가 커지는 것보다 "어느 쪽을 가리키나(뜻)"를 비교하고 싶어서예요.</figcaption></figure>
+      <figure id="fig-cos"><img class="smooth" src="img/day20/cosine_2d.png" alt="원점에서 뻗은 화살표 a [1,0], b [0.8,0.2], c [-1,0], d [3,0]과 a와의 cosine 값 0.9701, -1, 1"><figcaption><b>무엇을 보나:</b> 예제 벡터 값으로 그린 그림이에요. a와 b는 거의 같은 방향이라 <b>0.9701</b>, c는 정반대라 <b>-1</b>. 점선 d <code>[3, 0]</code>은 a보다 3배 길지만 방향이 같아서 <b>1</b>이에요. 🤔 <b>왜 길이를 무시해?</b> 문장이 길어 벡터가 커지는 것보다 "어느 쪽을 가리키나(뜻)"를 비교하고 싶어서예요.</figcaption></figure>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>F.cosine_similarity</code> <a href="../commands.html#d20-cosine">명령어 사전에서 자세히 →</a></div>
 <pre><code>F.cosine_similarity(torch.tensor([1.0, 0.0]), torch.tensor([0.8, 0.2]), dim=0)   # → 0.9701</code></pre>
@@ -268,12 +215,12 @@ model.similarity(vectors, vectors)</code></pre>
         <tr><td><b>Residual</b></td><td><code>x + f(x)</code> — 원래 표현을 더함</td><td>층이 깊어도 정보·기울기가 끊기지 않게 (Attention이 아니라 우회로)</td></tr>
         <tr><td><b>LayerNorm</b></td><td>표현의 크기(스케일)를 맞춤</td><td>수십 층을 안정적으로 학습시키려고</td></tr>
       </table>
-      <div class="callout">🤔 <strong>Self-Attention만 구현하면 Transformer야?</strong> — 아니에요. Attention은 "누구 정보를 섞을지"만 정해요. FFN·Residual·Norm이 같이 있어야 Block이 되고, Block을 여러 층 쌓아야 모델이 돼요. Day12에서 처음 본 Attention이 오늘은 Block 안의 한 칸이에요.</div>
+      <div class="callout">🤔 <strong>Self-Attention만 구현하면 Transformer야?</strong> — 아니에요. Attention은 "누구 정보를 섞을지"만 정해요. FFN·Residual·Norm이 같이 있어야 Block이 되고, Block을 여러 층 쌓아야 모델이 돼요. <a href="day12.html#attn">순서 모델의 Attention</a>은 여기서 Block 안의 한 칸이에요.</div>
 
       <h3>Encoder · Decoder · Encoder–Decoder</h3>
       <table>
         <tr><th>유형</th><th>자주 하는 일</th><th>Attention 방향</th><th>예</th></tr>
-        <tr><td>Encoder</td><td>문장 표현 · 분류 · 검색 입력</td><td>대체로 <b>양방향</b> (앞뒤 다 봄)</td><td>BERT · 오늘의 Tokenizer 모델</td></tr>
+        <tr><td>Encoder</td><td>문장 표현 · 분류 · 검색 입력</td><td>대체로 <b>양방향</b> (앞뒤 다 봄)</td><td>BERT · 위에서 쓴 Tokenizer 모델</td></tr>
         <tr><td><b>Decoder-only</b></td><td>다음 Token 생성 · 대화</td><td>대체로 <b>Causal</b> (앞만 봄)</td><td>GPT 계열 대부분의 LLM</td></tr>
         <tr><td>Encoder–Decoder</td><td>번역 · 요약 등 조건부 생성</td><td>Encoder 양방향 + Decoder Causal</td><td>T5 계열</td></tr>
       </table>
@@ -320,7 +267,7 @@ layer(torch.randn(2, 5, 8)).shape               # → torch.Size([2, 5, 8])</cod
 <pre><code>scores = q @ k.T / math.sqrt(2)
 weights = torch.softmax(scores.masked_fill(mask, float("-inf")), dim=-1)</code></pre>
       </div>
-      <figure id="fig-att"><img class="smooth" src="img/day20/attention_mask.png" alt="세 개의 3x3 히트맵: Softmax 전 scores, Causal Mask 적용 후 weights, Mask 없는 weights와 각각의 출력 벡터"><figcaption><b>무엇을 보나:</b> 강의 코드를 실제로 계산한 세 단계예요. ① 점수는 아직 확률이 아니에요(1.41처럼 1보다 큼). ② Causal Mask를 씌우면 대각선 위가 0이 되고 각 행 합이 1 — t1은 자기만, t3는 <b>[0.25, 0.25, 0.50]</b>. 출력 t3 = 0.25·[1,0] + 0.25·[0,1] + 0.5·[1,1] = <b>[0.75, 0.75]</b>. ③ Mask가 없으면 t1이 미래 t3에 0.40을 줘요. 🤔 <b>t3 행은 왜 ②와 ③이 같아?</b> 마지막 위치는 원래 볼 미래가 없어서 Mask가 가릴 게 없거든요.</figcaption></figure>
+      <figure id="fig-att"><img class="smooth" src="img/day20/attention_mask.png" alt="세 개의 3x3 히트맵: Softmax 전 scores, Causal Mask 적용 후 weights, Mask 없는 weights와 각각의 출력 벡터"><figcaption><b>무엇을 보나:</b> 작은 예제 Q/K/V를 실제로 계산한 세 단계예요. ① 점수는 아직 확률이 아니에요(1.41처럼 1보다 큼). ② Causal Mask를 씌우면 대각선 위가 0이 되고 각 행 합이 1 — t1은 자기만, t3는 <b>[0.25, 0.25, 0.50]</b>. 출력 t3 = 0.25·[1,0] + 0.25·[0,1] + 0.5·[1,1] = <b>[0.75, 0.75]</b>. ③ Mask가 없으면 t1이 미래 t3에 0.40을 줘요. 🤔 <b>t3 행은 왜 ②와 ③이 같아?</b> 마지막 위치는 원래 볼 미래가 없어서 Mask가 가릴 게 없거든요.</figcaption></figure>
 
       <h3 id="mask">Padding Mask와 Causal Mask는 막는 게 다르다</h3>
       <table>
@@ -365,14 +312,14 @@ weights = torch.softmax(scores.masked_fill(mask, float("-inf")), dim=-1)</code><
 
       <!-- ============================================================ -->
       <h2 id="lab">🧪 Attention 계산기</h2>
-      <p>Token 세 개의 벡터(Q = K = V로 둠)를 바꾸고 Causal Mask를 켜고 꺼 보세요. 처음 값은 강의 코드와 같아서 명령어 사전의 실제 실행 결과와 같은 숫자가 나와요.</p>
+      <p>Token 세 개의 벡터(Q = K = V로 둠)를 바꾸고 Causal Mask를 켜고 꺼 보세요. 처음 값은 명령어 사전의 예제와 같아서 실제 실행 결과와 같은 숫자가 나와요.</p>
       <div class="lab" id="att-lab">
         <div class="readout" style="gap:14px;flex-wrap:wrap">
           <label>t1 <input type="number" step="0.5" id="al-00" value="1" style="width:4em"> <input type="number" step="0.5" id="al-01" value="0" style="width:4em"></label>
           <label>t2 <input type="number" step="0.5" id="al-10" value="0" style="width:4em"> <input type="number" step="0.5" id="al-11" value="1" style="width:4em"></label>
           <label>t3 <input type="number" step="0.5" id="al-20" value="1" style="width:4em"> <input type="number" step="0.5" id="al-21" value="1" style="width:4em"></label>
           <label><input type="checkbox" id="al-causal" checked> Causal Mask</label>
-          <button type="button" class="filter-btn" id="al-reset">↺ 강의 값</button>
+          <button type="button" class="filter-btn" id="al-reset">↺ 처음 값</button>
         </div>
         <div class="readout" style="gap:22px;flex-wrap:wrap;align-items:flex-start">
           <div><b>scores (Softmax 전)</b><table id="al-scores"></table></div>
@@ -402,7 +349,7 @@ loss.backward(); optimizer.step()                    # 학습 — weight 변경<
       <h3>사전학습 뒤 모델을 쓰는 세 방법</h3>
       <table>
         <tr><th>방법</th><th>가중치</th><th>무엇을 바꾸나</th></tr>
-        <tr><td><b>Prompting</b></td><td>그대로</td><td>입력 지시·예시 (11/16)</td></tr>
+        <tr><td><b>Prompting</b></td><td>그대로</td><td>입력 지시·예시 (<a href="day21.html">Prompt</a>)</td></tr>
         <tr><td><b>Instruction Tuning</b></td><td>추가 학습</td><td>"지시 → 응답" 예시로 지시를 따르게</td></tr>
         <tr><td><b>Preference Alignment</b></td><td>추가 학습</td><td>사람이 더 좋다고 고른 응답 쪽으로 행동 조정</td></tr>
       </table>
@@ -468,7 +415,7 @@ loss.backward(); optimizer.step()                    # 학습 — weight 변경<
         <tr><td>재현성</td><td>같은 모델·설정에서 동작을 설명할 수 있나?</td><td>버전 · Seed · 로그</td></tr>
         <tr><td>안전성</td><td>비밀 · 권한 · 오염된 근거에 대응하나?</td><td>거부 · 승인 규칙</td></tr>
       </table>
-      <div class="callout warn">⚠️ <b>Pydantic 응답 검증으로 환각을 없앨 수 있을까?</b> 아니에요. Day17에서 쓴 Pydantic은 <b>형식</b>을 검사해요. 형식이 맞는 틀린 답은 그대로 통과해요. 그리고 근거가 있다고 그 근거가 최신·정확하다는 뜻도 아니에요.</div>
+      <div class="callout warn">⚠️ <b>Pydantic 응답 검증으로 환각을 없앨 수 있을까?</b> 아니에요. API 입력·응답 검증에 쓰는 Pydantic은 <b>형식</b>을 검사해요. 형식이 맞는 틀린 답은 그대로 통과해요. 그리고 근거가 있다고 그 근거가 최신·정확하다는 뜻도 아니에요.</div>
 
       <h3>무엇에 무엇을 붙이나</h3>
       <table>
@@ -494,29 +441,81 @@ loss.backward(); optimizer.step()                    # 학습 — weight 변경<
       </table>
       <h3>지식 관리 API에 LLM을 붙이면 새로 생기는 것</h3>
       <table>
-        <tr><th>이미 있음 (Day17~19)</th><th>이후 추가해야 함</th></tr>
+        <tr><th>이미 있음 (지식 관리 API)</th><th>이후 추가해야 함</th></tr>
         <tr><td><code>/api/knowledge</code> CRUD</td><td>질문 처리용 LLM 호출</td></tr>
         <tr><td>PostgreSQL 원본 지식 · 분류</td><td>관련 지식 검색 · Chunking · Vector DB</td></tr>
         <tr><td>HTTP 오류와 DB 트랜잭션</td><td>근거 · 사실성 평가와 출처 관리</td></tr>
         <tr><td>서버 재시작 후 저장 유지</td><td>필요하면 Agent 도구 · 권한 · 상태</td></tr>
       </table>
-      <div class="callout">💡 원본 지식을 수정·삭제하면 <b>검색 인덱스에도 반영</b>되도록 설계해야 해요. Day19에서 말한 "원본을 고쳐도 인덱스는 별도 동기화"가 바로 이 얘기예요.</div>
+      <div class="callout">💡 원본 지식을 수정·삭제하면 <b>검색 인덱스에도 반영</b>되도록 설계해야 해요. <a href="day19.html#whole">FastAPI–PostgreSQL 연동</a>의 "원본을 고쳐도 인덱스는 별도 동기화"가 바로 이 얘기예요.</div>
+
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <p>단계별 <b>입력과 출력 약속</b>을 한곳에 모은 참조표예요. shape는 명령어 사전에서 실제로 돌린 예(배치 B=2, Token T=5, feature D=8, 어휘 V=100)예요. 전체 흐름은 <a href="#map">🗺️ 큰 그림</a>의 그림을 보세요.</p>
+
+      <h3>1. 단계별 입력 · 출력</h3>
+      <table>
+        <tr><th>단계</th><th>입력</th><th>출력</th><th>자료형 · shape 예</th><th>하지 않는 일</th></tr>
+        <tr><td><b>Tokenizer</b></td><td>문자열</td><td>Token 조각 · <code>input_ids</code> · <code>attention_mask</code></td><td>정수 리스트 / <code>(B, T)</code></td><td>의미 계산 (규칙대로 자르고 번호 찾기만)</td></tr>
+        <tr><td><b>Embedding</b></td><td><code>input_ids</code></td><td>Token 벡터</td><td>실수 <code>(B, T, D)</code> = <code>(2, 5, 8)</code></td><td>문맥 반영 (같은 ID면 같은 벡터)</td></tr>
+        <tr><td><b>Transformer Block × N</b></td><td>Token 벡터 + 위치 정보</td><td>문맥 표현 (Hidden State)</td><td><code>(B, T, D)</code> 그대로</td><td>shape 변경</td></tr>
+        <tr><td><b>LM Head</b></td><td>Hidden State</td><td>Logit (어휘 전체 점수)</td><td><code>(B, T, V)</code> = <code>(2, 5, 100)</code></td><td>확률 만들기 (음수도 됨)</td></tr>
+        <tr><td><b>Softmax</b></td><td>마지막 위치 Logit <code>/ temperature</code></td><td>확률 분포</td><td><code>(B, V)</code> · 합 1</td><td>Token 고르기</td></tr>
+        <tr><td><b>Decode</b></td><td>확률 분포</td><td>다음 Token 하나</td><td>정수 ID</td><td>사실 확인</td></tr>
+      </table>
+
+      <h3 id="spec-mask">2. Mask 네 가지 — True·1의 뜻이 다르다</h3>
+      <table>
+        <tr><th>어디서</th><th>값</th><th>뜻</th><th>막는 것</th></tr>
+        <tr><td>Tokenizer <code>attention_mask</code></td><td><code>1</code> / <code>0</code></td><td><b>1 = 본다</b> (실제 Token)</td><td>PAD</td></tr>
+        <tr><td>PyTorch <code>src_key_padding_mask</code></td><td><code>True</code> / <code>False</code></td><td><b>True = 안 본다</b></td><td>PAD</td></tr>
+        <tr><td>직접 <code>masked_fill(mask, -inf)</code></td><td><code>True</code> / <code>False</code></td><td><b>True = 가린다</b></td><td>미래 (Causal)</td></tr>
+        <tr><td><code>F.scaled_dot_product_attention(attn_mask=)</code></td><td><code>True</code> / <code>False</code></td><td><b>True = 본다</b></td><td>미래 또는 PAD</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:0.9rem">아래 두 줄은 실제로 돌려 확인했어요: Tokenizer의 <code>attention_mask</code>를 <code>== 0</code>으로 뒤집어 <code>src_key_padding_mask</code>에 줘야 PAD 값이 결과에 안 섞이고, SDPA에는 <code>masked_fill</code>용 Mask를 <code>~</code>로 뒤집어 줘야 <code>is_causal=True</code>와 같아요.</p>
+
+      <h3>3. 숫자 읽는 규칙</h3>
+      <table>
+        <tr><th>숫자</th><th>맞는 해석</th><th>틀린 해석</th></tr>
+        <tr><td>Token ID (예: 119081)</td><td>Vocabulary 안의 번호</td><td>클수록 중요한 단어</td></tr>
+        <tr><td>Token 수</td><td>Context·요금·속도의 단위</td><td>글자 수 · 단어 수와 같음</td></tr>
+        <tr><td>Logit</td><td>후보별 점수 (음수 가능)</td><td>확률 %</td></tr>
+        <tr><td>Attention Weight 행</td><td>그 Query가 각 Key를 참고한 비율 · 행 합 1</td><td>모델 판단의 유일한 이유</td></tr>
+        <tr><td>Cosine 유사도</td><td>두 벡터의 방향이 얼마나 같은가</td><td>답이 맞을 확률</td></tr>
+      </table>
 
       <!-- ============================================================ -->
-      <h2 id="next">⑧ 다음 단계</h2>
+      <h2 id="packages">📦 패키지 · 명령어</h2>
       <table>
-        <tr><th>날짜</th><th>주제</th><th>오늘과의 연결</th></tr>
-        <tr><td>11/16</td><td>Prompt 구조 · Zero/Few-shot · Context Engineering · JSON Schema · 재시도</td><td>같은 모델에 더 좋은 <b>입력</b>(Context Window 안을 어떻게 채울지)</td></tr>
-        <tr><td>11/17</td><td>LLM API</td><td>오늘 본 추론을 서비스에서 호출</td></tr>
-        <tr><td>11/18</td><td>Embedding · Vector DB</td><td>오늘의 Sentence Embedding · Cosine으로 검색</td></tr>
-        <tr><td>11/19 → 11/20</td><td>Chunking → Basic RAG</td><td>Retriever → Prompt + Context → LLM Answer + Source — 검색 근거도 Token 예산에 들어가요</td></tr>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>torch</code></td><td>Tensor 계산 · <code>nn.Embedding</code> · <code>nn.TransformerEncoderLayer</code> · Softmax</td><td><code>import torch</code> · <code>import torch.nn.functional as F</code></td></tr>
+        <tr><td><code>transformers</code></td><td>Hugging Face — 모델 이름으로 Tokenizer·모델을 내려받아 씀</td><td><code>from transformers import AutoTokenizer</code></td></tr>
+        <tr><td><code>sentence-transformers</code> (선택)</td><td>문장 하나 → 벡터 하나 (문장 Embedding)</td><td><code>from sentence_transformers import SentenceTransformer</code></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 설치 · 버전 확인 <a href="../commands.html#d20-pip-install">명령어 사전에서 자세히 →</a></div>
+<pre><code>python -m pip install torch transformers sentence-transformers</code></pre>
+      </div>
+      <div class="callout">💡 예제 코드는 모두 <b>작은 Tensor</b>라 CPU로 충분해요. Tokenizer·문장 모델은 <b>처음 한 번</b> 인터넷에서 내려받아요. 숫자 자체보다 <b>shape · Mask · 입력과 출력의 의미</b>를 보는 게 핵심이에요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day20">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 <b>CPU</b>에서 실제로 돌려 얻은 값이에요 (Tokenizer·문장 모델은 Hugging Face에서 내려받아 실행).</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day17.html">FastAPI</a> · <a href="day18.html">PostgreSQL</a> · <a href="day19.html">FastAPI–PostgreSQL 연동</a></td><td>LLM 아래 계층 — 서비스 입구 · 원본 지식 저장 · API 요청이 실제 행으로</td></tr>
+        <tr><td><a href="day21.html">Prompt · Context Engineering</a></td><td>같은 모델에 더 좋은 <b>입력</b> — Context Window 안을 어떻게 채울지 · 출력 형식 · 재시도</td></tr>
+        <tr><td><a href="day22.html">LLM API 클라이언트</a></td><td>여기서 본 추론을 서비스에서 호출 · 검증 · 기록</td></tr>
+        <tr><td><a href="day23.html">Embedding · Vector Search</a></td><td>Sentence Embedding · Cosine으로 근거 후보 검색</td></tr>
+        <tr><td>Chunking → Basic RAG</td><td>Retriever → Prompt + Context → LLM Answer + Source — 검색 근거도 Token 예산에 들어가요</td></tr>
       </table>
 
       <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
-        <li>강의: <code>Day20_20261113.pdf</code> (생성형 AI·LLM 및 RAG 엔지니어링 · LLM 생태계 → Token·Context → Transformer·Attention → 학습·추론, 100쪽) — 서비스 속 위치·확대 지도 p2–11 · 생태계·한계 p19–24 · Tokenizer·Context p27–35 · Embedding·Cosine p38–45 · Transformer Block p48–56 · Self-Attention p59–67 · 학습·추론·디코딩 p70–77 · 한계·평가·RAG/Agent p80–85 · 다음 수업 p96</li>
-        <li>노트·명령어 사전의 결과 값: 강의 코드를 이 PC의 CPU에서 실제로 실행 (torch 2.14.0 · transformers 5.22.2 · sentence-transformers 6.3.0 — 강의 기준 5.17 · 6.1보다 조금 새 버전). Tokenizer <code>bert-base-multilingual-cased</code>, 문장 모델 <code>all-MiniLM-L6-v2</code>는 Hugging Face Hub에서 내려받음. 스크립트 <code>tools/io_day20.py</code>, 그림 <code>tools/visuals/make_day20.py</code></li>
+        <li>원본: <code>Day20_20261113.pdf</code> (생성형 AI·LLM 및 RAG 엔지니어링 · LLM 생태계 → Token·Context → Transformer·Attention → 학습·추론, 100쪽) — 서비스 속 위치·확대 지도 p2–11 · 생태계·한계 p19–24 · Tokenizer·Context p27–35 · Embedding·Cosine p38–45 · Transformer Block p48–56 · Self-Attention p59–67 · 학습·추론·디코딩 p70–77 · 한계·평가·RAG/Agent p80–85 · 다음 수업 p96</li>
+        <li>노트·명령어 사전의 결과 값: 원본 코드를 이 PC의 CPU에서 실제로 실행 (torch 2.14.0 · transformers 5.22.2 · sentence-transformers 6.3.0 — 강의 기준 5.17 · 6.1보다 조금 새 버전). Tokenizer <code>bert-base-multilingual-cased</code>, 문장 모델 <code>all-MiniLM-L6-v2</code>는 Hugging Face Hub에서 내려받음. 스크립트 <code>tools/io_day20.py</code>, 그림 <code>tools/visuals/make_day20.py</code></li>
         <li>공식 자료: <a href="https://arxiv.org/abs/1706.03762" target="_blank">Attention Is All You Need (원 논문)</a> · <a href="https://huggingface.co/docs/transformers" target="_blank">Hugging Face Transformers</a> · <a href="https://huggingface.co/docs/transformers/main_classes/tokenizer" target="_blank">Tokenizer</a> · <a href="https://huggingface.co/docs/transformers/tasks/language_modeling" target="_blank">Causal LM</a> · <a href="https://huggingface.co/docs/transformers/main_classes/text_generation" target="_blank">Generation</a></li>
         <li>공식 자료: <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention" target="_blank">PyTorch scaled_dot_product_attention</a> · <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.TransformerEncoderLayer" target="_blank">TransformerEncoderLayer</a> · <a href="https://www.sbert.net/docs/" target="_blank">Sentence Transformers</a></li>
       </ul>

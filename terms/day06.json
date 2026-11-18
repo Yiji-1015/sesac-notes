@@ -80,7 +80,7 @@
    "classes_"
   ],
   "full": "Class (클래스, 범주 정답)",
-  "short": "분류 문제에서 고를 수 있는 정답의 종류. 이 수업에선 0(성공)과 1(실패) 두 클래스예요. classes_는 모델이 기억한 클래스 순서.",
+  "short": "분류 문제에서 고를 수 있는 정답의 종류. 예시에선 0(성공)과 1(실패) 두 클래스예요. classes_는 모델이 기억한 클래스 순서.",
   "analogy": "",
   "day": 6,
   "key": false
@@ -235,7 +235,7 @@
    "Root Mean Squared Error"
   ],
   "full": "Root Mean Squared Error (평균 제곱근 오차)",
-  "short": "MSE에 제곱근을 씌운 값. 정답과 같은 단위로 돌아오면서 큰 오차에 민감한 성질은 남아요. 이 수업 회귀의 주 지표.",
+  "short": "MSE에 제곱근을 씌운 값. 정답과 같은 단위로 돌아오면서 큰 오차에 민감한 성질은 남아요. 예시 회귀의 주 지표.",
   "analogy": "",
   "day": 6,
   "key": false
@@ -337,7 +337,7 @@
    "Positive"
   ],
   "full": "Positive class (양성 클래스)",
-  "short": "찾고 싶은 쪽으로 정한 클래스. 이 수업에선 실패(1)가 양성이에요. Precision·Recall·F1은 양성을 기준으로 계산돼요.",
+  "short": "찾고 싶은 쪽으로 정한 클래스. 예시에선 실패(1)가 양성이에요. Precision·Recall·F1은 양성을 기준으로 계산돼요.",
   "analogy": "건강검진에서 '양성'이 '찾던 그 병이 있다'는 뜻인 것처럼.",
   "day": 6,
   "key": false
@@ -442,7 +442,7 @@
    "f1_score"
   ],
   "full": "F1 score",
-  "short": "Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 이 수업 분류의 주 지표.",
+  "short": "Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.",
   "analogy": "",
   "day": 6,
   "key": true
@@ -839,7 +839,7 @@
    "Synthetic data"
   ],
   "full": "Synthetic data (합성 데이터)",
-  "short": "실제 기록이 아니라 수업용으로 만들어 낸 가짜 데이터. 여기서 나온 점수는 실서비스 성능의 근거가 아니에요.",
+  "short": "실제 기록이 아니라 학습·시연용으로 만들어 낸 가짜 데이터. 여기서 나온 점수는 실서비스 성능의 근거가 아니에요.",
   "analogy": "",
   "day": 6,
   "key": false

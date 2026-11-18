@@ -2,14 +2,14 @@
 <section class="cmd-overview" data-day="13">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day13.html#packages">📦 필요한 패키지</a></td><td><code>pip install opencv-python numpy matplotlib</code></td></tr>
         <tr><td><a href="notes/day13.html#array">① 이미지 = 숫자 배열</a></td><td><code>cv2.imread()</code>, <code>cv2.imwrite()</code>, <code>img.shape</code>, <code>cv2.split()</code> / <code>merge()</code>, <code>cv2.imshow()</code></td></tr>
         <tr><td><a href="notes/day13.html#color">② 색공간 · 크기</a></td><td><code>cv2.cvtColor()</code>, <code>cv2.resize()</code></td></tr>
         <tr><td><a href="notes/day13.html#filter">③ Filter · Edge</a></td><td><code>cv2.GaussianBlur()</code>, <code>cv2.medianBlur()</code>, <code>cv2.bilateralFilter()</code>, <code>cv2.Canny()</code></td></tr>
         <tr><td><a href="notes/day13.html#thresh">④ Threshold · 형태학</a></td><td><code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getStructuringElement()</code>, <code>cv2.morphologyEx()</code></td></tr>
-        <tr><td><a href="notes/day13.html#video">⑤ 영상 Frame 처리</a></td><td><code>cv2.VideoCapture()</code>, <code>cv2.VideoWriter()</code>, <code>cap.get(CAP_PROP_FPS)</code></td></tr>
+        <tr><td><a href="notes/day13.html#video">⑤ 영상 Frame 처리</a></td><td><code>cv2.VideoCapture()</code> · <code>cap.read()</code>, <code>cv2.VideoWriter()</code>, <code>cap.get(CAP_PROP_FPS)</code>, <code>frame_idx % step</code></td></tr>
         <tr><td><a href="notes/day13.html#augment">⑥ 데이터 증강</a></td><td><code>cv2.flip()</code>, <code>cv2.getRotationMatrix2D()</code> + <code>cv2.warpAffine()</code>, <code>cv2.convertScaleAbs()</code></td></tr>
         <tr><td><a href="notes/day13.html#verify">⑦ 일괄 처리 · 검증</a></td><td><code>sorted(Path.glob())</code>, <code>imread(path, 0)</code> 재읽기, 검증표</td></tr>
+        <tr><td><a href="notes/day13.html#packages">📦 패키지 · 명령어</a></td><td><code>pip install opencv-python numpy matplotlib</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d13-cv2-imread" data-topic="OpenCV" data-sub="읽기 · 저장 · 표시" data-day="13" data-theory="notes/day13.html#array">
@@ -142,7 +142,7 @@ half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA
         <tr><td><code>src</code> <small>(필수)</small></td><td>입력 이미지</td><td></td></tr>
         <tr><td><code>dsize</code> <small>(필수 자리)</small></td><td>출력 크기 <b>(W, H)</b>, 배율을 쓸 땐 <code>None</code> 또는 <code>(0, 0)</code></td><td>가로세로 비율이 원본과 다르면 <b>찌그러짐</b> (320×240 → 224×224는 4:3 → 1:1)</td></tr>
         <tr><td><code>fx</code>, <code>fy</code> (기본 0)</td><td>가로·세로 배율</td><td>둘 다 0.5면 비율 유지하며 절반. dsize와 동시에 쓰기보다 <b>한 방식만</b> 골라야 코드가 명확</td></tr>
-        <tr><td><code>interpolation</code></td><td>보간법 (기본 <code>INTER_LINEAR</code>)</td><td>축소는 AREA, Mask는 NEAREST — 이유는 <a href="notes/day13.html#color">Day13 보간법 표</a> 참고</td></tr>
+        <tr><td><code>interpolation</code></td><td>보간법 (기본 <code>INTER_LINEAR</code>)</td><td>축소는 AREA, Mask는 NEAREST — 이유는 <a href="notes/day13.html#interp">보간법 표</a> 참고</td></tr>
       </table>
       <div class="callout warn">⚠️ <b>제일 많이 하는 실수</b>: <code>shape</code>는 <b>(H, W)</b>, <code>dsize</code>는 <b>(W, H)</b>. 순서가 반대예요. 🤔 <b>왜 반대?</b> — shape는 NumPy 배열의 "줄 수, 칸 수"이고, dsize는 OpenCV의 "이미지 크기" 표기(가로×세로, 예: 320×240)를 따르기 때문이에요. 서로 다른 관례가 한 코드에서 만나니 헷갈리는 거예요.</div>
 </section>
@@ -278,13 +278,7 @@ closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)</code></pre>
 
 <section class="cmd" id="d13-cv2-videocapture" data-topic="OpenCV" data-sub="영상" data-day="13" data-theory="notes/day13.html#video">
   <h3>읽기 <code>cv2.VideoCapture()</code> · 저장 <code>cv2.VideoWriter()</code></h3>
-<pre><code>def process_frame(frame):                 # Frame 함수는 파일을 열고 닫지 않음
-    gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    small = cv2.resize(gray, size, interpolation=cv2.INTER_AREA)
-    edge  = cv2.Canny(cv2.GaussianBlur(small, (3, 3), 0), 80, 160)
-    return cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR)   # 컬러 Writer엔 3채널로
-
-size = (160, 120)                         # (W, H)
+<pre><code>size = (160, 120)                         # (W, H)
 cap = cv2.VideoCapture("data/sample.avi")
 writer = None
 try:
@@ -298,7 +292,10 @@ try:
         ok, frame = cap.read()
         if not ok:                        # 끝 또는 읽기 실패
             break
-        writer.write(process_frame(frame))   # write는 반복 안에서
+        gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)          # 한 장 처리 = 이미지와 같은 함수
+        small = cv2.resize(gray, size, interpolation=cv2.INTER_AREA)
+        edge  = cv2.Canny(cv2.GaussianBlur(small, (3, 3), 0), 80, 160)
+        writer.write(cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR))      # 컬러 Writer엔 3채널로 · write는 반복 안에서
 finally:
     cap.release()                         # release는 반복이 끝난 뒤
     if writer is not None:
@@ -328,7 +325,7 @@ finally:
         <tr><td><code>isColor=True</code></td><td>(선택) 컬러 Frame 여부 (기본 True)</td><td>Gray Frame을 저장하려면 False로 두거나, GRAY2BGR로 3채널로 바꿔서 넣기</td></tr>
         <tr><td><code>release()</code></td><td>파일·카메라 자원 해제</td><td>안 하면 파일 끝 정보가 안 써져 <b>재생이 안 될 수 있고</b>, 카메라도 계속 잡고 있음</td></tr>
       </table>
-      <div class="callout">🤔 <strong>왜 Frame 함수와 반복·I/O를 나눠?</strong> — <code>process_frame</code> 안에서 <code>VideoCapture</code>를 매번 열면 반복 I/O로 <b>성능이 크게 떨어지고</b> 자원 관리도 복잡해져요. 처리 함수는 "배열 → 배열"만 하고, 열기·반복·저장은 바깥에서 맡으면 같은 함수를 이미지에도 그대로 쓸 수 있어요.</div>
+      <div class="callout">🤔 <strong>왜 열기·저장은 반복 밖에서 한 번만?</strong> — Frame마다 <code>VideoCapture</code>·<code>VideoWriter</code>를 새로 열면 반복 I/O로 <b>성능이 크게 떨어지고</b> 자원 관리도 복잡해져요. 한 장 처리(<code>cvtColor</code> · <code>resize</code> · <code>Canny</code>)는 "배열 → 배열"이라 이미지에도 그대로 쓰고, 열기 · 반복 · 저장 · <code>release</code>는 바깥에서 한 번씩 맡아요.</div>
       <div class="callout warn">⚠️ <b>영상 저장이 안 될 때 확인 순서</b>: ① <code>writer.isOpened()</code> True? ② Frame (W, H) = frameSize? ③ Gray Frame + isColor=True 아닌지? ④ 확장자·fourcc·설치 코덱 조합? ⑤ release 후 파일 크기와 다시 읽기 확인. MJPG는 손실 압축이라 픽셀이 원본과 완전히 같지는 않아요.</div>
 </section>
 
@@ -450,8 +447,8 @@ print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 �
       </table>
 </section>
 <section class="cmd" id="d13-frame-idx-step" data-topic="OpenCV" data-sub="영상" data-day="13" data-theory="notes/day13.html#video">
-  <h3>Frame 건너뛰며 처리 <code>frame_idx % step</code></h3>
-<pre><code># cap · process_frame 은 위 VideoCapture 항목과 같아요
+  <h3>Frame 건너뛰며 처리 <code>cap.read()</code> + <code>frame_idx % step</code></h3>
+<pre><code># cap 은 위 VideoCapture 항목처럼 연 것
 step = 5
 frame_idx = 0
 while True:
@@ -459,7 +456,7 @@ while True:
     if not ok:
         break
     if frame_idx % step == 0:          # 5장마다 1장만 처리
-        result = process_frame(frame)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)   # 고른 Frame에만 계산
     frame_idx += 1</code></pre>
 <div class="io io-extra">
   <div class="io-title">▶ 실제로 돌려 보면 <small>data/sample.avi (48 Frame, 12 FPS)</small></div>

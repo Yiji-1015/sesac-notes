@@ -4,7 +4,7 @@
     python build_glossary.py
 
 - 같은 용어가 여러 Day에 나오면 가장 먼저 나온 Day의 설명을 쓰고, days 에 모두 기록합니다.
-- key=true 인 용어는 그 Day 페이지 맨 위 "📖 오늘 나오는 용어" 상자에 나옵니다.
+- key=true 인 용어는 그 Day 페이지 맨 위 "📖 핵심 용어" 상자에 나옵니다.
 """
 import json
 import re

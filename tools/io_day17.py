@@ -405,7 +405,7 @@ SKIPPED = []
 
 # 1. main.py — 첫 JSON 응답
 r = c.get("/health")
-IO["d17-main-py"] = ("강의 main.py를 TestClient로 호출", [
+IO["d17-main-py"] = ("main.py를 TestClient로 호출", [
     ('client.get("/health")', resp(r), "dict를 돌려주면 JSON으로 응답 · 상태 코드 200"),
     ('r.headers["content-type"]', r.headers["content-type"], "FastAPI가 JSON으로 바꿔 보냄"),
     ("app.title", repr(main.app.title), "/docs 맨 위에 보이는 이름"),
@@ -497,15 +497,15 @@ try:
     fail = "에러 없음"
 except Exception as e:  # noqa: BLE001
     fail = f"{type(e).__name__}: {e}"
-IO["d17-storage-py"] = ("임시 폴더의 storage.py + data/knowledge.json (처음 3건)", [
-    ("storage.BASE.name, storage.DATA.relative_to(BASE)", f"{storage.BASE.name!r}, {storage.DATA.relative_to(storage.BASE).as_posix()!r}", "storage.py가 있는 폴더 기준 경로"),
-    ("data = read_data(); type(data), list(data)", f"{type(d).__name__}, {list(d)}", "JSON 글자 → 파이썬 dict"),
+IO["d17-storage-py"] = ("임시 폴더의 data/knowledge.json (처음 3건)", [
+    ("BASE.name, DATA.relative_to(BASE)", f"{storage.BASE.name!r}, {storage.DATA.relative_to(storage.BASE).as_posix()!r}", "코드 파일이 있는 폴더 기준 경로"),
+    ("data = json.load(f); type(data), list(data)", f"{type(d).__name__}, {list(d)}", "JSON 글자 → 파이썬 dict"),
     ('data["entries"][0]["title"]', repr(d["entries"][0]["title"]), "utf-8로 읽어 한글 그대로"),
-    ("write_data(data) 후 파일 2~3번째 줄", short(" | ".join(saved.splitlines()[1:3]), 80), "indent=2 줄바꿈"),
+    ("json.dump → replace 후 파일 2~3번째 줄", short(" | ".join(saved.splitlines()[1:3]), 80), "indent=2 줄바꿈"),
     ('"가상환경" in 파일 내용', repr("가상환경" in saved), "ensure_ascii=False → 한글 그대로 저장"),
     ('json.dumps("가상환경")  (ensure_ascii 기본값)', json.dumps("가상환경"), "기본값이면 \\uXXXX 코드로 바뀜"),
     ('DATA.with_suffix(".tmp").exists()', repr(DATA.with_suffix(".tmp").exists()), "성공 후 임시 파일은 안 남음"),
-    ("write_data({… set 값 …})  (저장 실패)", short(fail, 70), "json.dump가 중간에 실패"),
+    ("json.dump({… set 값 …}) 로 저장 시도 (실패)", short(fail, 70), "json.dump가 중간에 실패"),
     ("실패 후 원본 bytes == 실패 전", repr(DATA.read_bytes() == before), "임시 파일에서 실패해서 원본은 그대로"),
     ('실패 후 DATA.with_suffix(".tmp").exists()', repr(DATA.with_suffix(".tmp").exists()), "finally에서 반쯤 쓴 임시 파일 정리"),
 ])

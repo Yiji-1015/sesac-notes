@@ -27,36 +27,9 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day13 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day13">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
-      <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>opencv-python</code></td><td>이미지·영상 읽기/쓰기, 색 변환, 필터, 이진화, 형태학, 회전</td><td><code>import cv2</code></td></tr>
-        <tr><td><code>numpy</code></td><td>OpenCV 이미지의 실제 정체 (숫자 배열), 자르기·계산</td><td><code>import numpy as np</code></td></tr>
-        <tr><td><code>matplotlib</code></td><td>원본·결과를 나란히 그려서 비교</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
-      </table>
-      <h3>🔧 설치 · 확인</h3>
-<pre><code>python --version
-python -m pip install opencv-python numpy matplotlib
-python -m pip show opencv-python numpy matplotlib
-python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK</code></pre>
-      <div class="callout">💡 pip 이름과 import 이름이 달라요: <code>opencv-python</code> → <code>import cv2</code>. 강의는 <b>OpenCV 4.x 공식 문서</b>를 최종 기준으로 확인하라고 안내해요.</div>
-      <div class="callout">🤔 <strong>왜?</strong> — 원본 폴더(<code>data/</code>)는 건드리지 않고 결과는 <code>outputs/</code>에 따로 저장해요. 원본을 덮어쓰면 <b>나중에 비교·재현·복구</b>를 할 수 없기 때문이에요.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
+      <h2 id="map">🗺️ 큰 그림 — 숫자 격자를 "쓸 수 있는 입력"으로</h2>
       <p>카메라가 남기는 건 <b>숫자 격자</b>뿐이에요. 컴퓨터는 "흠집"이 뭔지 몰라요. 전처리는 촬영 조건이 제각각인 사진·영상을 <b>다음 단계(규칙 판단이나 모델)가 쓸 수 있는 입력</b>으로 맞춰 주는 일이에요.</p>
-      <div class="usecases">
-        <div class="usecase"><div class="emoji">🏭</div><strong>제품 외관 검사</strong><span>크기·색·잡음 조건을 맞춰 흠집 후보 찾기</span></div>
-        <div class="usecase"><div class="emoji">📄</div><strong>문서 글자 인식</strong><span>글자와 배경을 구분하도록 이진화</span></div>
-        <div class="usecase"><div class="emoji">🧠</div><strong>모델 입력 준비</strong><span>크기 224×224로 맞추고 증강 (Day14로 연결)</span></div>
-        <div class="usecase"><div class="emoji">🎥</div><strong>영상 처리</strong><span>Frame마다 같은 처리 후 다시 영상으로 저장</span></div>
-      </div>
       <div class="flow">
         <span class="step">읽기·확인<br><small>imread · shape</small></span><span class="arrow">→</span>
         <span class="step">밝기로<br><small>cvtColor</small></span><span class="arrow">→</span>
@@ -65,6 +38,17 @@ python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK</code
         <span class="step">경계·영역<br><small>Canny / threshold</small></span><span class="arrow">→</span>
         <span class="step">저장·재확인<br><small>imwrite · imread</small></span>
       </div>
+      <p>처리를 지날 때마다 숫자의 뜻이 <b>색 → 밝기 → 경계 → 물체 → 모양</b>으로 바뀌어요. 이 페이지의 ①~⑦이 이 흐름이에요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#array">① 이미지 = 숫자 배열</a></td><td>읽기 · shape · dtype · BGR 채널</td><td>이 사진은 어떤 숫자 격자인가?</td></tr>
+        <tr><td><a href="#color">② 색공간 · 크기</a></td><td>Gray · HSV 변환, resize와 보간법</td><td>목적에 맞는 표현 · 크기는?</td></tr>
+        <tr><td><a href="#filter">③ Filter · Edge</a></td><td>Blur로 잡음 줄이기, Canny로 경계 찾기</td><td>여기가 잡음인가, 경계인가?</td></tr>
+        <tr><td><a href="#thresh">④ Threshold · 형태학</a></td><td>0/255로 가르고 모양 다듬기</td><td>여기가 물체인가?</td></tr>
+        <tr><td><a href="#video">⑤ 영상</a></td><td>같은 처리를 Frame마다, 저장 FPS · 크기</td><td>시간 순서와 재생 속도를 지켰나?</td></tr>
+        <tr><td><a href="#augment">⑥ 데이터 증강</a></td><td>정답이 그대로인 변형을 train에만</td><td>변형 후에도 라벨이 같은가?</td></tr>
+        <tr><td><a href="#verify">⑦ 일괄 처리 · 검증</a></td><td>같은 설정으로 폴더 처리, 원본과 비교</td><td>필요한 정보가 남아 있나?</td></tr>
+      </table>
       <table>
         <tr><th>출력 한 칸을 정할 때 보는 곳</th><th>예</th></tr>
         <tr><td><b>자기 칸만</b></td><td>Gray 변환, Threshold</td></tr>
@@ -72,6 +56,13 @@ python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK</code
         <tr><td><b>다른 자리에서</b></td><td>Resize, 회전(warpAffine)</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 이렇게 나눠 봐?</strong> — 어떤 칸을 보는지가 곧 그 처리의 성격이에요. "자기 칸만" 보는 처리는 잡음인지 아닌지 <b>판단할 수 없고</b>, "주변 칸까지" 보는 처리는 그걸 판단할 수 있는 대신 <b>세부가 흐려져요</b>. 그래서 순서와 인자를 목적에 맞게 골라야 해요.</div>
+      <p>어디에 쓰나:</p>
+      <div class="usecases">
+        <div class="usecase"><div class="emoji">🏭</div><strong>제품 외관 검사</strong><span>크기·색·잡음 조건을 맞춰 흠집 후보 찾기</span></div>
+        <div class="usecase"><div class="emoji">📄</div><strong>문서 글자 인식</strong><span>글자와 배경을 구분하도록 이진화</span></div>
+        <div class="usecase"><div class="emoji">🧠</div><strong>모델 입력 준비</strong><span>크기 224×224로 맞추고 증강 (<a href="day14.html">전이학습</a>으로 연결)</span></div>
+        <div class="usecase"><div class="emoji">🎥</div><strong>영상 처리</strong><span>Frame마다 같은 처리 후 다시 영상으로 저장</span></div>
+      </div>
 
       <!-- ============================================================ -->
       <h2 id="array">① 이미지 = 숫자 배열</h2>
@@ -86,13 +77,13 @@ python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK</code
       <p>한 칸 값은 <code>img[y, x]</code>로 봐요 — <b>세로(y)가 먼저</b>. 예: <code>[20, 80, 200]</code>은 B=20, G=80, R=200 → 빨강 쪽 색. shape가 <code>(345, 450, 3)</code>이면 450은 <b>Width(열의 수)</b>예요.</p>
       <figure><img class="smooth" src="img/day13/pixel_grid.png" alt="원본 이미지의 빨간 사각형 모서리 6×6칸을 확대해 칸마다 B·G·R 숫자를 적은 그림"><figcaption><b>무엇을 보나:</b> 왼쪽 노란 네모 6×6칸을 확대하면 칸마다 숫자가 <b>3개</b>(B, G, R) 들어 있어요. 빨간 칸은 <code>B 0 · G 0 · R 255</code>, 배경 칸은 세 값이 비슷한 회색(약 63·70·78). 세로 눈금이 y(행), 가로 눈금이 x(열)이에요. <b>🤔 왜?</b> 사진은 처음부터 "빨강"이라는 뜻이 아니라 이 숫자 격자로 저장되기 때문이에요. 그래서 <code>shape = (240, 320, 3)</code>은 "240줄 × 320칸 × 숫자 3개"이고, 한 칸을 꺼낼 땐 줄 번호(y)부터 <code>img[y, x]</code>로 써요.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 shape부터 확인해?</strong> — shape를 모르고 처리하면 채널 축과 공간 축을 뒤바꾸거나, 잘못된 크기로 저장할 수 있어요. 그리고 <code>uint8</code>은 0~255만 담을 수 있는 자료형이라 <b>더하기·빼기를 함부로 하면 값이 넘쳐요</b>(⑥ 밝기 조절에서 다시 나와요). 그래서 읽자마자 <code>shape · dtype · min/max</code>를 찍어 봐요.</div>
-      <div class="callout">🤔 <strong>왜 세로(y)가 먼저?</strong> — 이미지는 NumPy 배열이고, 배열은 "몇 번째 <b>줄(행)</b>, 몇 번째 <b>칸(열)</b>" 순서로 셉니다. 줄 = 세로 위치(y), 칸 = 가로 위치(x)라서 <code>(H, W)</code>, <code>img[y, x]</code>가 돼요. 참고로 Day11 PyTorch <code>Conv2d</code>는 <code>[N, C, H, W]</code>(채널이 앞)라서, 모델에 넣을 땐 축 순서를 또 바꿔야 해요.</div>
+      <div class="callout">🤔 <strong>왜 세로(y)가 먼저?</strong> — 이미지는 NumPy 배열이고, 배열은 "몇 번째 <b>줄(행)</b>, 몇 번째 <b>칸(열)</b>" 순서로 셉니다. 줄 = 세로 위치(y), 칸 = 가로 위치(x)라서 <code>(H, W)</code>, <code>img[y, x]</code>가 돼요. 참고로 PyTorch(<a href="day11.html#tensor">이미지 Tensor</a>)는 <code>[N, C, H, W]</code>(채널이 앞)라서, 모델에 넣을 땐 축 순서를 또 바꿔야 해요.</div>
       <div class="figs">
         <figure><img src="img/day13/original.png" alt="색 사각형, 원, 사각형, 흰 선이 있는 원본 이미지"><figcaption><b>원본</b> <code>(240, 320, 3)</code> — BGR을 제대로 표시<br><b>무엇을 보나:</b> 위쪽 색 칸이 왼쪽부터 빨강·초록·파랑, 배경은 왼쪽이 어둡고 오른쪽이 밝아요. 아래 장의 모든 변환이 이 사진에서 출발해요. <b>🤔 왜 이런 그림?</b> 색(BGR 순서)·밝기 변화(그림자)·가는 줄무늬(확대/축소)·직선(경계)을 한 장에서 다 확인하려고요.</figcaption></figure>
         <figure><img src="img/day13/bgr_as_rgb.png" alt="빨강과 파랑이 뒤바뀐 이미지"><figcaption><b>BGR 배열을 변환 없이 RGB로 표시</b><br><b>무엇을 보나:</b> 왼쪽 칸이 빨강 → <b>파랑</b>, 오른쪽 칸이 파랑 → <b>빨강</b>으로 바뀌었어요. 초록은 그대로예요. <b>🤔 왜?</b> 숫자는 하나도 안 바뀌었고 <b>읽는 순서</b>만 바뀌었어요. 첫 번째 칸(OpenCV에선 B)을 Matplotlib은 R로 읽으니까 파랑과 빨강만 자리를 바꾸고, 가운데 G는 둘 다 같은 자리라 그대로예요.</figcaption></figure>
       </div>
       <div class="callout warn">⚠️ OpenCV(<code>imread</code>)는 <b>B, G, R</b>, Matplotlib(<code>imshow</code>)는 <b>R, G, B</b>. Matplotlib로 볼 땐 <code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code> 후 표시, RGB 배열을 <code>imwrite</code>로 저장할 땐 다시 BGR로 되돌려요.</div>
-      <div class="callout">🤔 <strong>왜 OpenCV는 BGR일까?</strong> — 강의 PDF는 "OpenCV 기본 색상 순서는 BGR"이라는 사실만 알려 줘요. 흔히 알려진 배경은, OpenCV가 처음 만들어질 무렵 카메라 장비·Windows 이미지 형식이 BGR 순서로 저장하는 경우가 많았고, 그 뒤로는 <b>기존 코드와의 호환</b> 때문에 바꾸지 않았다는 거예요. 이유가 무엇이든 실전 규칙은 하나: <b>라이브러리가 바뀌는 경계에서 색 순서를 꼭 맞춘다.</b></div>
+      <div class="callout">🤔 <strong>왜 OpenCV는 BGR일까?</strong> — 흔히 알려진 배경은, OpenCV가 처음 만들어질 무렵 카메라 장비·Windows 이미지 형식이 BGR 순서로 저장하는 경우가 많았고, 그 뒤로는 <b>기존 코드와의 호환</b> 때문에 바꾸지 않았다는 거예요. 이유가 무엇이든 실전 규칙은 하나: <b>라이브러리가 바뀌는 경계에서 색 순서를 꼭 맞춘다.</b></div>
 
       <div class="cmdref">
         <div class="cmdref-head">🔧 읽기 <code>cv2.imread()</code> · 저장 <code>cv2.imwrite()</code> <a href="../commands.html#d13-cv2-imread">명령어 사전에서 자세히 →</a></div>
@@ -137,7 +128,7 @@ rgb  = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)    # (240, 320, 3)</code></pre>
         <figure><img src="img/day13/gray.png" alt="흑백으로 바뀐 이미지"><figcaption><b><code>COLOR_BGR2GRAY</code> → <code>(240, 320)</code></b><br><b>무엇을 보나:</b> 색이 사라지고 밝기만 남았어요. 빨강·초록·파랑 칸이 서로 <b>다른 회색</b>이 됐고(초록이 가장 밝아요), 배경의 왼쪽→오른쪽 밝기 변화는 그대로예요. shape에서 채널 축 3이 없어졌어요. <b>🤔 왜 색마다 회색이 달라?</b> 단순 평균이 아니라 <code>0.299R + 0.587G + 0.114B</code>로 섞어서예요. 사람 눈이 초록에 가장 민감해서 초록에 가장 큰 무게를 줘요. 경계·이진화·OCR은 색보다 밝기 차이가 중요해서 Gray로 바꾸고 시작해요.</figcaption></figure>
       </div>
 
-      <h3>크기 바꾸기와 보간법</h3>
+      <h3 id="interp">크기 바꾸기와 보간법</h3>
       <p>줄일 땐 여러 픽셀을 하나로 <b>요약</b>하고, 키울 땐 없던 픽셀 값을 주변에서 <b>추정</b>해요. 이 추정 방법이 <b>보간법</b>.</p>
       <div class="figs">
         <figure><img src="img/day13/up_nearest.png" alt="계단처럼 각진 확대 이미지"><figcaption><b>작게 줄인 뒤 다시 확대 · <code>INTER_NEAREST</code></b><br><b>무엇을 보나:</b> 원·선의 가장자리가 <b>계단</b>처럼 각지고, 오른쪽 위 줄무늬가 뭉텅이로 보여요. <b>🤔 왜?</b> 새로 생긴 픽셀에 <b>가장 가까운 원래 픽셀 값을 그대로 복사</b>해서예요. 한 픽셀이 여러 칸으로 똑같이 늘어나니 네모난 덩어리가 보여요. 대신 값을 섞지 않아서 마스크(0/1 라벨)를 키울 때 써요.</figcaption></figure>
@@ -167,7 +158,7 @@ half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA
 10  10  10            1/9 1/9 1/9
 10 100  10     ×      1/9 1/9 1/9     →  출력 = (10×8 + 100) ÷ 9 = 20
 10  10  10            1/9 1/9 1/9         (튀는 점 100이 20으로 누그러짐)</code></pre>
-      <div class="callout">💡 이 계산은 Day11 CNN의 합성곱(Conv2d)과 <b>같은 계산</b>이에요. 오늘은 사람이 Kernel 값을 정하고, CNN은 그 값을 배워요.</div>
+      <div class="callout">💡 이 계산은 <a href="day11.html#conv">CNN의 합성곱(Conv2d)</a>과 <b>같은 계산</b>이에요. 필터는 사람이 Kernel 값을 정하고, CNN은 그 값을 배워요.</div>
       <table>
         <tr><th>Kernel 설정</th><th>효과</th><th>🤔 왜?</th></tr>
         <tr><td>작은 Kernel</td><td>세부 보존, 효과 약함</td><td>섞는 이웃이 적으니 원래 값이 많이 남음</td></tr>
@@ -217,7 +208,7 @@ half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA
 median    = cv2.medianBlur(gray, ksize=5)</code></pre>
       </div>
 
-      <h3>Canny Edge — "여기가 경계인가?"</h3>
+      <h3 id="canny">Canny Edge — "여기가 경계인가?"</h3>
       <p>밝기가 <b>갑자기 바뀌는 곳</b>만 흰색(255)으로 남겨요. <b>강한 경계</b>(threshold2 이상)는 확실히 남기고, <b>약한 경계</b>(threshold1~threshold2)는 강한 경계에 <b>연결된 것만</b> 남기는 방식이에요.</p>
       <div class="callout">🤔 <strong>왜 기준값이 두 개?</strong> — 하나만 쓰면 낮게 잡을 땐 잡음까지 경계가 되고, 높게 잡을 땐 선이 군데군데 끊겨요. 두 개를 쓰면 "확실한 선"에 이어진 약한 부분은 살리고, <b>외따로 떨어진 약한 점(잡음)은 버릴 수</b> 있어요.</div>
       <div class="figs">
@@ -266,7 +257,7 @@ Gray 값 :  40   110   160   220
         <tr><td><b>Otsu</b></td><td>밝기 히스토그램으로 자동 결정</td><td>물체·배경 밝기가 두 무리로 갈릴 때 유용</td><td>Blur가 도움될 수 있음</td></tr>
         <tr><td><b>Adaptive</b></td><td>지역마다 따로 계산</td><td>조명이 고르지 않아도 대응</td><td><code>blockSize</code>·<code>C</code> 조정 필요</td></tr>
       </table>
-      <div class="callout">🤔 <strong>왜 Fixed는 조명에 약해?</strong> — 조명이 밝아지면 물체·배경 밝기가 <b>함께</b> 올라가요. T=128로 고정해 두면 어제는 배경이던 곳이 오늘은 물체가 될 수 있어요. 사진마다 사람이 T를 다시 정할 수도 없고요.</div>
+      <div class="callout">🤔 <strong>왜 Fixed는 조명에 약해?</strong> — 조명이 밝아지면 물체·배경 밝기가 <b>함께</b> 올라가요. T=128로 고정해 두면 어두운 날엔 배경이던 곳이 밝은 날엔 물체가 될 수 있어요. 사진마다 사람이 T를 다시 정할 수도 없고요.</div>
       <figure><img class="smooth" src="img/day13/hist_lighting.png" alt="보통 날과 어두운 날의 밝기 히스토그램과 고정 T=128 이진화 결과"><figcaption><b>무엇을 보나:</b> 같은 장면을 어둡게(×0.55) 찍으면 히스토그램의 두 봉우리(물체·배경)가 <b>통째로 왼쪽</b>으로 이동해요. 보통 날엔 T=128이 두 봉우리 사이라 물체(26%)를 잘 잡지만, 어두운 날엔 두 봉우리가 모두 128 왼쪽이라 화면 <b>100%가 물체</b>로 판정돼요. <b>🤔 왜?</b> T는 "밝기 숫자"에 고정된 선인데, 조명은 물체와 배경의 숫자를 함께 움직이기 때문이에요. 선은 그대로인데 데이터가 이사를 가 버린 셈 — 그래서 히스토그램을 보고 T를 따라 움직이는 Otsu가 필요해요.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 Otsu?</strong> — 밝기 히스토그램이 "어두운 무리 + 밝은 무리" 두 봉우리로 갈려 있으면, Otsu는 <b>두 무리가 각각 가장 똘똘 뭉치도록(무리 안 퍼짐이 가장 작도록)</b> 하는 T를 자동으로 찾아요. 그래서 사진마다 T를 손으로 고르지 않아도 되고, 조명이 바뀌어도 T가 따라 움직여요. 잡음이 봉우리를 흐리면 잘 안 되니 <b>먼저 Blur하면 도움</b>이 돼요.</div>
       <div class="callout">🤔 <strong>왜 Adaptive?</strong> — 한쪽만 밝게 비춘 사진처럼 조명이 고르지 않으면 <b>사진 전체에 맞는 T 하나가 없어요</b>. Adaptive는 칸마다 주변 <code>blockSize</code>×<code>blockSize</code> 영역의 평균(또는 가우시안 평균)에서 <code>C</code>를 뺀 값을 그 칸만의 기준으로 써요.</div>
@@ -279,7 +270,7 @@ Gray 값 :  40   110   160   220
 adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, ...)</code></pre>
       </div>
 
-      <h3>형태학(Morphology) — 물체 모양 다듬기</h3>
+      <h3 id="morph">형태학(Morphology) — 물체 모양 다듬기</h3>
       <p>이진화 후엔 흰 먼지·작은 검은 구멍이 남아요. Kernel로 흰 영역(전경)을 깎거나 부풀려서 정리해요. <b>Erosion(침식)</b>은 Kernel 안이 <b>모두 흰색</b>일 때만 흰색을 남기고, <b>Dilation(팽창)</b>은 Kernel 안에 <b>하나라도 흰색</b>이 있으면 흰색으로 만들어요.</p>
       <table>
         <tr><th>연산</th><th>순서</th><th>효과</th><th>예</th></tr>
@@ -309,7 +300,7 @@ opened = cv2.morphologyEx(binary, op=cv2.MORPH_OPEN, kernel=kernel, iterations=1
       <p>영상은 시간 순서로 이어진 Frame(이미지)의 묶음. 그래서 영상 처리 = <b>이미지 처리 + 시간 순서 + 저장 설정</b>. 한 장 처리 함수를 그대로 재사용해요.</p>
       <div class="flow">
         <span class="step"><b>read()</b><br><small>Frame 한 장 읽기</small></span><span class="arrow">→</span>
-        <span class="step"><b>process_frame()</b><br><small>Gray · Resize · Edge</small></span><span class="arrow">→</span>
+        <span class="step"><b>한 장 처리</b><br><small>Gray · Resize · Edge</small></span><span class="arrow">→</span>
         <span class="step"><b>write()</b><br><small>출력 영상에 추가</small></span><span class="arrow">↻</span>
         <span class="step">끝나면 <b>release()</b></span>
       </div>
@@ -325,14 +316,14 @@ opened = cv2.morphologyEx(binary, op=cv2.MORPH_OPEN, kernel=kernel, iterations=1
 48장 ÷ 12FPS = 4초      30장 ÷ 30FPS = 1초      15장 ÷ 30FPS = 0.5초</code></pre>
       <div class="callout">💡 저장 <b>FPS</b>(재생 빈도)와 연산 <b>처리속도</b>(초당 몇 장 계산했나)는 다른 것. 🤔 <b>왜 구분?</b> — 처리가 느려도 저장 FPS가 30이면 영상은 30FPS로 재생돼요. 반대로 같은 Frame 수인데 저장 FPS를 절반으로 하면 재생시간이 2배가 되어 <b>느리게</b> 보여요.</div>
 
-      <h3>모든 Frame을 처리할까, 일부만 할까?</h3>
+      <h3 id="skip">모든 Frame을 처리할까, 일부만 할까?</h3>
       <div class="cmdref">
         <div class="cmdref-head">🔧 Frame 건너뛰며 처리 <code>frame_idx % step</code> <a href="../commands.html#d13-frame-idx-step">명령어 사전에서 자세히 →</a></div>
 <pre><code>    ok, frame = cap.read()
-        result = process_frame(frame)</code></pre>
+    if frame_idx % step == 0:          # 5장마다 1장만 처리</code></pre>
       </div>
       <div class="callout">🤔 <strong>왜 건너뛰어? 왜 조심해?</strong> — 옆 Frame끼리는 거의 똑같아서, 건너뛰면 <b>처리량이 크게 줄어요</b>. 하지만 그 사이에 지나간 <b>빠른 사건을 놓칠 수 있고</b>, 줄어든 Frame을 원래 FPS로 저장하면 재생시간도 짧아져요. 시간 기준이 필요하면 <code>CAP_PROP_POS_MSEC</code>이나 FPS로 Timestamp를 계산해요.</div>
-      <figure><img class="smooth" src="img/day13/video_timeline.png" alt="48개 Frame 타임라인에서 5장마다 처리하는 Frame과 놓친 빠른 사건을 표시한 그림"><figcaption><b>무엇을 보나:</b> 수업 예제 영상(48장, 12FPS = 4초)의 Frame을 한 칸씩 늘어놓았어요. 진보라 10칸이 <code>step=5</code>로 처리하는 Frame이고, 아래 썸네일처럼 옆 Frame끼리는 거의 같아요. 빨간 테두리 #12~14에만 있는 빠른 사건은 처리 Frame(#10, #15) 사이에 끼어 <b>한 장도 안 뽑혀요</b>. <b>🤔 왜?</b> 건너뛰기는 "옆 Frame은 비슷하다"는 가정에 기대요. 그 가정 덕에 처리량이 1/5로 줄지만, step보다 짧게 지나가는 사건에서는 가정이 깨져서 놓쳐요. 그래서 step은 잡아야 할 사건의 길이(초 × FPS)보다 작게 정해요.</figcaption></figure>
+      <figure><img class="smooth" src="img/day13/video_timeline.png" alt="48개 Frame 타임라인에서 5장마다 처리하는 Frame과 놓친 빠른 사건을 표시한 그림"><figcaption><b>무엇을 보나:</b> 예제 영상(48장, 12FPS = 4초)의 Frame을 한 칸씩 늘어놓았어요. 진보라 10칸이 <code>step=5</code>로 처리하는 Frame이고, 아래 썸네일처럼 옆 Frame끼리는 거의 같아요. 빨간 테두리 #12~14에만 있는 빠른 사건은 처리 Frame(#10, #15) 사이에 끼어 <b>한 장도 안 뽑혀요</b>. <b>🤔 왜?</b> 건너뛰기는 "옆 Frame은 비슷하다"는 가정에 기대요. 그 가정 덕에 처리량이 1/5로 줄지만, step보다 짧게 지나가는 사건에서는 가정이 깨져서 놓쳐요. 그래서 step은 잡아야 할 사건의 길이(초 × FPS)보다 작게 정해요.</figcaption></figure>
 
       <div class="cmdref">
         <div class="cmdref-head">🔧 읽기 <code>cv2.VideoCapture()</code> · 저장 <code>cv2.VideoWriter()</code> <a href="../commands.html#d13-cv2-videocapture">명령어 사전에서 자세히 →</a></div>
@@ -388,6 +379,7 @@ crop = img[h//10 : h - h//10, w//10 : w - w//10]         # NumPy 자르기 [y, x
       <!-- ============================================================ -->
       <h2 id="verify">⑦ 일괄 처리 · 검증 — 파일이 열린다고 끝이 아니다</h2>
       <p>프로젝트에서는 이미지 폴더와 영상을 같은 설정으로 처리하고, <b>원본 대비 결과를 수치와 그림으로 검증</b>해요. 파일이 열리더라도 작업에 필요한 경계·글자·관심 영역이 남아 있어야 해요.</p>
+      <div class="callout">🤔 <strong>왜 원본과 결과 폴더를 나눠?</strong> — 원본 폴더(<code>data/</code>)는 건드리지 않고 결과는 <code>outputs/</code>에 따로 저장해요. 원본을 덮어쓰면 <b>나중에 비교·재현·복구</b>를 할 수 없기 때문이에요.</div>
 
       <div class="cmdref">
         <div class="cmdref-head">🔧 폴더 일괄 처리 <code>sorted(Path.glob())</code> <a href="../commands.html#d13-sorted-path-glob">명령어 사전에서 자세히 →</a></div>
@@ -395,7 +387,7 @@ crop = img[h//10 : h - h//10, w//10 : w - w//10]         # NumPy 자르기 [y, x
     img = cv2.imread(str(path))</code></pre>
       </div>
 
-      <h3>검증표와 테스트 상황</h3>
+      <h3 id="check">검증표와 테스트 상황</h3>
       <table>
         <tr><th>검증 항목</th><th>원본 예시</th><th>결과 예시</th><th>판정</th></tr>
         <tr><td>파일 수</td><td>10</td><td>10</td><td>일치</td></tr>
@@ -426,6 +418,77 @@ crop = img[h//10 : h - h//10, w//10 : w - w//10]         # NumPy 자르기 [y, x
         </ul>
       </div>
 
+      <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 각 단계가 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>단계</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td><code>imread</code></td><td>BGR <code>uint8</code> 배열 <code>(H, W, 3)</code></td><td>읽기 성공 — 실패해도 에러 없이 <code>None</code></td></tr>
+        <tr><td><code>cvtColor</code> (Gray · HSV)</td><td>목적에 맞는 표현 (밝기 하나 / 색상·채도·명도)</td><td>원래 색 정보 (Gray는 색을 버림)</td></tr>
+        <tr><td><code>resize</code></td><td>정해진 <code>(W, H)</code> 크기</td><td>원본 비율 · 가는 세부 (보간법에 따라 계단 · 번짐 · 중간값)</td></tr>
+        <tr><td>Blur (Gaussian · Median · Bilateral)</td><td>잡음이 줄어든 밝기</td><td>가는 세부 · 경계 선명도</td></tr>
+        <tr><td><code>Canny</code></td><td>경계 지도 (0 / 255)</td><td>닫힌 물체 영역</td></tr>
+        <tr><td><code>threshold</code> (Fixed · Otsu · Adaptive)</td><td>물체 / 배경 이진 지도</td><td>조명이 바뀐 사진에서 같은 결과 (Fixed)</td></tr>
+        <tr><td><code>morphologyEx</code></td><td>먼지 · 구멍을 다듬은 모양</td><td>작은 진짜 결함의 보존</td></tr>
+        <tr><td><code>VideoCapture</code> → <code>VideoWriter</code></td><td>Frame마다 같은 처리를 한 영상</td><td>저장 성공 — 크기 · 채널이 안 맞으면 조용히 0장</td></tr>
+        <tr><td>증강 (train만)</td><td>같은 정답의 다른 사진</td><td>라벨 보존 — 과제마다 사람이 확인</td></tr>
+        <tr><td>shape · dtype 검증</td><td>"그릇 모양"이 맞다는 확인</td><td>내용 보존 → 차이 그림 · 내용 숫자로 따로 확인</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-io">단계별 입력 → 출력 (shape · dtype · 값)</h3>
+      <table>
+        <tr><th>명령</th><th>입력</th><th>출력</th><th>약속</th></tr>
+        <tr><td><code>cv2.imread(path, IMREAD_COLOR)</code></td><td>파일 경로</td><td><code>(H, W, 3)</code> <code>uint8</code> BGR, 예 <code>(240, 320, 3)</code></td><td>실패하면 <code>None</code> (에러 아님)</td></tr>
+        <tr><td><code>cv2.cvtColor(img, COLOR_BGR2GRAY)</code></td><td><code>(H, W, 3)</code></td><td><code>(H, W)</code> <code>uint8</code>, 예 <code>(240, 320)</code></td><td>채널 축이 사라짐</td></tr>
+        <tr><td><code>cv2.resize(img, (W, H))</code></td><td><code>(h, w[, C])</code></td><td><code>(H, W[, C])</code></td><td>크기는 <b>(W, H)</b>로 주고, 결과 shape는 (H, W)</td></tr>
+        <tr><td><code>GaussianBlur</code> · <code>medianBlur</code> · <code>bilateralFilter</code></td><td>이미지</td><td>같은 shape · dtype</td><td>ksize는 홀수 (median은 1보다 큰 홀수)</td></tr>
+        <tr><td><code>cv2.Canny(gray, t1, t2)</code></td><td><code>(H, W)</code> <code>uint8</code></td><td><code>(H, W)</code>, 값 0 또는 255</td><td>t2 이상은 확실한 경계, t1~t2는 이어질 때만</td></tr>
+        <tr><td><code>cv2.threshold(gray, T, 255, type)</code></td><td><code>(H, W)</code></td><td><code>(retval, dst)</code>, dst 값 0 / 255</td><td>Otsu를 쓰면 retval = 자동으로 고른 T</td></tr>
+        <tr><td><code>cv2.adaptiveThreshold(...)</code></td><td><code>(H, W)</code> <code>uint8</code></td><td><code>(H, W)</code>, 0 / 255</td><td>칸마다 기준 = 주변 <code>blockSize</code> 평균 − <code>C</code></td></tr>
+        <tr><td><code>cv2.morphologyEx(binary, op, kernel)</code></td><td>이진 이미지</td><td>같은 shape</td><td>Opening = 침식 → 팽창, Closing = 팽창 → 침식</td></tr>
+        <tr><td><code>cap.read()</code></td><td>열린 <code>VideoCapture</code></td><td><code>(ok, frame)</code></td><td>마지막 다음엔 <code>ok=False</code></td></tr>
+        <tr><td><code>cv2.VideoWriter(path, fourcc, fps, (W, H))</code></td><td>Frame들</td><td>영상 파일</td><td>Frame 크기 · 채널이 설정과 다르면 조용히 저장 실패</td></tr>
+        <tr><td><code>cv2.convertScaleAbs(img, alpha, beta)</code></td><td><code>uint8</code></td><td><code>uint8</code></td><td>0~255 밖은 잘라냄 (<code>img + 30</code>은 넘쳐서 돌아감)</td></tr>
+      </table>
+      <h3 id="spec-order">좌표 · 크기 순서</h3>
+      <table>
+        <tr><th>(H, W) — 행 먼저</th><th>(W, H) — 가로 먼저</th></tr>
+        <tr><td><code>img.shape</code>, <code>img[y, x]</code>, NumPy 자르기 <code>img[y1:y2, x1:x2]</code></td><td><code>cv2.resize</code>의 <code>dsize</code>, <code>VideoWriter</code>의 <code>frameSize</code>, <code>CAP_PROP_FRAME_WIDTH</code> / <code>HEIGHT</code>, 회전 중심 <code>(x, y)</code></td></tr>
+      </table>
+      <h3 id="spec-video">영상 수치</h3>
+<pre><code>재생시간 = Frame 수 ÷ FPS                  예) 48장 ÷ 12FPS = 4초
+step 처리 간격(초) = step ÷ FPS            예) 5 ÷ 12 ≈ 0.417초</code></pre>
+
+      <!-- ============================================================ -->
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>opencv-python</code></td><td>이미지·영상 읽기/쓰기, 색 변환, 필터, 이진화, 형태학, 회전</td><td><code>import cv2</code></td></tr>
+        <tr><td><code>numpy</code></td><td>OpenCV 이미지의 실제 정체 (숫자 배열), 자르기·계산</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>matplotlib</code></td><td>원본·결과를 나란히 그려서 비교</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python --version
+python -m pip install opencv-python numpy matplotlib
+python -m pip show opencv-python numpy matplotlib
+python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK</code></pre>
+      <div class="callout">💡 pip 이름과 import 이름이 달라요: <code>opencv-python</code> → <code>import cv2</code>. 함수 동작 · 인자는 <b>OpenCV 4.x 공식 문서</b>를 기준으로 확인해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day13">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day11.html">CNN · 이미지 분류 · 전이학습</a></td><td>사람이 정하던 Kernel을 모델이 학습 — 전처리한 사진이 들어가는 곳</td></tr>
+        <tr><td><a href="day14.html">전이학습과 오류 분석</a></td><td>224×224로 맞추고 증강한 입력으로 사전학습 모델 학습 · 틀린 사진 분석</td></tr>
+        <tr><td><a href="day12.html">순서 모델 (RNN · LSTM · Transformer)</a></td><td>Frame의 시간 순서 자체를 모델로 읽기</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
         <li>강의: <code>Day13_20261104.pdf</code> (p.2–11 큰 그림, p.18–35 배열·색공간·Resize, p.36–54 Filter·Threshold·형태학, p.55–73 영상·증강, p.74–89 프로젝트·검증)</li>

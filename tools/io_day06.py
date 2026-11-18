@@ -1,6 +1,6 @@
 """Day6 명령어 사전의 '입력 → 출력' 상자를 실제 실행 결과로 만든다.
 
-강의 데이터(C:/practice_assignment/20261026/02_응용/data)는 임시 폴더에 복사해서 읽기만 한다.
+원본 데이터(C:/practice_assignment/20261026/02_응용/data)는 임시 폴더에 복사해서 읽기만 한다.
 결과는 cmds/day06.html 각 항목의 첫 코드 블록 바로 뒤에 <div class="io"> 로 넣는다(다시 돌리면 교체).
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/io_day06.py
 """
@@ -43,7 +43,7 @@ train, valid = raw.loc[ids["train"]], raw.loc[ids["valid"]]
 X_train, X_valid = train[FEATURES], valid[FEATURES]
 y_train, y_valid = train["failed"], valid["failed"]
 yr_train, yr_valid = train["elapsed_ms"], valid["elapsed_ms"]
-DATA = "강의 requests.csv · train 60 / valid 20"
+DATA = "예시 requests.csv · train 60 / valid 20"
 
 SCALERS = {"standard": StandardScaler, "minmax": MinMaxScaler}
 
@@ -76,11 +76,11 @@ def err(fn):
 
 IO = {}
 
-# 1. LinearRegression — 노트의 공부시간 5행
+# 1. LinearRegression — 본문의 공부시간 5행
 X = np.array([[1], [2], [3], [4], [5]])
 y = np.array([52, 61, 69, 80, 89])
 lin = LinearRegression().fit(X, y)
-IO["d6-linearregression"] = ("노트의 공부시간 예제 5행", [
+IO["d6-linearregression"] = ("본문의 공부시간 예제 5행", [
     ("X.shape", repr(X.shape), "행 5(사례) × 열 1(특성) — 2차원"),
     ("model.coef_", lst(lin.coef_, 2), "1시간당 약 9.3점 — 특성마다 하나라 배열"),
     ("model.intercept_", f"{lin.intercept_:.2f}", "x=0일 때 높이 42.3"),
@@ -132,7 +132,7 @@ for t in [0.5, 0.3, 0.8]:
     tn, fp, fn, tp = confusion_matrix(truth, pr_, labels=[0, 1]).ravel()
     rows.append((f"pred = (p >= {t}).astype(int)", f"{pr_.tolist()} → FP={fp}, FN={fn}, TP={tp}",
                  {0.5: "기본 선", 0.3: "선을 내리면 FN↓ · FP↑", 0.8: "선을 올리면 FP↓ · FN↑"}[t]))
-IO["d6-임계값-바꾸기"] = ("노트의 6건 (실제 3:3)", rows)
+IO["d6-임계값-바꾸기"] = ("본문의 6건 (실제 3:3)", rows)
 
 # 5. KNN
 Xk = np.array([[1], [2], [4], [7], [9]])
@@ -142,7 +142,7 @@ rk = KNeighborsRegressor(n_neighbors=3).fit(Xk, [10, 20, 40, 70, 90])
 wk = KNeighborsRegressor(n_neighbors=3, weights="distance").fit(Xk, [10, 20, 40, 70, 90])
 lin4 = LinearRegression().fit([[1], [2], [3], [4]], [10, 20, 30, 40])
 k4 = KNeighborsRegressor(n_neighbors=2).fit([[1], [2], [3], [4]], [10, 20, 30, 40])
-IO["d6-kneighborsclassifier"] = ("노트의 x=[1, 2, 4, 7, 9] 예제", [
+IO["d6-kneighborsclassifier"] = ("본문의 x=[1, 2, 4, 7, 9] 예제", [
     ("knn.kneighbors([[3.2]])", f"거리 {lst(d[0], 1)}, 행 {ix[0].tolist()}", "x=4, 2, 1 순서로 가까움"),
     ("knn.predict([[3.2]])", repr(knn.predict([[3.2]]).tolist()), "이웃 정답 1·0·0 → 다수결 0"),
     ("knn.predict_proba([[3.2]])", lst(knn.predict_proba([[3.2]])[0]), "3표 중 0이 2표"),
@@ -165,7 +165,7 @@ IO["d6-columntransformer"] = (DATA, [
     ("np.isnan(Z_train).sum()", repr(int(np.isnan(Ztr).sum())), "결측이 train 중앙값·최빈값으로 채워짐"),
     ('get_feature_names_out()[:3]', repr(names[:3]), "num__/cat__ 접두어로 출처 표시"),
     ("Z_train[:, :2].mean(0) · std(0)", f"{lst(Ztr[:, :2].mean(0).round(2) + 0.0, 2)} · {lst(Ztr[:, :2].std(0), 2)}", "standard: train 기준 평균 0 · 표준편차 1"),
-    ("K=5 valid F1: none · standard · minmax", f"{sc['none']:.3f} · {sc['standard']:.3f} · {sc['minmax']:.3f}", "표준화했는데 오히려 낮음 — 노트 설명대로"),
+    ("K=5 valid F1: none · standard · minmax", f"{sc['none']:.3f} · {sc['standard']:.3f} · {sc['minmax']:.3f}", "표준화했는데 오히려 낮음 — 본문 설명대로"),
 ])
 
 # 7. 후보 반복 비교

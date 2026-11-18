@@ -2,14 +2,14 @@
 <section class="cmd-overview" data-day="12">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day12.html#packages">📦 필요한 패키지</a></td><td><code>torch</code> (이미 설치된 것 그대로)</td></tr>
         <tr><td><a href="notes/day12.html#seq">① 순서 데이터 · Padding · Mask · Window</a></td><td><code>pad_sequence()</code>, <code>masked_fill()</code>, <code>unfold()</code>, <code>pack_padded_sequence()</code></td></tr>
         <tr><td><a href="notes/day12.html#rnn">② RNN</a></td><td><code>nn.RNN()</code> → <code>output, h_n</code></td></tr>
         <tr><td><a href="notes/day12.html#lstm">③ LSTM</a></td><td><code>nn.LSTM()</code> → <code>output, (h_n, c_n)</code></td></tr>
-        <tr><td><a href="notes/day12.html#ae">④ Autoencoder</a></td><td><code>nn.Sequential(nn.Linear …)</code>, <code>nn.MSELoss(reduction="none")</code>, <code>TensorDataset</code></td></tr>
-        <tr><td><a href="notes/day12.html#attn">⑤ Attention · Transformer</a></td><td><code>nn.MultiheadAttention()</code>, <code>nn.TransformerEncoderLayer()</code>, <code>nn.TransformerEncoder()</code>, <code>src_key_padding_mask</code></td></tr>
+        <tr><td><a href="notes/day12.html#attn">④ Attention · Transformer</a></td><td><code>nn.MultiheadAttention()</code>, <code>nn.TransformerEncoderLayer()</code>, <code>nn.TransformerEncoder()</code>, <code>nn.Embedding</code>, <code>src_key_padding_mask</code></td></tr>
+        <tr><td><a href="notes/day12.html#ae">⑤ Autoencoder</a></td><td><code>nn.Sequential(nn.Linear …)</code>, <code>nn.MSELoss(reduction="none")</code>, <code>TensorDataset</code>, <code>torch.quantile()</code></td></tr>
         <tr><td><a href="notes/day12.html#compare">⑥ 아키텍처 비교</a></td><td>같은 분할·지표로 Params·Best Epoch·Valid·시간·메모리 기록</td></tr>
         <tr><td><a href="notes/day12.html#speed">⑦ 길이 T · Padding · 속도 측정</a></td><td><code>perf_counter()</code>, <code>torch.cuda.synchronize()</code>, <code>torch.cuda.max_memory_allocated()</code></td></tr>
+        <tr><td><a href="notes/day12.html#packages">📦 패키지 · 명령어</a></td><td><code>torch</code> (이미 설치된 것 그대로)</td></tr>
       </table>
 </section>
 <section class="cmd" id="d12-pad-sequence" data-topic="PyTorch" data-sub="순서 데이터" data-day="12" data-theory="notes/day12.html#seq">
@@ -27,7 +27,7 @@ padded = pad_sequence(seqs, batch_first=True)         # → [3, 5, 3] = [B, T, F
 valid = (~(torch.arange(5)[None, :] &gt;= torch.tensor([4, 2, 5])[:, None])).unsqueeze(-1)
 mean = (padded * valid).sum(1) / valid.sum(1)         # 실제 칸만 평균</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.randn(4, 6, 3) (seed 0) · 강의 sequences.json train 앞 4개</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.randn(4, 6, 3) (seed 0) · 예제 sequences.json train 앞 4개</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>mask = arange(6)[None, :] &gt;= lengths[:, None]  (lengths [6, 4, 5, 3])</code></td><td><code>0 0 0 0 0 0
@@ -46,8 +46,8 @@ mean = (padded * valid).sum(1) / valid.sum(1)         # 실제 칸만 평균</co
     <tr><td><code>padded[1, :, 0]</code></td><td><code>2 2 0 0 0</code></td><td>길이 2짜리 뒤를 0으로 채움</td></tr>
     <tr><td><code>(padded * valid).sum(1) / valid.sum(1)  [:, 0]</code></td><td><code>1 2 3</code></td><td>실제 칸만 평균 → 1 · 2 · 3 그대로</td></tr>
     <tr><td><code>padded.mean(1)[:, 0]  ← Mask 없이 평균</code></td><td><code>0.8 0.8 3</code></td><td>Padding 0이 섞여 짧은 샘플일수록 작아짐</td></tr>
-    <tr><td><code>강의 데이터: [d[&#x27;length&#x27;] for d in train[:4]]</code></td><td><code>[8, 6, 12, 11]</code></td><td></td></tr>
-    <tr><td><code>pad_sequence(강의 4개, batch_first=True).shape</code></td><td><code>[4, 12, 3]</code></td><td>[B=4, T=최대 12, F=3]</td></tr>
+    <tr><td><code>예제 데이터: [d[&#x27;length&#x27;] for d in train[:4]]</code></td><td><code>[8, 6, 12, 11]</code></td><td></td></tr>
+    <tr><td><code>pad_sequence(예제 4개, batch_first=True).shape</code></td><td><code>[4, 12, 3]</code></td><td>[B=4, T=최대 12, F=3]</td></tr>
   </table>
 </div>
       <table>
@@ -68,7 +68,7 @@ x = window[:, :12].unsqueeze(-1)           # [N, 12, 1]  ← F=1 축 추가
 y = window[:, 12:13]                       # [N, 1]
 # 예: 길이 20, size=5, step=1 → Window 20 − 5 + 1 = 16개</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 series.csv의 train 구간(180개) · torch.arange(20)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 series.csv의 train 구간(180개) · torch.arange(20)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>train_s.shape</code></td><td><code>[180]</code></td><td>split == &#x27;train&#x27; 인 값만 (시간 순서 그대로)</td></tr>
@@ -99,7 +99,7 @@ packed = pack_padded_sequence(padded, lengths, batch_first=True, enforce_sorted=
 out_packed, h_n = rnn(packed)                     # h_n = 샘플마다 '실제' 마지막 시점
 output, out_lengths = pad_packed_sequence(out_packed, batch_first=True)   # 다시 [B, T, H]로</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 sequences.json train 앞 4개 (길이 [8, 6, 12, 11], F=3) · nn.RNN(3, 8) seed 0</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 sequences.json train 앞 4개 (길이 [8, 6, 12, 11], F=3) · nn.RNN(3, 8) seed 0</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>packed.data.shape</code></td><td><code>[37, 3]</code></td><td>Σ길이 37 칸만 담음 (Padding 칸 없음)</td></tr>
@@ -175,7 +175,7 @@ print(LSTMForecaster()(x).shape)                       # torch.Size([4, 1])
 # output, (h_n, c_n) = lstm(x, hx=None)   ← hx=(h_0, c_0), 생략하면 둘 다 0
 loss = nn.MSELoss()(pred, y)                           # 예측 [B,1] vs 다음 실제 값 [B,1]</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.randn(4, 12, 1) (seed 0) · 강의 series.csv 창(train 168개 · valid 48개)으로 100 step 학습</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>torch.randn(4, 12, 1) (seed 0) · 예제 series.csv 창(train 168개 · valid 48개)으로 100 step 학습</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>output, (h_n, c_n) = nn.LSTM(1, 16, batch_first=True)(x)</code></td><td><code>output [4, 12, 16], h_n [1, 4, 16], c_n [1, 4, 16]</code></td><td>상태가 두 개(h, c)</td></tr>
@@ -360,7 +360,7 @@ encoder = nn.TransformerEncoder(layer, num_layers=2)   # 같은 Layer를 복제�
 </section>
 
 <section class="cmd" id="d12-position-embedding-padding-mask-실제-위치만-평균" data-topic="PyTorch" data-sub="Attention · Transformer" data-day="12" data-theory="notes/day12.html#attn">
-  <h3>Position Embedding + Padding Mask + 실제 위치만 평균</h3>
+  <h3>Position Embedding + Padding Mask + 실제 위치만 평균 — <code>nn.Embedding</code> · <code>src_key_padding_mask</code> · <code>masked_fill</code></h3>
 <pre><code>class TransformerClassifier(nn.Module):
     def __init__(self, max_len=64, d_model=16):
         super().__init__()
@@ -373,24 +373,23 @@ encoder = nn.TransformerEncoder(layer, num_layers=2)   # 같은 Layer를 복제�
         pos = torch.arange(x.size(1), device=x.device)     # [T]
         z = self.encoder(x + self.pos(pos),                # [T, E] → Batch에 Broadcasting
                          src_key_padding_mask=padding_mask)
-        return self.head(masked_mean(z, padding_mask))     # [B, E] → logits [B, 2]
-
-def masked_mean(x, padding_mask):
-    if bool(padding_mask.all(dim=1).any()):
-        raise ValueError("실제 길이는 1 이상")              # 전부 Padding이면 0으로 나누게 됨
-    valid = (~padding_mask).unsqueeze(-1)                  # [B, T, 1], True = 실제 값
-    summed = x.masked_fill(~valid, 0).sum(dim=1)
-    return summed / valid.sum(dim=1)                       # 분모 = 실제 길이</code></pre>
+        # 실제 위치만 평균 (Masked Mean Pooling)
+        valid = (~padding_mask).unsqueeze(-1)              # [B, T, 1], True = 실제 값
+        n = valid.sum(dim=1)                               # [B, 1] 실제 길이
+        if bool((n == 0).any()):
+            raise ValueError("실제 길이는 1 이상")          # 전부 Padding이면 0으로 나누게 됨
+        pooled = z.masked_fill(~valid, 0).sum(dim=1) / n   # [B, E], 분모 = 실제 길이
+        return self.head(pooled)                           # logits [B, 2]</code></pre>
 <div class="io">
   <div class="io-title">▶ 실제로 돌려 보면 <small>torch.randn(3, 6, 16) (seed 0), 길이 [6, 4, 2], 학습 전 모델 · eval</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>model(x, padding_mask).shape</code></td><td><code>[3, 2]</code></td><td>[B, 2] logits</td></tr>
     <tr><td><code>Padding 칸을 99로 바꾼 뒤 출력 차이</code></td><td><code>0.00e+00</code></td><td>≈ 0 → Mask가 잘 걸림 (Padding 불변)</td></tr>
-    <tr><td><code>encoder 출력의 Padding 위치는?  (99로 바꾼 뒤 차이)</code></td><td><code>2.43</code></td><td>Padding 위치 출력은 남아 있고 값도 변함 → masked_mean으로 빼야 함</td></tr>
+    <tr><td><code>encoder 출력의 Padding 위치는?  (99로 바꾼 뒤 차이)</code></td><td><code>2.43</code></td><td>Padding 위치 출력은 남아 있고 값도 변함 → Pooling에서 Mask로 빼야 함</td></tr>
     <tr><td><code>Position 있음: 순서를 뒤집은 뒤 출력 차이</code></td><td><code>0.155</code></td><td>순서가 바뀌면 결과도 바뀜</td></tr>
     <tr><td><code>Position 없음: 순서를 뒤집은 뒤 출력 차이</code></td><td><code>5.96e-08</code></td><td>≈ 0 → 순서를 모르는 모델</td></tr>
-    <tr><td><code>masked_mean(z, 전부 True인 mask)</code></td><td><code>ValueError: 실제 길이는 1 이상</code></td><td>0 ÷ 0 = NaN을 미리 막음</td></tr>
+    <tr><td><code>모든 위치가 Padding인 mask로 Pooling</code></td><td><code>ValueError: 실제 길이는 1 이상</code></td><td>0 ÷ 0 = NaN을 미리 막음</td></tr>
     <tr><td><code>model.pos(torch.arange(65))  ← max_len 64 초과</code></td><td><code>IndexError</code></td><td>없는 위치 번호</td></tr>
   </table>
 </div>
@@ -399,7 +398,7 @@ def masked_mean(x, padding_mask):
         <tr><td><code>nn.Embedding(max_len, d_model)</code></td><td>학습 가능한 Position Embedding</td><td>입력 길이 T가 <code>max_len</code>보다 길면 없는 위치 번호라 오류</td></tr>
         <tr><td><code>x + self.pos(pos)</code></td><td>입력에 위치 표현을 <b>더함</b></td><td>빼면 순서를 섞어도 결과가 같아짐 (순서를 모르는 모델)</td></tr>
         <tr><td><code>src_key_padding_mask</code></td><td>[B, T], True = Padding Key 제외</td><td>Mask를 넣어도 Padding <b>위치의 출력</b>은 남아 있음 → Pooling에서 다시 빼야 함</td></tr>
-        <tr><td><code>masked_mean</code> 분모</td><td>실제 길이</td><td>T로 나누면 짧은 순서일수록 평균이 작아져 길이가 점수에 섞임</td></tr>
+        <tr><td>Pooling 분모 <code>valid.sum(dim=1)</code></td><td>실제 길이</td><td>T로 나누면 짧은 순서일수록 평균이 작아져 길이가 점수에 섞임</td></tr>
         <tr><td>길이 0 검사</td><td>모든 위치가 Padding인 샘플 막기</td><td>검사 없이 나누면 0 ÷ 0 = NaN이 학습 전체로 퍼짐</td></tr>
       </table>
       <div class="callout">💡 <strong>제대로 됐는지 확인하는 법</strong> — Padding 칸 값을 99로 바꿔도 출력이 같으면 Mask가 잘 걸린 것(Padding 불변). Position 없이 순서를 섞었는데 결과가 같으면 모델이 순서를 모른다는 뜻.</div>

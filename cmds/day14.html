@@ -2,7 +2,7 @@
 <section class="cmd-overview" data-day="14">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day14.html#packages">📦 필요한 패키지</a></td><td><code>pip install torch torchvision scikit-learn opencv-python Pillow</code></td></tr>
+        <tr><td><a href="notes/day14.html#packages">📦 패키지 · 명령어</a></td><td><code>pip install torch torchvision scikit-learn opencv-python Pillow</code></td></tr>
         <tr><td><a href="notes/day14.html#dataset">① 데이터셋 설계 · 누수</a></td><td><code>ImageFolder()</code>, <code>class_to_idx</code>, <code>Counter(targets)</code>, <code>GroupShuffleSplit</code></td></tr>
         <tr><td><a href="notes/day14.html#transfer">② Backbone · Head</a></td><td><code>resnet18(weights=)</code>, <code>weights.transforms()</code>, <code>requires_grad</code>, <code>nn.Linear</code>, <code>model.eval()</code></td></tr>
         <tr><td><a href="notes/day14.html#finetune">③ Fine-tuning 범위 · 학습률</a></td><td><code>layer4.requires_grad_(True)</code>, <code>AdamW([{"params", "lr"}])</code>, best 복원</td></tr>
@@ -26,7 +26,7 @@ print(train.class_to_idx)              # {'circle': 0, 'square': 1, 'triangle': 
 for ds in [train, valid, test]:
     print(ds.root, Counter(ds.targets)) # train: Counter({0: 120, 1: 40, 2: 20})</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 데이터 data/train · valid · test</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 데이터 data/train · valid · test</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>train.class_to_idx</code></td><td><code>{&#x27;circle&#x27;: 0, &#x27;square&#x27;: 1, &#x27;triangle&#x27;: 2}</code></td><td>폴더 이름 알파벳 순서</td></tr>
@@ -87,7 +87,7 @@ in_features = model.fc.in_features      # 512
 model.fc = nn.Linear(in_features, num_classes)   # ③ 새 Head (새로 만든 층은 기본으로 학습 가능)
 preprocess = weights.transforms()       # 이 가중치가 원하는 평가용 입력 변환</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 train circle 한 장(40×40)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 예제 train circle 한 장(40×40)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>weights</code></td><td><code>ResNet18_Weights.IMAGENET1K_V1</code></td><td>DEFAULT가 가리키는 실제 이름</td></tr>
@@ -197,7 +197,7 @@ for epoch in range(8):
         best_loss, best_state = valid_loss, copy.deepcopy(model.state_dict())
 model.load_state_dict(best_state)                 # best로 되돌리기</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · 8 epoch</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · 8 epoch</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>학습 파라미터 수 (Head만)</code></td><td><code>99</code></td><td>32 × 3 + 3</td></tr>
@@ -234,7 +234,7 @@ class_weight = class_weight / class_weight.mean()   # 평균 1로 맞춤
 print(class_weight)                              # tensor([0.30, 0.90, 1.80])
 loss_fn = nn.CrossEntropyLoss(weight=class_weight.to(device))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 train 개수 [120, 40, 20] · &#x27;best 복원&#x27; 항목과 같은 모델·seed·8 epoch에 weight만 추가</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 train 개수 [120, 40, 20] · &#x27;best 복원&#x27; 항목과 같은 모델·seed·8 epoch에 weight만 추가</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>torch.bincount(train targets)</code></td><td><code>[120, 40, 20]</code></td><td></td></tr>
@@ -270,7 +270,7 @@ sample_weight = class_weight[targets]            # 클래스 weight → 샘플�
 sampler = WeightedRandomSampler(sample_weight, num_samples=len(sample_weight), replacement=True)
 loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)   # shuffle은 쓰지 않음</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 train 180장 (120 · 40 · 20), generator seed 0</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 train 180장 (120 · 40 · 20), generator seed 0</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>sample_weight[:2], sample_weight[-2:]</code></td><td><code>0.0083 0.0083, 0.0500 0.0500</code></td><td>circle 1/120 · triangle 1/20</td></tr>
@@ -298,7 +298,7 @@ loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)   # shuffle�
         <tr><td>Class weight</td><td>1.000</td><td>0.667</td><td>0.633</td><td>0.763</td></tr>
         <tr><td>Sampler</td><td>1.000</td><td>0.733</td><td>0.700</td><td>0.810</td></tr>
       </table>
-      <p><small>강의의 설명용 합성 예시예요. 이 순위가 다른 데이터에서도 유지되지는 않아요.</small></p>
+      <p><small>설명용 합성 예시예요. 이 순위가 다른 데이터에서도 유지되지는 않아요.</small></p>
 </section>
 
 <section class="cmd" id="d14-confusion-matrix" data-topic="PyTorch" data-sub="평가 · 오류 분석" data-day="14" data-theory="notes/day14.html#eval">
@@ -312,7 +312,7 @@ print(cm)
 print(report["macro avg"]["f1-score"])
 print(f1_score(y_true, y_pred, average="macro"))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 valid 90장 (30 · 30 · 30) — &#x27;best 복원&#x27;(Head-only)·&#x27;Class weight&#x27; 항목에서 학습한 두 모델의 예측</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 valid 90장 (30 · 30 · 30) — &#x27;best 복원&#x27;(Head-only)·&#x27;Class weight&#x27; 항목에서 학습한 두 모델의 예측</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>confusion_matrix (Head-only)</code></td><td><code> 30   0   0
@@ -354,7 +354,7 @@ wrong = (pred != y_valid).nonzero().flatten()
 for i in wrong[:8]:                        # 오분류 최대 8장
     print(paths[i], "T=", class_names[y_valid[i]], "P=", class_names[pred[i]], f"{conf[i]:.2f}")</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 valid 90장 — &#x27;Class weight&#x27; 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 valid 90장 — &#x27;Class weight&#x27; 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>probs[0], probs[0].sum()</code></td><td><code>0.366 0.401 0.233, 1.000</code></td><td>클래스별 확률, 합 1</td></tr>
@@ -396,7 +396,7 @@ finally:
     for h in handles:
         h.remove()                                       # 꼭 지우기!</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 구조(weights=None, 3클래스 Head) · 강의 circle 한 장을 preprocess → [1, 3, 224, 224]</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>ResNet18 구조(weights=None, 3클래스 Head) · 예제 circle 한 장을 preprocess → [1, 3, 224, 224]</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>activation[&#x27;value&#x27;].shape</code></td><td><code>[1, 512, 7, 7]</code></td><td>layer4[-1] 출력: 512채널 · 7×7 지도</td></tr>

@@ -52,10 +52,10 @@ def lst(x):
 
 
 # ------------------------------------------------------------------ 설치
-IO["d20-pip-install"] = ("이 노트를 만든 가상환경에서 실제로 확인", [
+IO["d20-pip-install"] = ("실행에 쓴 가상환경에서 실제로 확인", [
     ("import torch, transformers, sentence_transformers",
      f"torch {torch.__version__} · transformers {transformers.__version__} · sentence-transformers {sentence_transformers.__version__}",
-     "강의 기준(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준"),
+     "기준 버전(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준"),
 ])
 
 # ------------------------------------------------------------------ Tokenizer
@@ -63,7 +63,7 @@ tok = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
 text = "실습 파일은 개인 폴더에 보관합니다."
 ids = tok(text)["input_ids"]
 toks = tok.convert_ids_to_tokens(ids)
-IO["d20-tokenizer"] = ("강의 코드 그대로 · bert-base-multilingual-cased", [
+IO["d20-tokenizer"] = ("예제 코드 그대로 · bert-base-multilingual-cased", [
     ("print(tok.convert_ids_to_tokens(ids))", str(toks), "앞뒤 [CLS]·[SEP]는 Special Token · ##은 '앞 조각에 붙어 있음' 표시(WordPiece)"),
     ('print("ids:", ids)', "ids: " + str(ids), "Vocabulary 번호 — 119081이 101보다 '중요'하다는 뜻이 아니에요"),
     ('print("n_tokens:", len(ids))', f"n_tokens: {len(ids)}", f"원문은 공백 포함 {len(text)}글자 · 띄어쓰기 단어는 5개 — 셋 다 다른 숫자"),
@@ -86,7 +86,7 @@ rows = []
 for t, why in [("실습 파일은 개인 폴더에 보관합니다.", "한국어 · 글자 단위로 많이 쪼개짐"),
                ("Keep practice files in your personal folder.", "영어 · 단어 대부분이 한 Token, folder만 f ##old ##er"),
                ("def get_db(): yield db", "코드 · 기호 하나하나가 Token"),
-               ("학습 파일", "강의 예시 — '학습 파일'도 4조각"),
+               ("학습 파일", "비슷한 예시 — '학습 파일'도 4조각"),
                ("FastAPI와 PostgreSQL", "고유명사는 잘게 · 조사 '와'는 ##와로 붙음")]:
     i = tok(t)["input_ids"]
     rows.append((f'"{t}"', f"{len(i)}개 · " + " ".join(tok.convert_ids_to_tokens(i)), why))
@@ -96,7 +96,7 @@ texts = ["AI", "FastAPI와 PostgreSQL"]
 batch = tok(texts, padding=True, truncation=True, max_length=12, return_tensors="pt")
 b4 = tok(texts, padding=True, truncation=True, max_length=4, return_tensors="pt")
 bml = tok(texts, padding="max_length", truncation=True, max_length=12, return_tensors="pt")
-IO["d20-batch-padding"] = ("강의 코드 그대로 + max_length·padding 바꿔 보기", [
+IO["d20-batch-padding"] = ("예제 코드 + max_length·padding 바꿔 보기", [
     ('print(batch["input_ids"].shape)', str(batch["input_ids"].shape), "2문장 × 9 Token — 긴 문장(9개)에 맞춰짐, 12까지 채우지 않음"),
     ('print(batch["attention_mask"])', t2s(batch["attention_mask"]), "1 = 실제 Token · 0 = [PAD] (짧은 'AI' 뒤 6칸)"),
     ("첫 문장 Token", " ".join(tok.convert_ids_to_tokens(batch["input_ids"][0])), "PAD의 ID는 0"),
@@ -123,7 +123,7 @@ IO["d20-embedding-lookup"] = ("작은 nn.Embedding(100, 4) · seed 0 · 실제 �
 
 a = torch.tensor([1.0, 0.0]); b = torch.tensor([0.8, 0.2]); c = torch.tensor([-1.0, 0.0])
 cab = F.cosine_similarity(a, b, dim=0); cac = F.cosine_similarity(a, c, dim=0)
-IO["d20-cosine"] = ("강의 코드 그대로 + 두 줄 더", [
+IO["d20-cosine"] = ("예제 코드 + 두 줄 더", [
     ("F.cosine_similarity(a, b, dim=0)", t2s(cab, 4), "방향이 거의 같음 (각도 약 14°)"),
     ("F.cosine_similarity(a, c, dim=0)", t2s(cac, 4), "정반대 방향"),
     ("a vs [0.0, 1.0]", t2s(F.cosine_similarity(a, torch.tensor([0.0, 1.0]), dim=0), 4), "직각 — 방향 관련 없음"),
@@ -138,7 +138,7 @@ ko = ["실습 파일은 개인 폴더에 보관합니다.", "프로젝트 폴더
 kv = model.encode(ko)
 ks = model.similarity(kv, kv)
 SIM = {"en": es, "ko": ks}
-IO["d20-sentence-transformer"] = ("강의 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)", [
+IO["d20-sentence-transformer"] = ("예제 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)", [
     ("print(vectors.shape)", str(ev.shape), "문장 3개 × 384차원 — 문장 하나가 벡터 하나"),
     ("similarity: 파일 위치 ↔ 폴더 찾기", f"{es[0,1]:.4f}", "단어가 달라도(folder/directory) 뜻이 가까워 높음"),
     ("similarity: 파일 위치 ↔ 날씨", f"{es[0,2]:.4f}", "관계없는 문장은 0 근처"),
@@ -158,7 +158,7 @@ try:
 except Exception as e:  # noqa: BLE001
     nh3 = f"{type(e).__name__}: {e}"
 nparam = sum(p.numel() for p in layer.parameters())
-IO["d20-encoder-layer"] = ("강의 코드 그대로 + 제약 확인", [
+IO["d20-encoder-layer"] = ("예제 코드 + 제약 확인", [
     ("print(x.shape, y.shape)", f"{x.shape} {y.shape}", "입력과 출력 shape가 같아요 — 그래서 Block을 여러 층 쌓을 수 있어요"),
     ("sum(p.numel() for p in layer.parameters())", f"{nparam}", "이 작은 층 하나의 학습 파라미터 수 — (2,5,8)의 숫자와는 다른 개념"),
     ("nhead=3 으로 바꾸면", nh3, "d_model(8)은 head 수로 나누어떨어져야 해요 — head마다 8÷2=4차원씩 나눠 가짐"),
@@ -173,7 +173,7 @@ head = nn.Linear(D, V)
 tid = torch.randint(0, V, (2, 5))
 h0 = embed(tid); h1 = block(h0); lg = head(h1)
 pr = torch.softmax(lg[:, -1, :], dim=-1)
-IO["d20-shapes-lmhead"] = ("강의 shape 표를 작은 층으로 실제 실행 · seed 0", [
+IO["d20-shapes-lmhead"] = ("shape 표를 작은 층으로 실제 실행 · seed 0", [
     ("token_ids.shape", str(tid.shape), "2문장 · 문장당 5 Token"),
     ("embed(token_ids).shape", str(h0.shape), "각 Token이 8차원 벡터"),
     ("block(h).shape", str(h1.shape), "Attention + FFN을 거쳐도 [B, T, D] 유지"),
@@ -189,7 +189,7 @@ scores = q @ k.T / math.sqrt(2)
 mask = torch.triu(torch.ones(3, 3, dtype=torch.bool), diagonal=1)
 weights = torch.softmax(scores.masked_fill(mask, float("-inf")), dim=-1)
 out = weights @ v
-IO["d20-attention"] = ("강의 코드 그대로 + 중간값 출력", [
+IO["d20-attention"] = ("예제 코드 + 중간값 출력", [
     ("print(scores.round(decimals=2))", t2s(scores, 2), "(3,3) 관계 점수 · 행=Query, 열=Key · 아직 확률 아님"),
     ("print(mask)", t2s(mask), "True = 가릴 칸 (대각선 위 = 미래)"),
     ("scores.masked_fill(mask, -inf)", t2s(scores.masked_fill(mask, float("-inf")), 2), "미래 칸을 -inf로 → Softmax 뒤 정확히 0"),
@@ -243,7 +243,7 @@ for temp in [0.5, 1.0, 2.0]:
     TEMP[temp] = probs
     trows.append((f"temp = {temp}", t2s(probs, 3), {0.5: "1등 후보에 몰림(0.867)", 1.0: "기본 Softmax", 2.0: "완만해짐 — 3등도 0.186"}[temp]))
 trows.append(("logits.argmax()", t2s(logits.argmax()), "Temperature를 바꿔도 1등은 그대로 0번 — 순서는 안 바뀌고 '몰림 정도'만 바뀜"))
-IO["d20-temperature"] = ("강의 코드 그대로", trows)
+IO["d20-temperature"] = ("예제 코드 그대로", trows)
 
 vocab = ["확인", "점검", "재시작", "삭제", "날씨"]
 lg5 = torch.tensor([3.0, 2.5, 1.0, 0.5, -1.0])

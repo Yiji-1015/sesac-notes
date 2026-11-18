@@ -337,7 +337,7 @@ sys.path.insert(0, str(PROJ))
 ENV = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
 
 IO = {}
-TITLE = "강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행"
+TITLE = "실제 PostgreSQL 18(연습용 DB)에서 실행"
 USER = CRED["DB_USER"]
 
 
@@ -350,8 +350,8 @@ vers = {}
 for m, pipname in [("sqlalchemy", "sqlalchemy"), ("psycopg", "psycopg"), ("alembic", "alembic"), ("pydantic_settings", "pydantic-settings"), ("fastapi", "fastapi")]:
     vers[pipname] = importlib.import_module(m).__version__
 import psycopg  # noqa: E402
-IO["d19-pip-install"] = ("이 노트를 만든 가상환경에서 실제로 확인", [
-    ("python -m pip show sqlalchemy psycopg alembic", f"sqlalchemy {vers['sqlalchemy']} · psycopg {vers['psycopg']} · alembic {vers['alembic']}", "강의 예시는 sqlalchemy 2.0 계열 — 이 PC는 2.1이라 노트 결과도 2.1 기준"),
+IO["d19-pip-install"] = ("실행에 쓴 가상환경에서 실제로 확인", [
+    ("python -m pip show sqlalchemy psycopg alembic", f"sqlalchemy {vers['sqlalchemy']} · psycopg {vers['psycopg']} · alembic {vers['alembic']}", "설치 범위 예시는 sqlalchemy 2.0 계열 — 아래 결과는 설치된 2.1 기준"),
     ("pydantic-settings · fastapi", f"{vers['pydantic-settings']} · {vers['fastapi']}", ""),
     ("import psycopg; psycopg.pq.__impl__", psycopg.pq.__impl__, "[binary]로 깔면 C 확장(binary)으로 PostgreSQL과 통신 — 따로 libpq를 설치할 필요가 없어요"),
 ])
@@ -418,11 +418,11 @@ ddl_cat = str(CreateTable(models.Category.__table__).compile(dialect=postgresql.
 ddl_know = str(CreateTable(models.Knowledge.__table__).compile(dialect=postgresql.dialect())).strip()
 ddl_cat = re.sub(r"\n\s*\n", "\n", ddl_cat); ddl_know = re.sub(r"\n\s*\n", "\n", ddl_know)
 IO["d19-model-category"] = ("Model이 '만약 CREATE한다면' 낼 DDL — 실제로 실행하지는 않음 (CreateTable(...).compile)", [
-    ("CreateTable(Category.__table__)", ddl_cat, "어제 손으로 쓴 DDL과 같은 구조"),
+    ("CreateTable(Category.__table__)", ddl_cat, "SQL로 직접 쓴 DDL과 같은 구조"),
     ("Category.__table__.fullname", models.Category.__table__.fullname, '{"schema": "public"}'),
 ])
 IO["d19-model-knowledge"] = ("Model이 '만약 CREATE한다면' 낼 DDL — 실제로 실행하지는 않음", [
-    ("CreateTable(Knowledge.__table__)", ddl_know, "CHECK 2개 + FK(RESTRICT) 이름까지 어제와 같아요"),
+    ("CreateTable(Knowledge.__table__)", ddl_know, "CHECK 2개 + FK(RESTRICT) 이름까지 직접 쓴 DDL과 같아요"),
     ("[c.name for c in Knowledge.__table__.columns]", str([c.name for c in models.Knowledge.__table__.columns]), "DB 쪽 열 이름 — API의 category 문자열은 없음"),
 ])
 
@@ -439,8 +439,8 @@ def j(resp, cut=260):
 
 lst = client.get("/api/knowledge")
 IO["d19-list"] = (TITLE, [
-    ("GET /api/knowledge", j(lst, 400), "SQL로 넣은 S0 3건이 API로 보임 — id 오름차순"),
-    ("GET /api/knowledge?category=learning", j(client.get("/api/knowledge", params={"category": "learning"}), 300), "분류 이름으로 거르기 (부록 A07)"),
+    ("GET /api/knowledge", j(lst, 400), "SQL로 미리 넣은 3건이 API로 보임 — id 오름차순"),
+    ("GET /api/knowledge?category=learning", j(client.get("/api/knowledge", params={"category": "learning"}), 300), "분류 이름으로 거르기"),
     ("GET /api/knowledge?category=reference", j(client.get("/api/knowledge", params={"category": "reference"})), "맞는 지식이 없으면 200 + []"),
 ])
 
@@ -472,7 +472,7 @@ IO["d19-get-or-create"] = (TITLE, [
 
 IO["d19-detail"] = (TITLE, [
     (f"GET /api/knowledge/{pid}", j(client.get(f"/api/knowledge/{pid}"), 300), "db.get(Knowledge, id)로 찾고 분류명을 붙임"),
-    ("GET /api/knowledge/99999", j(client.get("/api/knowledge/99999")), "없는 정수 ID → 404 (어제와 같은 약속)"),
+    ("GET /api/knowledge/99999", j(client.get("/api/knowledge/99999")), "없는 정수 ID → 404 (JSON 파일 버전 API와 같은 약속)"),
     ("GET /api/knowledge/abc", j(client.get("/api/knowledge/abc"), 230), "정수가 아님 → 422 (함수 실행 전)"),
 ])
 
@@ -553,8 +553,8 @@ with dbmod.SessionLocal() as db:
     except IntegrityError:
         pass
 IO["d19-transaction"] = (TITLE, [
-    ("with transaction(db): 새 분류 'atomic-test' flush", f"category.id = {flushed_cat_id}", "id는 받았지만 미확정"),
-    ("  같은 with 안에서 content='' 지식 flush", err_atomic, "CHECK 위반 → 도우미가 rollback 후 예외를 다시 던짐"),
+    ("try 블록 안: 새 분류 'atomic-test' flush", f"category.id = {flushed_cat_id}", "id는 받았지만 미확정"),
+    ("  같은 try 안에서 content='' 지식 flush", err_atomic, "CHECK 위반 → except에서 rollback 후 예외를 다시 던짐"),
     ("SELECT ... WHERE name = 'atomic-test'", sql("SELECT id, name FROM public.categories WHERE name = 'atomic-test'"), "분류도 같이 취소 — 반쪽 저장 없음"),
     ("❌ 분류를 먼저 commit하고 지식은 따로", sql("SELECT id, name FROM public.categories WHERE name = 'split-commit'"), "지식은 실패했는데 새 분류만 남았어요"),
 ])
@@ -588,7 +588,7 @@ except OperationalError as exc:
     unavailable = str(code or "").startswith("08") or bool(exc.connection_invalidated)
     IO["d19-connectivity"] = ("빈 포트(127.0.0.1:1)로 실제 접속 시도", [
         ("create_engine(...port=1).connect()", f"{type(exc).__name__} · sqlstate {code!r} · connection_invalidated {exc.connection_invalidated}", "서버가 없으면 DB에 닿지도 못해서 SQLSTATE가 없어요"),
-        ("강의 처리기 규칙으로 판정", "503" if unavailable else "500 (Database operation failed)", "규칙이 08* 코드나 연결 무효화만 503으로 봐서, '서버 꺼짐'은 이 규칙으론 500이 돼요 — 환경별 검증이 필요한 이유"),
+        ("위 처리기 규칙으로 판정", "503" if unavailable else "500 (Database operation failed)", "규칙이 08* 코드나 연결 무효화만 503으로 봐서, '서버 꺼짐'은 이 규칙으론 500이 돼요 — 환경별 검증이 필요한 이유"),
     ])
 
 # ---------------------------------------------------------------- 같은 Session에서 실패 후 rollback (A11)
@@ -636,7 +636,7 @@ try:
             db.delete(row); db.commit()
 finally:
     main.app.dependency_overrides.pop(dbmod.get_db, None)
-IO["d19-test-db"] = ("dependency_overrides로 get_db를 교체해 실제 실행 (노트에선 같은 노트 전용 DB 사용)", [
+IO["d19-test-db"] = ("dependency_overrides로 get_db를 교체해 실제 실행 (여기선 같은 연습용 DB 사용)", [
     (a, str(b), "") for a, b in checks
 ] + [("finally: dependency_overrides.pop(get_db)", str(main.app.dependency_overrides), "끝나면 원래 get_db로 복원")])
 
@@ -670,7 +670,7 @@ srv.terminate(); srv.wait(timeout=10)
 srv = run_server(port)
 st2, body2 = get(port, f"/api/knowledge/{pid}")
 srv.terminate(); srv.wait(timeout=10)
-IO["d19-uvicorn"] = (f"임시 폴더의 강의 코드를 빈 포트({port})로 띄워 실행 (평소엔 8001 등)", [
+IO["d19-uvicorn"] = (f"임시 폴더의 예제 코드를 빈 포트({port})로 띄워 실행 (평소엔 8001 등)", [
     ("python -m uvicorn main:app --port <포트>  →  GET /docs", f"{st_docs}", "자동 문서가 열림"),
     (f"GET /api/knowledge/{pid}", f"{st1} {body1}"[:200], "PUT으로 바꾼 본문"),
     ("서버 종료 → 같은 명령으로 재시작 → 같은 GET", f"{st2} {body2}"[:200], "DB에 있으니 재시작해도 그대로"),
@@ -834,7 +834,7 @@ cols3 = msql(COLS)
 a_cur3 = alembic("current")
 a_up3 = alembic("upgrade", "head")
 rows3 = msql("SELECT id, title, source_label FROM public.knowledge")
-IO["d19-alembic-commands"] = (f"강의 002_source를 노트 전용 연습 DB({MIG})에 실제 적용", [
+IO["d19-alembic-commands"] = (f"002_source를 연습 DB({MIG})에 실제 적용", [
     ("python -m alembic current  (처음)", a_cur0, "아직 적용된 Revision 없음"),
     ("python -m alembic history", a_hist, "001 → 002 순서"),
     ("python -m alembic upgrade 001_initial", a_up1, "두 테이블 생성"),
@@ -845,7 +845,7 @@ IO["d19-alembic-commands"] = (f"강의 002_source를 노트 전용 연습 DB({MI
     ("information_schema.columns", cols2, "source_label 추가 · NULL 허용"),
     ("SELECT id, title, source_label FROM knowledge", rows2, "기존 행은 그대로, 새 열은 NULL"),
 ])
-IO["d19-revision"] = (f"노트 전용 연습 DB({MIG})에서 되돌림까지 실제 실행", [
+IO["d19-revision"] = (f"연습 DB({MIG})에서 되돌림까지 실제 실행", [
     ("UPDATE ... SET source_label = '사내 위키' → downgrade 001_initial", a_down, "002의 downgrade() = drop_column"),
     ("열 목록", cols3, "source_label 열이 사라짐"),
     ("다시 upgrade head → SELECT", rows3, "열은 돌아왔지만 '사내 위키' 값은 복구되지 않아요"),

@@ -433,7 +433,7 @@ def fig_params():
     for b, v in zip(bars, vals):
         ax.text(b.get_x() + b.get_width() / 2, v * 1.12, f"{v:,}", ha="center", fontsize=10.5, fontweight="bold")
     ax.set_ylabel("파라미터 수 (로그)"); ax.set_ylim(50, 3e5)
-    ax.set_title("오늘 만든 모델들의 크기 (직접 센 값)", fontsize=11.5)
+    ax.set_title("예시 모델들의 크기 (직접 센 값)", fontsize=11.5)
     ax.tick_params(axis="x", labelsize=9.5)
     save(fig, DAY, "params_compare")
 

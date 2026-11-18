@@ -1,6 +1,6 @@
 """Day7 명령어 사전의 '입력 → 출력' 상자를 실제 실행 결과로 만든다.
 
-강의 데이터(C:/practice_assignment/20261027/02_응용/data)는 임시 폴더에 복사해서 읽기만 한다.
+원본 데이터(C:/practice_assignment/20261027/02_응용/data)는 임시 폴더에 복사해서 읽기만 한다.
 결과는 cmds/day07.html 각 항목의 첫 코드 블록 바로 뒤에 <div class="io"> 로 넣는다(다시 돌리면 교체).
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/io_day07.py
 """
@@ -44,7 +44,7 @@ train, valid = raw.loc[ids["train"]], raw.loc[ids["valid"]]
 X_train, X_valid = train[FEATURES], valid[FEATURES]
 y_train, y_valid = train["failed"], valid["failed"]
 yr_train, yr_valid = train["elapsed_ms"], valid["elapsed_ms"]
-DATA = "강의 requests.csv · train 60 / valid 20"
+DATA = "예시 requests.csv · train 60 / valid 20"
 
 
 def build(estimator, scale="none"):
@@ -83,12 +83,12 @@ def reg_summary(model):
 
 IO = {}
 
-# 1. Decision Tree — 노트의 6점
+# 1. Decision Tree — 본문의 6점
 X = np.array([[100], [200], [300], [700], [800], [900]])
 tree = DecisionTreeClassifier(max_depth=1, random_state=42).fit(X, [0, 0, 0, 1, 1, 1])
 reg = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, [100, 120, 140, 700, 720, 740])
 deep = DecisionTreeClassifier(random_state=42).fit(X, [0, 1, 0, 1, 0, 1])
-IO["d7-decisiontreeclassifier"] = ("노트의 x=[100 … 900] 6점", [
+IO["d7-decisiontreeclassifier"] = ("본문의 x=[100 … 900] 6점", [
     ("tree.tree_.threshold[0]", f"{tree.tree_.threshold[0]:g}", "300과 700의 중간값"),
     ("tree.predict([[250], [850]])", repr(tree.predict([[250], [850]]).tolist()), "≤ 500 → 0, > 500 → 1"),
     ("tree.predict_proba([[250], [850]])", str(tree.predict_proba([[250], [850]]).tolist()), "각 잎이 한 클래스뿐이라 1.0 — 학습 비율일 뿐"),
@@ -127,7 +127,7 @@ forest_r = build(rfr).fit(X_train, yr_train)
 IO["d7-randomforestclassifier"] = (DATA, [
     ('len(forest["model"].estimators_)', repr(len(forest["model"].estimators_)), "학습된 개별 트리 100개"),
     ('forest["model"].estimators_[0].get_depth()', repr(one.get_depth()), "개별 트리도 max_depth=4 안"),
-    ("train F1 · valid F1 · FP · FN", f"{tr:.3f} · {va:.3f} · {fp} · {fn}", "단일 Tree(valid .333)보다 낮음 — 노트 설명대로"),
+    ("train F1 · valid F1 · FP · FN", f"{tr:.3f} · {va:.3f} · {fp} · {fn}", "단일 Tree(valid .333)보다 낮음 — 본문 설명대로"),
     ("valid 실패 확률 > 0.5 인 행 수", f"{int((pv > 0.5).sum())} / 20", "평균 확률이 0.5 아래로 깎여 실패를 적게 부름"),
     ("RandomForestRegressor: valid", reg_summary(forest_r), "회귀도 Dummy보다 나쁨"),
 ])
@@ -162,10 +162,10 @@ nb = mx["model"].get_booster().num_boosted_rounds()
 px = mx.predict_proba(X_valid)[:, 1]
 IO["d7-xgbclassifier"] = (DATA, [
     ('model["model"].get_booster().num_boosted_rounds()', repr(nb), "보정 회차 = n_estimators"),
-    ("valid F1 · Precision · Recall · FP · FN", f"{va:.3f} · {pp:.3f} · {rr:.3f} · {fp} · {fn}", "노트·강의 결과(F1 .182 · P .200 · FP 4)와 조금 달라요 — 같은 버전(XGBoost 3.1.3)인데 이 PC에선 valid 1행의 판정이 바뀜. 그래도 Tree(.333)·Forest(.222)보다 낮은 건 같음"),
-    ("train F1", f"{tr:.3f}", "강의 결과와 같음 · Forest(.800)보다 조금 낮음"),
+    ("valid F1 · Precision · Recall · FP · FN", f"{va:.3f} · {pp:.3f} · {rr:.3f} · {fp} · {fn}", "본문 표의 결과(F1 .182 · P .200 · FP 4)와 조금 달라요 — 같은 버전(XGBoost 3.1.3)인데 이 PC에선 valid 1행의 판정이 바뀜. 그래도 Tree(.333)·Forest(.222)보다 낮은 건 같음"),
+    ("train F1", f"{tr:.3f}", "본문 표의 결과와 같음 · Forest(.800)보다 조금 낮음"),
     ("predict_proba(X_valid)[:, 1] 범위 · 0.5 초과 행 수", f"{px.min():.3f} ~ {px.max():.3f} · {int((px > 0.5).sum())}건", "실제 실패는 6건인데 실패라 부르는 행이 적음"),
-    ("XGBRegressor: valid", reg_summary(mxr), "노트(MAE 609.34 · RMSE 700.02)와 소수점 차이 — 위와 같은 환경 차이. R²는 여전히 음수"),
+    ("XGBRegressor: valid", reg_summary(mxr), "본문 표(MAE 609.34 · RMSE 700.02)와 소수점 차이 — 위와 같은 환경 차이. R²는 여전히 음수"),
 ])
 
 # 6. 교차검증
@@ -212,11 +212,11 @@ try:
 except Exception as e:  # noqa: BLE001
     miss2 = f"{type(e).__name__}: {str(e).splitlines()[0][:50]}"
 IO["d7-새-범주-통계-불변-검사"] = (DATA + " · valid 앞 2행의 범주를 바꿈", [
-    ("model.predict(require_features(new))", repr(pn.tolist()), "처음 보는 범주여도 예측은 나옴"),
+    ("model.predict(new[FEATURES])", repr(pn.tolist()), "처음 보는 범주여도 예측은 나옴"),
     ('model["pre"].transform(new).shape', repr(Zn.shape), "기존 8열 유지"),
     ("원핫 6열 부분 Zn[:, 2:]", str(Zn[:, 2:].astype(int).tolist()), "handle_unknown=\"ignore\" → 범주 칸이 전부 0"),
     ("np.array_equal(before, imp.statistics_)", repr(np.array_equal(before, imp.statistics_)), "예측해도 학습 통계 불변"),
-    ('require_features(new.drop(columns="priority"))', miss, "필수 열 누락은 예측 전에 명확한 오류"),
+    ('필수 열 확인 (new.drop(columns="priority"))', miss, "필수 열 누락은 예측 전에 명확한 오류"),
     ('검사 없이 model.predict(…priority 없음)', miss2, "검사가 없어도 여기선 에러 — 다만 메시지가 덜 친절함"),
 ])
 

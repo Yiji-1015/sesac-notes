@@ -3,7 +3,7 @@ plt.rcParams["font.family"] = ["Malgun Gothic", "DejaVu Sans"]   # 없는 기호
 """Day8 그림: 분류 지표 · ROC/PR · 임계값 · RMSE 집계 · log1p · K-Means · 최종 평가.
 
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/visuals/make_day08.py
-수업 데이터(day6_compare, Day8과 같은 계약)는 읽기만 한다.
+예시 데이터(day6_compare, 같은 데이터 계약)는 읽기만 한다.
 """
 import numpy as np
 import pandas as pd
@@ -254,7 +254,7 @@ ax.set(xlabel="글자수 (train 기준 표준화)", ylabel="도구수 (train 기
 ax.legend(fontsize=9.5, loc="upper center", bbox_to_anchor=(.5, -.17), ncol=3)
 save(fig, DAY, "kmeans_real")
 
-# ---------------------------------------------------------------- ⑥ 후보 CV F1 vs valid F1 (강의 표 값)
+# ---------------------------------------------------------------- ⑥ 후보 CV F1 vs valid F1 (본문 표 값)
 cands = ["Dummy", "Logistic", "KNN3", "Tree", "Forest", "XGBoost", "Logistic\n+파생2"]
 cvm = [0, .522, .336, .542, .280, .500, .551]; cvs = [0, .209, .176, .124, .254, .123, .190]
 vf = [0, .333, .545, .333, .222, .182, .182]

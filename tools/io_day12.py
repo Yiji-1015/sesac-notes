@@ -73,7 +73,7 @@ valid = (~(torch.arange(5)[None, :] >= torch.tensor([4, 2, 5])[:, None])).unsque
 mean = (padded * valid).sum(1) / valid.sum(1)
 real = [torch.tensor(d["values"]) for d in train_seq[:4]]
 real_pad = pad_sequence(real, batch_first=True)
-IO["d12-pad-sequence"] = ("torch.randn(4, 6, 3) (seed 0) · 강의 sequences.json train 앞 4개", [
+IO["d12-pad-sequence"] = ("torch.randn(4, 6, 3) (seed 0) · 예제 sequences.json train 앞 4개", [
     ("mask = arange(6)[None, :] >= lengths[:, None]  (lengths [6, 4, 5, 3])", mat(mask.int()), "1 = Padding 칸 (실제 길이 뒤쪽)"),
     ("x.masked_fill(mask.unsqueeze(-1), 0.0)[1]", mat(xm[1], "{:.2f}"), "샘플 1은 길이 4 → 뒤 2줄이 0"),
     ("x.masked_fill(mask, 0.0)  ← unsqueeze 빼면", "RuntimeError (shape [4, 6] vs [4, 6, 3])", "Mask가 마지막 F축까지 안 늘어남"),
@@ -82,8 +82,8 @@ IO["d12-pad-sequence"] = ("torch.randn(4, 6, 3) (seed 0) · 강의 sequences.jso
     ("padded[1, :, 0]", " ".join(f"{v:g}" for v in padded[1, :, 0].tolist()), "길이 2짜리 뒤를 0으로 채움"),
     ("(padded * valid).sum(1) / valid.sum(1)  [:, 0]", " ".join(f"{v:g}" for v in mean[:, 0].tolist()), "실제 칸만 평균 → 1 · 2 · 3 그대로"),
     ("padded.mean(1)[:, 0]  ← Mask 없이 평균", " ".join(f"{v:g}" for v in padded.mean(1)[:, 0].tolist()), "Padding 0이 섞여 짧은 샘플일수록 작아짐"),
-    ("강의 데이터: [d['length'] for d in train[:4]]", repr([d["length"] for d in train_seq[:4]]), ""),
-    ("pad_sequence(강의 4개, batch_first=True).shape", sh(real_pad), "[B=4, T=최대 12, F=3]"),
+    ("예제 데이터: [d['length'] for d in train[:4]]", repr([d["length"] for d in train_seq[:4]]), ""),
+    ("pad_sequence(예제 4개, batch_first=True).shape", sh(real_pad), "[B=4, T=최대 12, F=3]"),
 ])
 try:
     x.masked_fill(mask, 0.0)
@@ -101,7 +101,7 @@ yw = window[:, 12:13]
 toy = torch.arange(20.0)
 tw = toy.unfold(0, 5, 1)
 toy[0] = 100.0
-IO["d12-unfold"] = ("강의 series.csv의 train 구간(180개) · torch.arange(20)", [
+IO["d12-unfold"] = ("예제 series.csv의 train 구간(180개) · torch.arange(20)", [
     ("train_s.shape", sh(train_s), "split == 'train' 인 값만 (시간 순서 그대로)"),
     ("window = train_s.unfold(0, 13, 1); window.shape", sh(window), "180 − 13 + 1 = 168개 창"),
     ("window[:, :12].unsqueeze(-1).shape", sh(xw), "[N, T=12, F=1]"),
@@ -123,7 +123,7 @@ _, h_pad = rnn(real_pad)
 out_pad, _ = rnn(real_pad)
 i_short = int(real_len.argmin())
 last_real = output[torch.arange(4), real_len - 1]
-IO["d12-pack-padded-sequence"] = (f"강의 sequences.json train 앞 4개 (길이 {real_len.tolist()}, F=3) · nn.RNN(3, 8) seed 0", [
+IO["d12-pack-padded-sequence"] = (f"예제 sequences.json train 앞 4개 (길이 {real_len.tolist()}, F=3) · nn.RNN(3, 8) seed 0", [
     ("packed.data.shape", sh(packed.data), f"Σ길이 {int(real_len.sum())} 칸만 담음 (Padding 칸 없음)"),
     ("packed.batch_sizes[:3], [-3:]", f"{packed.batch_sizes[:3].tolist()}, {packed.batch_sizes[-3:].tolist()}", "시점마다 아직 살아 있는 샘플 수"),
     ("output.shape, out_lengths", f"{sh(output)}, {out_lengths.tolist()}", "다시 [B, T, H]로 펼침"),
@@ -202,7 +202,7 @@ for _ in range(100):
 with torch.no_grad():
     after = crit(fm(vx_), vy_).item()
     naive = crit(vx_[:, -1], vy_).item()
-IO["d12-nn-lstm"] = ("torch.randn(4, 12, 1) (seed 0) · 강의 series.csv 창(train 168개 · valid 48개)으로 100 step 학습", [
+IO["d12-nn-lstm"] = ("torch.randn(4, 12, 1) (seed 0) · 예제 series.csv 창(train 168개 · valid 48개)으로 100 step 학습", [
     ("output, (h_n, c_n) = nn.LSTM(1, 16, batch_first=True)(x)", f"output {sh(lo)}, h_n {sh(lh)}, c_n {sh(lc)}", "상태가 두 개(h, c)"),
     ("LSTMForecaster()(x).shape", sh(fm(fx)), "[B, 1] 다음 값 하나"),
     ("sum(p.numel() for p in nn.LSTM(1, 16).parameters())", f"{n_params(fm.lstm):,}", "Gate 4개 × (16·1 + 16·16 + 16 + 16) = 1,216 — RNN의 4배"),
@@ -376,10 +376,10 @@ except ValueError as e:
 IO["d12-position-embedding-padding-mask-실제-위치만-평균"] = ("torch.randn(3, 6, 16) (seed 0), 길이 [6, 4, 2], 학습 전 모델 · eval", [
     ("model(x, padding_mask).shape", sh(a), "[B, 2] logits"),
     ("Padding 칸을 99로 바꾼 뒤 출력 차이", f"{(a - b).abs().max():.2e}", "≈ 0 → Mask가 잘 걸림 (Padding 불변)"),
-    ("encoder 출력의 Padding 위치는?  (99로 바꾼 뒤 차이)", f"{(z_out - z_out99)[pm].abs().max():.2f}", "Padding 위치 출력은 남아 있고 값도 변함 → masked_mean으로 빼야 함"),
+    ("encoder 출력의 Padding 위치는?  (99로 바꾼 뒤 차이)", f"{(z_out - z_out99)[pm].abs().max():.2f}", "Padding 위치 출력은 남아 있고 값도 변함 → Pooling에서 Mask로 빼야 함"),
     ("Position 있음: 순서를 뒤집은 뒤 출력 차이", f"{p_on:.3f}", "순서가 바뀌면 결과도 바뀜"),
     ("Position 없음: 순서를 뒤집은 뒤 출력 차이", f"{p_off:.2e}", "≈ 0 → 순서를 모르는 모델"),
-    ("masked_mean(z, 전부 True인 mask)", err, "0 ÷ 0 = NaN을 미리 막음"),
+    ("모든 위치가 Padding인 mask로 Pooling", err, "0 ÷ 0 = NaN을 미리 막음"),
     ("model.pos(torch.arange(65))  ← max_len 64 초과", "IndexError", "없는 위치 번호"),
 ])
 try:

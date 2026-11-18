@@ -71,7 +71,7 @@
    "ResNet"
   ],
   "full": "Residual Network, 18 layers",
-  "short": "이미지 분류용 대표 CNN 모델(18층). 오늘의 사전학습 Backbone으로, 특징 512개를 뽑고 끝의 fc 층이 Head예요.",
+  "short": "이미지 분류용 대표 CNN 모델(18층). 전이학습에서 자주 쓰는 사전학습 Backbone으로, 특징 512개를 뽑고 끝의 fc 층이 Head예요.",
   "analogy": "",
   "day": 14,
   "key": false

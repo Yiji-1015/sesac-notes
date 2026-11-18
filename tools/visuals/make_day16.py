@@ -257,7 +257,7 @@ def align(ref, hyp):
 
 
 def fig_cer_alignment():
-    cases = [("1234500", "12345O0", "금액 (강의 예시)"), ("발행일 2026-11-09", "발행일: 2O26-1l-9", "날짜 (예시)")]
+    cases = [("1234500", "12345O0", "금액 (예시)"), ("발행일 2026-11-09", "발행일: 2O26-1l-9", "날짜 (예시)")]
     col = {"=": "#eef0f3", "S": C["orange"], "D": C["red"], "I": C["blue"]}
     fig, axs = plt.subplots(2, 1, figsize=(12, 5.2))
     for ax, (ref, hyp, name) in zip(axs, cases):
@@ -310,7 +310,7 @@ def fig_eval_units():
     ax.text(0.5, 0.6, "원문: 1,234,5O0원", ha="center", fontsize=11.5, color=C["red"])
     ax.text(0.5, 0.36, "금액 불일치 → 검토", ha="center", fontsize=14, fontweight="bold", color=C["red"])
     ax.text(0.5, 0.18, "점수가 아니라 '상태 + 이유'", ha="center", fontsize=10.5, color=MUTED)
-    fig.suptitle("같은 문서 하나를 네 가지 잣대로 따로 채점 (강의의 가상 수치)", fontsize=13.5, fontweight="bold", y=1.03)
+    fig.suptitle("같은 문서 하나를 네 가지 잣대로 따로 채점 (가상 수치)", fontsize=13.5, fontweight="bold", y=1.03)
     save(fig, 16, "eval_units")
 
 
@@ -421,7 +421,7 @@ def fig_precision_size():
 def fig_param_cer():
     fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.9), gridspec_kw={"width_ratios": [1.15, 1, 1]})
     ax = axes[0]                                              # blockSize
-    labels = ["3", "15", "30", "31\n(코드)", "101"]
+    labels = ["3", "15", "30", "31\n(예시)", "101"]
     vals = [0.137, 0.050, None, 0.057, 0.084]
     for i, v in enumerate(vals):
         if v is None:
@@ -433,7 +433,7 @@ def fig_param_cer():
     ax.set_ylim(0, 0.45); ax.set_ylabel("CER (낮을수록 좋음)")
     ax.set_title("blockSize (C=11)"); ax.set_xlabel("짝수는 안 됨 (가운데 픽셀이 없어서)")
     ax = axes[1]                                              # C
-    labels = ["0", "11\n(코드)", "30", "60"]
+    labels = ["0", "11\n(예시)", "30", "60"]
     vals = [0.388, 0.057, 0.020, 0.221]
     for i, v in enumerate(vals):
         ax.bar(i, v, color=C["purple"] if i == 1 else (C["mint"] if i == 2 else C["orange"]), width=0.6)
@@ -451,7 +451,7 @@ def fig_param_cer():
     ax.set_ylim(0, 0.45); ax.set_title("이진화 방법"); ax.set_xlabel("왼쪽이 어두운 페이지에선 전역 기준이 실패")
     for a in axes:
         a.grid(axis="x", visible=False)
-    fig.suptitle("같은 스캔 페이지(왼쪽이 어두움)를 PSM 6으로 OCR했을 때의 글자 오류율 — oneday 요약본 실측",
+    fig.suptitle("같은 스캔 페이지(왼쪽이 어두움)를 PSM 6으로 OCR했을 때의 글자 오류율 — 실측",
                  fontsize=12.5, fontweight="bold")
     save(fig, 16, "param_cer")
 
@@ -471,7 +471,7 @@ def fig_conf_threshold():
     ax.set_xlim(30, 100); ax.set_ylim(0, 1); ax.set_yticks([])
     ax.set_xlabel("Tesseract confidence (단어 21개, 정면 보정한 청구서)")
     ax.spines["left"].set_visible(False); ax.grid(axis="y", visible=False)
-    ax.set_title("confidence 기준선을 어디에 긋느냐 — oneday 요약본 실측")
+    ax.set_title("confidence 기준선을 어디에 긋느냐 — 실측")
     save(fig, 16, "conf_threshold")
 
 
@@ -493,7 +493,7 @@ def fig_cer_vs_field():
     ax.text(1, 1.0, "공급자\n놓침", ha="center", color="white", fontsize=10, fontweight="bold")
     ax.set_xticks(range(3)); ax.set_xticklabels(names, fontsize=10); ax.set_ylim(0, 3.6); ax.set_yticks([0, 1, 2, 3])
     ax.set_title("필드 정답 (합계 · 날짜 · 공급자)"); ax.grid(axis="x", visible=False)
-    fig.suptitle("CER 6.6%뿐인데 필드 하나를 통째로 놓침 — 두 지표는 다른 것을 잰다 (oneday 요약본 실측)",
+    fig.suptitle("CER 6.6%뿐인데 필드 하나를 통째로 놓침 — 두 지표는 다른 것을 잰다 (실측)",
                  fontsize=12.5, fontweight="bold")
     save(fig, 16, "cer_vs_field")
 

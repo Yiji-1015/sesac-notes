@@ -27,39 +27,36 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day9 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day9">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
-      <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>torch</code></td><td>Tensor 계산, 자동 미분, 신경망 층, Optimizer까지 딥러닝의 모든 것</td><td><code>import torch</code>, <code>from torch import nn</code></td></tr>
-        <tr><td>(torch 안에 포함)</td><td>데이터를 batch로 묶어 공급</td><td><code>from torch.utils.data import TensorDataset, DataLoader</code></td></tr>
-      </table>
-      <p>이날 강의 코드는 <code>torch</code> 하나로 다 돼요. 가상환경(<code>venv</code>)을 만들고 그 안에 설치해요.</p>
-      <h3>🔧 설치 · 확인</h3>
-<pre><code>python --version
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-# torch 설치 명령은 https://pytorch.org/get-started/locally/ 에서 골라 복사
-python -c "import torch; print(torch.__version__)"
-python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"   # True면 GPU 사용 가능</code></pre>
-      <div class="callout warn">⚠️ <code>torch</code>는 <b>pytorch.org의 Start Locally 선택기</b>에서 OS · Pip · Python · Compute Platform(CUDA 버전 또는 CPU)을 고른 뒤 나온 명령으로 설치해요. 그냥 <code>pip install torch</code>만 치면 내 GPU의 CUDA와 안 맞는 빌드가 깔릴 수 있어요. 이미 잘 돌아가는 환경이면 버전 숫자만 보고 다시 깔지 마세요.</div>
-      <div class="callout">🤔 <strong>왜 설치 명령을 외우지 않아요?</strong> — OS · Python · 드라이버 · CUDA 조합에 따라 맞는 torch 빌드가 달라서, 설치 명령도 달라져요. 그래서 강의일에 공식 선택기가 알려 주는 조합을 그대로 쓰고, 마지막엔 <code>torch.cuda.is_available()</code>로 <b>실제로</b> 되는지 확인해요. GPU가 없거나 False여도 CPU로 같은 코드를 돌릴 수 있어요.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
-      <p>Day8까지의 머신러닝은 <b>사람이 특성을 만들어서</b> 모델에 넣었어요. 딥러닝은 층(layer)을 여러 개 쌓아서 <b>모델이 스스로 쓸 만한 표현을 배우게</b> 해요. 사진·글·소리처럼 사람이 특성을 일일이 정하기 어려운 데이터에 강해요.</p>
+      <h2 id="map">🗺️ 큰 그림 — 숫자 표가 학습된 모델이 되기까지</h2>
+      <p>전통적인 머신러닝(<a href="day08.html#features">특성 설계</a>)은 <b>사람이 특성을 만들어서</b> 모델에 넣어요. 딥러닝은 층(layer)을 여러 개 쌓아서 <b>모델이 스스로 쓸 만한 표현을 배우게</b> 해요. 사진·글·소리처럼 사람이 특성을 일일이 정하기 어려운 데이터에 강해요.</p>
       <div class="usecases">
         <div class="usecase"><div class="emoji">🖼️</div><strong>이미지 분류</strong><span>사진이 고양이인지 강아지인지</span></div>
         <div class="usecase"><div class="emoji">💬</div><strong>문장 이해</strong><span>리뷰가 긍정인지 부정인지</span></div>
-        <div class="usecase"><div class="emoji">📈</div><strong>표 데이터 예측</strong><span>특성 몇 개로 클래스 맞히기 (오늘의 2→8→2 ANN)</span></div>
+        <div class="usecase"><div class="emoji">📈</div><strong>표 데이터 예측</strong><span>특성 몇 개로 클래스 맞히기 (예: 2→8→2 ANN)</span></div>
         <div class="usecase"><div class="emoji">⚡</div><strong>GPU 학습</strong><span>같은 계산을 동시에 많이 처리해 학습 시간 단축</span></div>
       </div>
+      <p>딥러닝 학습 코드는 아래 여섯 부품으로 읽을 수 있어요. 이 페이지의 ①~⑥이 이 순서예요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#gpu">① GPU · CUDA</a></td><td>왜 GPU인가 · 네 층 확인 · <code>device</code> 고르기</td><td>PyTorch가 GPU를 실제로 쓰고 있나?</td></tr>
+        <tr><td><a href="#tensor">② Tensor</a></td><td>값 · shape · dtype · device</td><td>이 숫자 상자는 어떤 모양 · 자료형 · 위치인가?</td></tr>
+        <tr><td><a href="#autograd">③ Autograd · 경사하강</a></td><td><code>backward()</code> · <code>.grad</code> · 학습률</td><td>기울기는 누가 구하고, 얼마나 움직이나?</td></tr>
+        <tr><td><a href="#ann">④ ANN</a></td><td>Linear + ReLU를 층으로 쌓기</td><td>층마다 shape가 어떻게 바뀌나?</td></tr>
+        <tr><td><a href="#loss">⑤ 손실 · 데이터 공급</a></td><td>logits · CrossEntropyLoss · DataLoader</td><td>무엇을 줄이고, 데이터를 어떻게 나눠 넣나?</td></tr>
+        <tr><td><a href="#loop">⑥ 학습 루프</a></td><td>zero_grad → forward → loss → backward → step</td><td>다섯 단계를 순서대로 지켰나?</td></tr>
+      </table>
+<pre><code>PyTorch 학습 코드 (전부 같은 device 위에서)
+  ├ 데이터: TensorDataset → DataLoader → (xb, yb) mini-batch
+  ├ 모델:   nn.Sequential(Linear, ReLU, Linear) — Parameter는 requires_grad=True
+  ├ 손실:   CrossEntropyLoss(logits, yb) → 숫자 1개
+  └ 갱신:   loss.backward() → .grad → optimizer.step()
+→ 평가: model.eval() + torch.no_grad() → argmax로 클래스</code></pre>
+      <div class="callout">💡 문제가 생기면 <a href="#troubleshoot">🩺 증상으로 진단</a>, 예시 모델 · 데이터 설정은 <a href="#spec">📋 명세</a>에 모아 뒀어요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="gpu">① GPU · CUDA — 왜 GPU이고, 어떻게 확인하나</h2>
+      <h3 id="why-gpu">왜 GPU인가 — 독립된 계산이 아주 많아서</h3>
       <table>
         <tr><th></th><th>CPU</th><th>GPU</th></tr>
         <tr><td>생김새</td><td>소수의 강한 코어</td><td>아주 많은 연산 유닛</td></tr>
@@ -72,7 +69,7 @@ python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"  
 [3 4] × [7 8] = [43 50]      예: 19 = 1×5 + 2×7</code></pre>
       <figure style="margin:16px 0"><img class="smooth" src="img/day09/cpu_gpu_lanes.png" alt="6x6 결과 행렬을 CPU 4코어는 9차례, GPU는 1차례에 계산하는 모식도"><figcaption><b>무엇을 보나:</b> 같은 6×6 결과 행렬(36칸). 숫자는 그 칸이 <b>몇 번째 차례</b>에 계산되는지예요. 왼쪽(코어 4개)은 4칸씩 9차례, 오른쪽(유닛이 아주 많음)은 36칸을 한 차례에 끝내요. <b>🤔 왜?</b> 결과 칸 하나 = 행 하나와 열 하나를 곱해 더한 값이라 <b>다른 칸을 기다릴 필요가 없어요</b>(독립). 그래서 일꾼이 많을수록 동시에 끝낼 수 있어요. (모식도예요 — 실제 CPU 코어 수·GPU 유닛 수와 시간은 장치마다 달라요.)</figcaption></figure>
       <div class="callout">🤔 <strong>왜 딥러닝엔 GPU가 유리해?</strong> — 학습 한 번은 <b>입력 → 곱하고 더해 예측 → 오차 계산 → 가중치 조금 수정</b>이에요. 이걸 "수많은 데이터 × 수많은 가중치 × 여러 epoch" 만큼 반복하니 연산량이 급격히 커져요. 그런데 결과 행렬의 칸 하나하나는 <b>서로 독립</b>이라 동시에 계산할 수 있어요. GPU는 단순한 계산을 동시에 처리하는 연산 유닛이 아주 많아서, 이렇게 "같은 모양의 독립 계산이 충분히 많을 때" 처리량(Throughput)이 커져요. 반대로 작업이 적거나 조건 분기가 많으면 그 장점이 안 살아요.</div>
-      <figure style="margin:16px 0"><img class="smooth" src="img/day09/matmul_timing.png" alt="CPU에서 스레드 1개와 여러 개로 행렬곱 시간을 잰 그래프"><figcaption><b>무엇을 보나:</b> 이 노트를 만든 PC의 <b>CPU에서만</b> 잰 행렬곱 시간이에요(GPU 측정 아님). 회색 = 스레드 1개로 한 줄씩, 보라 = 같은 CPU의 여러 스레드로 나눠 동시에. 행렬이 커질수록 회색은 가파르게 늘고, 보라는 여러 배 빨라요. <b>🤔 왜?</b> n이 2배가 되면 곱셈 수는 약 8배(n³)라 계산량이 급격히 커져요. 칸끼리 독립이라 일꾼을 늘리면 그만큼 나눠 처리할 수 있어요 — GPU는 이 아이디어를 수천 개 유닛으로 밀어붙인 장치예요. 작은 행렬(왼쪽 끝)에선 차이가 거의 없죠? 일이 적으면 나누는 이득도 작아요.</figcaption></figure>
+      <figure style="margin:16px 0"><img class="smooth" src="img/day09/matmul_timing.png" alt="CPU에서 스레드 1개와 여러 개로 행렬곱 시간을 잰 그래프"><figcaption><b>무엇을 보나:</b> <b>CPU에서만</b> 잰 행렬곱 시간이에요(GPU 측정 아님). 회색 = 스레드 1개로 한 줄씩, 보라 = 같은 CPU의 여러 스레드로 나눠 동시에. 행렬이 커질수록 회색은 가파르게 늘고, 보라는 여러 배 빨라요. <b>🤔 왜?</b> n이 2배가 되면 곱셈 수는 약 8배(n³)라 계산량이 급격히 커져요. 칸끼리 독립이라 일꾼을 늘리면 그만큼 나눠 처리할 수 있어요 — GPU는 이 아이디어를 수천 개 유닛으로 밀어붙인 장치예요. 작은 행렬(왼쪽 끝)에선 차이가 거의 없죠? 일이 적으면 나누는 이득도 작아요.</figcaption></figure>
       <div class="flow">
         <span class="step">데이터 준비<br><small>CPU가 파일 읽기·전처리</small></span><span class="arrow">→</span>
         <span class="step">순전파<br><small>GPU가 행렬 계산</small></span><span class="arrow">→</span>
@@ -81,8 +78,7 @@ python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"  
       </div>
       <p>이 과정을 수백·수천 batch에 반복하니까 GPU 병렬 연산의 이점이 <b>누적</b>돼요. 파일 읽기·전처리 같은 순차 작업은 여전히 CPU 몫이에요.</p>
 
-      <!-- ============================================================ -->
-      <h2 id="gpu">① GPU·CUDA 환경 — "GPU가 있다" ≠ "PyTorch가 GPU를 쓴다"</h2>
+      <h3 id="stack">네 층 — "GPU가 있다" ≠ "PyTorch가 GPU를 쓴다"</h3>
       <p>GPU 학습은 네 층이 모두 맞아야 돼요. 하나만 어긋나도 GPU를 못 써요.</p>
       <div class="flow">
         <span class="step"><b>NVIDIA GPU</b><br><small>연산 장치 · VRAM</small></span><span class="arrow">→</span>
@@ -108,6 +104,7 @@ print("GPU:", torch.cuda.get_device_name(0))</code></pre>
 <pre><code>device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)</code></pre>
       </div>
+      <h3 id="memory">RAM과 VRAM — <code>.to(device)</code>는 복사</h3>
       <figure style="margin:16px 0"><svg viewBox="0 0 660 250" style="width:100%;height:auto" role="img" aria-label="CPU 메모리와 GPU 메모리는 따로 있고 .to(device)로 복사한다">
 <defs><marker id="d9-arr-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent)"/></marker></defs>
 <rect x="10" y="20" width="250" height="190" rx="16" style="fill:var(--surface);stroke:var(--line);stroke-width:2"/>
@@ -143,7 +140,7 @@ model = model.to(device)</code></pre>
         <tr><td>2D 행렬</td><td><code>[[1,2],[3,4]]</code></td><td><code>(2, 2)</code></td></tr>
         <tr><td>3D 이상</td><td>batch · 이미지 · 문장</td><td>shape로 의미를 읽어요</td></tr>
       </table>
-      <h3>딥러닝에서 자주 보는 shape</h3>
+      <h3 id="shapes">딥러닝에서 자주 보는 shape</h3>
       <table>
         <tr><th>대상</th><th>shape</th><th>뜻</th></tr>
         <tr><td>표 데이터</td><td><code>(batch, feature)</code></td><td>여러 행의 특성</td></tr>
@@ -168,7 +165,7 @@ y = torch.tensor([0, 1], dtype=torch.long)</code></pre>
 b = torch.zeros(2, 3)                       # 0으로 채움</code></pre>
       </div>
 
-      <h3>Broadcasting과 shape 바꾸기</h3>
+      <h3 id="broadcast">Broadcasting과 shape 바꾸기</h3>
       <p><code>X</code>가 (2, 3)이고 <code>bias</code>가 (3,)이면, <code>X + bias</code>는 bias를 행마다 자동으로 늘려서 더해 줘요(결과 (2, 3)). 이걸 <b>broadcasting</b>이라고 해요. 편하지만, 의도와 다른 shape끼리도 계산돼 버릴 수 있으니 shape부터 확인해요.</p>
       <figure style="margin:16px 0"><img class="smooth" src="img/day09/broadcasting.png" alt="(2,3) 행렬에 (3,) 벡터를 더하면 벡터가 행마다 복사된 것처럼 더해지는 그림"><figcaption><b>무엇을 보나:</b> bias <code>[10, 20, 30]</code>은 한 줄뿐인데, 아래 점선 줄처럼 <b>행마다 복사된 것처럼</b> 더해져 결과가 (2, 3)이 돼요. <b>🤔 왜?</b> 마지막 차원(3)이 서로 같으니 PyTorch가 "모자란 행 방향으로 늘려도 된다"고 판단해요. 실제 복사는 하지 않아 메모리는 아껴요. 반대로 의도치 않은 shape끼리도 이렇게 늘어나 버릴 수 있으니 shape 확인이 중요해요.</figcaption></figure>
       <table>
@@ -188,6 +185,7 @@ model = nn.Linear(2, 1).to(device)</code></pre>
 
       <!-- ============================================================ -->
       <h2 id="autograd">③ Autograd와 경사하강 — 미분은 PyTorch가 대신</h2>
+      <h3 id="graph">계산 그래프와 <code>backward()</code></h3>
       <p>PyTorch는 계산을 하면서 "무엇과 무엇을 곱하고 더했는지"를 <b>계산 그래프</b>로 기록해요. 마지막에 <code>backward()</code>를 부르면 그 기록을 거꾸로 따라가며(연쇄법칙, chain rule) 기울기를 자동으로 구해요.</p>
 <pre><code>y = x² + 2x + 1       →   dy/dx = 2x + 2
 x = 3 이면  y = 16,  dy/dx = 8</code></pre>
@@ -240,7 +238,7 @@ y.backward()</code></pre>
         <div class="verdict" id="accverdict"></div>
       </div>
 
-      <h3>경사하강법 (Gradient Descent)</h3>
+      <h3 id="gd">경사하강법 (Gradient Descent)</h3>
       <p>손실을 줄이려면 기울기의 <b>반대 방향</b>으로 조금씩 움직이면 돼요. 얼마나 크게 움직일지가 <b>학습률(learning rate, lr)</b>이에요.</p>
 <pre><code>parameter = parameter − learning_rate × gradient</code></pre>
       <div class="callout">🤔 <strong>왜 "반대" 방향이야?</strong> — 기울기(gradient)는 "w를 늘리면 loss가 얼마나 <b>커지나</b>"예요. 기울기가 양수면 w를 줄여야 loss가 작아지고, 음수면 늘려야 해요. 그래서 기울기에 마이너스를 붙여 움직여요. 기울기가 클수록(목표에서 멀수록) 많이, 가까워지면 조금씩 움직여요.</div>
@@ -263,7 +261,7 @@ y.backward()</code></pre>
       <div class="callout">🤔 <strong>왜 lr이 크면 발산해?</strong> — 이 문제에서 기울기는 <code>2(w − 4)</code>라서 한 번 갱신하면 "4까지 남은 거리"가 <b>× (1 − 2·lr)</b>배가 돼요. lr = 0.1이면 ×0.8 → 매번 20%씩 줄어요. lr = 0.8이면 ×(−0.6) → 부호가 바뀌어(4를 넘어감) 왔다 갔다 하지만 크기는 줄어요. lr = 1이면 ×(−1) → 같은 거리로 영원히 왕복. lr &gt; 1이면 |배수| &gt; 1이라 넘어갈 때마다 <b>더 멀어져요</b>. 반대로 lr이 아주 작으면 배수가 1에 가까워 거의 안 움직여요.</div>
 
       <div class="cmdref">
-        <div class="cmdref-head">🔧 손으로 5번 갱신하기 <a href="../commands.html#d9-손으로-5번-갱신하기">명령어 사전에서 자세히 →</a></div>
+        <div class="cmdref-head">🔧 수동 갱신 <code>w.grad</code> · <code>w.grad.zero_()</code> <a href="../commands.html#d9-손으로-5번-갱신하기">명령어 사전에서 자세히 →</a></div>
 <pre><code>loss.backward()               # 1. 기울기 계산
 w -= lr * w.grad          # 2. 기록 없이 값 갱신</code></pre>
       </div>
@@ -282,7 +280,7 @@ w -= lr * w.grad          # 2. 기록 없이 값 갱신</code></pre>
         <span class="step"><b>Linear(8, 2)</b><br><small>클래스 logits 2개</small></span><span class="arrow">→</span>
         <span class="step">argmax<br><small>예측 0 또는 1</small></span>
       </div>
-      <figure style="margin:16px 0"><svg viewBox="0 0 660 390" style="width:100%;height:auto" role="img" aria-label="2-8-2 신경망 구조"><line x1="90" y1="112" x2="330" y2="66" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="97" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="128" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="159" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="191" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="222" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="253" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="284" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="66" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="97" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="128" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="159" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="191" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="222" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="253" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="284" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="66" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="66" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="97" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="97" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="128" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="128" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="159" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="159" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="191" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="191" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="222" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="222" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="253" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="253" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="284" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="284" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><circle cx="90" cy="112" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><circle cx="90" cy="238" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><circle cx="330" cy="66" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="97" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="128" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="159" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="191" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="222" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="253" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="284" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="570" cy="112" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><circle cx="570" cy="238" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><path d="M322,70 L330,70 L338,61" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,101 L330,101 L338,92" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,132 L330,132 L338,123" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,163 L330,163 L338,154" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,195 L330,195 L338,186" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,226 L330,226 L338,217" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,257 L330,257 L338,248" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,288 L330,288 L338,279" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><text x="90" y="330" text-anchor="middle" font-size="15" font-weight="bold" style="fill:var(--text)">입력 2개</text><text x="90" y="350" text-anchor="middle" font-size="13" style="fill:var(--muted)">(batch, 2)</text><text x="330" y="330" text-anchor="middle" font-size="15" font-weight="bold" style="fill:var(--text)">은닉 8개 + ReLU</text><text x="330" y="350" text-anchor="middle" font-size="13" style="fill:var(--muted)">(batch, 8)</text><text x="570" y="330" text-anchor="middle" font-size="15" font-weight="bold" style="fill:var(--text)">출력 logits 2개</text><text x="570" y="350" text-anchor="middle" font-size="13" style="fill:var(--muted)">(batch, 2)</text><text x="210" y="28" text-anchor="middle" font-size="13.5" style="fill:var(--accent)">Linear(2, 8): 선 16개 + bias 8 = 24</text><text x="450" y="28" text-anchor="middle" font-size="13.5" style="fill:var(--accent)">Linear(8, 2): 선 16개 + bias 2 = 18</text><text x="330" y="378" text-anchor="middle" font-size="13.5" style="fill:var(--text)">선 하나 = 가중치 하나 · 전부 합쳐 24 + 18 = <tspan font-weight="bold">42</tspan>개 파라미터</text></svg><figcaption><b>무엇을 보나:</b> 오늘 만드는 2→8→2 ANN. 동그라미 = 뉴런(숫자 하나), 선 = 가중치 하나. 은닉층 뉴런 안의 꺾인 표시가 ReLU예요. <b>🤔 왜?</b> Linear 층은 "앞 층 모든 뉴런 × 뒤 층 모든 뉴런"을 선으로 잇기 때문에 가중치가 in × out개(2×8 = 16)이고, 뉴런마다 bias가 하나씩 붙어요. 그래서 <code>numel()</code> 합이 42가 나와요.</figcaption></figure>
+      <figure style="margin:16px 0"><svg viewBox="0 0 660 390" style="width:100%;height:auto" role="img" aria-label="2-8-2 신경망 구조"><line x1="90" y1="112" x2="330" y2="66" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="97" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="128" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="159" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="191" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="222" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="253" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="112" x2="330" y2="284" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="66" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="97" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="128" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="159" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="191" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="222" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="253" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="90" y1="238" x2="330" y2="284" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="66" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="66" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="97" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="97" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="128" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="128" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="159" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="159" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="191" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="191" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="222" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="222" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="253" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="253" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="284" x2="570" y2="112" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><line x1="330" y1="284" x2="570" y2="238" style="stroke:var(--muted);stroke-width:1;opacity:.45"/><circle cx="90" cy="112" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><circle cx="90" cy="238" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><circle cx="330" cy="66" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="97" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="128" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="159" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="191" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="222" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="253" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="330" cy="284" r="13" style="fill:var(--surface);stroke:var(--accent);stroke-width:2.5"/><circle cx="570" cy="112" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><circle cx="570" cy="238" r="13" style="fill:var(--surface);stroke:var(--accent2);stroke-width:2.5"/><path d="M322,70 L330,70 L338,61" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,101 L330,101 L338,92" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,132 L330,132 L338,123" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,163 L330,163 L338,154" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,195 L330,195 L338,186" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,226 L330,226 L338,217" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,257 L330,257 L338,248" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><path d="M322,288 L330,288 L338,279" style="fill:none;stroke:var(--accent);stroke-width:1.8"/><text x="90" y="330" text-anchor="middle" font-size="15" font-weight="bold" style="fill:var(--text)">입력 2개</text><text x="90" y="350" text-anchor="middle" font-size="13" style="fill:var(--muted)">(batch, 2)</text><text x="330" y="330" text-anchor="middle" font-size="15" font-weight="bold" style="fill:var(--text)">은닉 8개 + ReLU</text><text x="330" y="350" text-anchor="middle" font-size="13" style="fill:var(--muted)">(batch, 8)</text><text x="570" y="330" text-anchor="middle" font-size="15" font-weight="bold" style="fill:var(--text)">출력 logits 2개</text><text x="570" y="350" text-anchor="middle" font-size="13" style="fill:var(--muted)">(batch, 2)</text><text x="210" y="28" text-anchor="middle" font-size="13.5" style="fill:var(--accent)">Linear(2, 8): 선 16개 + bias 8 = 24</text><text x="450" y="28" text-anchor="middle" font-size="13.5" style="fill:var(--accent)">Linear(8, 2): 선 16개 + bias 2 = 18</text><text x="330" y="378" text-anchor="middle" font-size="13.5" style="fill:var(--text)">선 하나 = 가중치 하나 · 전부 합쳐 24 + 18 = <tspan font-weight="bold">42</tspan>개 파라미터</text></svg><figcaption><b>무엇을 보나:</b> 예시로 만드는 2→8→2 ANN. 동그라미 = 뉴런(숫자 하나), 선 = 가중치 하나. 은닉층 뉴런 안의 꺾인 표시가 ReLU예요. <b>🤔 왜?</b> Linear 층은 "앞 층 모든 뉴런 × 뒤 층 모든 뉴런"을 선으로 잇기 때문에 가중치가 in × out개(2×8 = 16)이고, 뉴런마다 bias가 하나씩 붙어요. 그래서 <code>numel()</code> 합이 42가 나와요.</figcaption></figure>
       <table>
         <tr><th>단계</th><th>코드</th><th>입력 shape</th><th>출력 shape</th></tr>
         <tr><td>Linear 1</td><td><code>nn.Linear(2, 8)</code></td><td>(batch, 2)</td><td>(batch, 8)</td></tr>
@@ -307,8 +305,8 @@ logits = model(X)                          # model(X) 하면 forward가 실행�
       </div>
 
       <!-- ============================================================ -->
-      <h2 id="loss">⑤ 손실함수와 데이터 공급</h2>
-      <h3>logits · 확률 · 클래스는 다른 값</h3>
+      <h2 id="loss">⑤ 손실함수와 데이터 공급 — 무엇을 줄이고, 어떻게 넣나</h2>
+      <h3 id="logits">logits · 확률 · 클래스는 다른 값</h3>
       <table>
         <tr><th>이름</th><th>예</th><th>특징</th></tr>
         <tr><td><b>logits</b></td><td><code>[1.8, -0.4]</code></td><td>모델이 낸 원시 점수. 합이 1일 필요 없음</td></tr>
@@ -326,7 +324,7 @@ logits = model(X)                          # model(X) 하면 forward가 실행�
 loss = loss_fn(logits, y)                      # 스칼라, 작을수록 정답에 가까움</code></pre>
       </div>
 
-      <h3>Dataset과 DataLoader</h3>
+      <h3 id="dataloader">Dataset과 DataLoader</h3>
       <div class="flow">
         <span class="step"><b>TensorDataset</b><br><small>X와 y를 같은 번호로 묶음</small></span><span class="arrow">→</span>
         <span class="step"><b>DataLoader</b><br><small>batch_size만큼 꺼냄, 섞기</small></span><span class="arrow">→</span>
@@ -335,7 +333,7 @@ loss = loss_fn(logits, y)                      # 스칼라, 작을수록 정답�
       </div>
       <p>200개를 32개씩 나누면 32 × 6 = 192, 마지막 batch는 8개예요. 마지막 batch는 작을 수 있어요. batch마다 forward · backward · step을 한 번씩 해요.</p>
       <figure style="margin:16px 0"><img class="smooth" src="img/day09/dataloader_batches.png" alt="샘플 200개를 색으로 batch 7개에 나눠 표시한 그림"><figcaption><b>무엇을 보나:</b> 칸 200개 = 원래 순서대로 놓은 샘플 200개, 색 = 그 샘플이 들어간 batch. 같은 색이 한데 모여 있지 않고 <b>여기저기 흩어져</b> 있어요. 빨강(batch 7)은 8칸뿐이에요. <b>🤔 왜?</b> <code>shuffle=True</code>라 매 epoch 순서를 섞은 뒤 앞에서부터 32개씩 잘라요. 그래서 각 batch는 데이터 전체를 골고루 닮은 작은 표본이 되고, 200 = 32×6 + 8이라 마지막만 작아요.</figcaption></figure>
-      <div class="callout">🤔 <strong>왜 데이터를 batch로 나눠?</strong> — 전체를 한 번에 넣으면 메모리가 부족할 수 있고, 한 번 다 보고 나서야 겨우 한 번 갱신해요. 하나씩 넣으면 갱신은 많지만 기울기가 너무 들쭉날쭉하고 GPU 병렬성을 못 살려요. 그 사이인 mini-batch가 <b>속도 · 메모리 · 기울기 흔들림</b>의 균형점이에요(자세한 비교는 다음 수업). <b>Dataset</b>은 "자료가 어떻게 생겼나(구조)", <b>DataLoader</b>는 "어떻게 꺼내 줄까(반복 · batch · shuffle)"로 역할을 나눠요.</div>
+      <div class="callout">🤔 <strong>왜 데이터를 batch로 나눠?</strong> — 전체를 한 번에 넣으면 메모리가 부족할 수 있고, 한 번 다 보고 나서야 겨우 한 번 갱신해요. 하나씩 넣으면 갱신은 많지만 기울기가 너무 들쭉날쭉하고 GPU 병렬성을 못 살려요. 그 사이인 mini-batch가 <b>속도 · 메모리 · 기울기 흔들림</b>의 균형점이에요(자세한 비교는 <a href="day10.html#batch">Batch · Iteration · Epoch</a>). <b>Dataset</b>은 "자료가 어떻게 생겼나(구조)", <b>DataLoader</b>는 "어떻게 꺼내 줄까(반복 · batch · shuffle)"로 역할을 나눠요.</div>
 
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>TensorDataset</code> · <code>DataLoader</code> <a href="../commands.html#d9-tensordataset">명령어 사전에서 자세히 →</a></div>
@@ -357,16 +355,16 @@ xb, yb = next(iter(loader))</code></pre>
       <div class="callout">🤔 <strong>왜 꼭 이 순서야?</strong> — ① 지난 batch 기울기가 남아 있으면 섞이니까 먼저 비우고(zero_grad), ② 지금 가중치로 예측하고(forward), ③ 정답과 비교해 loss를 만들고, ④ 그 loss로 기울기를 구하고(backward), ⑤ 그 기울기로 가중치를 바꿔요(step). step이 backward보다 먼저 오면 기울기 없이(또는 지난 기울기로) 갱신하게 돼요. 이 5단계만 지키면 대부분의 기본 학습 루프를 읽을 수 있어요.</div>
 
       <div class="cmdref">
-        <div class="cmdref-head">🔧 준비 + batch 반복 <a href="../commands.html#d9-준비-batch-반복">명령어 사전에서 자세히 →</a></div>
+        <div class="cmdref-head">🔧 <code>torch.optim.SGD</code> · <code>zero_grad()</code> · <code>step()</code> — batch 반복 <a href="../commands.html#d9-준비-batch-반복">명령어 사전에서 자세히 →</a></div>
 <pre><code>loss.backward()
 optimizer.step()</code></pre>
       </div>
       <figure style="margin:16px 0"><img class="smooth" src="img/day09/ann_boundary.png" alt="2-8-2 ANN이 epoch 0, 3, 20, 200에서 그린 결정 경계"><figcaption><b>무엇을 보나:</b> 위 코드와 같은 2→8→2 모델·SGD(lr=0.1)·batch 32를, 직선으로 못 가르는 초승달 모양 데이터(200개)에 학습시킨 실제 결과예요. 검은 선이 결정 경계. epoch 0엔 아무렇게나, 3에선 대충 직선, 20에선 비스듬히, 200에선 <b>꺾인 선</b>으로 두 달을 갈라요. <b>🤔 왜?</b> 처음 가중치는 무작위라 경계도 무작위예요. batch마다 step을 반복하며 틀린 점 쪽으로 경계가 조금씩 밀려나고, ReLU 뉴런 8개가 만든 꺾임을 써서 직선 하나로는 안 되는 모양까지 따라가요.</figcaption></figure>
       <figure style="margin:16px 0"><img class="smooth" src="img/day09/ann_loss.png" alt="같은 학습의 epoch별 평균 train loss 곡선"><figcaption><b>무엇을 보나:</b> 바로 위 학습의 epoch 평균 loss. 분홍 점이 위 그림 4장의 시점이에요. 처음 20 epoch에 크게 떨어지고, 그 뒤로는 천천히 내려가요. <b>🤔 왜?</b> 처음엔 크게 틀린 점이 많아 기울기가 크고 한 번에 많이 고쳐져요. 경계가 자리를 잡으면 남은 건 경계 근처의 어려운 점들이라 기울기가 작아지고 개선도 느려져요. 곡선이 살짝 들쭉날쭉한 건 batch마다 다른 샘플을 보기 때문이에요.</figcaption></figure>
       <div class="cmdref">
-        <div class="cmdref-head">🔧 epoch 평균 loss를 제대로 내기 <a href="../commands.html#d9-epoch-평균-loss를-제대로-내기">명령어 사전에서 자세히 →</a></div>
+        <div class="cmdref-head">🔧 <code>loss.item()</code> × batch 크기 — epoch 평균 loss <a href="../commands.html#d9-epoch-평균-loss를-제대로-내기">명령어 사전에서 자세히 →</a></div>
 <pre><code>total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
-return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss</code></pre>
+epoch_loss = total_loss / len(loader.dataset)  # 샘플 수로 가중한 평균 loss</code></pre>
       </div>
 
       <div class="cmdref">
@@ -377,7 +375,7 @@ with torch.no_grad():        # 기울기 기록 끄기</code></pre>
       <div class="callout">💡 학습 곡선의 loss가 매 epoch 꼭 줄어드는 건 아니에요. 전체 추세를 보고, loss와 accuracy는 따로 읽어요.</div>
 
       <!-- ============================================================ -->
-      <h2>증상으로 진단</h2>
+      <h2 id="troubleshoot">🩺 증상으로 진단 — 문제가 생기면</h2>
       <table>
         <tr><th>이런 일이 생기면</th><th>원인</th><th>확인</th></tr>
         <tr><td>GPU가 있는데 <code>is_available()</code>가 False</td><td>CPU용 torch 빌드, 다른 가상환경, 드라이버 문제</td><td><code>torch.version.cuda</code>가 None인지, 선택기로 재설치</td></tr>
@@ -388,10 +386,74 @@ with torch.no_grad():        # 기울기 기록 끄기</code></pre>
         <tr><td>평가 메모리가 큼</td><td><code>no_grad()</code> 없이 평가</td><td>평가 블록을 <code>with torch.no_grad():</code>로</td></tr>
       </table>
 
+      <h2 id="whole">🧩 설계 정리 — 부품마다 만드는 것</h2>
+      <table>
+        <tr><th>부품</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td><code>DataLoader</code></td><td>섞인 mini-batch <code>(xb, yb)</code></td><td>device 이동 — <code>.to(device)</code>는 직접</td></tr>
+        <tr><td><code>model(xb)</code></td><td>logits <code>(batch, class)</code></td><td>확률 · 클래스 (softmax · argmax는 따로)</td></tr>
+        <tr><td><code>loss_fn(logits, yb)</code></td><td>숫자 1개 (batch 평균)</td><td>정확도 — 따로 계산</td></tr>
+        <tr><td><code>loss.backward()</code></td><td>각 Parameter의 <code>.grad</code> (누적)</td><td>가중치 변경 — 값은 그대로</td></tr>
+        <tr><td><code>optimizer.step()</code></td><td>갱신된 가중치</td><td>기울기 비우기 — <code>zero_grad()</code>가 따로</td></tr>
+        <tr><td><code>model.eval()</code> + <code>torch.no_grad()</code></td><td>평가 동작 · 그래프 기록 없음</td><td>둘 중 하나만으론 반쪽 (모드 ≠ 기록)</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-shape">shape · dtype 계약 — 2→8→2 분류</h3>
+      <table>
+        <tr><th>값</th><th>shape</th><th>dtype</th><th>어디서</th></tr>
+        <tr><td>입력 <code>X</code> / <code>xb</code></td><td><code>(batch, 2)</code></td><td><code>torch.float32</code></td><td><code>nn.Linear(2, 8)</code>의 in_features와 마지막 차원이 같아야</td></tr>
+        <tr><td>정답 <code>y</code> / <code>yb</code></td><td><code>(batch,)</code></td><td><code>torch.long</code></td><td>CrossEntropyLoss target — 클래스 번호</td></tr>
+        <tr><td>logits</td><td><code>(batch, 2)</code></td><td><code>torch.float32</code></td><td><code>model(xb)</code> 출력</td></tr>
+        <tr><td>loss</td><td><code>()</code> 스칼라</td><td><code>torch.float32</code></td><td><code>loss.item()</code>으로 파이썬 숫자</td></tr>
+        <tr><td>예측 클래스</td><td><code>(batch,)</code></td><td><code>torch.int64</code></td><td><code>logits.argmax(dim=1)</code></td></tr>
+      </table>
+      <h3 id="spec-run">예시 학습 설정</h3>
+      <table>
+        <tr><th>항목</th><th>예시 값</th></tr>
+        <tr><td>모델</td><td><code>Linear(2, 8) → ReLU → Linear(8, 2)</code> · 파라미터 42개</td></tr>
+        <tr><td>데이터</td><td>200개 · batch 32 · <code>shuffle=True</code> → epoch당 7 batch (마지막 8개)</td></tr>
+        <tr><td>손실 · Optimizer</td><td><code>nn.CrossEntropyLoss()</code> · <code>torch.optim.SGD(lr=0.1)</code></td></tr>
+        <tr><td>장치</td><td><code>torch.device("cuda" if torch.cuda.is_available() else "cpu")</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>torch</code></td><td>Tensor 계산, 자동 미분, 신경망 층, Optimizer까지 딥러닝의 모든 것</td><td><code>import torch</code>, <code>from torch import nn</code></td></tr>
+        <tr><td>(torch 안에 포함)</td><td>데이터를 batch로 묶어 공급</td><td><code>from torch.utils.data import TensorDataset, DataLoader</code></td></tr>
+      </table>
+      <p>이 주제의 코드는 <code>torch</code> 하나로 다 돼요. 가상환경(<code>venv</code>)을 만들고 그 안에 설치해요.</p>
+      <h3 id="install">🔧 설치 · 확인</h3>
+<pre><code>python --version
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+# torch 설치 명령은 https://pytorch.org/get-started/locally/ 에서 골라 복사
+python -c "import torch; print(torch.__version__)"
+python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"   # True면 GPU 사용 가능</code></pre>
+      <div class="callout warn">⚠️ <code>torch</code>는 <b>pytorch.org의 Start Locally 선택기</b>에서 OS · Pip · Python · Compute Platform(CUDA 버전 또는 CPU)을 고른 뒤 나온 명령으로 설치해요. 그냥 <code>pip install torch</code>만 치면 내 GPU의 CUDA와 안 맞는 빌드가 깔릴 수 있어요. 이미 잘 돌아가는 환경이면 버전 숫자만 보고 다시 깔지 마세요.</div>
+      <div class="callout">🤔 <strong>왜 설치 명령을 외우지 않아요?</strong> — OS · Python · 드라이버 · CUDA 조합에 따라 맞는 torch 빌드가 달라서, 설치 명령도 달라져요. 그래서 설치할 때 공식 선택기가 알려 주는 조합을 그대로 쓰고, 마지막엔 <code>torch.cuda.is_available()</code>로 <b>실제로</b> 되는지 확인해요. GPU가 없거나 False여도 CPU로 같은 코드를 돌릴 수 있어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day9">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day10.html">Optimizer · 규제</a></td><td>Momentum · AdamW · Scheduler · Dropout · BatchNorm · Early Stopping — 잘 학습되는 조건 찾기</td></tr>
+        <tr><td><a href="day11.html">CNN · 이미지 분류</a></td><td><code>(batch, channel, height, width)</code> Tensor를 Conv 층으로</td></tr>
+        <tr><td><a href="day08.html">평가지표 · 특성 설계</a></td><td>사람이 특성을 만드는 머신러닝 쪽 · 정확도 외의 지표</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
-        <li>강의: <code>Day9_GPU_Tensor_ANN_20261029_v2.pdf</code> — GPU 개념 p6–16 · 환경 점검 p19–28 · Tensor p31–42 · Autograd p45–53 · ANN p56–64 · 손실·DataLoader p67–74 · 학습 루프 p77–84 · 프로젝트 코드 p92–93 · 오류 상황 p100</li>
+        <li>원본: <code>Day9_GPU_Tensor_ANN_20261029_v2.pdf</code> — GPU 개념 p6–16 · 환경 점검 p19–28 · Tensor p31–42 · Autograd p45–53 · ANN p56–64 · 손실·DataLoader p67–74 · 학습 루프 p77–84 · 프로젝트 코드 p92–93 · 오류 상황 p100</li>
         <li>명령어 이름 확인: <code>PyTorch_치트시트.pdf</code> (1쪽)</li>
+        <li>결과 값 · 그림: 이 노트를 만든 PC에서 실제 실행 (행렬곱 시간은 CPU에서만 측정). 스크립트 <code>tools/io_day09.py</code>, 그림 <code>tools/visuals/make_day09.py</code></li>
         <li>공식 문서: <a href="https://pytorch.org/get-started/locally/" target="_blank">PyTorch Start Locally (설치 선택기)</a> · <a href="https://docs.pytorch.org/docs/stable/notes/cuda" target="_blank">CUDA semantics</a> · <a href="https://docs.pytorch.org/docs/stable/nn.html" target="_blank">torch.nn</a> · <a href="https://docs.nvidia.com/deploy/nvidia-smi/index.html" target="_blank">nvidia-smi</a></li>
       </ul>
     </article>

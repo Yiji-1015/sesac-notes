@@ -1,7 +1,7 @@
 import sys, os; sys.path.insert(0, os.path.dirname(__file__)); from vstyle import plt, C, save, setup; setup()
 """Day20 그림 만들기 (LLM 생태계 · Token · Embedding · Transformer · Attention · 학습/추론).
 
-숫자가 들어간 그림은 여기서 강의 코드를 실제로 다시 계산한 값이다
+숫자가 들어간 그림은 여기서 원본 코드를 실제로 다시 계산한 값이다
 (Tokenizer bert-base-multilingual-cased 결과 · 3×3 Attention · cosine · Softmax/Temperature).
 문맥 예산 막대는 강의 p33의 '산술 예시' 숫자를 그대로 그린 것이다.
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/visuals/make_day20.py
@@ -43,7 +43,7 @@ def fig_system():
     rbox(ax, 0.2, 2.0, 1.7, 1.1, "사용자\n“FastAPI에서\nPostgreSQL 연결이\n안 됩니다”", fc="#f8f9fa", ec=C["gray"], fs=8.6)
     rbox(ax, 2.4, 2.0, 1.8, 1.1, "FastAPI\n요청·응답·검증", fc="#e7f5ff", ec=C["blue"], fs=9.2)
     rbox(ax, 4.7, 2.0, 2.0, 1.1, "Agent 처리\n분기·상태·승인", fc="#fff4e6", ec=C["orange"], fs=9.2)
-    rbox(ax, 7.3, 1.75, 2.4, 1.6, "LLM  ← 오늘\n문맥을 읽고\n다음 Token 생성\n(또는 행동 제안)", fc="#f3f0ff", ec=C["purple"], fs=9.6, bold=True, lw=2.6)
+    rbox(ax, 7.3, 1.75, 2.4, 1.6, "LLM  ← 이 주제\n문맥을 읽고\n다음 Token 생성\n(또는 행동 제안)", fc="#f3f0ff", ec=C["purple"], fs=9.6, bold=True, lw=2.6)
     rbox(ax, 7.3, 3.75, 2.4, 0.85, "RAG · 검색 근거\n원본 문서 / 벡터 인덱스", fc="#e6fcf5", ec=C["mint"], fs=8.6)
     rbox(ax, 4.7, 0.15, 2.0, 0.95, "Tool · 업무 시스템\n허용된 API · 권한·기록", fc="#fff0f6", ec=C["pink"], fs=8.6)
     rbox(ax, 10.2, 2.0, 1.6, 1.1, "응답\n설명·근거·\n확인 절차", fc="#f8f9fa", ec=C["gray"], fs=8.8)
@@ -116,7 +116,7 @@ def fig_budget():
         ax.text(left + n / 2, 0, f"{name}\n{n:,}", ha="center", va="center", fontsize=9 if n > 250 else 7.6, color="white", fontweight="bold")
         left += n
     ax.set_xlim(0, total); ax.set_yticks([]); ax.grid(False)
-    ax.set_xlabel(f"Token (합계 {total:,} — 강의의 산술 예시, 특정 모델의 한도 아님)")
+    ax.set_xlabel(f"Token (합계 {total:,} — 산술 예시, 특정 모델의 한도 아님)")
     ax.set_title("한 요청의 Context Window를 나눠 쓰는 예")
     for s in ["left"]:
         ax.spines[s].set_visible(False)

@@ -62,7 +62,7 @@ def dataset_counts():
             ax.text(b.get_x() + b.get_width() / 2, v + 2, str(v), ha="center", fontsize=9.5)
     ax.set_xticks(x); ax.set_xticklabels([f"{s}\n(합 {sum(counts[s])})" for s in splits])
     ax.set_ylabel("이미지 수"); ax.set_ylim(0, 140)
-    ax.set_title("수업 예제 데이터의 클래스별 개수", fontsize=12)
+    ax.set_title("예제 데이터의 클래스별 개수", fontsize=12)
     ax.legend(ncol=3, loc="upper right")
     ax.annotate("train만 6 : 2 : 1로 불균형", xy=(0.26, 20), xytext=(0.55, 95), fontsize=10,
                 color=C["red"], fontweight="bold", arrowprops=dict(arrowstyle="->", color=C["red"]))
@@ -112,7 +112,7 @@ def lr_groups():
     ax.minorticks_off()
     ax.set_xticks(x); ax.set_xticklabels(stages)
     ax.set_ylabel("학습률 (log 눈금)")
-    ax.set_title("많이 열수록 Backbone 보폭은 더 작게 (강의 예시값)", fontsize=11.5)
+    ax.set_title("많이 열수록 Backbone 보폭은 더 작게 (예시 설정)", fontsize=11.5)
     ax.legend(loc="upper right", fontsize=9.5)
     save(fig, DAY, "lr_groups")
 
@@ -175,7 +175,7 @@ def best_epoch(curve, best_ep):
                 xytext=(len(ep) - 12, max(va) * 0.45), color=C["red"], fontsize=10, fontweight="bold",
                 arrowprops=dict(arrowstyle="->", color=C["red"]))
     ax.set_xlabel("epoch"); ax.set_ylabel("loss")
-    ax.set_title("작은 데모 CNN을 수업 예제 데이터로 15 epoch 학습한 실제 곡선 (seed 4)", fontsize=11.5)
+    ax.set_title("작은 데모 CNN을 예제 데이터로 15 epoch 학습한 실제 곡선 (seed 4)", fontsize=11.5)
     ax.legend(loc="upper left")
     save(fig, DAY, "best_epoch")
 
@@ -399,7 +399,7 @@ def gradcam_demo(model, Xva, yva, pred):
             ax = axs[r, c]
             ax.imshow(im, cmap="jet" if c == 1 else None, vmin=0, vmax=1, interpolation="bilinear")
             noaxis(ax); ax.set_title(t, fontsize=9.5)
-    fig.suptitle("작은 데모 CNN(수업 예제 도형 데이터로 몇 초 학습)의 실제 Grad-CAM · ResNet18 결과 아님", fontsize=11)
+    fig.suptitle("작은 데모 CNN(예제 도형 데이터로 몇 초 학습)의 실제 Grad-CAM · ResNet18 결과 아님", fontsize=11)
     save(fig, DAY, "gradcam_demo")
 
 

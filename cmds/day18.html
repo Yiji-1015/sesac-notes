@@ -2,8 +2,6 @@
 <section class="cmd-overview" data-day="18">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day18.html#packages">📦 필요한 프로그램</a></td><td><code>psql --version</code>, <code>Get-Service postgresql*</code></td></tr>
-        <tr><td><a href="notes/day18.html#spec">📋 명세</a></td><td>테이블 · 제약 이름 · 관계 · S0 · 결과/오류 · 변경 규칙</td></tr>
         <tr><td><a href="notes/day18.html#connect">① DB · DBMS · 접속 도구</a></td><td><code>SELECT current_database()</code>, <code>CREATE DATABASE</code>, <code>psql -U -h -p -d</code>, <code>\dt</code> · <code>\d</code></td></tr>
         <tr><td><a href="notes/day18.html#select">② 지식 조회</a></td><td><code>SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT</code>, <code>LIKE</code>, <code>IS NULL</code></td></tr>
         <tr><td><a href="notes/day18.html#design">③ 두 테이블 설계</a></td><td><code>CREATE TABLE</code>, <code>GENERATED ALWAYS AS IDENTITY</code>, <code>PRIMARY KEY</code>, <code>FOREIGN KEY ... REFERENCES</code>, <code>CHECK</code></td></tr>
@@ -13,7 +11,8 @@
         <tr><td><a href="notes/day18.html#tx">⑦ 트랜잭션</a></td><td><code>BEGIN</code>, <code>COMMIT</code>, <code>ROLLBACK</code></td></tr>
         <tr><td><a href="notes/day18.html#lab">🧪 트랜잭션 직접 해 보기</a></td><td>(브라우저 안에서 연결 A · B 흉내)</td></tr>
         <tr><td><a href="notes/day18.html#index">⑧ 인덱스와 실행계획</a></td><td><code>pg_indexes</code>, <code>CREATE INDEX</code>, <code>EXPLAIN (ANALYZE, BUFFERS)</code></td></tr>
-        <tr><td><a href="notes/day18.html#next">⑨ 다음 단계와 연결</a></td><td>FastAPI–PostgreSQL 연동 (11/12) · 검색 인덱스 · RAG</td></tr>
+        <tr><td><a href="notes/day18.html#spec">📋 명세</a></td><td>테이블 · 제약 이름 · 관계 · S0 · 결과/오류 · 변경 규칙</td></tr>
+        <tr><td><a href="notes/day18.html#packages">📦 프로그램 · 명령어</a></td><td><code>psql --version</code>, <code>Get-Service postgresql*</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d18-current-database" data-topic="PostgreSQL · SQL" data-sub="접속 · 확인" data-day="18" data-theory="notes/day18.html#connect">
@@ -23,7 +22,7 @@
 SELECT version();                      -- 서버 버전
 SELECT 1 AS connection_ok;             -- SQL을 보내고 결과를 받을 수 있나</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — 강의자료 p21의 기대값</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — PostgreSQL 기준 기대값</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>SELECT current_database() AS db_name, current_user AS user_name;</code></td><td><code>PG = db_name: knowledge_lab (user: 접속한 계정)</code></td><td>지금 연결된 DB 이름부터 확인</td></tr>
@@ -48,7 +47,7 @@ CREATE DATABASE knowledge_lab;
 -- 왼쪽 트리에서 knowledge_lab을 선택하고 Query Tool을 새로 연 뒤
 SELECT current_database();      -- 기대: knowledge_lab</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>PostgreSQL 전용이라 SQLite로는 못 돌려요 — 강의자료 p68(A01)의 기대값</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>PostgreSQL 전용이라 SQLite로는 못 돌려요 — PostgreSQL 기준 기대값</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>CREATE DATABASE knowledge_lab;  (postgres DB에서)</code></td><td><code>PG = CREATE DATABASE</code></td><td>새 DB가 생김 — 아직 이 창은 postgres DB</td></tr>
@@ -60,7 +59,7 @@ SELECT current_database();      -- 기대: knowledge_lab</code></pre>
         <tr><th>규칙</th><th>🤔 왜?</th></tr>
         <tr><td>Auto commit이 켜진 상태에서, <code>BEGIN</code> 안이 아닌 곳에서</td><td><code>CREATE DATABASE</code>는 트랜잭션 묶음 안에서 실행할 수 없어요</td></tr>
         <tr><td>만든 뒤 <b>새 Query Tool</b>을 그 DB에서 열기</td><td>Query Tool은 열 때 정한 DB에 붙어 있어요. 만들기만 하면 여전히 <code>postgres</code> DB예요</td></tr>
-        <tr><td>같은 이름이 있으면 내용부터 확인</td><td>임의로 <code>DROP</code>하면 남의(또는 어제의) 데이터를 지울 수 있어요</td></tr>
+        <tr><td>같은 이름이 있으면 내용부터 확인</td><td>임의로 <code>DROP</code>하면 남의(또는 예전에 만든) 데이터를 지울 수 있어요</td></tr>
       </table>
       <div class="callout">💡 준비 순서: <b>A01</b> DB 만들기 → <b>A02</b> categories → <b>A03</b> knowledge → <b>A04·A05</b> Seed. 빈 개인 DB에 <b>한 번만</b> 해요.</div>
 </section>
@@ -163,7 +162,7 @@ ORDER BY id;</code></pre>
         <tr><td><code>'learning'</code></td><td>문자열은 <b>작은따옴표</b>. 큰따옴표 <code>"..."</code>는 열·표 <b>이름</b>을 뜻해요</td></tr>
         <tr><td><code>IN (2, 3)</code></td><td>목록 중 하나</td></tr>
       </table>
-      <div class="callout">🤔 <strong>결과 0행은 조회 실패야?</strong> — 아니에요. 조건에 맞는 행이 없다는 <b>정상 결과</b>예요. 오류와 0행을 구분해야 내일 API에서 404 / 빈 배열을 정할 수 있어요.</div>
+      <div class="callout">🤔 <strong>결과 0행은 조회 실패야?</strong> — 아니에요. 조건에 맞는 행이 없다는 <b>정상 결과</b>예요. 오류와 0행을 구분해야 API에서 404 / 빈 배열을 정할 수 있어요.</div>
 </section>
 <section class="cmd" id="d18-like-limit" data-topic="PostgreSQL · SQL" data-sub="조회 (SELECT)" data-day="18" data-theory="notes/day18.html#select">
   <h3><code>AND</code> · <code>LIKE</code> · <code>DESC</code> · <code>LIMIT</code></h3>
@@ -245,7 +244,7 @@ NULL</code></td><td>= 로 비교하면 &#x27;모름&#x27;(NULL) — 그래서 IS
       <table>
         <tr><th>부분</th><th>뜻</th><th>🤔 왜?</th></tr>
         <tr><td><code>BIGINT</code></td><td>큰 정수 (약 ±9.2×10¹⁸)</td><td>ID가 모자랄 일이 없게</td></tr>
-        <tr><td><code>GENERATED ALWAYS AS IDENTITY</code></td><td>DB가 번호를 발급. <code>ALWAYS</code>면 사용자가 직접 넣는 걸 막음</td><td>번호 매기기를 사람이 하지 않게 — 어제의 <code>next_id</code> 역할</td></tr>
+        <tr><td><code>GENERATED ALWAYS AS IDENTITY</code></td><td>DB가 번호를 발급. <code>ALWAYS</code>면 사용자가 직접 넣는 걸 막음</td><td>번호 매기기를 사람이 하지 않게 — JSON 파일 저장소의 <code>next_id</code> 역할</td></tr>
         <tr><td><code>PRIMARY KEY</code></td><td>유일 + NULL 불가 (인덱스도 자동 생성)</td><td>행 하나를 콕 집는 열쇠</td></tr>
         <tr><td><code>VARCHAR(30)</code></td><td>최대 30자 문자열</td><td>분류 이름은 짧아야 해서</td></tr>
         <tr><td><code>UNIQUE</code></td><td>같은 값 두 번 금지</td><td>이름으로 ID를 찾으려면 이름이 하나여야</td></tr>
@@ -291,7 +290,7 @@ knowledge</code></td><td></td></tr>
         <tr><td><code>FOREIGN KEY (category_id) REFERENCES categories(id)</code></td><td>넣을 때 그 번호의 분류가 <b>실제로 있는지</b> 검사</td></tr>
         <tr><td><code>ON DELETE RESTRICT</code></td><td>이 분류를 가리키는 지식이 있으면 분류 삭제를 <b>거부</b></td></tr>
       </table>
-      <div class="callout">🤔 <strong>FK 타입을 왜 <code>BIGINT</code>로 맞춰?</strong> — 가리키는 쪽(<code>category_id</code>)과 가리켜지는 쪽(<code>categories.id</code>)의 타입이 같아야 비교·연결이 자연스러워요. 그리고 <code>title</code>에는 UNIQUE가 <b>없어요</b> — 같은 제목도 허용(어제 API와 같은 규칙).</div>
+      <div class="callout">🤔 <strong>FK 타입을 왜 <code>BIGINT</code>로 맞춰?</strong> — 가리키는 쪽(<code>category_id</code>)과 가리켜지는 쪽(<code>categories.id</code>)의 타입이 같아야 비교·연결이 자연스러워요. 그리고 <code>title</code>에는 UNIQUE가 <b>없어요</b> — 같은 제목도 허용(지식 관리 API와 같은 규칙).</div>
 </section>
 <section class="cmd" id="d18-seed" data-topic="PostgreSQL · SQL" data-sub="테이블 설계 (DDL)" data-day="18" data-theory="notes/day18.html#design">
   <h3>Seed — 분류 3건 · 지식 3건 넣기 (S0)</h3>
@@ -471,7 +470,7 @@ SELECT id, title FROM knowledge WHERE id = 3;   -- 다시 1행</code></pre>
         <tr><th>명령</th><th>지우는 것</th></tr>
         <tr><td><code>DELETE FROM 표 WHERE ...</code></td><td>조건에 맞는 <b>행</b>. 표 구조는 남음</td></tr>
         <tr><td><code>DELETE FROM 표</code> (WHERE 없음)</td><td>모든 행 ⚠️</td></tr>
-        <tr><td><code>DROP TABLE 표</code></td><td>표 자체 (구조 + 데이터) — 오늘 본 데이터엔 안 씀</td></tr>
+        <tr><td><code>DROP TABLE 표</code></td><td>표 자체 (구조 + 데이터) — 본 데이터엔 안 씀</td></tr>
       </table>
 </section>
 <section class="cmd" id="d18-join" data-topic="PostgreSQL · SQL" data-sub="JOIN · 집계" data-day="18" data-theory="notes/day18.html#join">
@@ -504,7 +503,7 @@ WHERE k.id = 2;</code></pre>
         <tr><td><code>knowledge AS k</code></td><td>표 별칭 <code>k</code> (<code>AS</code>는 생략 가능)</td></tr>
         <tr><td><code>JOIN</code></td><td>= <code>INNER JOIN</code> — 양쪽에 짝이 있는 행만</td></tr>
         <tr><td><code>ON c.id = k.category_id</code></td><td>어떤 값끼리 짝을 맞출지</td></tr>
-        <tr><td><code>c.name AS category</code></td><td>결과 열 이름 — 어제 API의 <code>category</code>와 같은 이름</td></tr>
+        <tr><td><code>c.name AS category</code></td><td>결과 열 이름 — 지식 관리 API의 <code>category</code>와 같은 이름</td></tr>
       </table>
       <div class="callout warn">⚠️ <code>ON</code>을 빼거나 잘못 쓰면 모든 행 × 모든 행 조합(3 × 3 = 9행)이 나올 수 있어요. JOIN 뒤에는 <b>행 수가 예상과 같은지</b> 먼저 봐요.</div>
 </section>
@@ -588,7 +587,7 @@ FROM knowledge;</code></pre>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>SELECT COUNT(*), SUM(char_length(content)), MIN(...), MAX(...) FROM knowledge;</code></td><td><code>knowledge_count | total_chars | min_chars | max_chars
-3 | 64 | 20 | 24</code></td><td>강의자료의 3건 · 64자 · 20 · 24와 같아요</td></tr>
+3 | 64 | 20 | 24</code></td><td>PostgreSQL 기대값(3건 · 64자 · 20 · 24)과 같아요</td></tr>
     <tr><td><code>SELECT id, char_length(content) FROM knowledge ORDER BY id;</code></td><td><code>id | chars
 1 | 20
 2 | 20
@@ -858,7 +857,7 @@ WHERE category_id = 1;</code></pre>
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>인덱스 전: WHERE category_id = 1</code></td><td><code>SCAN knowledge</code></td><td>표 전체를 훑음 (PG의 Seq Scan에 해당)</td></tr>
     <tr><td><code>인덱스 후: 같은 SQL</code></td><td><code>SEARCH knowledge USING INDEX idx_knowledge_category_id (category_id=?)</code></td><td>인덱스로 바로 찾아감</td></tr>
-    <tr><td><code>PG에서 3행짜리 표라면?</code></td><td><code>PG = Seq Scan이 나와도 정상 (강의자료 p53)</code></td><td>행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기</td></tr>
+    <tr><td><code>PG에서 3행짜리 표라면?</code></td><td><code>PG = Seq Scan이 나와도 정상 (PostgreSQL 기준)</code></td><td>행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기</td></tr>
   </table>
 </div>
       <table>

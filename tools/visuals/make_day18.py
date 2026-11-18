@@ -54,7 +54,7 @@ def fig_zoom():
     fig, ax = canvas(11.6, 3.7, 11.0, 3.9)
     steps = [
         ("AI Agent\n업무 서비스", "사용자에게\n답변·도구 제공", C["gray"], "-"),
-        ("FastAPI", "요청·응답\n(11/10 · 11/12)", C["blue"], "-"),
+        ("FastAPI", "요청·응답\n(API 계층)", C["blue"], "-"),
         ("PostgreSQL 서버", "여러 DB를 관리하는\nDBMS", C["mint"], "-"),
         ("knowledge_lab\n· public", "Database·Schema\n이름 공간", C["mint"], "-"),
         ("categories\n· knowledge", "원본 지식을 담는\n두 테이블", C["mint"], "-"),
@@ -68,18 +68,18 @@ def fig_zoom():
             arrow(ax, x + w, 2.5, x + 1.8, 2.5)
     ax.add_patch(FancyBboxPatch((3.65, 1.55), 5.3, 1.9, boxstyle="round,pad=0.02,rounding_size=0.15",
                                 fc="none", ec=C["mint"], lw=1.4, ls="--"))
-    ax.text(6.3, 3.62, "오늘 직접 다루는 곳 (SQL)", ha="center", fontsize=10.5, color=C["mint"], fontweight="bold")
-    rbox(ax, 0.1, 0.25, 5.2, 0.9, "검색·RAG (11/18~20)  ·  Agent 도구 실행 (이후)\n이 원본을 읽어 가는 별도 계층", ec=C["gray"], ls="--", fs=9, color=MUTED)
+    ax.text(6.3, 3.62, "SQL로 직접 다루는 곳", ha="center", fontsize=10.5, color=C["mint"], fontweight="bold")
+    rbox(ax, 0.1, 0.25, 5.2, 0.9, "검색·RAG  ·  Agent 도구 실행\n이 원본을 읽어 가는 별도 계층", ec=C["gray"], ls="--", fs=9, color=MUTED)
     arrow(ax, 5.35, 0.7, 6.0, 1.55, color=C["gray"], ls="--")
     ax.text(6.9, 0.55, "원본이 바뀌어도 검색 인덱스는 자동으로 안 바뀌어요", fontsize=9.5, color=MUTED)
-    ax.set_title("서비스에서 값 하나까지 — 오늘은 초록 칸(DB 안쪽)을 SQL로 직접 만져요", loc="left")
+    ax.set_title("서비스에서 값 하나까지 — 초록 칸(DB 안쪽)을 SQL로 직접 만져요", loc="left")
     save(fig, 18, "zoom_map")
 
 
 # ------------------------------------------------------------ 2. JSON 한 건 → 두 테이블 (ERD)
 def fig_erd(con):
     fig, ax = canvas(11, 4.4, 11, 4.4)
-    rbox(ax, 0.1, 0.9, 2.6, 2.6, '어제 (JSON 한 건)\n\n{"id": 2,\n "title": "서버 실행",\n "content": "...",\n "category": "environment"}',
+    rbox(ax, 0.1, 0.9, 2.6, 2.6, 'JSON 파일 저장소 (한 건)\n\n{"id": 2,\n "title": "서버 실행",\n "content": "...",\n "category": "environment"}',
          ec=C["gray"], fs=9.3, ha="left")
     ax.text(1.4, 0.6, "분류 이름이 지식마다 반복", ha="center", fontsize=9, color=MUTED)
     arrow(ax, 2.8, 2.2, 3.5, 2.2, text="나누기", tfs=9.5)

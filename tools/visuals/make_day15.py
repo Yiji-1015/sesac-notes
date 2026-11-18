@@ -362,7 +362,7 @@ def matplotlib_rgb(hexcol):
 
 
 def fig_candidate_sim():
-    """강의 요약의 420 → 11 → 4 흐름을 그대로 재현한 모의 그림 (점수는 손으로 정한 값)."""
+    """예시 420 → 11 → 4 흐름을 그대로 재현한 모의 그림 (점수는 손으로 정한 값)."""
     rng = np.random.default_rng(0)
     cands = []
     # 420칸 모두 후보 하나씩: 낮은 점수
@@ -404,7 +404,7 @@ def fig_candidate_sim():
     axs[2].text(W / 2, H + 3, "덜 겹친 중복(IoU < 0.7)은 살아남아 FP가 됨", ha="center", va="top", fontsize=9.5)
     for i in range(2):
         fig.text((i + 1) / 3, 0.5, "→", fontsize=26, ha="center", va="center", color=C["purple"])
-    fig.text(0.5, -0.03, "모의 그림: 강의 예시(420 → 11 → 4, TP 3 · FP 1)의 흐름을 재현하려고 점수를 손으로 정함. 실제 모델 출력 아님.",
+    fig.text(0.5, -0.03, "모의 그림: 예시 흐름(420 → 11 → 4, TP 3 · FP 1)을 재현하려고 점수를 손으로 정함. 실제 모델 출력 아님.",
              ha="center", fontsize=9.8, color="#5b5270")
     save(fig, 15, "candidate_pipeline_sim")
 

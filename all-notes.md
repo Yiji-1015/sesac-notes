@@ -17,37 +17,7 @@ _2026-10-26(월) · 선형회귀 · 로지스틱회귀 · KNN · 스케일링 ·
 
 - 모델 비교는 같은 분할 · 같은 입력 · 같은 지표에서 한 조건만 바꿔서. 고르는 건 valid, test는 끝까지 보관. 고른 Pipeline은 검사하고 저장한다.
 
-🔧 Day6 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
-
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| scikit-learn | 모델(선형·로지스틱·KNN), 전처리, 지표, Pipeline 전부 | from sklearn.linear_model import LinearRegression 등 |
-| numpy | 숫자 배열 계산 (np.array, np.exp) | import numpy as np |
-| pandas | 표(DataFrame)로 데이터 읽고 비교표 만들기 | import pandas as pd |
-| joblib | 학습한 Pipeline을 파일로 저장·불러오기 (scikit-learn 설치 시 함께 깔림) | import joblib |
-| (표준 라이브러리) | pathlib·tempfile — 저장 경로·임시 폴더 (설치 불필요) | from pathlib import Path, import tempfile |
-
-### 🔧 설치 · 확인
-
-```
-python -m pip install numpy pandas scikit-learn     # 새 환경이면 강사가 검증한 requirements로 준비
-python --version
-python -m pip show numpy pandas scikit-learn
-python -c "import sklearn; print(sklearn.__version__)"
-.venv\Scripts\python.exe -m pip check               # Windows: 프로젝트 인터프리터로 의존성 충돌 확인
-```
-
-💡 pip 이름과 import 이름이 달라요: scikit-learn으로 설치하고 코드에서는 sklearn으로 불러요.
-
-⚠️ 기존 가상환경을 유지하고, 수업 직전에 무조건 최신 버전으로 올리지 말 것. 강의 자료는 Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0에서 검증됐어요(PDF 6쪽). VS Code 인터프리터가 프로젝트의 .venv인지 먼저 확인하세요.
-
-🤔 왜? — 라이브러리 버전이 바뀌면 함수 이름·기본값이 달라질 수 있어요(예: root_mean_squared_error는 최근 버전에 생긴 함수). 같은 코드가 같은 숫자를 내려면 검증된 환경을 그대로 쓰는 게 안전해요.
-
-## 이거 어디에 써?
+## 🗺️ 큰 그림 — 같은 데이터로 숫자를 맞히거나, 종류를 맞히거나
 
 같은 데이터로도 질문을 두 가지로 만들 수 있어요. 예를 들어 AI 요청 기록이 있다면 "이 요청은 몇 ms 걸릴까?"(회귀)와 "이 요청은 실패할까?"(분류)를 따로 물을 수 있죠.
 
@@ -78,7 +48,27 @@ python -c "import sklearn; print(sklearn.__version__)"
 
 🤔 왜? — 모델은 실제로 쓰일 때 예측 시점에 존재하는 값만 받을 수 있어요. 실행 후에야 생기는 값을 학습에 넣으면 연습 점수는 높게 나와도, 실전에서는 그 값이 없어서 쓸 수 없는 모델이 돼요. 또 회귀·분류의 지표가 다른 이유는 정답의 모양이 달라서예요. 숫자는 "얼마나 빗나갔나(오차 크기)"를, 종류는 "맞혔나·틀렸나(어떤 오류인가)"를 세야 하거든요.
 
-💡 강의의 공통 데이터는 수업용 합성 데이터 100건(일부 결측 포함)이고, 분할은 train 60 · valid 20 · test 20이에요. 아래 숫자들은 "이 작은 자료에서 나온 결과"일 뿐, 실서비스 성능의 근거가 아니에요.
+💡 예시 숫자는 합성 데이터 100건(AI 요청 기록 · 일부 결측 포함)을 train 60 · valid 20 · test 20으로 나눠 얻은 값이에요(📋 명세). "이 작은 자료에서 나온 결과"일 뿐, 실서비스 성능의 근거가 아니에요.
+
+예측 모델 하나를 고르기까지는 아래 일곱 단계를 지나요. 이 페이지의 ①~⑦이 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 선형회귀 | 입력의 가중합 · 잔차제곱합 최소화 | 직선 하나로 숫자를 어떻게 맞히나? |
+| ② 회귀 지표 · 기준선 | train / valid / test · MAE · RMSE · R² · Dummy | 얼마나 빗나갔고, 평균만 찍는 것보다 나은가? |
+| ③ 로지스틱회귀 | 시그모이드 확률 · 혼동행렬 · F1 · 임계값 | 확률을 어디서 잘라, 어떤 오류를 감수하나? |
+| ④ KNN | 거리 · K개 이웃의 투표 / 평균 | 무엇을 "비슷하다"고 보나? |
+| ⑤ 스케일링 · Pipeline | 표준화 · MinMax · ColumnTransformer | 전처리 통계를 train에서만 배우나? |
+| ⑥ 공정한 비교 | 하이퍼파라미터 · 고정 조건 · 기준선 · 진단 | 한 조건만 바꿔 valid로 골랐나? |
+| ⑦ 검사 · 저장 | 학습 통계 불변 · 저장 · 복원 대조 | 다시 불러도 같은 예측이 나오나? |
+
+```
+문제 정의: 무엇을 예측? (회귀 → elapsed_ms · 분류 → failed) · 예측 시점에 있는 입력만
+  ├ 모델: LinearRegression · LogisticRegression · KNeighbors…
+  ├ 전처리: SimpleImputer → StandardScaler / OneHotEncoder  (ColumnTransformer)
+  └ Pipeline = 전처리 + 모델 한 객체 → fit(train) · predict(valid)
+→ valid로 후보 선택 → 검사 · 저장 → test는 모든 선택이 끝난 뒤 한 번
+```
 
 ## ① 선형회귀 — 입력의 가중합으로 숫자를 예측
 
@@ -168,7 +158,7 @@ print("MAE:", round(mean_absolute_error(y_true, y_pred), 2))       # 33.33
 print("RMSE:", round(root_mean_squared_error(y_true, y_pred), 2))  # 38.3
 ```
 
-[그림: 수업 데이터 train의 글자수와 소요시간 산점도, 회귀 직선과 평균선] 무엇을 보나: 수업 데이터 train에서 글자수(가로)와 실제 소요시간(세로)을 찍은 그림이에요. 보라 직선은 위로 조금 기울었지만 점들이 위아래로 아주 넓게 흩어져 있어요. 🤔 왜? 직선과 평균선(점선)이 점들을 설명하는 정도가 거의 비슷하죠. 입력만으로 소요시간을 맞힐 신호가 약하니, valid에서 선형회귀의 R²가 -0.097처럼 0 근처·음수로 나오는 게 이상한 일이 아니에요.
+[그림: 예시 데이터 train의 글자수와 소요시간 산점도, 회귀 직선과 평균선] 무엇을 보나: 예시 데이터 train에서 글자수(가로)와 실제 소요시간(세로)을 찍은 그림이에요. 보라 직선은 위로 조금 기울었지만 점들이 위아래로 아주 넓게 흩어져 있어요. 🤔 왜? 직선과 평균선(점선)이 점들을 설명하는 정도가 거의 비슷하죠. 입력만으로 소요시간을 맞힐 신호가 약하니, valid에서 선형회귀의 R²가 -0.097처럼 0 근처·음수로 나오는 게 이상한 일이 아니에요.
 
 ## ③ 로지스틱회귀 — 이름은 회귀지만 분류 모델
 
@@ -230,7 +220,7 @@ pred = (p >= threshold).astype(int)                 # True/False → 1/0
 tn, fp, fn, tp = confusion_matrix(truth, pred, labels=[0, 1]).ravel()
 ```
 
-아래 슬라이더로 임계값을 움직여 보세요. 명령어 사전 코드의 6건(실제 [0, 0, 0, 1, 1, 1], 확률 [0.10, 0.40, 0.70, 0.35, 0.60, 0.90])을 그대로 씁니다.
+아래 슬라이더로 임계값을 움직여 보세요. 명령어 사전 예제의 6건(실제 [0, 0, 0, 1, 1, 1], 확률 [0.10, 0.40, 0.70, 0.35, 0.60, 0.90])을 그대로 씁니다.
 
 [그림: 2차원 합성 자료에서 로지스틱회귀의 확률 배경과 0.5, 0.3 결정 경계] 무엇을 보나: 2개 특성으로 만든 설명용 자료예요. 배경색이 진할수록 실패 확률이 높고, 검은 직선이 p=0.5 경계, 주황 점선이 임계값을 0.3으로 내렸을 때의 경계예요. 🤔 왜? 모델(배경색)은 그대로인데 판단 선만 왼쪽 위로 밀려나요. 그 사이에 있던 분홍 네모(실패)가 새로 잡혀 FN이 줄지만, 같은 띠에 있던 보라 점(성공)도 함께 "실패"로 불려 FP가 늘어요. 로지스틱회귀는 z가 특성의 가중합이라 경계가 항상 직선이에요.
 
@@ -360,7 +350,7 @@ model = build(KNeighborsClassifier(n_neighbors=5), scale="standard")
 
 - 실제 곡선은 매끄럽거나 단조롭지 않을 수 있어요(train F1도 K=5 0.462 → K=9 0.519로 오르내림). K=3은 이 고정 실험 안의 잠정 선택이에요.
 
-[그림: K별 분류 train·valid F1과 회귀 valid RMSE 그래프] 무엇을 보나: 수업 데이터로 K를 바꿔 가며 직접 계산한 결과예요(위 표 + K=7·11 추가). 왼쪽 분류는 회색 train이 K=1에서 1.0이지만 보라 valid는 K=3에서 최고, 오른쪽 회귀 RMSE는 K가 클수록 계속 내려가요. 🤔 왜? K=1은 자기 자신을 이웃으로 삼아 train만 만점이에요(두 선의 큰 격차 = 과적합 신호). 분류는 K가 커지면 다수인 "성공" 표에 묻혀 실패 F1이 0으로 떨어지고, 회귀는 많은 이웃을 평균할수록 극단 예측이 줄어 RMSE가 낮아져요. 그래서 목표마다 최적 K가 달라요. 곡선이 들쭉날쭉한 건 valid가 20건뿐이라서예요.
+[그림: K별 분류 train·valid F1과 회귀 valid RMSE 그래프] 무엇을 보나: 예시 데이터로 K를 바꿔 가며 직접 계산한 결과예요(위 표 + K=7·11 추가). 왼쪽 분류는 회색 train이 K=1에서 1.0이지만 보라 valid는 K=3에서 최고, 오른쪽 회귀 RMSE는 K가 클수록 계속 내려가요. 🤔 왜? K=1은 자기 자신을 이웃으로 삼아 train만 만점이에요(두 선의 큰 격차 = 과적합 신호). 분류는 K가 커지면 다수인 "성공" 표에 묻혀 실패 F1이 0으로 떨어지고, 회귀는 많은 이웃을 평균할수록 극단 예측이 줄어 RMSE가 낮아져요. 그래서 목표마다 최적 K가 달라요. 곡선이 들쭉날쭉한 건 valid가 20건뿐이라서예요.
 
 ### 지표로 진단하기
 
@@ -404,23 +394,107 @@ joblib.dump(model, path)                    # 전처리 + 모델을 통째로 �
 restored = joblib.load(path)                # 본인이 만든 파일만 읽기
 ```
 
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| LinearRegression | 잔차제곱합이 가장 작은 계수 · 절편 | 인과관계 · 학습 범위 밖(외삽) 예측 |
+| LogisticRegression · predict_proba | 0~1 사이 추정 확률 | "80% 확실" · 어떤 오류가 더 비싼지 |
+| 임계값 | 확률 → 0/1 판단 규칙 | 공짜 개선 — FN을 줄이면 FP가 늘 수 있음 |
+| KNN | 가까운 K개 이웃의 투표 · 평균 | 단위가 다른 특성 사이의 공정한 거리 · 본 적 없는 범위의 값 |
+| 스케일러 | train 통계로 맞춘 같은 눈금 | 정규분포 · 0~1 범위 유지 · 점수 상승 |
+| Pipeline + ColumnTransformer | train에서만 fit, valid · test는 transform만 | fit에 valid · test를 넣는 실수 방지 |
+| valid 비교 · 기준선 | 같은 조건에서의 잠정 선택 | 최종 성능 (선택 편향) — 그건 test 한 번 |
+| 통계 불변 · 저장 · 복원 대조 | 누수 · 재현성 확인 | 남이 준 파일의 안전 · 다른 버전에서의 같은 결과 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 예시 데이터 · 분할
+
+| 항목 | 예시 값 |
+|---|---|
+| 자료 | AI 요청 기록 합성 데이터 100건 (일부 결측 포함) |
+| 분할 | train 60 · valid 20 · test 20 — 같은 분할 ID를 모든 실험에서 고정 |
+| 입력 X (4열) | 수치 input_chars · allowed_tools / 범주 task_type · priority |
+| 정답 y | 회귀 elapsed_ms · 분류 failed (1 = 실패 = 양성) |
+| 입력에서 뺄 열 | ID · 실행 후 정보 (status · retry_count) · 정답 열 |
+
+### 전처리 · 비교 규칙 — 예시 설정
+
+| 항목 | 예시 값 |
+|---|---|
+| 수치 전처리 | train 중앙값 대체 → 표준화 |
+| 범주 전처리 | train 최빈값 대체 → One-hot (handle_unknown="ignore") — 변환 후 8열 |
+| KNN 고정 조건 | weights="uniform" · p=2 |
+| K 후보 | 1, 3, 5, 9, 15 |
+| 선택 규칙 | 분류: valid 실패 F1 최대 · 회귀: valid RMSE 최소 · 동점이면 작은 K |
+| 기준선 | DummyClassifier(strategy="most_frequent") · DummyRegressor(strategy="mean") |
+
+### 환경 — 예시
+
+| 항목 | 값 |
+|---|---|
+| 검증 버전 | Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0 |
+| 환경 | 기존 프로젝트 .venv 유지 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| scikit-learn | 모델(선형·로지스틱·KNN), 전처리, 지표, Pipeline 전부 | from sklearn.linear_model import LinearRegression 등 |
+| numpy | 숫자 배열 계산 (np.array, np.exp) | import numpy as np |
+| pandas | 표(DataFrame)로 데이터 읽고 비교표 만들기 | import pandas as pd |
+| joblib | 학습한 Pipeline을 파일로 저장·불러오기 (scikit-learn 설치 시 함께 깔림) | import joblib |
+| (표준 라이브러리) | pathlib·tempfile — 저장 경로·임시 폴더 (설치 불필요) | from pathlib import Path, import tempfile |
+
+### 🔧 설치 · 확인
+
+```
+python -m pip install numpy pandas scikit-learn     # 새 환경이면 버전을 고정한 requirements 파일로 준비
+python --version
+python -m pip show numpy pandas scikit-learn
+python -c "import sklearn; print(sklearn.__version__)"
+.venv\Scripts\python.exe -m pip check               # Windows: 프로젝트 인터프리터로 의존성 충돌 확인
+```
+
+💡 pip 이름과 import 이름이 달라요: scikit-learn으로 설치하고 코드에서는 sklearn으로 불러요.
+
+⚠️ 기존 가상환경을 유지하고, 작업 도중에 무조건 최신 버전으로 올리지 않아요. 예시 결과는 📋 명세 — 환경의 버전에서 나온 값이에요. VS Code 인터프리터가 프로젝트의 .venv인지 먼저 확인하세요.
+
+🤔 왜? — 라이브러리 버전이 바뀌면 함수 이름·기본값이 달라질 수 있어요(예: root_mean_squared_error는 최근 버전에 생긴 함수). 같은 코드가 같은 숫자를 내려면 검증된 환경을 그대로 쓰는 게 안전해요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 실제로 실행해서 얻은 값이에요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| Decision Tree · 앙상블 | 스케일링이 필요 없는 트리 · Random Forest · XGBoost |
+| 교차검증 | valid 20건 한 번에 덜 의존하는 비교 |
+| 분류 지표 · ROC-AUC | Precision · Recall의 분모 · 임계값과 무관한 순위 지표 |
+| 최종 평가 흐름 | 선택을 잠그고 재학습 → test 한 번 |
+
 ## 원본 자료
 
-- 강의: 20261026월_머신러닝_회귀_분류_KNN_모델비교_Day6 (2).pdf — ① 선형회귀 10~14쪽 · ② 회귀 지표 15~23쪽 · ③ 로지스틱·분류 지표 24~35쪽 · ④ KNN 36~43쪽 · ⑤ 스케일링·Pipeline 44~54쪽 · ⑥ 비교 55~69쪽 · ⑦ 검사·저장 72~73, 77쪽
+- 원본: 20261026월_머신러닝_회귀_분류_KNN_모델비교_Day6 (2).pdf — ① 선형회귀 10~14쪽 · ② 회귀 지표 15~23쪽 · ③ 로지스틱·분류 지표 24~35쪽 · ④ KNN 36~43쪽 · ⑤ 스케일링·Pipeline 44~54쪽 · ⑥ 비교 55~69쪽 · ⑦ 검사·저장 72~73, 77쪽
 
 - 공식 문서: scikit-learn · Linear models · Nearest neighbors · Metrics and scoring · Common pitfalls
+
+- 결과 값: 명령어 사전의 결과 상자는 tools/io_day06.py, 그림은 tools/visuals/make_day06.py로 실제 실행해 만든 값 (검증 버전은 원본 PDF 6쪽 기준)
 
 ## 🔧 Day6 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day6)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install numpy pandas scikit-learn |
 | ① 선형회귀 | LinearRegression(), .fit(), .coef_, .intercept_ |
 | ② 회귀 지표 · 기준선 | mean_absolute_error, root_mean_squared_error, r2_score, DummyRegressor |
 | ③ 로지스틱회귀 · 분류 지표 | LogisticRegression(C=, max_iter=), predict_proba, confusion_matrix, f1_score |
 | ④ KNN | KNeighborsClassifier / KNeighborsRegressor(n_neighbors=, weights=, p=), kneighbors() |
-| ⑤ 스케일링 · Pipeline | StandardScaler, MinMaxScaler, ColumnTransformer, Pipeline |
-| ⑥ 하이퍼파라미터 · 공정한 비교 | for k in [...] 반복 비교, DummyClassifier, zero_division=0 |
-| ⑦ 자동 검사 · 저장/복원 | statistics_, np.array_equal, joblib.dump / joblib.load |
+| ⑤ 스케일링 · Pipeline | StandardScaler, MinMaxScaler, SimpleImputer, OneHotEncoder, ColumnTransformer, Pipeline |
+| ⑥ 공정한 비교 | DummyClassifier, f1_score(zero_division=0), clone |
+| ⑦ 검사 · 저장 | statistics_, np.array_equal, joblib.dump / joblib.load |
+| 📦 패키지 | pip install numpy pandas scikit-learn |
 
 ### LinearRegression()
 
@@ -438,7 +512,7 @@ print("절편:", round(model.intercept_, 1))    # 42.3
 print("6시간:", model.predict([[6]]).round(1)) # [98.1]
 ```
 
-▶ 실제로 돌려 보면 노트의 공부시간 예제 5행
+▶ 실제로 돌려 보면 본문의 공부시간 예제 5행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -457,7 +531,7 @@ print("6시간:", model.predict([[6]]).round(1)) # [98.1]
 
 🤔 왜 기울기가 9.3이지? — 점수 [52, 61, 69, 80, 89]는 1시간 늘 때마다 대략 9~11점씩 올라요. 잔차제곱합이 가장 작아지도록 평균적인 증가폭을 고르면 9.3, 그 직선이 x=0에서 만나는 높이가 42.3이에요.
 
-### 회귀 지표
+### mean_absolute_error · root_mean_squared_error · r2_score · DummyRegressor
 
 ```
 from sklearn.metrics import (mean_absolute_error,
@@ -473,7 +547,7 @@ print("R2:", round(r2_score(y_true, y_pred), 2))                   # 0.78
 base = DummyRegressor(strategy="mean").fit(X_train, yr_train)      # 기준선
 ```
 
-▶ 실제로 돌려 보면 작은 배열 3개 + 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 작은 배열 3개 + 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -515,7 +589,7 @@ print("Accuracy:", accuracy_score(y_valid, pred))
 print("F1:", f1_score(y_valid, pred))
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -537,7 +611,7 @@ print("F1:", f1_score(y_valid, pred))
 
 🤔 왜 predict와 predict_proba를 따로 보지? — 앞 4개 확률이 [0.141, 0.185, 0.601, 0.745]일 때 predict는 [0, 0, 1, 1]이에요. 0.601과 0.745는 둘 다 "1"이지만 확신 정도가 달라요. 확률은 정보가 더 많고, 클래스는 그 확률을 0.5에서 잘라 버린 결과라서 임계값을 바꾸고 싶을 땐 확률이 필요해요.
 
-### 임계값 바꾸기
+### 임계값 바꾸기 — (p >= t).astype(int) · confusion_matrix(…).ravel()
 
 ```
 truth = np.array([0, 0, 0, 1, 1, 1])
@@ -550,7 +624,7 @@ for threshold in [0.5, 0.3]:
 # t=0.3: FP=2, FN=0, TP=3   ← 놓침은 줄고 헛경고는 늘었다
 ```
 
-▶ 실제로 돌려 보면 노트의 6건 (실제 3:3)
+▶ 실제로 돌려 보면 본문의 6건 (실제 3:3)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -562,7 +636,7 @@ for threshold in [0.5, 0.3]:
 
 🤔 왜 하나가 줄면 하나가 늘지? — 임계값은 "이 확률 이상이면 실패라고 부른다"는 선이에요. 선을 0.5 → 0.3으로 내리면 실제 실패였던 0.35가 새로 잡혀서 FN이 줄지만, 실제 성공인데 0.40이던 것도 같이 넘어와서 FP가 늘어요. 모델은 그대로고 판단 규칙만 바뀐 거예요. 그래서 어느 쪽 오류가 더 비싼지(놓침 vs 헛경고)를 먼저 정해야 해요.
 
-이 코드의 6건으로 임계값을 직접 움직여 보는 슬라이더는 Day6 ③ 로지스틱회귀 본문에 있어요.
+이 코드의 6건으로 임계값을 직접 움직여 보는 슬라이더는 로지스틱회귀 — 임계값 실험에 있어요.
 
 ### KNeighborsClassifier · KNeighborsRegressor
 
@@ -582,7 +656,7 @@ w = KNeighborsRegressor(n_neighbors=3, weights="distance").fit(X, [10, 20, 40, 7
 print(w.predict([[3.2]]))                      # [28.06]  가까운 40에 더 큰 가중치
 ```
 
-▶ 실제로 돌려 보면 노트의 x=[1, 2, 4, 7, 9] 예제
+▶ 실제로 돌려 보면 본문의 x=[1, 2, 4, 7, 9] 예제
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -650,7 +724,7 @@ model.fit(X_train, y_train)          # 전처리도 train으로만 학습
 pred = model.predict(X_valid)        # valid는 transform → predict만
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -660,15 +734,15 @@ pred = model.predict(X_valid)        # valid는 transform → predict만
 | np.isnan(Z_train).sum() | 0 | 결측이 train 중앙값·최빈값으로 채워짐 |
 | get_feature_names_out()[:3] | ['num__input_chars', 'num__allowed_tools', 'cat__task_type_qa'] | num__/cat__ 접두어로 출처 표시 |
 | Z_train[:, :2].mean(0) · std(0) | [0.00, 0.00] · [1.00, 1.00] | standard: train 기준 평균 0 · 표준편차 1 |
-| K=5 valid F1: none · standard · minmax | 0.400 · 0.200 · 0.400 | 표준화했는데 오히려 낮음 — 노트 설명대로 |
+| K=5 valid F1: none · standard · minmax | 0.400 · 0.200 · 0.400 | 표준화했는데 오히려 낮음 — 본문 설명대로 |
 
 | 인자 | 뜻 | 바꾸면? |
 |---|---|---|
 | strategy="median" | 수치 결측을 train 중앙값으로 | "mean"이면 평균 (이상치에 더 흔들림) |
 | strategy="most_frequent" | 범주 결측을 최빈값으로 | 범주는 평균·중앙값을 낼 수 없으니 가장 흔한 값으로 채움 |
 | handle_unknown="ignore" | train에 없던 새 범주는 해당 블록 전부 0 | 기본값("error")이면 새 범주에서 에러 — 실서비스에선 처음 보는 범주가 언제든 올 수 있어서 ignore로 둠 |
-| sparse_output=False | 결과를 보기 쉬운 일반(밀집) 배열로 | 교육용 작은 배열이라 False. 큰 데이터면 True(희소 행렬)가 메모리 절약 |
-| scale | "standard" / "minmax" / "none"("passthrough" = 그대로 통과) | 스케일러만 바꿔서 공정하게 비교 (K=5 고정 시 valid F1: none 0.400 · standard 0.200 · minmax 0.400) |
+| sparse_output=False | 결과를 보기 쉬운 일반(밀집) 배열로 | 작은 예시 배열이라 False. 큰 데이터면 True(희소 행렬)가 메모리 절약 |
+| ("scaler", …) 단계 | StandardScaler() / MinMaxScaler() / "passthrough"(그대로 통과 = 스케일링 없음) | 스케일러만 바꿔서 공정하게 비교 (K=5 고정 시 valid F1: none 0.400 · standard 0.200 · minmax 0.400) |
 
 변환 결과 shape는 train (60, 8), valid (20, 8) — 수치 2열 + 범주 2열을 원핫으로 펼친 6열 = 8개 특성이에요. valid도 같은 8열 구조를 유지해야 모델이 받을 수 있어요.
 
@@ -676,7 +750,7 @@ pred = model.predict(X_valid)        # valid는 transform → predict만
 
 ⚠️ Pipeline을 써도 fit에 valid·test를 넣으면 누수예요. 누수 방지는 객체 이름이 아니라 학습에 어떤 데이터를 넣느냐의 문제예요. 후보마다 새 Pipeline을 만들고, 학습된 객체를 다른 실험에 재사용하지 않아요.
 
-### 후보 반복 비교 · 기준선
+### 후보 반복 비교 · 기준선 — DummyClassifier · f1_score(zero_division=0)
 
 ```
 from sklearn.dummy import DummyClassifier
@@ -701,7 +775,7 @@ print(pd.DataFrame(rows))
 # 회귀도 같은 방식: DummyRegressor(strategy="mean") · LinearRegression() · KNeighborsRegressor(n_neighbors=15)
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -717,7 +791,7 @@ print(pd.DataFrame(rows))
 |---|---|---|
 | zero_division=0 | 양성 예측이 0건이라 Precision 분모가 0이면 0으로 기록 | 안 주면 경고가 뜸. K=9·15처럼 실패를 한 번도 예측하지 않을 때 필요 |
 | strategy="most_frequent" | 가장 많은 클래스만 예측하는 기준선 | Accuracy 0.70이지만 F1 0 — "아무것도 안 배워도 이만큼은 나온다"는 바닥선 |
-| build(est) 매번 새로 | 후보마다 전처리·모델 객체를 새로 생성 | 학습된 객체를 재사용하면 앞 실험의 fitted 상태가 덮어써지거나 섞여서 비교가 무너짐 |
+| clone(est) · 후보마다 새 Pipeline | 후보마다 학습 안 된 전처리·모델 객체를 새로 생성 | 학습된 객체를 재사용하면 앞 실험의 fitted 상태가 덮어써지거나 섞여서 비교가 무너짐 |
 
 | 분류 모델 | Accuracy | Precision | Recall | F1 | FP / FN |
 |---|---|---|---|---|---|
@@ -737,7 +811,7 @@ print(pd.DataFrame(rows))
 
 💡 재현성 — seed만 적으면 끝이 아니에요. 원본 데이터 버전과 행 순서, 실제 분할 ID, 바꾼 조건, train·valid 점수와 오류 수를 함께 기록해요. 모델을 트리로 바꿔도 원본·입력 계약·분할 ID·선택 지표·test 보관 정책은 그대로 남겨요.
 
-### 학습 통계 불변 검사
+### 학습 통계 불변 검사 — statistics_.copy() · np.array_equal
 
 ```
 model = build(KNeighborsClassifier(n_neighbors=3))
@@ -751,7 +825,7 @@ print("입력 열 일치:", list(X_train.columns) == FEATURES)              # Tr
 print("금지 열 없음:", not set(FORBIDDEN) & set(X_train.columns))      # True
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -761,7 +835,7 @@ print("금지 열 없음:", not set(FORBIDDEN) & set(X_train.columns))      # Tr
 | list(X_train.columns) == FEATURES | True | 입력 4열 순서까지 일치 |
 | not set(FORBIDDEN) & set(X_train.columns) | True | 정답·결과 열이 입력에 없음 |
 
-### 저장 · 복원 후 예측 대조
+### 저장 · 복원 후 예측 대조 — joblib.dump · joblib.load
 
 ```
 from pathlib import Path
@@ -778,7 +852,7 @@ with tempfile.TemporaryDirectory() as folder:
     print("복원 예측 동일:", np.array_equal(before, after))   # True
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 · KNN K=3
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 · KNN K=3
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -813,7 +887,7 @@ print("원단위:", raw.predict(q).tolist())          # [0]
 print("표준화:", scaled.predict(s.transform(q)).tolist())   # [1]  같은 규칙으로 q도 변환
 ```
 
-▶ 실제로 돌려 보면 노트의 A·B·Q 세 요청 (글자수, 도구수)
+▶ 실제로 돌려 보면 본문의 A·B·Q 세 요청 (글자수, 도구수)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -852,7 +926,7 @@ print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
 - **입력 X** (Input X (입력 특성 표)): 모델이 보고 판단하는 특성들의 표(2차원: 행 × 열). 예측 시점에 실제로 알 수 있는 값만 넣어야 해요.
 - **정답 y** (Target y (정답, 타깃)): 모델이 맞혀야 하는 값. 회귀에선 숫자(elapsed_ms), 분류에선 클래스(failed: 0/1).
 - **라벨** (Label (정답 라벨)): 사람이 미리 붙여 둔 정답 값. 분류에서는 각 사례가 어느 클래스인지(예: 0=성공, 1=실패)를 뜻해요.
-- **클래스** (Class (클래스, 범주 정답)): 분류 문제에서 고를 수 있는 정답의 종류. 이 수업에선 0(성공)과 1(실패) 두 클래스예요. classes_는 모델이 기억한 클래스 순서.
+- **클래스** (Class (클래스, 범주 정답)): 분류 문제에서 고를 수 있는 정답의 종류. 예시에선 0(성공)과 1(실패) 두 클래스예요. classes_는 모델이 기억한 클래스 순서.
 - **fit** (fit (학습)): 데이터를 보고 모델(또는 전처리)이 필요한 값을 배우는 단계. 예: 선형회귀는 계수·절편을, 스케일러는 평균·표준편차를 배워요. train으로만 해야 해요.
 - **predict** (predict (예측)): fit으로 배운 규칙을 새 입력에 적용해 답을 내는 단계. 예측할 때는 다시 학습하지 않아요.
 - **train/valid/test** (Train / Validation / Test split (학습·검증·시험 분할)): 데이터를 역할별로 나눈 것. train은 학습, valid는 후보 비교·선택, test는 끝까지 보관했다가 마지막에 한 번만 확인. 역할을 섞으면 점수가 실제보다 좋아 보여요.
@@ -866,7 +940,7 @@ print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
 - **외삽** (Extrapolation (외삽)): 학습 데이터 범위 밖의 값을 예측하는 것. 직선이 범위 밖에서도 그대로 이어진다는 보장이 없어 믿기 어려워요.
 - **MAE** (Mean Absolute Error (평균 절대 오차)): |실제 − 예측|의 평균. 정답과 같은 단위(예: ms)이고 작을수록 좋아요.
 - **MSE** (Mean Squared Error (평균 제곱 오차)): (실제 − 예측)²의 평균. 큰 오차에 더 큰 벌점을 주지만 단위가 제곱(ms²)이 돼요.
-- **RMSE** (Root Mean Squared Error (평균 제곱근 오차)): MSE에 제곱근을 씌운 값. 정답과 같은 단위로 돌아오면서 큰 오차에 민감한 성질은 남아요. 이 수업 회귀의 주 지표.
+- **RMSE** (Root Mean Squared Error (평균 제곱근 오차)): MSE에 제곱근을 씌운 값. 정답과 같은 단위로 돌아오면서 큰 오차에 민감한 성질은 남아요. 예시 회귀의 주 지표.
 - **R²** (Coefficient of determination (결정계수)): 1 − 잔차제곱합 ÷ 전체제곱합. 평가 자료 y의 평균만 찍는 것보다 얼마나 나은지. 최대 1, 평균보다 못하면 음수도 나와요. 오류 비율이 아니에요.
 - **로지스틱회귀** (Logistic Regression (로지스틱회귀)): 이름은 회귀지만 분류 모델. 선형 점수 z를 시그모이드로 0~1 확률로 바꾸고, 임계값과 비교해 클래스를 정해요.
 - **시그모이드** (Sigmoid function (시그모이드 함수)): 어떤 숫자 z든 0~1 사이로 눌러 담는 함수. p = 1 / (1 + e⁻ᶻ). z=0이면 0.5.
@@ -875,7 +949,7 @@ print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
 - **로그 손실** (Log loss (로그 손실)): 분류 모델이 학습할 때 줄이는 값. 정답에 낮은 확률을 줄수록(틀린 쪽에 자신만만할수록) 벌점이 폭발적으로 커져요. 평가 지표(F1)와는 별개예요.
 - **규제** (Regularization (규제)): 계수가 지나치게 커지지 않게 벌점을 줘서 학습을 제어하는 것. 로지스틱회귀에선 C로 조절하며, C가 작을수록 규제가 세요. 스케일링과는 다른 개념.
 - **수렴** (Convergence (수렴)): 학습이 반복하며 더 나아지지 않는 안정된 답에 도달하는 것. max_iter(반복 상한)가 너무 작으면 도달 전에 멈춰 수렴 경고가 나요.
-- **양성** (Positive class (양성 클래스)): 찾고 싶은 쪽으로 정한 클래스. 이 수업에선 실패(1)가 양성이에요. Precision·Recall·F1은 양성을 기준으로 계산돼요.
+- **양성** (Positive class (양성 클래스)): 찾고 싶은 쪽으로 정한 클래스. 예시에선 실패(1)가 양성이에요. Precision·Recall·F1은 양성을 기준으로 계산돼요.
 - **혼동행렬** (Confusion Matrix (혼동행렬)): 실제(행) × 예측(열)으로 맞힘·틀림을 네 칸(TN, FP, FN, TP)에 세어 둔 표. 어떤 종류의 오류인지 나눠 볼 수 있어요.
 - **TP** (True Positive (맞춘 양성)): 실제 양성을 양성이라고 맞힌 경우(예: 실제 실패를 실패로 예측). 객체탐지에서는 정답 박스와 짝지어진 예측을 뜻해요.
 - **TN** (True Negative (맞춘 음성)): 실제 음성을 음성이라고 맞힌 경우(예: 실제 성공을 성공으로 예측). F1에는 들어가지 않아요.
@@ -884,7 +958,7 @@ print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
 - **Accuracy** (Accuracy (정확도)): 전체 중 맞힌 비율. (TP + TN) ÷ 전체. 한쪽 클래스가 많으면 그쪽만 찍어도 높게 나와 속기 쉬워요.
 - **Precision** (Precision (정밀도)): 양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP). 헛경고가 늘면 낮아져요.
 - **Recall** (Recall (재현율)): 실제 양성 중 모델이 찾아낸 비율. TP ÷ (TP + FN). 놓침이 늘면 낮아져요.
-- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 이 수업 분류의 주 지표.
+- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.
 - **zero_division** (zero_division (0으로 나누기 처리)): 양성 예측이 0건이라 Precision 분모가 0일 때 어떤 값으로 기록할지 정하는 인자. 0으로 두면 경고 없이 0을 기록해요.
 - **KNN** (K-Nearest Neighbors (K-최근접 이웃)): 새 입력과 가장 가까운 학습 사례 K개를 찾아, 분류면 다수결 투표·회귀면 평균으로 예측하는 모델. fit은 사례를 기억만 하고 일은 predict 때 해요.
 - **n_neighbors** (n_neighbors (K, 참고할 이웃 수)): KNN이 투표·평균에 쓸 이웃 수. 작으면 잡음에 휘둘리고, 크면 소수 클래스의 패턴을 놓칠 수 있어요.
@@ -920,7 +994,7 @@ print("새값500:", b.transform([[500]]).ravel().tolist())     # [2.0]
 - **numpy** (NumPy (숫자 배열 계산 라이브러리)): 숫자 배열(np.array)을 빠르게 계산하는 파이썬 라이브러리.
 - **pandas** (pandas (표 데이터 라이브러리)): 엑셀 같은 표(DataFrame)로 데이터를 읽고 다루는 파이썬 라이브러리.
 - **가상환경** (Virtual environment (가상환경, .venv)): 프로젝트마다 따로 쓰는 파이썬과 패키지 묶음. 버전이 섞이지 않게 해 같은 코드가 같은 결과를 내도록 도와요.
-- **합성 데이터** (Synthetic data (합성 데이터)): 실제 기록이 아니라 수업용으로 만들어 낸 가짜 데이터. 여기서 나온 점수는 실서비스 성능의 근거가 아니에요.
+- **합성 데이터** (Synthetic data (합성 데이터)): 실제 기록이 아니라 학습·시연용으로 만들어 낸 가짜 데이터. 여기서 나온 점수는 실서비스 성능의 근거가 아니에요.
 
 ---
 
@@ -935,36 +1009,7 @@ _2026-10-27(화) · Decision Tree · Random Forest · XGBoost · 특성 중요�
 
 - 교차검증은 train을 5조각으로 돌려 가며 평가해 한 번의 분할에 덜 흔들리게 한다. 전처리도 fold 안에서 다시 학습!
 
-🔧 Day7 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
-
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| scikit-learn | 트리·랜덤포레스트·교차검증·중요도·Pipeline | from sklearn.tree import DecisionTreeClassifier 등 |
-| xgboost | 그래디언트 부스팅 트리 (sklearn처럼 fit/predict) | from xgboost import XGBClassifier, XGBRegressor |
-| numpy, pandas | 배열 계산, 비교표·중요도표 만들기 | import numpy as np, import pandas as pd |
-| joblib | 학습한 Pipeline 저장·복원 (scikit-learn과 함께 설치됨) | import joblib |
-
-### 🔧 설치 · 확인
-
-```
-python --version
-python -m pip show scikit-learn xgboost
-python -m pip install "xgboost==3.1.3"        # xgboost가 없을 때만 (강의 검증 버전 예시)
-python -c "import xgboost; print(xgboost.__version__)"
-python -m pip check
-```
-
-💡 오늘은 GPU 불필요. XGBoost도 tree_method="hist", device="cpu", n_jobs=1로 CPU에서 돌려요. CUDA 설치는 선행 조건이 아니에요.
-
-⚠️ 기존 .venv를 그대로 쓰고 xgboost만 추가하세요. 강의 실행 검증 환경: Python 3.13.5 · scikit-learn 1.8.0 · XGBoost 3.1.3 (PDF 6쪽).
-
-🤔 왜 n_jobs=1로 하지? — 병렬로 돌리면 빠르지만, 작업 순서가 매번 조금씩 달라져 결과 재현이 어려워질 수 있고 노트북 CPU를 모두 잡아먹어요. 수업에선 같은 숫자가 다시 나오는 것이 속도보다 중요해서 1로 고정해요.
-
-## 이거 어디에 써?
+## 🗺️ 큰 그림 — 질문으로 나누는 트리, 트리를 묶는 앙상블, 덜 흔들리는 비교
 
 트리 계열은 표(엑셀 같은 데이터)에서 가장 많이 쓰는 모델이에요. 특히 "왜 이렇게 예측했어?"를 조건문으로 설명할 수 있다는 게 장점이에요.
 
@@ -990,9 +1035,28 @@ python -m pip check
 | 결합 | — | 확률·수치 평균 | 기본 점수에 보정값 누적 |
 | 장점 | 규칙을 따라가기 쉬움 | 다양성으로 흔들림 감소 | 손실을 차근차근 줄임 |
 
-💡 데이터 계약은 Day6 그대로예요: 입력 X 4열(input_chars·allowed_tools·task_type·priority), 분류 정답 failed(주 지표: 실패 클래스 F1), 회귀 정답 elapsed_ms(RMSE, ms), 금지 입력(failed·elapsed_ms·retry_count·status·request_id), 고정 분할 train 60 · valid 20 · test 20. 수업용 합성 요청 100건이라 실서비스 성능을 대표하지 않아요.
+💡 데이터 계약은 회귀 · 분류 · KNN 비교와 같아요: 입력 X 4열, 분류 정답 failed(주 지표: 실패 클래스 F1), 회귀 정답 elapsed_ms(RMSE, ms), 고정 분할 train 60 · valid 20 · test 20 (📋 명세). 합성 요청 100건이라 실서비스 성능을 대표하지 않아요.
 
 🤔 왜 모델을 바꿔도 분할은 그대로 두지? — 분할까지 바꾸면 점수 차이가 "모델이 달라서"인지 "시험지가 달라서"인지 구분할 수 없어요. 같은 ID·같은 순서를 유지해야 모델만의 차이를 볼 수 있어요.
+
+트리 계열 모델을 고르고 믿을 만하게 비교하기까지는 아래 일곱 단계예요. 이 페이지의 ①~⑦이 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① Decision Tree | Gini · 탐욕적 분할 · 잎의 분포 / 평균 | 어떤 질문이 자료를 가장 깨끗하게 나누나? |
+| ② 복잡도 · 과적합 | max_depth · min_samples_leaf · 스케일링 불필요 | 얼마나 깊이 나눠야 외우지 않나? |
+| ③ Random Forest | 중복 허용 추출 · 특성 후보 랜덤 · 확률 평균 | 서로 다른 트리를 어떻게 묶나? |
+| ④ 특성 중요도 | MDI · 순열 중요도 · 해석 함정 | 모델이 무엇에 기댔나 — 무엇은 말해 주지 않나? |
+| ⑤ XGBoost | 잔차 보정 · 학습률 · 회차 · 조기 종료 | 앞의 실수를 어떻게 순서대로 고치나? |
+| ⑥ 교차검증 | (Stratified)KFold · cross_validate · fold 안 전처리 · 진단 | 한 번의 분할 운에 덜 흔들리나? |
+| ⑦ 입력 검사 · 저장 | 새 범주 vs 누락 열 · 저장 · 복원 | 낯선 입력에 어떻게 반응하나? |
+
+```
+Decision Tree 1개: 질문(특성 ≤ 기준값?)을 Gini로 골라 나눔 → 잎에서 예측
+  ├ Random Forest (Bagging): 서로 다른 트리 여러 개를 동시에 → 평균
+  └ XGBoost (Boosting): 얕은 트리를 순서대로 → 앞의 잔차를 보정해 누적
+→ 같은 Pipeline · 같은 분할에서 5-fold 교차검증으로 비교 → 입력 검사 · 저장
+```
 
 ## ① Decision Tree — 질문으로 나눠 예측
 
@@ -1029,7 +1093,7 @@ Gini = 1 − (성공 비율)² − (실패 비율)²
 
 🤔 왜 전체 최적이 아니지? — 가능한 모든 트리 모양을 다 비교하는 건 경우의 수가 너무 많아요. 그래서 트리는 "지금 이 노드에서 가장 많이 줄이는 질문"을 고르고 다음으로 넘어가요(탐욕적 방법). 빠르지만, 지금은 덜 좋아 보여도 나중에 더 좋은 길을 여는 질문은 놓칠 수 있어요.
 
-[그림: 수업 데이터로 학습한 깊이 3 결정트리 구조] 무엇을 보나: 수업 데이터 train 60건으로 학습한 기본 트리(max_depth=3, min_samples_leaf=3)를 그대로 그렸어요. 상자마다 질문·gini·samples(행 수)·value([성공, 실패] 수)가 있고, 주황은 성공 쪽, 파랑은 실패 쪽, 색이 진할수록 한 클래스로 깨끗해요. 🤔 왜? 루트에서 "input_chars ≤ 1866" 한 번에 실패만 6건인 잎(gini 0)을 떼어 냈어요. 그 질문이 그 순간 Gini를 가장 많이 줄였기 때문이에요(탐욕적 선택). 잎이 4개라 위 표의 get_n_leaves() = 4와 일치하고, 각 잎의 클래스 비율이 곧 predict_proba 값이에요(예: 오른쪽 아래 잎 실패 5/7 ≈ 0.71).
+[그림: 예시 데이터로 학습한 깊이 3 결정트리 구조] 무엇을 보나: 예시 데이터 train 60건으로 학습한 기본 트리(max_depth=3, min_samples_leaf=3)를 그대로 그렸어요. 상자마다 질문·gini·samples(행 수)·value([성공, 실패] 수)가 있고, 주황은 성공 쪽, 파랑은 실패 쪽, 색이 진할수록 한 클래스로 깨끗해요. 🤔 왜? 루트에서 "input_chars ≤ 1866" 한 번에 실패만 6건인 잎(gini 0)을 떼어 냈어요. 그 질문이 그 순간 Gini를 가장 많이 줄였기 때문이에요(탐욕적 선택). 잎이 4개라 위 표의 get_n_leaves() = 4와 일치하고, 각 잎의 클래스 비율이 곧 predict_proba 값이에요(예: 오른쪽 아래 잎 실패 5/7 ≈ 0.71).
 
 🔧 DecisionTreeClassifier · DecisionTreeRegressor 명령어 사전에서 자세히 →
 
@@ -1055,11 +1119,11 @@ reg = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, [100, 120, 140,
 
 🤔 왜 깊어질수록 train만 좋아지지? — 질문을 계속 허락하면 트리는 결국 학습 행 하나하나를 각자 잎에 가둘 수 있어요. 그러면 train은 전부 맞히지만(1.000), 그 질문들 중 상당수는 우연한 잡음을 가르는 질문이라 새 자료에선 쓸모가 없어요. train–valid 격차는 과적합의 단서예요. 다만 valid가 20건이라 표본 크기·분포 차이도 함께 살펴요.
 
-[그림: max_depth별 train F1과 valid F1 비교 그래프] 무엇을 보나: 수업 데이터로 깊이를 바꿔 직접 계산한 결과예요(위 표 + 깊이 2·4·6 추가). 회색 train은 깊어질수록 1.0까지 오르지만 보라 valid는 0.5에서 멈추고, 분홍 틈이 계속 벌어져요. 🤔 왜? 깊이가 늘면 잎 개수가 2 → 14로 늘어나 train 행을 더 잘게 가둘 수 있어요. 새로 생긴 잎들이 잡음을 가르는 데 쓰이면 train만 좋아지고 valid는 그대로라, 그 틈이 과적합의 신호예요.
+[그림: max_depth별 train F1과 valid F1 비교 그래프] 무엇을 보나: 예시 데이터로 깊이를 바꿔 직접 계산한 결과예요(위 표 + 깊이 2·4·6 추가). 회색 train은 깊어질수록 1.0까지 오르지만 보라 valid는 0.5에서 멈추고, 분홍 틈이 계속 벌어져요. 🤔 왜? 깊이가 늘면 잎 개수가 2 → 14로 늘어나 train 행을 더 잘게 가둘 수 있어요. 새로 생긴 잎들이 잡음을 가르는 데 쓰이면 train만 좋아지고 valid는 그대로라, 그 틈이 과적합의 신호예요.
 
 [그림: 합성 2차원 자료에서 깊이 2 트리와 제한 없는 트리의 결정 영역] 무엇을 보나: 같은 합성 자료에서 깊이 2(왼쪽)와 제한 없음(오른쪽)의 판단 영역이에요. 트리 경계는 늘 가로·세로 선으로만 만들어져요. 🤔 왜? 트리 질문은 "한 특성 ≤ 기준값?"이라 한 번에 한 축만 잘라요. 제한을 풀면 반대색 점 하나까지 따로 가두는 가늘고 작은 직사각형이 생기는데, 그게 "잡음까지 외운" 모습이에요.
 
-💡 트리는 거리 기반이 아니라서 스케일링이 필수가 아니에요. 그래도 결측 대체(중앙값·최빈값)와 One-hot은 같은 경로로 유지해요 → 변환 결과 (60, 8) = 수치 2 + 범주 더미 6. (일부 구현은 결측을 직접 처리하지만, 오늘은 비교를 위해 명시적인 대체 경로를 고정해요.)
+💡 트리는 거리 기반이 아니라서 스케일링이 필수가 아니에요. 그래도 결측 대체(중앙값·최빈값)와 One-hot은 같은 경로로 유지해요 → 변환 결과 (60, 8) = 수치 2 + 범주 더미 6. (일부 구현은 결측을 직접 처리하지만, 여기서는 비교를 위해 명시적인 대체 경로를 고정해요.)
 
 🤔 왜 트리는 스케일이 상관없지? — 트리는 "글자수 ≤ 500?"처럼 한 특성 안에서 크다/작다만 비교해요. 글자수를 1000으로 나눠도 "≤ 0.5?"로 질문만 바뀔 뿐 같은 행들이 같은 쪽으로 가요. 여러 특성을 섞어 거리를 재는 KNN과 달리 단위끼리 경쟁할 일이 없어요.
 
@@ -1096,7 +1160,7 @@ rf = RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=2, m
 forest = build(rf).fit(X_train, y_train)
 ```
 
-[그림: 합성 자료에서 트리 1개와 랜덤포레스트의 결정 영역 비교] 무엇을 보나: 넉넉한 합성 자료(160건)에서 깊은 트리 1개(왼쪽)와 숲(오른쪽)의 판단 영역이에요. 왼쪽의 각진 섬·가는 띠가 오른쪽에선 대부분 사라지고 경계가 부드러워졌어요. 🤔 왜? 개별 트리의 섬은 표본마다 다른 곳에 생기니, 평균을 내면 대부분 다수 의견에 묻혀 사라져요. 다만 이건 자료가 충분할 때의 모습이에요. 위의 수업 자료처럼 60건에 실패가 소수면 평균이 실패 확률을 0.5 아래로 깎아 오히려 F1이 떨어질 수 있어요.
+[그림: 합성 자료에서 트리 1개와 랜덤포레스트의 결정 영역 비교] 무엇을 보나: 넉넉한 합성 자료(160건)에서 깊은 트리 1개(왼쪽)와 숲(오른쪽)의 판단 영역이에요. 왼쪽의 각진 섬·가는 띠가 오른쪽에선 대부분 사라지고 경계가 부드러워졌어요. 🤔 왜? 개별 트리의 섬은 표본마다 다른 곳에 생기니, 평균을 내면 대부분 다수 의견에 묻혀 사라져요. 다만 이건 자료가 충분할 때의 모습이에요. 위의 예시 자료처럼 60건에 실패가 소수면 평균이 실패 확률을 0.5 아래로 깎아 오히려 F1이 떨어질 수 있어요.
 
 ## ④ 특성 중요도 — 모델이 무엇에 기댔나
 
@@ -1135,7 +1199,7 @@ mdi = pd.Series(forest["model"].feature_importances_, index=names)
 perm = permutation_importance(forest, X_valid, y_valid, scoring="f1", n_repeats=20, random_state=42, n_jobs=1)
 ```
 
-[그림: 랜덤포레스트의 MDI 중요도와 순열 중요도 막대 비교] 무엇을 보나: 수업 데이터 Forest로 직접 계산한 두 중요도예요(위 코드 출력과 같은 값). 왼쪽 MDI는 input_chars가 압도적 1위, 오른쪽 순열 중요도는 task_type이 1위이고 priority는 빨간 음수예요. 회색 가로 막대는 20번 섞을 때마다의 흔들림(std)이에요. 🤔 왜? MDI는 train에서 "분할에 많이 쓰였나"(값 종류가 많은 글자수가 유리), 순열은 valid에서 "섞으면 F1이 떨어지나"를 재요. 오른쪽 흔들림 막대가 0을 가로지를 만큼 길죠 — valid 20건이라 순위·부호가 운에 크게 좌우된다는 뜻이라, 음수라고 바로 열을 지우지 않아요.
+[그림: 랜덤포레스트의 MDI 중요도와 순열 중요도 막대 비교] 무엇을 보나: 예시 데이터 Forest로 직접 계산한 두 중요도예요(위 코드 출력과 같은 값). 왼쪽 MDI는 input_chars가 압도적 1위, 오른쪽 순열 중요도는 task_type이 1위이고 priority는 빨간 음수예요. 회색 가로 막대는 20번 섞을 때마다의 흔들림(std)이에요. 🤔 왜? MDI는 train에서 "분할에 많이 쓰였나"(값 종류가 많은 글자수가 유리), 순열은 valid에서 "섞으면 F1이 떨어지나"를 재요. 오른쪽 흔들림 막대가 0을 가로지를 만큼 길죠 — valid 20건이라 순위·부호가 운에 크게 좌우된다는 뜻이라, 음수라고 바로 열을 지우지 않아요.
 
 ## ⑤ XGBoost — 부족한 부분을 순서대로 보정
 
@@ -1181,7 +1245,7 @@ xgb = XGBClassifier(n_estimators=80, learning_rate=0.05, max_depth=2, …, objec
 model = build(xgb).fit(X_train, y_train)           # sklearn Pipeline에 그대로 연결
 ```
 
-[그림: XGBoost 회차별 학습 손실과 stop 자료 손실 곡선] 무엇을 보나: 설명용 합성 자료로 XGBoost를 400회 돌리며 학습 자료(회색)와 따로 떼어 둔 stop 자료(보라)의 logloss를 그렸어요. 회색은 끝까지 내려가지만 보라는 60회 근처 바닥을 찍고 다시 올라가요. 🤔 왜? 바닥 이후의 회차는 학습 자료의 잡음만 고치고 있어서 안 본 자료에선 오히려 손해예요. 조기 종료는 보라 선이 일정 회차(예: 15회) 동안 더 내려가지 않으면 멈추고 그 바닥 회차를 고르는 규칙이에요. (수업 시연의 최적 회차 64는 다른 자료라 이 그림과 숫자가 같을 필요는 없어요.)
+[그림: XGBoost 회차별 학습 손실과 stop 자료 손실 곡선] 무엇을 보나: 설명용 합성 자료로 XGBoost를 400회 돌리며 학습 자료(회색)와 따로 떼어 둔 stop 자료(보라)의 logloss를 그렸어요. 회색은 끝까지 내려가지만 보라는 60회 근처 바닥을 찍고 다시 올라가요. 🤔 왜? 바닥 이후의 회차는 학습 자료의 잡음만 고치고 있어서 안 본 자료에선 오히려 손해예요. 조기 종료는 보라 선이 일정 회차(예: 15회) 동안 더 내려가지 않으면 멈추고 그 바닥 회차를 고르는 규칙이에요. (요청 예시 자료로 한 조기 종료 실험에선 최적 회차가 64였어요 — 자료가 달라 이 그림과 숫자가 같을 필요는 없어요.)
 
 ## ⑥ 교차검증 — 한 번의 분할에 덜 의존하기
 
@@ -1199,11 +1263,11 @@ valid 20건 한 번만 보면 운이 크게 작용해요. train 60건을 5조각
 
 [그림: 5-fold 교차검증에서 회차마다 평가 조각이 바뀌는 블록 그림] 무엇을 보나: 한 줄이 한 회차예요. 분홍 칸(평가 12건)이 대각선을 따라 한 칸씩 옮겨 가고, 나머지 4칸(48건)으로 학습해요. 🤔 왜? 대각선이라는 건 모든 조각이 정확히 한 번씩 평가된다는 뜻이에요. 그래서 "어떤 12건이 평가에 뽑혔나"의 운이 5번에 걸쳐 평균되고, 점수 5개가 얼마나 흩어지는지도 볼 수 있어요.
 
-| 자료 | 오늘의 역할 |
+| 자료 | 이 단계의 역할 |
 |---|---|
 | train 60 | 5-fold로 후보 비교 (각 fold에서 전처리도 학습) |
 | valid 20 | 이미 쓴 진단 자료 — 오류·기존 결과 비교 |
-| test 20 | 오늘도 보관, 최종 선택 후 확인 |
+| test 20 | 계속 보관, 최종 선택 후 확인 |
 
 ⚠️ 틀린 CV vs 올바른 CV ❌ train 60 전체에 전처리 fit → 변환된 배열을 5-fold로 나눔 (평가 행의 중앙값이 이미 학습에 섞임) ✅ 아직 fit 안 한 Pipeline 통째를 cross_validate에 전달 → fold마다 학습 48건으로 전처리·모델 fit → 평가 12건은 transform·predict만
 
@@ -1218,7 +1282,7 @@ CLS_CV = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)   # 분류: 
 cv = cross_validate(build(rf), X_train, y_train, cv=CLS_CV, scoring="f1", return_train_score=True, …)
 ```
 
-[그림: KFold와 StratifiedKFold의 fold별 실패 건수 비교] 무엇을 보나: 수업 train(60건 중 실패 18건)을 두 방법으로 5조각 냈을 때, 각 평가 조각에 들어간 실패 수예요. 회색 KFold는 2~5건으로 들쭉날쭉, 보라 Stratified는 3~4건으로 기대값(3.6) 근처에 모여요. 🤔 왜? 그냥 섞어 자르면 우연히 실패가 2건뿐인 fold가 생기고, 그 fold의 F1은 한두 건에 크게 흔들려요. Stratified는 클래스별로 나눠 담아 모든 fold의 실패 비율을 원본(30%)에 맞추니 fold끼리 비교가 공정해져요.
+[그림: KFold와 StratifiedKFold의 fold별 실패 건수 비교] 무엇을 보나: 예시 train(60건 중 실패 18건)을 두 방법으로 5조각 냈을 때, 각 평가 조각에 들어간 실패 수예요. 회색 KFold는 2~5건으로 들쭉날쭉, 보라 Stratified는 3~4건으로 기대값(3.6) 근처에 모여요. 🤔 왜? 그냥 섞어 자르면 우연히 실패가 2건뿐인 fold가 생기고, 그 fold의 F1은 한두 건에 크게 흔들려요. Stratified는 클래스별로 나눠 담아 모든 fold의 실패 비율을 원본(30%)에 맞추니 fold끼리 비교가 공정해져요.
 
 [그림: 모델별 5개 fold F1 점수와 평균 및 표준편차] 무엇을 보나: 같은 5개 fold로 계산한 후보별 fold 점수(파란 점 5개)와 평균 ± 표준편차(보라)예요. 값은 아래 표와 같아요(XGB는 이 PC의 실행에서 fold 점수가 표와 조금 달라 그림에서 뺐어요). Forest는 점이 0부터 0.667까지 흩어져 막대가 가장 길어요. 🤔 왜? 평가 조각마다 실패가 3~4건뿐이라 한두 건을 맞히느냐로 F1이 크게 출렁여요. 평균만 보면 Tree(0.542)와 Logistic(0.522)이 달라 보이지만, 점들의 흩어짐이 그 차이보다 훨씬 크죠 — 그래서 평균·편차·fold 점수를 함께 남겨요.
 
@@ -1242,9 +1306,9 @@ cv = cross_validate(build(rf), X_train, y_train, cv=CLS_CV, scoring="f1", return
 | Forest | 624.01 ± 96.97 | 690.37 | 600.34 |
 | XGB | 655.79 ± 92.17 | 700.02 | 609.34 |
 
-오늘의 잠정 기준은 분류 CV 평균 F1 최대 → Tree(0.542), 회귀 CV 평균 RMSE 최소 → KNN15(598.85ms). 반대 증거도 함께 적어요: valid 최고는 KNN3(0.545)·Linear(640.00ms), Tree는 valid 실패 6건 중 4건을 놓침. 비교 시 전처리는 모델에 맞춘 학습 절차 전체(선형/KNN은 수치 standard, 트리 계열은 스케일링 없음)를 비교해요.
+여기서의 잠정 기준은 분류 CV 평균 F1 최대 → Tree(0.542), 회귀 CV 평균 RMSE 최소 → KNN15(598.85ms). 반대 증거도 함께 적어요: valid 최고는 KNN3(0.545)·Linear(640.00ms), Tree는 valid 실패 6건 중 4건을 놓침. 비교 시 전처리는 모델에 맞춘 학습 절차 전체(선형/KNN은 수치 standard, 트리 계열은 스케일링 없음)를 비교해요.
 
-🤔 왜 CV 1등과 valid 1등이 다르지? — CV는 train 60 안의 5개 조각 평균, valid는 다른 20건 한 세트예요. 둘 다 작은 자료라 어느 행이 평가에 들어갔느냐에 따라 순위가 바뀔 만큼 차이가 작아요. 그래서 기준(오늘은 CV)을 미리 정해 두고, 그 기준이 Day6의 valid 기준에서 바뀌었다는 사실과 반대 증거를 모두 보고서에 남겨요.
+🤔 왜 CV 1등과 valid 1등이 다르지? — CV는 train 60 안의 5개 조각 평균, valid는 다른 20건 한 세트예요. 둘 다 작은 자료라 어느 행이 평가에 들어갔느냐에 따라 순위가 바뀔 만큼 차이가 작아요. 그래서 기준(여기서는 CV)을 미리 정해 두고, 그 기준이 valid 한 번으로 고르던 기준에서 바뀌었다는 사실과 반대 증거를 모두 보고서에 남겨요.
 
 | 이렇게 나오면 | 의심할 것 |
 |---|---|
@@ -1279,23 +1343,111 @@ joblib.dump(model, path)
 restored = joblib.load(path)              # 자신이 방금 만든 파일만
 ```
 
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| Decision Tree | 조건문으로 따라갈 수 있는 규칙 · 잎의 분포 / 평균 | 전체 최적 트리 · 학습 범위 밖 값(계단에 머묾) |
+| 복잡도 제한 | 잡음을 덜 외우는 트리 | "최적 깊이" — 한 번의 분할로는 단정 못 함 |
+| Random Forest | 서로 다른 트리의 평균 → 흔들림 감소 | 작은 불균형 자료에서의 F1 상승 |
+| 특성 중요도 | 모델이 기댄 정도의 크기 | 원인 · 영향의 방향 · 작은 평가 자료에서의 안정된 순위 |
+| XGBoost | 잔차(기울기)를 순서대로 보정한 누적 예측 | 회차가 많을수록 좋아짐 — 조기 종료로 멈출 곳을 정함 |
+| 교차검증 | fold 점수 5개 · 평균 · 편차 | 최종 성능 (선택에 쓴 점수) · 선택 편향 제거 |
+| 입력 검사 · 저장 | 새 범주는 8열 유지, 누락 열은 명확한 오류 · 같은 예측 복원 | 다른 환경 · 버전에서의 호환 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 데이터 계약
+
+| 항목 | 예시 값 |
+|---|---|
+| 입력 X (4열) | input_chars · allowed_tools · task_type · priority |
+| 정답 y | 분류 failed (주 지표: 실패 F1) · 회귀 elapsed_ms (RMSE, ms) |
+| 금지 입력 | failed · elapsed_ms · retry_count · status · request_id |
+| 분할 | train 60 (5-fold 후보 비교) · valid 20 (진단) · test 20 (보관) |
+
+### 모델 설정 — 예시
+
+| 모델 | 예시 설정 |
+|---|---|
+| Tree | max_depth=3, min_samples_leaf=3, random_state=42 |
+| Forest | n_estimators=100, max_depth=4, min_samples_leaf=2, max_features="sqrt", random_state=42, n_jobs=1 |
+| XGB | n_estimators=80, learning_rate=0.05, max_depth=2, subsample=0.8, tree_method="hist", device="cpu", n_jobs=1 |
+| 전처리 | 선형 · KNN: 수치 표준화 / 트리 계열: 스케일링 없음 · 모두 결측 대체 + One-hot |
+
+### 비교 규칙 — 예시 설정
+
+| 항목 | 예시 값 |
+|---|---|
+| 분류 CV | StratifiedKFold(n_splits=5, shuffle=True, random_state=42) · scoring="f1" |
+| 회귀 CV | KFold(n_splits=5, shuffle=True, random_state=42) · scoring="neg_root_mean_squared_error" |
+| 선택 규칙 | 분류: CV 평균 F1 최대 · 회귀: CV 평균 RMSE 최소 · 동점이면 단순한 모델 |
+| 기록 | fold 점수 · 평균 · 편차 · valid 결과(반대 증거 포함) |
+
+### 환경 — 예시
+
+| 항목 | 값 |
+|---|---|
+| 검증 버전 | Python 3.13.5 · scikit-learn 1.8.0 · XGBoost 3.1.3 |
+| 실행 | CPU만 (device="cpu") · n_jobs=1 · 기존 .venv에 xgboost만 추가 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| scikit-learn | 트리·랜덤포레스트·교차검증·중요도·Pipeline | from sklearn.tree import DecisionTreeClassifier 등 |
+| xgboost | 그래디언트 부스팅 트리 (sklearn처럼 fit/predict) | from xgboost import XGBClassifier, XGBRegressor |
+| numpy, pandas | 배열 계산, 비교표·중요도표 만들기 | import numpy as np, import pandas as pd |
+| joblib | 학습한 Pipeline 저장·복원 (scikit-learn과 함께 설치됨) | import joblib |
+
+### 🔧 설치 · 확인
+
+```
+python --version
+python -m pip show scikit-learn xgboost
+python -m pip install "xgboost==3.1.3"        # xgboost가 없을 때만 (검증 버전 예시)
+python -c "import xgboost; print(xgboost.__version__)"
+python -m pip check
+```
+
+💡 이 주제는 GPU 불필요. XGBoost도 tree_method="hist", device="cpu", n_jobs=1로 CPU에서 돌려요. CUDA 설치는 선행 조건이 아니에요.
+
+⚠️ 기존 .venv를 그대로 쓰고 xgboost만 추가하세요. 예시 결과는 📋 명세 — 환경의 버전에서 나온 값이에요.
+
+🤔 왜 n_jobs=1로 하지? — 병렬로 돌리면 빠르지만, 작업 순서가 매번 조금씩 달라져 결과 재현이 어려워질 수 있고 노트북 CPU를 모두 잡아먹어요. 모델을 비교할 땐 같은 숫자가 다시 나오는 것이 속도보다 중요해서 1로 고정해요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 실제로 실행해서 얻은 값이에요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| 스케일링 · Pipeline | 트리 계열에도 그대로 쓰는 전처리 + 모델 묶음 |
+| 분류 지표 · ROC-AUC | F1 하나로 가려지는 Precision · Recall · 임계값 |
+| 교차검증 점수 집계 | fold 평균 vs 전체 합산 · 음수 RMSE |
+| 최종 평가 흐름 | 선택을 잠그고 재학습 → test 한 번 |
+
 ## 원본 자료
 
-- 강의: 20261027화_머신러닝_트리_앙상블_교차검증_Day7 (3).pdf — ① 트리 9~16쪽 · ② 과적합 17~24쪽 · ③ Random Forest 25~33쪽 · ④ 특성 중요도 34~43쪽 · ⑤ XGBoost 44~55쪽 · ⑥ 교차검증 56~70쪽 · ⑦ 검사·저장 72~73, 77쪽
+- 원본: 20261027화_머신러닝_트리_앙상블_교차검증_Day7 (3).pdf — ① 트리 9~16쪽 · ② 과적합 17~24쪽 · ③ Random Forest 25~33쪽 · ④ 특성 중요도 34~43쪽 · ⑤ XGBoost 44~55쪽 · ⑥ 교차검증 56~70쪽 · ⑦ 검사·저장 72~73, 77쪽
 
 - 공식 문서: scikit-learn · Decision Trees · Ensemble methods · Permutation importance · Cross-validation · XGBoost Parameters
+
+- 결과 값: 명령어 사전의 결과 상자는 tools/io_day07.py, 그림은 tools/visuals/make_day07.py로 실제 실행해 만든 값 (검증 버전은 원본 PDF 6쪽 기준)
 
 ## 🔧 Day7 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day7)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install scikit-learn xgboost |
 | ① Decision Tree | DecisionTreeClassifier / DecisionTreeRegressor, tree_.threshold, get_depth() |
 | ② 복잡도 · 과적합 | max_depth=, min_samples_leaf=, min_samples_split=, ccp_alpha= |
 | ③ Random Forest | RandomForestClassifier(n_estimators=, max_features=), estimators_ |
 | ④ 특성 중요도 | feature_importances_, get_feature_names_out(), permutation_importance() |
-| ⑤ XGBoost | XGBClassifier / XGBRegressor(learning_rate=, objective=, tree_method=) |
+| ⑤ XGBoost | XGBClassifier / XGBRegressor(learning_rate=, objective=, tree_method=), DecisionTreeRegressor로 한 회차 계산 |
 | ⑥ 교차검증 | StratifiedKFold, KFold, cross_validate(scoring=, return_train_score=) |
-| ⑦ 입력 검사 · 저장 | statistics_, transform(new).shape, joblib.dump / joblib.load |
+| ⑦ 입력 검사 · 저장 | handle_unknown="ignore", transform(new).shape, statistics_, joblib.dump / joblib.load |
+| 📦 패키지 | pip install scikit-learn xgboost |
 
 ### DecisionTreeClassifier · DecisionTreeRegressor
 
@@ -1314,7 +1466,7 @@ reg = DecisionTreeRegressor(max_depth=1, random_state=42).fit(X, [100, 120, 140,
 print(reg.predict([[250], [850], [1200]]))        # [120. 720. 720.]  ← 잎 평균
 ```
 
-▶ 실제로 돌려 보면 노트의 x=[100 … 900] 6점
+▶ 실제로 돌려 보면 본문의 x=[100 … 900] 6점
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -1341,7 +1493,7 @@ print(reg.predict([[250], [850], [1200]]))        # [120. 720. 720.]  ← 잎 �
 
 🤔 왜 확률 1을 믿으면 안 되지? — predict_proba는 "이 잎에 떨어진 학습 행 중 실패 비율"이에요. 잎에 학습 행이 3개뿐이면 3/3 = 1.0이 쉽게 나오지만, 겨우 3건으로 본 비율이라 새 입력에선 얼마든지 달라질 수 있어요.
 
-### 복잡도 제한 인자
+### 복잡도 제한 인자 — max_depth · min_samples_leaf · min_samples_split · ccp_alpha
 
 ```
 model = build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42), scale="none")
@@ -1357,7 +1509,7 @@ for depth in [1, 2, 3, 5, None]:           # 다른 조건은 고정, 깊이만 
           f1_score(y_train, m.predict(X_train)), f1_score(y_valid, m.predict(X_valid)))
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -1374,9 +1526,9 @@ for depth in [1, 2, 3, 5, None]:           # 다른 조건은 고정, 깊이만 
 | min_samples_split | 노드를 더 나누는 데 필요한 최소 행 수 | "나눌지 말지"의 조건이라, 나눈 뒤 각 자식 잎의 크기 조건과는 다름 |
 | ccp_alpha | 복잡도 비용을 고려한 사후 가지치기 | 잎 하나 늘 때마다 alpha만큼 벌점 → 클수록 불순도를 크게 줄이지 못하는 가지가 잘려 더 단순해짐 |
 
-🤔 왜 복잡도를 학습 전에 정하지? — 트리는 내버려 두면 train을 다 외울 때까지 자라요. 깊이·잎 크기 같은 제약은 "얼마나 자세히 외울 수 있게 할지"를 미리 정하는 하이퍼파라미터라, 같은 분할·같은 지표에서 후보를 비교해 골라요. 오늘의 기본 비교 트리는 max_depth=3, min_samples_leaf=3, random_state=42예요.
+🤔 왜 복잡도를 학습 전에 정하지? — 트리는 내버려 두면 train을 다 외울 때까지 자라요. 깊이·잎 크기 같은 제약은 "얼마나 자세히 외울 수 있게 할지"를 미리 정하는 하이퍼파라미터라, 같은 분할·같은 지표에서 후보를 비교해 골라요. 기본 비교 트리의 예시 설정은 max_depth=3, min_samples_leaf=3, random_state=42예요.
 
-💡 build(모델)은 Day6 ⑤에서 만든 "전처리 + 모델" Pipeline 함수예요. 트리·숲·XGB는 수치 스케일링 없이(scale="none") 결측 대체 + One-hot만 거쳐요(아래 코드에서 build(rf)처럼 줄여 적어도 트리 계열은 스케일링 없음으로 보면 돼요). model["model"], model["pre"]처럼 단계 이름으로 꺼낼 수 있어요.
+💡 build(모델)은 스케일링 · Pipeline의 ColumnTransformer + Pipeline 예제처럼 "전처리 + 모델"을 한 Pipeline으로 묶어 돌려주는 짧은 함수예요. 트리·숲·XGB는 수치 스케일링 없이(scale="none") 결측 대체 + One-hot만 거쳐요(아래 코드에서 build(rf)처럼 줄여 적어도 트리 계열은 스케일링 없음으로 보면 돼요). model["model"], model["pre"]처럼 단계 이름으로 꺼낼 수 있어요.
 
 ⚠️ valid에서 틀린 행만 지우면 성능 개선이 아니라 평가 자료를 결과에 맞춘 부당한 비교예요.
 
@@ -1397,17 +1549,17 @@ forest_r = build(rfr).fit(X_train, yr_train)
 # valid MAE 600.34 ms · RMSE 690.37 ms · R² −0.276
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
 | len(forest["model"].estimators_) | 100 | 학습된 개별 트리 100개 |
 | forest["model"].estimators_[0].get_depth() | 4 | 개별 트리도 max_depth=4 안 |
-| train F1 · valid F1 · FP · FN | 0.800 · 0.222 · 2 · 5 | 단일 Tree(valid .333)보다 낮음 — 노트 설명대로 |
+| train F1 · valid F1 · FP · FN | 0.800 · 0.222 · 2 · 5 | 단일 Tree(valid .333)보다 낮음 — 본문 설명대로 |
 | valid 실패 확률 > 0.5 인 행 수 | 3 / 20 | 평균 확률이 0.5 아래로 깎여 실패를 적게 부름 |
 | RandomForestRegressor: valid | MAE 600.34 · RMSE 690.37 · R² -0.276 | 회귀도 Dummy보다 나쁨 |
 
-| 인자 | 수업 값 | 뜻 | 바꾸면? |
+| 인자 | 예시 값 | 뜻 | 바꾸면? |
 |---|---|---|---|
 | n_estimators | 100 | 숲의 트리 수 | 늘리면 평균이 안정적이지만 계산↑. 같은 실수를 하는 트리가 늘 뿐이면 성능 개선은 보장 안 됨 |
 | max_depth, min_samples_leaf | 4, 2 | 개별 트리의 복잡도 | 트리 수와는 다른 조절 — "몇 명에게 묻나" vs "한 명이 얼마나 자세히 아나" |
@@ -1437,7 +1589,7 @@ importance = pd.DataFrame({"feature": FEATURES,
 print(importance)    # 기준 F1 0.222 · chars .0649 · tools .0478 · task_type .1396 · priority −.0619
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 · 위 Forest
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 · 위 Forest
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -1477,19 +1629,19 @@ model_r = build(xgr).fit(X_train, yr_train)        # X·분할 ID는 동일, 정
 # valid MAE 609.34 ms · RMSE 700.02 ms · R² −0.312
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
 | model["model"].get_booster().num_boosted_rounds() | 80 | 보정 회차 = n_estimators |
-| valid F1 · Precision · Recall · FP · FN | 0.200 · 0.250 · 0.167 · 3 · 5 | 노트·강의 결과(F1 .182 · P .200 · FP 4)와 조금 달라요 — 같은 버전(XGBoost 3.1.3)인데 이 PC에선 valid 1행의 판정이 바뀜. 그래도 Tree(.333)·Forest(.222)보다 낮은 건 같음 |
-| train F1 | 0.774 | 강의 결과와 같음 · Forest(.800)보다 조금 낮음 |
+| valid F1 · Precision · Recall · FP · FN | 0.200 · 0.250 · 0.167 · 3 · 5 | 본문 표의 결과(F1 .182 · P .200 · FP 4)와 조금 달라요 — 같은 버전(XGBoost 3.1.3)인데 이 PC에선 valid 1행의 판정이 바뀜. 그래도 Tree(.333)·Forest(.222)보다 낮은 건 같음 |
+| train F1 | 0.774 | 본문 표의 결과와 같음 · Forest(.800)보다 조금 낮음 |
 | predict_proba(X_valid)[:, 1] 범위 · 0.5 초과 행 수 | 0.039 ~ 0.661 · 4건 | 실제 실패는 6건인데 실패라 부르는 행이 적음 |
-| XGBRegressor: valid | MAE 610.20 · RMSE 700.41 · R² -0.313 | 노트(MAE 609.34 · RMSE 700.02)와 소수점 차이 — 위와 같은 환경 차이. R²는 여전히 음수 |
+| XGBRegressor: valid | MAE 610.20 · RMSE 700.41 · R² -0.313 | 본문 표(MAE 609.34 · RMSE 700.02)와 소수점 차이 — 위와 같은 환경 차이. R²는 여전히 음수 |
 
 | 인자 | 뜻 | 바꾸면? |
 |---|---|---|
-| n_estimators | 보정 회차 (트리 수) · 수업 80 | 회차마다 train 오차를 더 줄이니, 너무 많으면 잡음까지 보정해 과적합 위험 (RF의 트리 수와 성격이 다름) |
+| n_estimators | 보정 회차 (트리 수) · 예시 80 | 회차마다 train 오차를 더 줄이니, 너무 많으면 잡음까지 보정해 과적합 위험 (RF의 트리 수와 성격이 다름) |
 | learning_rate | 한 회차 보정을 얼마나 반영할지 · 0.05 | 줄이면 한 번에 조금만 고쳐 같은 회차에선 보정이 부족할 수 있음 → 회차·복잡도와 함께 비교 |
 | max_depth | 각 보정 트리의 깊이 · 2 | 보정 트리는 "조금씩 고치는" 역할이라 얕게 둬요. 깊으면 한 회차가 너무 많이 외움 |
 | min_child_weight | 자식 노드에 필요한 Hessian 합의 하한 · 1 | min_samples_leaf(행 수)와 다름 — 분류(logloss)에선 행마다 Hessian이 p(1−p) ≤ 0.25라, 5라는 값이 "5행"이 아니라 훨씬 많은 행을 뜻할 수 있음 |
@@ -1501,7 +1653,7 @@ model_r = build(xgr).fit(X_train, yr_train)        # X·분할 ID는 동일, 정
 
 🤔 왜 "Hessian 합"이지? — XGBoost는 손실의 기울기(gradient)와 곡률(Hessian)로 보정값을 계산해요. 제곱오차에선 행마다 Hessian이 1이라 "합 = 행 수"처럼 보이지만, logloss에선 확률이 0이나 1에 가까운(이미 확신하는) 행일수록 Hessian이 작아요. 그래서 min_child_weight는 "보정할 정보가 충분히 모였나"를 재는 조건이에요.
 
-💡 조기 종료(early stopping) — 손실 개선이 일정 회차(예: 15회) 동안 없으면 멈추는 방법. 강의 시연에선 train 60을 inner 42 / stop 18로 나눠 최적 회차 64, 실제 학습 79회(15회 개선 없어 종료)였고, 기본 비교의 XGB80과는 별도 실험으로 기록해요. 멈출 지점을 고르는 stop 자료도 모델 선택에 쓰이므로 train 안에서 따로 떼어 쓰고, valid·test를 넣지 않아요. XGBClassifier(early_stopping_rounds=15) + fit(..., eval_set=[(Z_stop, y_stop)]) → model.best_iteration(0부터 셈)으로 확인해요.
+💡 조기 종료(early stopping) — 손실 개선이 일정 회차(예: 15회) 동안 없으면 멈추는 방법. 한 예시 실험에선 train 60을 inner 42 / stop 18로 나눠 최적 회차 64, 실제 학습 79회(15회 개선 없어 종료)였고, 기본 비교의 XGB80과는 별도 실험으로 기록해요. 멈출 지점을 고르는 stop 자료도 모델 선택에 쓰이므로 train 안에서 따로 떼어 쓰고, valid·test를 넣지 않아요. XGBClassifier(early_stopping_rounds=15) + fit(..., eval_set=[(Z_stop, y_stop)]) → model.best_iteration(0부터 셈)으로 확인해요.
 
 🤔 왜 조기 종료가 과적합을 막지? — 회차가 늘수록 train 손실은 계속 줄지만, 어느 순간부터는 잡음을 보정하기 시작해 안 본 자료(stop)의 손실이 더 이상 줄지 않아요. 그 지점에서 멈추면 "배울 만큼만" 배운 모델이 돼요. 단, stop 자료로 멈출 곳을 골랐으니 그 자료의 점수는 이미 낙관적이에요 → valid·test와 분리.
 
@@ -1533,7 +1685,7 @@ cvr = cross_validate(build(xgr), X_train, yr_train, cv=REG_CV,
                      scoring="neg_root_mean_squared_error")
 rmse = -cvr["test_score"]               # 부호 되돌리기 → ms
 
-# 각 fold의 중앙값이 그 fold의 학습 48건에서 왔는지 검사 (E16)
+# 각 fold의 중앙값이 그 fold의 학습 48건에서 왔는지 검사
 cv = cross_validate(build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42),
                           scale="none"),
                     X_train, y_train, cv=CLS_CV, scoring="f1",
@@ -1546,7 +1698,7 @@ for (a, b), m in zip(CLS_CV.split(X_train, y_train), cv["estimator"]):   # a=학
 print("전 fold 중앙값·분할 검사 통과")
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 (fold 학습 48 / 평가 12)
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 (fold 학습 48 / 평가 12)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -1580,31 +1732,34 @@ print("전 fold 중앙값·분할 검사 통과")
 | 같은 요청의 여러 단계 | 그룹 단위 분할 | 같은 ID가 학습·평가를 가로지르지 않게 |
 | 미래 요청 예측 | 시간 순서 분할 | 미래 정보가 학습에 들어가지 않게 |
 
-### 새 범주 · 통계 불변 검사
+### 새 범주 · 누락 열 · 통계 불변 검사 — handle_unknown="ignore" · transform(new).shape
 
 ```
-model = build(new_classifier("Forest")).fit(X_train, y_train)
+model = build(rf).fit(X_train, y_train)             # 위 Random Forest
 imp = model["pre"].named_transformers_["num"]["imputer"]
 before = imp.statistics_.copy()
 new = X_valid.iloc[:2].copy()
 new["task_type"], new["priority"] = "translation", "urgent"   # 학습에 없던 범주
-model.predict(require_features(new))          # require_features: 필수 열이 없으면 오류
+missing = [c for c in FEATURES if c not in new.columns]   # 필수 4열이 다 있나?
+if missing:
+    raise ValueError(f"필수 열 누락: {missing}")
+model.predict(new[FEATURES])
 assert np.array_equal(before, imp.statistics_) # 예측해도 학습 통계 불변
 print(model["pre"].transform(new).shape)       # (2, 8)  ← 기존 8열 유지
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 · valid 앞 2행의 범주를 바꿈
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 · valid 앞 2행의 범주를 바꿈
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| model.predict(require_features(new)) | [0, 0] | 처음 보는 범주여도 예측은 나옴 |
+| model.predict(new[FEATURES]) | [0, 0] | 처음 보는 범주여도 예측은 나옴 |
 | model["pre"].transform(new).shape | (2, 8) | 기존 8열 유지 |
 | 원핫 6열 부분 Zn[:, 2:] | [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]] | handle_unknown="ignore" → 범주 칸이 전부 0 |
 | np.array_equal(before, imp.statistics_) | True | 예측해도 학습 통계 불변 |
-| require_features(new.drop(columns="priority")) | ValueError: 필수 열 누락: ['priority'] | 필수 열 누락은 예측 전에 명확한 오류 |
+| 필수 열 확인 (new.drop(columns="priority")) | ValueError: 필수 열 누락: ['priority'] | 필수 열 누락은 예측 전에 명확한 오류 |
 | 검사 없이 model.predict(…priority 없음) | ValueError: columns are missing: {'priority'} | 검사가 없어도 여기선 에러 — 다만 메시지가 덜 친절함 |
 
-### 저장 · 복원 대조
+### 저장 · 복원 대조 — joblib.dump · joblib.load
 
 ```
 from pathlib import Path
@@ -1617,7 +1772,7 @@ with tempfile.TemporaryDirectory() as folder:
     print("복원 예측 동일:", same)             # True
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 · Forest
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 · Forest
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -1627,11 +1782,11 @@ with tempfile.TemporaryDirectory() as folder:
 
 | 인자 / 함수 | 뜻 | 바꾸면? |
 |---|---|---|
-| require_features(df) | 강의 코드의 사용자 정의 함수 — 필수 4열 확인 | 없으면 누락 열이 imputer까지 가서 엉뚱한 오류가 나거나 조용히 잘못 처리될 수 있음 |
+| [c for c in FEATURES if c not in df.columns] | 필수 4열 중 빠진 열 목록 — 있으면 raise ValueError | 없으면 누락 열이 imputer까지 가서 엉뚱한 오류가 나거나 조용히 잘못 처리될 수 있음 |
 | transform(new).shape | 변환 후 열 수 확인 | 8이 아니면 학습 때와 다른 입력 구조라 모델이 받을 수 없음 |
 | joblib.load | 직접 만든 신뢰하는 파일만 | 버전·입력 스키마도 함께 기록. 다른 환경에서의 호환은 보장 안 됨 |
 
-💡 "오류 없이 끝났다"와 "요구사항대로 동작했다"는 달라요. 정상 valid 20(20개 예측·ID 순서), 결측·미지 범주(8열·통계 불변), 필수 열 누락(명확한 오류), CV 한 fold(학습 48·평가 12·교집합 0), 저장 모델(복원 후 예측 일치)을 따로 확인해요. 저장·복원의 자세한 설명은 Day6 ⑦.
+💡 "오류 없이 끝났다"와 "요구사항대로 동작했다"는 달라요. 정상 valid 20(20개 예측·ID 순서), 결측·미지 범주(8열·통계 불변), 필수 열 누락(명확한 오류), CV 한 fold(학습 48·평가 12·교집합 0), 저장 모델(복원 후 예측 일치)을 따로 확인해요. 저장·복원의 자세한 설명은 검사 · 저장과 복원.
 
 ### 부스팅 한 회차 직접 계산 DecisionTreeRegressor
 
@@ -1646,7 +1801,7 @@ print(updated.tolist())                              # [135.0, 135.0, 185.0, 185
 print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0
 ```
 
-▶ 실제로 돌려 보면 노트의 4개 예제
+▶ 실제로 돌려 보면 본문의 4개 예제
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -1677,7 +1832,7 @@ print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0
 - **n_estimators** (n_estimators (트리 개수 / 보정 회차)): Random Forest에선 숲의 트리 수, XGBoost에선 보정 트리를 추가하는 회차. 깊이가 아니에요.
 - **max_features** (max_features (분할마다 볼 특성 후보 수)): Random Forest가 분할할 때마다 무작위로 살펴볼 특성의 수·비율. 작을수록 트리끼리 더 달라지지만 각 트리는 약해져요.
 - **estimators_** (estimators_ (학습된 개별 트리 목록)): Random Forest 안에 학습된 트리들을 담은 목록. n_estimators=100이면 100개.
-- **n_jobs** (n_jobs (병렬 작업 수)): 계산에 쓸 CPU 작업 수. -1이면 전부. 수업에선 재현성을 위해 1로 고정해요.
+- **n_jobs** (n_jobs (병렬 작업 수)): 계산에 쓸 CPU 작업 수. -1이면 전부. 비교 실험에선 재현성을 위해 1로 고정해요.
 - **특성 중요도** (Feature importance (특성 중요도)): 학습된 모델이 어떤 특성(열)에 얼마나 기댔는지 나타낸 값. '중요 = 원인'이 아니고, 영향의 방향(+/−)도 알려 주지 않아요.
 - **MDI** (Mean Decrease in Impurity (불순도 감소 기반 중요도)): 각 분기에서 줄어든 불순도 × 그 분기가 다룬 자료 비중을 특성별로 더한 값(트리들 평균). 학습 자료 기준이고 합은 1. 값 종류가 많은 특성이 높게 나오기 쉬워요.
 - **순열 중요도** (Permutation importance (순열 중요도)): 평가 자료에서 한 열의 값을 행끼리 뒤섞었을 때 점수가 얼마나 떨어지는지로 중요도를 재는 방법. 다시 학습하지 않으며 음수도 나올 수 있어요.
@@ -1694,7 +1849,7 @@ print(np.mean((y - initial)**2), np.mean((y - updated)**2))   # 2600.0 725.0
 - **objective** (objective (학습 목표 손실)): XGBoost가 학습하며 줄일 손실의 종류. 이진분류는 binary:logistic, 회귀는 reg:squarederror. 문제 유형에 맞춰야 해요.
 - **eval_metric** (eval_metric (학습 진단 지표)): 학습 중 진행을 확인하는 지표(logloss, rmse). 모델 선택 지표(F1)와는 별개예요.
 - **hist** (tree_method="hist" (히스토그램 방식)): 값을 구간으로 묶어 분할 기준을 빠르게 찾는 XGBoost 트리 생성 방식. CPU에서 돌아가요.
-- **GPU** (Graphics Processing Unit (그래픽 처리 장치)): 대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 이번 수업은 CPU만으로 충분해요.
+- **GPU** (Graphics Processing Unit (그래픽 처리 장치)): 대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 트리 · XGBoost 예시는 CPU만으로 충분해요.
 - **조기 종료** (Early stopping (조기 종료)): 따로 떼어 둔 stop 자료의 손실이 정한 회차(예: 15회) 동안 나아지지 않으면 학습을 멈추는 방법. 잡음까지 배우기 전에 멈춰 과적합을 줄여요.
 - **교차검증** (Cross-validation (교차검증)): train을 여러 조각(fold)으로 나눠, 돌아가며 한 조각으로 평가하고 나머지로 학습하는 방법. 한 번의 분할 운에 덜 흔들리고, 점수 평균과 흩어짐을 함께 봐요. 전처리도 fold마다 다시 학습해야 해요.
 - **fold** (Fold (교차검증 조각)): 교차검증에서 나눈 한 조각. 5-fold면 train 60건을 12건씩 5조각으로 나눠 각 회차에 48건 학습, 12건 평가.
@@ -1718,37 +1873,7 @@ _2026-10-28(수) · Precision/Recall/F1 · ROC-AUC · 교차검증 · Feature En
 
 - 선택은 train CV로 → 설정을 잠그고 → 개발 80건으로 재학습 → test 20건은 딱 한 번 평가.
 
-🔧 Day8 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
-
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| scikit-learn | 지표·ROC·교차검증·FunctionTransformer·KMeans | from sklearn.metrics import roc_auc_score 등 |
-| numpy | log1p 같은 행별 계산, 배열 비교 | import numpy as np |
-| pandas | DataFrame에 새 특성 열 추가, 결과 CSV | import pandas as pd |
-| xgboost (Day7에서 설치) | 후보 모델 중 하나로 계속 비교 | from xgboost import XGBClassifier |
-| matplotlib (선택) | ROC 곡선·군집 그림 그리기 | import matplotlib.pyplot as plt |
-| 표준 라이브러리 | 설정 파일 저장, 경로 | import json, from pathlib import Path |
-
-### 🔧 설치 · 확인
-
-```
-python --version
-python -m pip show scikit-learn xgboost
-python -m pip show numpy pandas matplotlib
-python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .venv인지 확인
-```
-
-⚠️ 전날 환경(.venv) 그대로. 설치가 필요한 경우에만 강사 검증 버전(Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0 · XGBoost 3.1.3 · Matplotlib 3.10.8)에 맞춰요. 오늘은 GPU가 필요 없고, CUDA·PyTorch를 임의로 업데이트하지 않아요. 최종 제출에는 실제 설치 버전을 기록해요.
-
-🤔 왜 sys.executable을 확인하지? — 컴퓨터에 파이썬이 여러 개 있으면, 패키지를 깔은 파이썬과 코드를 돌리는 파이썬이 다를 수 있어요. 지금 실행 중인 파이썬의 경로가 프로젝트 .venv 안인지 보면 "설치했는데 import가 안 돼요" 문제를 바로 잡을 수 있어요.
-
-💡 오늘의 평가 계획: train 60은 5-fold로 후보 비교(전처리도 fold 안에서) · valid 20은 개발 중 진단(최종 독립 점수 아님) · 설정 확정 후 새 Pipeline을 개발 80건으로 재학습 · test 20은 고정 버전으로 한 번 평가. 기본 경로는 실패 클래스 F1로 선택, 임계값은 처음부터 0.5로 고정해요.
-
-## 이거 어디에 써?
+## 🗺️ 큰 그림 — 무엇으로 채점하고, 무엇을 더하고, 어떻게 마지막으로 확인하나
 
 "좋은 모델"의 기준은 업무마다 달라요. 실패를 놓치면 큰일인지, 괜한 경고가 비싼지에 따라 볼 지표가 바뀌어요.
 
@@ -1776,6 +1901,26 @@ python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .
 | 실행 시간(숫자)을 예측한다 | MAE · RMSE | 단위(ms) · 큰 잔차 · 자료 범위 |
 
 🤔 왜 지표를 먼저 정하지? — 실패를 놓치는 것(FN)과 괜한 경고(FP)는 서로 다른 비용이에요. 어떤 실수가 더 아픈지 정하지 않고 결과부터 보면, 점수가 좋게 나온 지표를 골라 "잘했다"고 말하게 돼요. 지표 선택은 정답 하나를 찾는 게 아니라 실패의 비용과 운영 조건을 적는 일이에요.
+
+💡 평가 계획 (예시 설정 · 📋 명세): train 60은 5-fold로 후보 비교(전처리도 fold 안에서) · valid 20은 개발 중 진단(최종 독립 점수 아님) · 설정 확정 후 새 Pipeline을 개발 80건으로 재학습 · test 20은 고정 버전으로 한 번 평가. 기본 경로는 실패 클래스 F1로 선택, 임계값은 처음부터 0.5로 고정해요.
+
+평가 기준을 정하고 최종 점수를 얻기까지는 아래 여섯 단계예요. 이 페이지의 ①~⑥이 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 분류 지표 | 혼동행렬 · Precision · Recall · F1 | 무엇으로 나누느냐에 따라 질문이 어떻게 바뀌나? |
+| ② ROC-AUC · 임계값 | predict_proba · ROC · AUC · PR 곡선 · 임계값 | 순위가 좋은 것과 운영 기준이 좋은 것은 같은가? |
+| ③ RMSE · CV 점수 집계 | MAE vs RMSE · fold 평균 vs 전체 합산 · 음수 RMSE | 점수 여러 개를 어떻게 하나로 모으나? |
+| ④ 특성 설계 | log1p · 비율 특성 · FunctionTransformer | 새 특성을 누수 없이 Pipeline에 넣었나? |
+| ⑤ K-Means | 할당 · 갱신 · inertia · silhouette | 정답 없이 묶은 군집을 어디까지 해석하나? |
+| ⑥ 최종 평가 흐름 | 선택 → 동결 → 재학습 → test 한 번 · 입력 검사 · 진단 | test를 정말 한 번만 썼나? |
+
+```
+채점 기준: 분류 지표(분모) · AUC(순위) · 임계값(운영 규칙) · RMSE(큰 오차)
+  ├ 비교: train 60 · 5-fold CV (전처리 · 파생 특성 · K-Means도 fold 학습 부분으로만 fit)
+  └ 진단: valid 20 (최종 독립 점수 아님)
+→ 설정 동결 → 개발 80으로 새 Pipeline 재학습 → test 20 한 번
+```
 
 ## ① 분류 지표 — 분모가 다르다
 
@@ -1930,7 +2075,7 @@ rmse = -reg["test_score"]                            # 부호 되돌리기 → �
 
 [그림: log1p 함수 곡선과 0, 9, 99, 999의 변환값] 무엇을 보나: log1p 곡선 위에 0·9·99·999를 찍었어요. 99에서 999까지 가로로 900을 가도 세로로는 4.61 → 6.91, 겨우 2.3만 올라가요. 🤔 왜? 로그는 "몇 배인가"를 "몇 칸인가"로 바꿔요. 10배씩 커질 때마다 약 2.3씩 같은 간격으로 올라가니, 큰 값끼리의 차이는 눌리고 작은 값 쪽 차이는 살아나요. x=0에서도 log(1)=0이라 안전하고요.
 
-[그림: 오른쪽 꼬리가 긴 분포가 log1p 후 가운데로 모이는 히스토그램] 무엇을 보나: 오른쪽 꼬리가 긴 설명용 합성 글자수 400건(왼쪽)이 log1p 후(오른쪽) 가운데로 모인 종 모양에 가까워졌어요. 🤔 왜? 아주 긴 몇 개 요청(왼쪽 그림 오른쪽 끝)이 log 눈금에선 다른 값들과 가까워져서, 계수·거리를 혼자 휘두르지 못해요. 참고로 수업 자료의 글자수는 203~2381로 이렇게 심하게 치우치진 않아서 log 효과가 크지 않을 수 있어요 — 그래서 같은 조건 비교로 확인해요.
+[그림: 오른쪽 꼬리가 긴 분포가 log1p 후 가운데로 모이는 히스토그램] 무엇을 보나: 오른쪽 꼬리가 긴 설명용 합성 글자수 400건(왼쪽)이 log1p 후(오른쪽) 가운데로 모인 종 모양에 가까워졌어요. 🤔 왜? 아주 긴 몇 개 요청(왼쪽 그림 오른쪽 끝)이 log 눈금에선 다른 값들과 가까워져서, 계수·거리를 혼자 휘두르지 못해요. 참고로 예시 자료의 글자수는 203~2381로 이렇게 심하게 치우치진 않아서 log 효과가 크지 않을 수 있어요 — 그래서 같은 조건 비교로 확인해요.
 
 🤔 왜 비율 특성을 만들지? 왜 +1? — "글자수가 많은데 쓸 수 있는 도구는 적다" 같은 두 입력의 관계는 원본 열 하나씩만 봐서는 선형 모델이 잘 못 잡아요. 비율로 만들어 주면 그 관계를 한 열로 직접 보여 줄 수 있어요. 분모에 1을 더한 건 도구 수가 0일 때 0으로 나누는 오류(무한대)를 막기 위한 명시적 설계 선택이에요. 성능이 좋아질지는 같은 조건 비교로 따로 확인해요.
 
@@ -1954,7 +2099,7 @@ out["log_input_chars"] = np.log1p(out["input_chars"])
 
 ## ⑤ K-Means — 정답 없이 비슷한 것끼리 묶기
 
-|  | KNN (Day6) | K-Means |
+|  | KNN | K-Means |
 |---|---|---|
 | 종류 | 지도학습 (정답 있음) | 비지도학습 (정답 없음) |
 | K의 뜻 | 참고할 이웃 수 | 만들 군집 개수 |
@@ -1985,11 +2130,11 @@ out["log_input_chars"] = np.log1p(out["input_chars"])
 
 🤔 왜 inertia만으로 K를 고르면 안 되지? — 군집을 늘리면 각 점이 더 가까운 중심을 갖게 되니 inertia는 거의 항상 줄어요(K = 점 개수면 0). 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "내 군집과는 가깝고 옆 군집과는 먼가"를 같이 보니, 쓸데없이 쪼갠 군집은 옆 군집과도 가까워져 점수가 떨어져요. 이 자료에선 K=4가 inertia는 작지만 silhouette는 K=3(0.453)이 가장 높아서 K=3으로 설명해요. 이건 이 train 60·이 전처리의 교육용 결과이지, 새 자료에서도 K=3이 최선이라는 뜻은 아니에요.
 
-[그림: K별 inertia 감소 곡선과 silhouette 점수] 무엇을 보나: 수업 train 60건(결측 대체 + 표준화)으로 K=2~6을 직접 계산했어요. K=2·3·4 값은 위 표와 같아요. 왼쪽 inertia는 K를 늘릴수록 계속 내려가고, 오른쪽 silhouette는 K=3(0.453)에서 꼭대기를 찍은 뒤 0.44대에 머물러요. 🤔 왜? 중심이 많을수록 모든 점이 더 가까운 중심을 가지니 inertia는 당연히 줄어요 — 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "내 군집과 가깝고 옆 군집과 먼가"를 보니, 한 덩어리를 억지로 쪼개면 옆 군집과도 가까워져 더 오르지 않아요.
+[그림: K별 inertia 감소 곡선과 silhouette 점수] 무엇을 보나: 예시 train 60건(결측 대체 + 표준화)으로 K=2~6을 직접 계산했어요. K=2·3·4 값은 위 표와 같아요. 왼쪽 inertia는 K를 늘릴수록 계속 내려가고, 오른쪽 silhouette는 K=3(0.453)에서 꼭대기를 찍은 뒤 0.44대에 머물러요. 🤔 왜? 중심이 많을수록 모든 점이 더 가까운 중심을 가지니 inertia는 당연히 줄어요 — 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "내 군집과 가깝고 옆 군집과 먼가"를 보니, 한 덩어리를 억지로 쪼개면 옆 군집과도 가까워져 더 오르지 않아요.
 
 K=3 결과: 군집별 개수 24 / 19 / 17, inertia 40.430. 중심(원래 단위로 읽기): 군집0 약 1542자·도구 4.12 / 군집1 약 1430자·도구 1.37 / 군집2 약 445자·도구 2.71. 도구 수가 소수인 건 군집 내부 평균이라서예요. 중심은 결측 대체 후 좌표의 평균이라 "실제 사용한 도구 수"나 "성공률"로 해석하지 않아요.
 
-[그림: 수업 train을 표준화 공간에서 K=3으로 묶은 산점도와 새 요청 두 개의 할당] 무엇을 보나: 표준화된 글자수(가로)·도구수(세로) 공간의 train 60건이에요. 색은 군집, 큰 X는 중심, 주황 별은 새 요청 2개(200자·도구1, 2200자·도구5)예요. 각각 가장 가까운 중심인 군집 2와 0에 할당돼요. 🤔 왜? 도구수는 1~5 정수라 점들이 가로줄로 늘어서요. 군집은 대략 "짧은 글"(초록), "길고 도구 적음"(분홍), "길고 도구 많음"(보라)으로 나뉘었는데, 이건 거리로만 묶은 결과라 성공/실패 의미는 없어요. 새 요청은 predict로 기존 중심에만 붙이고 중심은 그대로예요.
+[그림: 예시 train을 표준화 공간에서 K=3으로 묶은 산점도와 새 요청 두 개의 할당] 무엇을 보나: 표준화된 글자수(가로)·도구수(세로) 공간의 train 60건이에요. 색은 군집, 큰 X는 중심, 주황 별은 새 요청 2개(200자·도구1, 2200자·도구5)예요. 각각 가장 가까운 중심인 군집 2와 0에 할당돼요. 🤔 왜? 도구수는 1~5 정수라 점들이 가로줄로 늘어서요. 군집은 대략 "짧은 글"(초록), "길고 도구 적음"(분홍), "길고 도구 많음"(보라)으로 나뉘었는데, 이건 거리로만 묶은 결과라 성공/실패 의미는 없어요. 새 요청은 predict로 기존 중심에만 붙이고 중심은 그대로예요.
 
 🔧 KMeans · silhouette_score 명령어 사전에서 자세히 →
 
@@ -2034,8 +2179,8 @@ joblib.dump(final, "final_pipeline.joblib")
 🔧 새 입력 검사 (새 범주 vs 필수 열 누락) 명령어 사전에서 자세히 →
 
 ```
-p = failure_scores(fitted, checked)          # 새 범주가 있어도 (2, 10)으로 변환 · 확률은 유한값
-check_input(new_requests.drop(columns="priority"))         # ← ValueError가 나야 정상 (실패 시험)
+Z = fitted[:-1].transform(checked)            # 새 범주가 있어도 (2, 10) · np.isfinite(Z).all()
+missing = [c for c in FEATURES if c not in new_requests.columns]   # 비어 있지 않으면 raise ValueError
 ```
 
 ### 지표로 진단하기
@@ -2048,22 +2193,109 @@ check_input(new_requests.drop(columns="priority"))         # ← ValueError가 �
 | K를 늘릴수록 inertia만 계속 감소 | 당연한 현상 → silhouette·해석과 함께 |
 | 새 범주 입력 / 필수 열 누락 | 새 범주는 handle_unknown="ignore"로 열 수 유지, 열 누락은 예측 전에 ValueError로 막기 |
 
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| Precision · Recall · F1 | 분모별로 나눈 오류 관점 | 어떤 오류가 더 비싼지 — 비용은 따로 정함 |
+| ROC-AUC | 임계값과 무관한 순위 품질 | 운영 임계값에서의 Recall · Precision |
+| 임계값 | 확률 → 경고 여부 규칙 (평가 전에 고정) | 공짜 개선 — FN을 줄이면 FP가 늘 수 있음 |
+| CV 점수 집계 | fold 평균 · 편차 (또는 전체 합산) | 두 방식의 같은 값 · 최종 성능 |
+| 파생 특성 (FunctionTransformer) | 학습 · 추론에 똑같이 붙는 행별 규칙 | 성능 향상 — 같은 조건 비교로 확인 |
+| K-Means | 가까운 점끼리의 군집 · 중심 | 군집 번호의 의미 · 성공 / 실패 구분 |
+| 동결 → 재학습 → test 한 번 | 정직한 마지막 점수 1개 | 소표본 · 합성 데이터 밖의 성능 · 배포 가능성 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 평가 계획 — 예시 설정
+
+| 자료 | 역할 |
+|---|---|
+| train 60 | 5-fold CV로 후보 비교 (전처리 · 파생 특성도 fold 안에서) |
+| valid 20 | 개발 중 진단 — 최종 독립 점수 아님 |
+| 개발 80 (train + valid) | 설정 동결 후 clone한 새 Pipeline 재학습 |
+| test 20 | 고정 버전으로 한 번만 평가 |
+
+### 선택 · 판단 규칙 — 예시 설정
+
+| 항목 | 예시 값 |
+|---|---|
+| 양성 | 실패 failed = 1 |
+| 선택 지표 | 실패 클래스 F1의 CV 평균 최대 (사전 선언 후보 7개) |
+| 임계값 | 0.5 고정 — p > 0.5이면 1, p = 0.5이면 0 |
+| 동결 기록 | 모델 · 특성 · 임계값을 test 전에 JSON 파일로 |
+| AUC 계산 불가 (한 클래스뿐) | None + 실제 양성 수 기록 |
+
+### 파생 특성 · K-Means
+
+| 항목 | 정의 |
+|---|---|
+| log_input_chars | np.log1p(input_chars) |
+| chars_per_slot | input_chars / (1 + allowed_tools) |
+| 변환 후 열 | 수치 4 (원본 2 + 파생 2) + 원핫 6 = 10 |
+| K-Means 입력 | 수치 2열 · 결측 대체 + 표준화 · n_init으로 여러 번 시작 |
+
+### 환경 — 예시
+
+| 항목 | 값 |
+|---|---|
+| 검증 버전 | Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0 · XGBoost 3.1.3 · Matplotlib 3.10.8 |
+| 실행 | CPU만 · 기존 .venv |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| scikit-learn | 지표·ROC·교차검증·FunctionTransformer·KMeans | from sklearn.metrics import roc_auc_score 등 |
+| numpy | log1p 같은 행별 계산, 배열 비교 | import numpy as np |
+| pandas | DataFrame에 새 특성 열 추가, 결과 CSV | import pandas as pd |
+| xgboost (트리 · 앙상블과 같은 환경) | 후보 모델 중 하나로 계속 비교 | from xgboost import XGBClassifier |
+| matplotlib (선택) | ROC 곡선·군집 그림 그리기 | import matplotlib.pyplot as plt |
+| 표준 라이브러리 | 설정 파일 저장, 경로 | import json, from pathlib import Path |
+
+### 🔧 설치 · 확인
+
+```
+python --version
+python -m pip show scikit-learn xgboost
+python -m pip show numpy pandas matplotlib
+python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .venv인지 확인
+```
+
+⚠️ 기존 환경(.venv)을 그대로 써요. 설치가 필요한 경우에만 📋 명세 — 환경의 검증 버전에 맞춰요. GPU가 필요 없고, CUDA·PyTorch를 임의로 업데이트하지 않아요. 최종 보고에는 실제 설치 버전을 기록해요.
+
+🤔 왜 sys.executable을 확인하지? — 컴퓨터에 파이썬이 여러 개 있으면, 패키지를 깔은 파이썬과 코드를 돌리는 파이썬이 다를 수 있어요. 지금 실행 중인 파이썬의 경로가 프로젝트 .venv 안인지 보면 "설치했는데 import가 안 돼요" 문제를 바로 잡을 수 있어요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 실제로 실행해서 얻은 값이에요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| 로지스틱회귀 · 혼동행렬 | 확률 · 임계값 · F1의 바탕 |
+| 교차검증 | fold 안 전처리 · StratifiedKFold |
+| KNN | K-Means와 이름이 비슷한 지도학습 모델 |
+
 ## 원본 자료
 
-- 강의: 20261028수_머신러닝_평가지표_특성설계_KMeans_최종평가_Day8 (2).pdf — ① 분류 지표 9~19쪽 · ② ROC-AUC·임계값 20~29쪽 · ③ RMSE·CV 집계 30~38쪽 · ④ 특성 설계 39~47쪽 · ⑤ K-Means 48~60쪽 · ⑥ 최종 평가 61~69, 73~77쪽
+- 원본: 20261028수_머신러닝_평가지표_특성설계_KMeans_최종평가_Day8 (2).pdf — ① 분류 지표 9~19쪽 · ② ROC-AUC·임계값 20~29쪽 · ③ RMSE·CV 집계 30~38쪽 · ④ 특성 설계 39~47쪽 · ⑤ K-Means 48~60쪽 · ⑥ 최종 평가 61~69, 73~77쪽
 
 - 공식 문서: scikit-learn · Metrics and scoring · Decision threshold · FunctionTransformer · Clustering · K-Means · Model persistence
+
+- 결과 값: 명령어 사전의 결과 상자는 tools/io_day08.py, 그림은 tools/visuals/make_day08.py로 실제 실행해 만든 값
 
 ## 🔧 Day8 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day8)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install numpy pandas scikit-learn |
 | ① 분류 지표 | confusion_matrix(labels=), precision_score, recall_score, f1_score(zero_division=) |
 | ② ROC-AUC · 임계값 | predict_proba, roc_curve, roc_auc_score, (p > t).astype(int) |
-| ③ RMSE · CV 점수 집계 | root_mean_squared_error, cross_validate(scoring={...}) |
+| ③ RMSE · CV 점수 집계 | mean_absolute_error, root_mean_squared_error, cross_validate(scoring={...}) |
 | ④ 특성 설계 | np.log1p, FunctionTransformer(validate=False), pipe[:-1] |
 | ⑤ K-Means | KMeans(n_clusters=, n_init=), inertia_, silhouette_score, predict |
-| ⑥ 최종 평가 흐름 | clone(), pd.concat, json.dumps, joblib.dump/load, 입력 검사(ValueError) |
+| ⑥ 최종 평가 흐름 | clone(), pd.concat, json.dumps, joblib.dump/load, np.isfinite, ValueError |
+| 📦 패키지 | pip install numpy pandas scikit-learn |
 
 ### 혼동행렬과 네 지표
 
@@ -2085,7 +2317,7 @@ print(accuracy_score(y, pred), recall_score(y, pred, zero_division=0),
       f1_score(y, pred, zero_division=0))       # 0.70 0.0 0.0  → 실패 발견 0/6
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 · Logistic C=1의 valid 예측
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 · Logistic C=1의 valid 예측
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -2121,7 +2353,7 @@ for t in [0.5, 0.3]:
 # 비용 5:1은 설명용 가정이지 실제 업무 근거가 아님 · AUC는 계속 0.75
 ```
 
-▶ 실제로 돌려 보면 노트의 4건 (실제 [0, 0, 1, 1])
+▶ 실제로 돌려 보면 본문의 4건 (실제 [0, 0, 1, 1])
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -2168,7 +2400,7 @@ reg = cross_validate(build(LinearRegression()), X_train, yr_train, cv=REG_FOLDS,
 rmse = -reg["test_score"]                            # 부호 되돌리기 → 평균 639.83 ms (KNN15는 598.85 ms)
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20 · 5-fold (학습 48 / 평가 12)
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20 · 5-fold (학습 48 / 평가 12)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -2225,7 +2457,7 @@ for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
     assert np.allclose(expected.to_numpy(), actual)   # 글자수 중앙값 1309 / 1303 / 1315 / 1315 / 1338
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · train 60 / valid 20
+▶ 실제로 돌려 보면 예시 requests.csv · train 60 / valid 20
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -2235,7 +2467,7 @@ for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
 | pipe[:-1].transform(X_valid).shape · NaN/inf 개수 | (20, 10) · 0 | valid도 같은 10열, 모두 유한값 |
 | add_features(X) 뒤 원본 X 열 수 | 4 | X.copy() 덕분에 원본은 4열 그대로 |
 | Logistic: CV F1 · std · valid F1 | 0.522 · 0.209 · 0.333 | 기존 |
-| Logistic_FE: CV F1 · std · valid F1 | 0.551 · 0.190 · 0.182 | CV는 조금 오르고 valid는 떨어짐 — 노트 표와 같음 |
+| Logistic_FE: CV F1 · std · valid F1 | 0.551 · 0.190 · 0.182 | CV는 조금 오르고 valid는 떨어짐 — 본문 표와 같음 |
 | fold별 글자수 중앙값 · 검사 통과 | [1309, 1303, 1315, 1315, 1338] · True | fold마다 자기 학습 48건에서 계산 |
 
 | 인자 | 뜻 | 바꾸면? |
@@ -2245,7 +2477,7 @@ for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
 | FunctionTransformer(func) | 직접 만든 함수를 Pipeline 단계로 | 함수는 모듈에 이름 있는 함수로 (저장·복원용) |
 | validate=False | DataFrame 입력을 그대로 유지 | True면 배열로 바뀌어 out["input_chars"] 같은 열 이름 사용 불가 |
 | pipe[:-1] | 마지막(모델) 전까지만 실행 | 변환 결과 shape 확인용 |
-| make_pre(engineered=True) | 강의 코드의 사용자 정의 함수 — 수치 4열(원본 2 + 파생 2) 경로 | False면 원본 수치 2열만 → (60, 8) |
+| ColumnTransformer 수치 경로 (make_pre(engineered=True)) | 수치 4열(원본 2 + 파생 2)에 결측 대체 · 표준화를 거는 ColumnTransformer를 만드는 짧은 함수 | False면 원본 수치 2열만 → (60, 8) |
 
 | Logistic C=1 | 기존 | 파생 2개 추가 |
 |---|---|---|
@@ -2284,7 +2516,7 @@ print(cluster_pipe.predict(new))         # [2 0]  새 요청 → 기존 중심�
 print(np.array_equal(before, cluster_pipe["cluster"].cluster_centers_))   # True  중심 불변
 ```
 
-▶ 실제로 돌려 보면 노트의 6점 + 강의 requests.csv · train 60 / valid 20의 수치 2열
+▶ 실제로 돌려 보면 본문의 6점 + 예시 requests.csv · train 60 / valid 20의 수치 2열
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -2335,7 +2567,7 @@ restored = joblib.load("final_pipeline.joblib")         # 본인이 만든 파�
 assert np.allclose(final.predict_proba(X_check), restored.predict_proba(X_check))
 ```
 
-▶ 실제로 돌려 보면 강의 requests.csv · 개발 80(train+valid) → test 20 · 선택 모델 Logistic_FE
+▶ 실제로 돌려 보면 예시 requests.csv · 개발 80(train+valid) → test 20 · 선택 모델 Logistic_FE
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -2353,19 +2585,25 @@ assert np.allclose(final.predict_proba(X_check), restored.predict_proba(X_check)
 | clone(estimator) | 설정만 같고 학습은 안 된 새 객체 | 이미 학습된 객체를 재사용하지 않음 |
 | pd.concat([A, B]) | train + valid를 고정 순서로 결합 | 설정 확정 뒤에만 |
 | joblib.dump / load | 변환 함수 포함 Pipeline 저장·복원 | add_features는 모듈(feature_ops.py)에 정의해 import해야 복원됨. 본인이 만든 파일만 load |
-| failure_scores(model, X) | 강의 코드의 사용자 정의 함수 — classes_에서 실패(1) 열을 골라 확률 반환 | 열 번호를 1로 박아 두면 클래스 순서가 다를 때 성공 확률을 쓰게 됨 |
+| predict_proba(X)[:, list(classes_).index(1)] | classes_에서 실패(1) 열을 골라 확률을 꺼냄 | 열 번호를 1로 박아 두면 클래스 순서가 다를 때 성공 확률을 쓰게 됨 |
 
 🤔 왜 함수를 모듈에 이름 붙여 둬야 하지? — joblib은 Pipeline을 저장할 때 add_features의 코드 자체가 아니라 "어느 모듈의 어떤 이름의 함수"라는 주소만 적어 둬요. 노트북 셀이나 lambda로 만든 함수는 새 프로세스에서 그 주소를 찾을 수 없어서 복원이 실패해요. 그래서 feature_ops.py에 정의하고 import해서 쓰고, 코드·버전·임계값도 함께 보관해요.
 
-### 새 입력 검사 (새 범주 vs 필수 열 누락)
+### 새 입력 검사 (새 범주 vs 필수 열 누락) — transform(…).shape · np.isfinite · ValueError
 
 ```
-checked = check_input(new_requests)          # 강의 코드의 사용자 정의 검사 함수
+missing = [c for c in FEATURES if c not in new_requests.columns]   # 필수 4열이 다 있나?
+if missing:
+    raise ValueError(f"필수 열 누락: {missing}")
+checked = new_requests[FEATURES]
 num = fitted["pre"].named_transformers_["num"]
 before = num["imputer"].statistics_.copy()
-p = failure_scores(fitted, checked)          # 새 범주가 있어도 (2, 10)으로 변환 · 확률은 유한값
+Z = fitted[:-1].transform(checked)           # 새 범주가 있어도 (2, 10)
+assert np.isfinite(Z).all()                  # NaN·inf 없음
+pos = list(fitted.classes_).index(1)         # 실패(1) 열 번호
+p = fitted.predict_proba(checked)[:, pos]    # 실패 확률 — 유한값
 assert np.array_equal(before, num["imputer"].statistics_)   # 통계 불변
-check_input(new_requests.drop(columns="priority"))         # ← ValueError가 나야 정상 (실패 시험)
+# priority 열을 뺀 입력 → 위 필수 열 확인에서 ValueError가 나야 정상 (실패 시험)
 ```
 
 ▶ 실제로 돌려 보면 valid 앞 2행 · 1행 글자수를 결측으로, task_type을 처음 보는 'translation'으로
@@ -2374,9 +2612,9 @@ check_input(new_requests.drop(columns="priority"))         # ← ValueError가 �
 |---|---|---|
 | fitted[:-1].transform(checked).shape | (2, 10) | 결측·새 범주가 있어도 10열 |
 | np.isfinite(Z).all() | True | NaN/inf 없음 — 결측은 학습 중앙값으로 |
-| failure_scores(fitted, checked) | [0.397, 0.259] | 확률 2개, 유한값 |
+| fitted.predict_proba(checked)[:, pos] | [0.397, 0.259] | 확률 2개, 유한값 |
 | np.array_equal(before, num["imputer"].statistics_) | True | 예측해도 통계 불변 |
-| check_input(new_requests.drop(columns="priority")) | ValueError: 필수 열 누락: ['priority'] | 필수 열 누락 → 예측 전에 멈춤 (실패해야 정상) |
+| 필수 열 확인 (new_requests.drop(columns="priority")) | ValueError: 필수 열 누락: ['priority'] | 필수 열 누락 → 예측 전에 멈춤 (실패해야 정상) |
 | roc_auc_score(실패 0건인 y, 점수) | nan · 경고 UndefinedMetricWarning → 기록 None, 실제 양성 0 | nan을 그대로 평균에 섞지 않고, 클래스 수를 먼저 확인해 None + 양성 수로 기록 |
 
 | 상황 | 기대 결과 | 판정 근거 |
@@ -2427,7 +2665,7 @@ for name, pred in [("A", a), ("B", b)]:
 ## 📖 Day8 용어 (36개)
 - **Precision** (Precision (정밀도)): 양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP). 헛경고가 늘면 낮아져요.
 - **Recall** (Recall (재현율)): 실제 양성 중 모델이 찾아낸 비율. TP ÷ (TP + FN). 놓침이 늘면 낮아져요.
-- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 이 수업 분류의 주 지표.
+- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.
 - **조화평균** (Harmonic mean (조화평균)): 2·P·R ÷ (P + R)처럼 계산하는 평균. 두 값 중 하나라도 낮으면 결과도 낮아져서, 한 지표만 극단적으로 올리는 꼼수를 막아요.
 - **pos_label** (pos_label (양성 클래스 지정)): Precision·Recall·F1을 어느 클래스 기준으로 계산할지 정하는 인자. 기본값은 1(=실패).
 - **ROC 곡선** (Receiver Operating Characteristic curve (ROC 곡선)): 임계값을 1 → 0으로 내리면서 가로축 FPR, 세로축 TPR을 찍어 이은 곡선. 임계값 하나가 아니라 모든 임계값에서의 성능을 한눈에 보여 줘요.
@@ -2475,38 +2713,9 @@ _2026-10-29(목) · GPU·CUDA · Tensor · Autograd · ANN · 학습 루프_  ·
 
 - 학습은 zero_grad → forward → loss → backward → step 다섯 단계를 batch마다 반복하는 거예요. 기울기는 쌓이니까 매번 비우고, 평가할 땐 model.eval() + torch.no_grad()를 같이 써요.
 
-🔧 Day9 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 숫자 표가 학습된 모델이 되기까지
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| torch | Tensor 계산, 자동 미분, 신경망 층, Optimizer까지 딥러닝의 모든 것 | import torch, from torch import nn |
-| (torch 안에 포함) | 데이터를 batch로 묶어 공급 | from torch.utils.data import TensorDataset, DataLoader |
-
-이날 강의 코드는 torch 하나로 다 돼요. 가상환경(venv)을 만들고 그 안에 설치해요.
-
-### 🔧 설치 · 확인
-
-```
-python --version
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-# torch 설치 명령은 https://pytorch.org/get-started/locally/ 에서 골라 복사
-python -c "import torch; print(torch.__version__)"
-python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"   # True면 GPU 사용 가능
-```
-
-⚠️ torch는 pytorch.org의 Start Locally 선택기에서 OS · Pip · Python · Compute Platform(CUDA 버전 또는 CPU)을 고른 뒤 나온 명령으로 설치해요. 그냥 pip install torch만 치면 내 GPU의 CUDA와 안 맞는 빌드가 깔릴 수 있어요. 이미 잘 돌아가는 환경이면 버전 숫자만 보고 다시 깔지 마세요.
-
-🤔 왜 설치 명령을 외우지 않아요? — OS · Python · 드라이버 · CUDA 조합에 따라 맞는 torch 빌드가 달라서, 설치 명령도 달라져요. 그래서 강의일에 공식 선택기가 알려 주는 조합을 그대로 쓰고, 마지막엔 torch.cuda.is_available()로 실제로 되는지 확인해요. GPU가 없거나 False여도 CPU로 같은 코드를 돌릴 수 있어요.
-
-## 이거 어디에 써?
-
-Day8까지의 머신러닝은 사람이 특성을 만들어서 모델에 넣었어요. 딥러닝은 층(layer)을 여러 개 쌓아서 모델이 스스로 쓸 만한 표현을 배우게 해요. 사진·글·소리처럼 사람이 특성을 일일이 정하기 어려운 데이터에 강해요.
+전통적인 머신러닝(특성 설계)은 사람이 특성을 만들어서 모델에 넣어요. 딥러닝은 층(layer)을 여러 개 쌓아서 모델이 스스로 쓸 만한 표현을 배우게 해요. 사진·글·소리처럼 사람이 특성을 일일이 정하기 어려운 데이터에 강해요.
 
 🖼️
 
@@ -2518,11 +2727,37 @@ Day8까지의 머신러닝은 사람이 특성을 만들어서 모델에 넣었�
 
 📈
 
-표 데이터 예측특성 몇 개로 클래스 맞히기 (오늘의 2→8→2 ANN)
+표 데이터 예측특성 몇 개로 클래스 맞히기 (예: 2→8→2 ANN)
 
 ⚡
 
 GPU 학습같은 계산을 동시에 많이 처리해 학습 시간 단축
+
+딥러닝 학습 코드는 아래 여섯 부품으로 읽을 수 있어요. 이 페이지의 ①~⑥이 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① GPU · CUDA | 왜 GPU인가 · 네 층 확인 · device 고르기 | PyTorch가 GPU를 실제로 쓰고 있나? |
+| ② Tensor | 값 · shape · dtype · device | 이 숫자 상자는 어떤 모양 · 자료형 · 위치인가? |
+| ③ Autograd · 경사하강 | backward() · .grad · 학습률 | 기울기는 누가 구하고, 얼마나 움직이나? |
+| ④ ANN | Linear + ReLU를 층으로 쌓기 | 층마다 shape가 어떻게 바뀌나? |
+| ⑤ 손실 · 데이터 공급 | logits · CrossEntropyLoss · DataLoader | 무엇을 줄이고, 데이터를 어떻게 나눠 넣나? |
+| ⑥ 학습 루프 | zero_grad → forward → loss → backward → step | 다섯 단계를 순서대로 지켰나? |
+
+```
+PyTorch 학습 코드 (전부 같은 device 위에서)
+  ├ 데이터: TensorDataset → DataLoader → (xb, yb) mini-batch
+  ├ 모델:   nn.Sequential(Linear, ReLU, Linear) — Parameter는 requires_grad=True
+  ├ 손실:   CrossEntropyLoss(logits, yb) → 숫자 1개
+  └ 갱신:   loss.backward() → .grad → optimizer.step()
+→ 평가: model.eval() + torch.no_grad() → argmax로 클래스
+```
+
+💡 문제가 생기면 🩺 증상으로 진단, 예시 모델 · 데이터 설정은 📋 명세에 모아 뒀어요.
+
+## ① GPU · CUDA — 왜 GPU이고, 어떻게 확인하나
+
+### 왜 GPU인가 — 독립된 계산이 아주 많아서
 
 |  | CPU | GPU |
 |---|---|---|
@@ -2543,13 +2778,13 @@ GPU 학습같은 계산을 동시에 많이 처리해 학습 시간 단축
 
 🤔 왜 딥러닝엔 GPU가 유리해? — 학습 한 번은 입력 → 곱하고 더해 예측 → 오차 계산 → 가중치 조금 수정이에요. 이걸 "수많은 데이터 × 수많은 가중치 × 여러 epoch" 만큼 반복하니 연산량이 급격히 커져요. 그런데 결과 행렬의 칸 하나하나는 서로 독립이라 동시에 계산할 수 있어요. GPU는 단순한 계산을 동시에 처리하는 연산 유닛이 아주 많아서, 이렇게 "같은 모양의 독립 계산이 충분히 많을 때" 처리량(Throughput)이 커져요. 반대로 작업이 적거나 조건 분기가 많으면 그 장점이 안 살아요.
 
-[그림: CPU에서 스레드 1개와 여러 개로 행렬곱 시간을 잰 그래프] 무엇을 보나: 이 노트를 만든 PC의 CPU에서만 잰 행렬곱 시간이에요(GPU 측정 아님). 회색 = 스레드 1개로 한 줄씩, 보라 = 같은 CPU의 여러 스레드로 나눠 동시에. 행렬이 커질수록 회색은 가파르게 늘고, 보라는 여러 배 빨라요. 🤔 왜? n이 2배가 되면 곱셈 수는 약 8배(n³)라 계산량이 급격히 커져요. 칸끼리 독립이라 일꾼을 늘리면 그만큼 나눠 처리할 수 있어요 — GPU는 이 아이디어를 수천 개 유닛으로 밀어붙인 장치예요. 작은 행렬(왼쪽 끝)에선 차이가 거의 없죠? 일이 적으면 나누는 이득도 작아요.
+[그림: CPU에서 스레드 1개와 여러 개로 행렬곱 시간을 잰 그래프] 무엇을 보나: CPU에서만 잰 행렬곱 시간이에요(GPU 측정 아님). 회색 = 스레드 1개로 한 줄씩, 보라 = 같은 CPU의 여러 스레드로 나눠 동시에. 행렬이 커질수록 회색은 가파르게 늘고, 보라는 여러 배 빨라요. 🤔 왜? n이 2배가 되면 곱셈 수는 약 8배(n³)라 계산량이 급격히 커져요. 칸끼리 독립이라 일꾼을 늘리면 그만큼 나눠 처리할 수 있어요 — GPU는 이 아이디어를 수천 개 유닛으로 밀어붙인 장치예요. 작은 행렬(왼쪽 끝)에선 차이가 거의 없죠? 일이 적으면 나누는 이득도 작아요.
 
 데이터 준비 CPU가 파일 읽기·전처리→ 순전파 GPU가 행렬 계산→ 오차·역전파 GPU가 기울기 계산→ 가중치 갱신 GPU에서 값 수정
 
 이 과정을 수백·수천 batch에 반복하니까 GPU 병렬 연산의 이점이 누적돼요. 파일 읽기·전처리 같은 순차 작업은 여전히 CPU 몫이에요.
 
-## ① GPU·CUDA 환경 — "GPU가 있다" ≠ "PyTorch가 GPU를 쓴다"
+### 네 층 — "GPU가 있다" ≠ "PyTorch가 GPU를 쓴다"
 
 GPU 학습은 네 층이 모두 맞아야 돼요. 하나만 어긋나도 GPU를 못 써요.
 
@@ -2576,6 +2811,8 @@ print("GPU:", torch.cuda.get_device_name(0))
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 ```
+
+### RAM과 VRAM — .to(device)는 복사
 
 [그림: ] 무엇을 보나: RAM(왼쪽)과 VRAM(오른쪽)은 따로 떨어진 두 창고예요. .to(device)는 화살표처럼 한쪽 창고에서 다른 쪽으로 복사해요. 🤔 왜? GPU는 자기 창고(VRAM)에 있는 숫자만 바로 계산할 수 있어요. 그래서 model·xb·yb를 모두 같은 쪽에 둬야 하고, 복사에는 시간이 드니 batch 단위로 한 번에 옮겨요.
 
@@ -2644,6 +2881,8 @@ model = nn.Linear(2, 1).to(device)
 
 ## ③ Autograd와 경사하강 — 미분은 PyTorch가 대신
 
+### 계산 그래프와 backward()
+
 PyTorch는 계산을 하면서 "무엇과 무엇을 곱하고 더했는지"를 계산 그래프로 기록해요. 마지막에 backward()를 부르면 그 기록을 거꾸로 따라가며(연쇄법칙, chain rule) 기울기를 자동으로 구해요.
 
 ```
@@ -2689,7 +2928,7 @@ parameter = parameter − learning_rate × gradient
 
 🤔 왜 lr이 크면 발산해? — 이 문제에서 기울기는 2(w − 4)라서 한 번 갱신하면 "4까지 남은 거리"가 × (1 − 2·lr)배가 돼요. lr = 0.1이면 ×0.8 → 매번 20%씩 줄어요. lr = 0.8이면 ×(−0.6) → 부호가 바뀌어(4를 넘어감) 왔다 갔다 하지만 크기는 줄어요. lr = 1이면 ×(−1) → 같은 거리로 영원히 왕복. lr > 1이면 |배수| > 1이라 넘어갈 때마다 더 멀어져요. 반대로 lr이 아주 작으면 배수가 1에 가까워 거의 안 움직여요.
 
-🔧 손으로 5번 갱신하기 명령어 사전에서 자세히 →
+🔧 수동 갱신 w.grad · w.grad.zero_() 명령어 사전에서 자세히 →
 
 ```
 loss.backward()               # 1. 기울기 계산
@@ -2709,7 +2948,7 @@ with torch.no_grad():              # 블록 안 연산은 그래프에 기록 �
 
 입력층 특성 2개 · (batch, 2)→ Linear(2, 8) + ReLU 은닉 표현 8개→ Linear(8, 2) 클래스 logits 2개→ argmax 예측 0 또는 1
 
-[그림: ] 무엇을 보나: 오늘 만드는 2→8→2 ANN. 동그라미 = 뉴런(숫자 하나), 선 = 가중치 하나. 은닉층 뉴런 안의 꺾인 표시가 ReLU예요. 🤔 왜? Linear 층은 "앞 층 모든 뉴런 × 뒤 층 모든 뉴런"을 선으로 잇기 때문에 가중치가 in × out개(2×8 = 16)이고, 뉴런마다 bias가 하나씩 붙어요. 그래서 numel() 합이 42가 나와요.
+[그림: ] 무엇을 보나: 예시로 만드는 2→8→2 ANN. 동그라미 = 뉴런(숫자 하나), 선 = 가중치 하나. 은닉층 뉴런 안의 꺾인 표시가 ReLU예요. 🤔 왜? Linear 층은 "앞 층 모든 뉴런 × 뒤 층 모든 뉴런"을 선으로 잇기 때문에 가중치가 in × out개(2×8 = 16)이고, 뉴런마다 bias가 하나씩 붙어요. 그래서 numel() 합이 42가 나와요.
 
 | 단계 | 코드 | 입력 shape | 출력 shape |
 |---|---|---|---|
@@ -2738,7 +2977,7 @@ class SimpleANN(nn.Module):
 logits = model(X)                          # model(X) 하면 forward가 실행됨
 ```
 
-## ⑤ 손실함수와 데이터 공급
+## ⑤ 손실함수와 데이터 공급 — 무엇을 줄이고, 어떻게 넣나
 
 ### logits · 확률 · 클래스는 다른 값
 
@@ -2771,7 +3010,7 @@ TensorDataset X와 y를 같은 번호로 묶음→ DataLoader batch_size만큼 �
 
 [그림: 샘플 200개를 색으로 batch 7개에 나눠 표시한 그림] 무엇을 보나: 칸 200개 = 원래 순서대로 놓은 샘플 200개, 색 = 그 샘플이 들어간 batch. 같은 색이 한데 모여 있지 않고 여기저기 흩어져 있어요. 빨강(batch 7)은 8칸뿐이에요. 🤔 왜? shuffle=True라 매 epoch 순서를 섞은 뒤 앞에서부터 32개씩 잘라요. 그래서 각 batch는 데이터 전체를 골고루 닮은 작은 표본이 되고, 200 = 32×6 + 8이라 마지막만 작아요.
 
-🤔 왜 데이터를 batch로 나눠? — 전체를 한 번에 넣으면 메모리가 부족할 수 있고, 한 번 다 보고 나서야 겨우 한 번 갱신해요. 하나씩 넣으면 갱신은 많지만 기울기가 너무 들쭉날쭉하고 GPU 병렬성을 못 살려요. 그 사이인 mini-batch가 속도 · 메모리 · 기울기 흔들림의 균형점이에요(자세한 비교는 다음 수업). Dataset은 "자료가 어떻게 생겼나(구조)", DataLoader는 "어떻게 꺼내 줄까(반복 · batch · shuffle)"로 역할을 나눠요.
+🤔 왜 데이터를 batch로 나눠? — 전체를 한 번에 넣으면 메모리가 부족할 수 있고, 한 번 다 보고 나서야 겨우 한 번 갱신해요. 하나씩 넣으면 갱신은 많지만 기울기가 너무 들쭉날쭉하고 GPU 병렬성을 못 살려요. 그 사이인 mini-batch가 속도 · 메모리 · 기울기 흔들림의 균형점이에요(자세한 비교는 Batch · Iteration · Epoch). Dataset은 "자료가 어떻게 생겼나(구조)", DataLoader는 "어떻게 꺼내 줄까(반복 · batch · shuffle)"로 역할을 나눠요.
 
 🔧 TensorDataset · DataLoader 명령어 사전에서 자세히 →
 
@@ -2790,7 +3029,7 @@ xb, yb = next(iter(loader))
 
 🤔 왜 꼭 이 순서야? — ① 지난 batch 기울기가 남아 있으면 섞이니까 먼저 비우고(zero_grad), ② 지금 가중치로 예측하고(forward), ③ 정답과 비교해 loss를 만들고, ④ 그 loss로 기울기를 구하고(backward), ⑤ 그 기울기로 가중치를 바꿔요(step). step이 backward보다 먼저 오면 기울기 없이(또는 지난 기울기로) 갱신하게 돼요. 이 5단계만 지키면 대부분의 기본 학습 루프를 읽을 수 있어요.
 
-🔧 준비 + batch 반복 명령어 사전에서 자세히 →
+🔧 torch.optim.SGD · zero_grad() · step() — batch 반복 명령어 사전에서 자세히 →
 
 ```
 loss.backward()
@@ -2801,11 +3040,11 @@ optimizer.step()
 
 [그림: 같은 학습의 epoch별 평균 train loss 곡선] 무엇을 보나: 바로 위 학습의 epoch 평균 loss. 분홍 점이 위 그림 4장의 시점이에요. 처음 20 epoch에 크게 떨어지고, 그 뒤로는 천천히 내려가요. 🤔 왜? 처음엔 크게 틀린 점이 많아 기울기가 크고 한 번에 많이 고쳐져요. 경계가 자리를 잡으면 남은 건 경계 근처의 어려운 점들이라 기울기가 작아지고 개선도 느려져요. 곡선이 살짝 들쭉날쭉한 건 batch마다 다른 샘플을 보기 때문이에요.
 
-🔧 epoch 평균 loss를 제대로 내기 명령어 사전에서 자세히 →
+🔧 loss.item() × batch 크기 — epoch 평균 loss 명령어 사전에서 자세히 →
 
 ```
 total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
-return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss
+epoch_loss = total_loss / len(loader.dataset)  # 샘플 수로 가중한 평균 loss
 ```
 
 🔧 model.train() · model.eval() · torch.no_grad() 명령어 사전에서 자세히 →
@@ -2817,7 +3056,7 @@ with torch.no_grad():        # 기울기 기록 끄기
 
 💡 학습 곡선의 loss가 매 epoch 꼭 줄어드는 건 아니에요. 전체 추세를 보고, loss와 accuracy는 따로 읽어요.
 
-## 증상으로 진단
+## 🩺 증상으로 진단 — 문제가 생기면
 
 | 이런 일이 생기면 | 원인 | 확인 |
 |---|---|---|
@@ -2828,19 +3067,90 @@ with torch.no_grad():        # 기울기 기록 끄기
 | loss가 이상하게 튐 | zero_grad() 빠뜨려 기울기 누적 | step 전후 .grad 비교 |
 | 평가 메모리가 큼 | no_grad() 없이 평가 | 평가 블록을 with torch.no_grad():로 |
 
+## 🧩 설계 정리 — 부품마다 만드는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| DataLoader | 섞인 mini-batch (xb, yb) | device 이동 — .to(device)는 직접 |
+| model(xb) | logits (batch, class) | 확률 · 클래스 (softmax · argmax는 따로) |
+| loss_fn(logits, yb) | 숫자 1개 (batch 평균) | 정확도 — 따로 계산 |
+| loss.backward() | 각 Parameter의 .grad (누적) | 가중치 변경 — 값은 그대로 |
+| optimizer.step() | 갱신된 가중치 | 기울기 비우기 — zero_grad()가 따로 |
+| model.eval() + torch.no_grad() | 평가 동작 · 그래프 기록 없음 | 둘 중 하나만으론 반쪽 (모드 ≠ 기록) |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### shape · dtype 계약 — 2→8→2 분류
+
+| 값 | shape | dtype | 어디서 |
+|---|---|---|---|
+| 입력 X / xb | (batch, 2) | torch.float32 | nn.Linear(2, 8)의 in_features와 마지막 차원이 같아야 |
+| 정답 y / yb | (batch,) | torch.long | CrossEntropyLoss target — 클래스 번호 |
+| logits | (batch, 2) | torch.float32 | model(xb) 출력 |
+| loss | () 스칼라 | torch.float32 | loss.item()으로 파이썬 숫자 |
+| 예측 클래스 | (batch,) | torch.int64 | logits.argmax(dim=1) |
+
+### 예시 학습 설정
+
+| 항목 | 예시 값 |
+|---|---|
+| 모델 | Linear(2, 8) → ReLU → Linear(8, 2) · 파라미터 42개 |
+| 데이터 | 200개 · batch 32 · shuffle=True → epoch당 7 batch (마지막 8개) |
+| 손실 · Optimizer | nn.CrossEntropyLoss() · torch.optim.SGD(lr=0.1) |
+| 장치 | torch.device("cuda" if torch.cuda.is_available() else "cpu") |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch | Tensor 계산, 자동 미분, 신경망 층, Optimizer까지 딥러닝의 모든 것 | import torch, from torch import nn |
+| (torch 안에 포함) | 데이터를 batch로 묶어 공급 | from torch.utils.data import TensorDataset, DataLoader |
+
+이 주제의 코드는 torch 하나로 다 돼요. 가상환경(venv)을 만들고 그 안에 설치해요.
+
+### 🔧 설치 · 확인
+
+```
+python --version
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+# torch 설치 명령은 https://pytorch.org/get-started/locally/ 에서 골라 복사
+python -c "import torch; print(torch.__version__)"
+python -c "import torch; print(torch.version.cuda, torch.cuda.is_available())"   # True면 GPU 사용 가능
+```
+
+⚠️ torch는 pytorch.org의 Start Locally 선택기에서 OS · Pip · Python · Compute Platform(CUDA 버전 또는 CPU)을 고른 뒤 나온 명령으로 설치해요. 그냥 pip install torch만 치면 내 GPU의 CUDA와 안 맞는 빌드가 깔릴 수 있어요. 이미 잘 돌아가는 환경이면 버전 숫자만 보고 다시 깔지 마세요.
+
+🤔 왜 설치 명령을 외우지 않아요? — OS · Python · 드라이버 · CUDA 조합에 따라 맞는 torch 빌드가 달라서, 설치 명령도 달라져요. 그래서 설치할 때 공식 선택기가 알려 주는 조합을 그대로 쓰고, 마지막엔 torch.cuda.is_available()로 실제로 되는지 확인해요. GPU가 없거나 False여도 CPU로 같은 코드를 돌릴 수 있어요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| Optimizer · 규제 | Momentum · AdamW · Scheduler · Dropout · BatchNorm · Early Stopping — 잘 학습되는 조건 찾기 |
+| CNN · 이미지 분류 | (batch, channel, height, width) Tensor를 Conv 층으로 |
+| 평가지표 · 특성 설계 | 사람이 특성을 만드는 머신러닝 쪽 · 정확도 외의 지표 |
+
 ## 원본 자료
 
-- 강의: Day9_GPU_Tensor_ANN_20261029_v2.pdf — GPU 개념 p6–16 · 환경 점검 p19–28 · Tensor p31–42 · Autograd p45–53 · ANN p56–64 · 손실·DataLoader p67–74 · 학습 루프 p77–84 · 프로젝트 코드 p92–93 · 오류 상황 p100
+- 원본: Day9_GPU_Tensor_ANN_20261029_v2.pdf — GPU 개념 p6–16 · 환경 점검 p19–28 · Tensor p31–42 · Autograd p45–53 · ANN p56–64 · 손실·DataLoader p67–74 · 학습 루프 p77–84 · 프로젝트 코드 p92–93 · 오류 상황 p100
 
 - 명령어 이름 확인: PyTorch_치트시트.pdf (1쪽)
+
+- 결과 값 · 그림: 이 노트를 만든 PC에서 실제 실행 (행렬곱 시간은 CPU에서만 측정). 스크립트 tools/io_day09.py, 그림 tools/visuals/make_day09.py
 
 - 공식 문서: PyTorch Start Locally (설치 선택기) · CUDA semantics · torch.nn · nvidia-smi
 
 ## 🔧 Day9 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day9)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install torch (공식 선택기 명령) |
-| ① GPU·CUDA 환경 | nvidia-smi, torch.cuda.is_available(), torch.device() |
+| 📦 패키지 · 명령어 | pip install torch (공식 선택기 명령) |
+| ① GPU · CUDA | nvidia-smi, torch.cuda.is_available(), torch.device() |
 | ② Tensor | torch.tensor(), torch.randn(), reshape / view / unsqueeze, .to(device) |
 | ③ Autograd · 경사하강 | requires_grad=True, loss.backward(), .grad.zero_(), torch.no_grad(), detach() |
 | ④ ANN (인공신경망) | nn.Linear, nn.ReLU, nn.Sequential, nn.Module |
@@ -2936,7 +3246,7 @@ print(x.shape, x.dtype, x.device)   # torch.Size([2, 2]) torch.float32 cpu
 print(y.shape, y.dtype)             # torch.Size([2]) torch.int64
 ```
 
-▶ 실제로 돌려 보면 노트 코드 그대로
+▶ 실제로 돌려 보면 위 코드 그대로
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -3059,11 +3369,11 @@ print(y.item(), x.grad.item())    # 16.0 8.0
 
 ⚠️ 기울기는 누적돼요. 새로 순전파한 뒤 backward()를 또 부르면 이전 기울기에 더해져요(2 → 4). 그래서 일반 학습 루프에선 매 step마다 기울기를 비워요(zero_grad).
 
-backward를 여러 번 눌러 기울기가 쌓이는 모습은 Day9 ③ Autograd의 누적 체험에서 직접 해 볼 수 있어요.
+backward를 여러 번 눌러 기울기가 쌓이는 모습은 ③ Autograd의 누적 체험에서 직접 해 볼 수 있어요.
 
 🤔 왜 PyTorch는 기울기를 덮어쓰지 않고 더해? — 일부러 여러 번 backward해서 기울기를 모은 뒤 한 번에 갱신하고 싶은 경우(예: GPU 메모리가 부족해서 작은 batch 여러 개를 합칠 때)가 있어서예요. 하지만 일반 학습에선 지금 batch의 기울기만 써야 하니, 안 비우면 지난 batch 기울기까지 섞여 갱신이 엉뚱하게 커져요.
 
-### 손으로 5번 갱신하기
+### 수동 갱신 w.grad · w.grad.zero_() — 5번 갱신
 
 ```
 w = torch.tensor(0.0, requires_grad=True)
@@ -3255,13 +3565,13 @@ DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False
 | 인자 | 뜻 | 바꾸면? |
 |---|---|---|
 | dataset (필수) | 꺼낼 데이터 묶음 (TensorDataset(X, y)는 X와 y를 같은 번호로 묶고, len = 샘플 수) |  |
-| batch_size | 한 번에 꺼낼 샘플 수 (기본 1) | 키우면 step 수↓·메모리↑·기울기 안정, 줄이면 그 반대 (Day10 ③ Batch) |
+| batch_size | 한 번에 꺼낼 샘플 수 (기본 1) | 키우면 step 수↓·메모리↑·기울기 안정, 줄이면 그 반대 (Batch · Iteration · Epoch) |
 | shuffle | epoch마다 순서 섞기 (기본 False) | train은 True — 매번 같은 순서로 보면 그 순서 패턴까지 배울 수 있어서 섞어 줘요 |
 | num_workers | 데이터 읽는 보조 프로세스 수 (기본 0) | 늘리면 로딩이 빨라질 수 있지만, Windows에선 실행 진입점(if __name__ == "__main__":) 구조에 주의 → 처음엔 0 |
 | pin_memory | GPU 전송용 고정 메모리 | True면 CPU→GPU 복사가 빨라질 수 있음 |
 | drop_last | 마지막 작은 batch 버리기 (기본 False) | True면 모든 batch 크기가 같아지지만 그 epoch엔 일부 샘플을 안 씀 |
 
-### 준비 + batch 반복
+### torch.optim.SGD · zero_grad() · step() — batch 반복
 
 ```
 import torch
@@ -3293,7 +3603,7 @@ with torch.no_grad():                           # 평가: 기록 끄기
     acc = (pred.cpu() == y).float().mean().item()
 ```
 
-▶ 실제로 돌려 보면 노트 코드 그대로 (seed 42, 직선 경계 데이터 200개, device=cuda)
+▶ 실제로 돌려 보면 위 코드 그대로 (seed 42, 직선 경계 데이터 200개, device=cuda)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -3309,25 +3619,24 @@ torch.optim.SGD(params, lr=0.001, momentum=0, weight_decay=0, ...) · optimizer.
 | 명령 / 인자 | 뜻 | 바꾸면? |
 |---|---|---|
 | params (필수) | 갱신할 Parameter, 보통 model.parameters() | 여기 안 넘긴 파라미터는 학습해도 안 바뀜 |
-| lr | 학습률 (기본 0.001, 그래도 명시 권장) | 너무 크면 발산, 너무 작으면 느림 (③ 경사하강 lr 체험 참고). 강의 예시는 0.1 |
-| momentum, weight_decay, nesterov | 이전 방향 누적, 큰 가중치 억제 (기본 0) | Day10 ① Optimizer에서 본격 비교 |
+| lr | 학습률 (기본 0.001, 그래도 명시 권장) | 너무 크면 발산, 너무 작으면 느림 (③ 경사하강 lr 체험 참고). 예시 설정은 0.1 |
+| momentum, weight_decay, nesterov | 이전 방향 누적, 큰 가중치 억제 (기본 0) | Optimizer 비교에서 자세히 |
 | optimizer.zero_grad(set_to_none=True) | 지난 기울기 비우기 | 기본은 .grad를 None으로, False면 0으로 채움 |
 | optimizer.step(closure=None) | 현재 .grad로 한 번 갱신 (반환 None) | closure는 대부분 생략 |
 
-### epoch 평균 loss를 제대로 내기
+### loss.item() × batch 크기 — epoch 평균 loss
 
 ```
-def train_one_epoch(model, loader, loss_fn, optimizer, device):
-    model.train()
-    total_loss = 0.0
-    for xb, yb in loader:
-        xb, yb = xb.to(device), yb.to(device)
-        optimizer.zero_grad()
-        loss = loss_fn(model(xb), yb)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
-    return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss
+model.train()
+total_loss = 0.0
+for xb, yb in loader:
+    xb, yb = xb.to(device), yb.to(device)
+    optimizer.zero_grad()
+    loss = loss_fn(model(xb), yb)
+    loss.backward()
+    optimizer.step()
+    total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
+epoch_loss = total_loss / len(loader.dataset)  # 샘플 수로 가중한 평균 loss
 ```
 
 ▶ 실제로 돌려 보면 같은 데이터 200개, batch 32 (마지막 batch 8개)
@@ -3336,9 +3645,9 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device):
 |---|---|---|
 | epoch 1 batch 크기 | [32, 32, 32, 32, 32, 32, 8] |  |
 | epoch 1 마지막 batch loss | 0.4449 | 8개짜리 batch의 평균 |
-| train_one_epoch(...) (샘플 가중 평균) | 0.5334 | 샘플 하나하나의 평균 |
+| total_loss / len(loader.dataset) (샘플 가중 평균) | 0.5334 | 샘플 하나하나의 평균 |
 | batch loss들을 그냥 평균 | 0.5239 | 8개 batch가 32개와 같은 무게라 살짝 다름 |
-| epoch 2 train_one_epoch(...) | 0.4788 | 다음 epoch엔 더 내려감 |
+| epoch 2 total_loss / len(loader.dataset) | 0.4788 | 다음 epoch엔 더 내려감 |
 
 🤔 왜 × len(xb)를 해? — loss는 batch 안의 평균이에요(reduction="mean"). 마지막 batch는 8개처럼 작을 수 있어서, batch 평균들을 그냥 평균 내면 8개짜리 batch가 32개짜리와 같은 무게를 갖게 돼요. 샘플 수를 곱해 합친 뒤 전체 샘플 수로 나누면 "샘플 하나하나의 평균"이 정확히 나와요. 함수 하나가 "epoch 1회 학습"이라는 한 가지 역할만 하게 나누면 읽기도 쉬워요.
 
@@ -3361,7 +3670,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device):
 
 💡 평가할 땐 model.eval() + torch.no_grad()를 세트로 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 probs.detach().cpu()처럼 CPU로 옮겨요.
 
-🤔 왜 둘 다 필요해? — 둘은 다른 스위치예요. eval()은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 예측이 매번 같고 공정하게 만들어요. no_grad()는 평가 땐 backward를 안 하니 그래프를 안 만들어 메모리·시간을 아껴요. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.
+🤔 왜 둘 다 필요해? — 둘은 다른 스위치예요. eval()은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 예측이 매번 같고 공정하게 만들어요. no_grad()는 평가 땐 backward를 안 하니 그래프를 안 만들어 메모리·시간을 아껴요. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 이 예시 모델엔 Dropout·BatchNorm이 없지만, 습관을 들여 두면 그런 층이 든 모델(Dropout · BatchNorm)에서 바로 효과를 봐요.
 
 ## 📖 Day9 용어 (70개)
 - **특성** (Feature (특성, 입력 열)): 모델에 넣는 입력 정보 한 가지. 표에서 열 하나가 특성 하나예요(예: 글자수, 허용 도구수). 행 = 사례, 열 = 특성.
@@ -3369,7 +3678,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device):
 - **가상환경** (Virtual environment (가상환경, .venv)): 프로젝트마다 따로 쓰는 파이썬과 패키지 묶음. 버전이 섞이지 않게 해 같은 코드가 같은 결과를 내도록 도와요.
 - **seed** (random_state (난수 고정값)): 무작위 과정(추출, 특성 후보, 분할 섞기 등)을 매번 같게 만드는 번호. 결과를 재현하려고 고정해요(예: 42).
 - **학습률** (Learning rate (학습률)): 한 회차의 보정을 얼마나 반영할지 정하는 비율(예: 0.05). 작으면 조금씩 안정적으로 고치지만 회차가 더 필요해요.
-- **GPU** (Graphics Processing Unit (그래픽 처리 장치)): 대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 이번 수업은 CPU만으로 충분해요.
+- **GPU** (Graphics Processing Unit (그래픽 처리 장치)): 대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 트리 · XGBoost 예시는 CPU만으로 충분해요.
 - **CPU** (Central Processing Unit (중앙 처리 장치)): 컴퓨터의 기본 두뇌. 소수의 강한 코어로 복잡한 분기·파일 읽기·전처리 같은 일을 잘해요. 딥러닝에서도 데이터 준비는 CPU 몫이에요.
 - **CUDA** (Compute Unified Device Architecture): NVIDIA GPU에서 계산을 시킬 수 있게 해 주는 연산 플랫폼·API. PyTorch가 GPU를 쓰려면 CUDA용으로 빌드된 torch가 필요해요.
 - **VRAM** (Video RAM (GPU 메모리)): GPU에 붙어 있는 전용 메모리. GPU는 VRAM에 올라온 값만 바로 계산할 수 있어서, 모델과 데이터를 여기로 옮겨야 해요.
@@ -3404,7 +3713,7 @@ def train_one_epoch(model, loader, loss_fn, optimizer, device):
 - **활성화 함수** (Activation function (활성화 함수)): 층의 출력에 비선형성을 넣는 함수. 없으면 Linear를 아무리 쌓아도 Linear 하나와 같아요. 대표가 ReLU예요.
 - **ReLU** (Rectified Linear Unit): 음수는 0으로, 양수는 그대로 내보내는 가장 흔한 활성화 함수. 단순하지만 층 사이에 비선형성을 넣어 줘요.
 - **비선형성** (Nonlinearity (비선형성)): 직선(곱하고 더하기)만으로는 표현 못 하는 굽은 관계. 활성화 함수가 넣어 줘야 신경망이 복잡한 패턴을 배워요.
-- **ANN** (Artificial Neural Network (인공신경망)): 인공 뉴런을 묶은 층을 여러 개 쌓은 모델. 오늘은 입력 2 → 은닉 8 → 출력 2 구조를 만들었어요.
+- **ANN** (Artificial Neural Network (인공신경망)): 인공 뉴런을 묶은 층을 여러 개 쌓은 모델. 예: 입력 2 → 은닉 8 → 출력 2 구조.
 - **nn.Sequential** (torch.nn.Sequential): 층을 넣은 순서대로 연결해 모델 하나로 만드는 상자. 넣은 순서가 곧 모델 구조예요.
 - **nn.Module** (torch.nn.Module): PyTorch의 모든 신경망이 상속하는 기본 클래스. 안에 넣은 층·파라미터를 등록해서 parameters()·to()·eval()을 한 번에 쓸 수 있게 해요.
 - **logit** (Logits (원시 점수)): 모델이 마지막 층에서 낸, softmax 하기 전의 클래스별 점수. 합이 1일 필요가 없고 확률이 아니에요.
@@ -3448,33 +3757,9 @@ _2026-10-30(금) · Optimizer · 학습률 · Batch·Epoch · 과적합 · Dropo
 
 - Dropout · BatchNorm · Weight Decay · Early Stopping은 목적이 다른 도구예요. 한 번에 하나씩 바꿔서 같은 조건으로 비교해요.
 
-🔧 Day10 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 잘 학습되는 조건 찾기
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| torch | 모델·Optimizer(SGD·AdamW)·Scheduler·Dropout·BatchNorm·DataLoader 전부 (Day9에서 설치) | import torch, from torch import nn, from torch.utils.data import DataLoader |
-| (파이썬 기본) | best 모델 상태를 통째로 복사 | import copy |
-| pandas (선택) | epoch별 기록(history)을 CSV 표로 저장·비교 | import pandas as pd |
-| matplotlib (선택) | train·valid 학습 곡선 그래프 그리기 | import matplotlib.pyplot as plt |
-
-### 🔧 설치 · 확인
-
-```
-python -m pip install pandas matplotlib            # 기록 CSV · 학습 곡선 그림용
-python -c "import torch; print(torch.__version__, torch.cuda.is_available())"   # Day9 환경 그대로인지
-```
-
-⚠️ torch는 Day9에 맞춰 둔 CPU/CUDA 빌드를 그대로 유지해요. 새로 깔아야 한다면 pytorch.org 선택기에서 내 환경에 맞는 명령을 써요. 그냥 pip install torch로 덮어쓰면 GPU 빌드가 CPU 빌드로 바뀔 수 있어요.
-
-🤔 왜 새 패키지가 거의 없어? — 오늘 배우는 Optimizer · Scheduler · Dropout · BatchNorm은 모두 torch 안에 들어 있어요. 오늘은 새 도구보다 같은 학습 루프에서 조건을 하나씩 바꿔 비교하는 날이라, 기록을 표와 그래프로 남길 도구만 더하면 돼요.
-
-## 이거 어디에 써?
-
-Day9에서 학습 루프를 "돌리는" 법을 배웠다면, 오늘은 잘 학습되는 조건을 찾는 법이에요. 현업에선 "학습이 끝났다"보다 "무엇을 근거로 이 모델을 골랐나"를 설명해야 해요.
+학습 루프를 "돌리는" 것 다음은 잘 학습되는 조건을 찾는 일이에요. 실무에선 "학습이 끝났다"보다 "무엇을 근거로 이 모델을 골랐나"를 설명해야 해요.
 
 🐢
 
@@ -3492,13 +3777,35 @@ loss가 출렁일 때lr을 낮추거나 batch 키우기
 
 GPU 메모리 부족batch 크기 줄이기
 
+학습 루프(zero_grad → forward → loss → backward → step)는 그대로 두고, 그 안의 조건을 하나씩 바꿔 비교해요. 이 페이지의 ①~⑥이 그 조건들이에요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① Optimizer | SGD · Momentum · Adam · AdamW | 기울기를 어떤 규칙으로 갱신에 반영하나? |
+| ② 학습률 · Scheduler | lr 크기 · ReduceLROnPlateau | 한 번에 얼마나 움직이고, 언제 줄이나? |
+| ③ Batch · Iteration · Epoch | batch_size · step 수 · 기울기 흔들림 | 몇 개씩 보고 몇 번 갱신하나? |
+| ④ 과적합 · 학습 곡선 | epoch별 train · valid 기록 | 배우고 있나, 외우고 있나? |
+| ⑤ Dropout · BatchNorm | train/eval 모드에서 다르게 동작하는 층 | 지금 어떤 모드로 돌고 있나? |
+| ⑥ Weight Decay · Early Stopping | 큰 가중치 억제 · 멈추고 best로 복원 | 언제 멈추고, 어떤 모델을 남기나? |
+
+```
+같은 학습 루프 + 같은 데이터 분할 · seed · epoch
+  ├ 갱신 규칙: Optimizer (SGD+momentum / AdamW) · lr · Scheduler
+  ├ 데이터 공급: DataLoader(batch_size, shuffle)
+  ├ 모델 안의 층: Dropout · BatchNorm  ← model.train() / model.eval()로 동작이 바뀜
+  └ 선택 과정: Weight Decay · Early Stopping (best state 복원)
+→ 판단 근거: epoch별 train · valid 곡선 (test는 마지막 한 번)
+```
+
+### train · valid · test — 배우는 자료 · 고르는 자료 · 보관하는 자료
+
 | 데이터 | 쓰는 곳 | 한마디로 |
 |---|---|---|
 | train | 기울기 계산, 가중치 갱신 | 배우는 자료 |
 | valid | epoch · 구조 · 규제 · 설정 고르기 | 고르는 자료 |
 | test | 모든 선택이 끝난 뒤 최종 평가 한 번 | 보관하는 자료 |
 
-[그림: ] 무엇을 보나: 강의 예시의 400건 분할(train 240 · valid 80 · test 80)과 각자의 일. 아래 고리처럼 train으로 배우고 → valid로 채점을 epoch마다 반복하며 설정을 고르고, test는 맨 끝에 한 번만 열어요. 🤔 왜? 채점에 쓴 자료는 결국 "고르는 데" 쓰인 자료예요. valid를 보고 수십 번 고르면 valid에 살짝 맞춰지니, 한 번도 안 본 test가 따로 있어야 진짜 실력을 잴 수 있어요.
+[그림: ] 무엇을 보나: 예시 400건 분할(train 240 · valid 80 · test 80)과 각자의 일. 아래 고리처럼 train으로 배우고 → valid로 채점을 epoch마다 반복하며 설정을 고르고, test는 맨 끝에 한 번만 열어요. 🤔 왜? 채점에 쓴 자료는 결국 "고르는 데" 쓰인 자료예요. valid를 보고 수십 번 고르면 valid에 살짝 맞춰지니, 한 번도 안 본 test가 따로 있어야 진짜 실력을 잴 수 있어요.
 
 ⚠️ valid loss를 보고 epoch를 고르는 건 OK, test loss를 보고 고르면 안 돼요. 그러면 test 점수가 실제보다 좋게 나와요.
 
@@ -3529,7 +3836,7 @@ GPU 메모리 부족batch 크기 줄이기
 
 ⚠️ "AdamW가 항상 이긴다"는 없어요. 초반이 빨라도 일반화가 꼭 더 좋은 건 아니에요. 비교할 땐 같은 데이터 분할 · 모델 · seed · epoch로 하고, 두 Optimizer는 잘 맞는 lr 범위도 달라요. Optimizer가 잘못된 데이터 분할이나 lr을 대신 고쳐 주지도 않아요.
 
-🔧 Optimizer만 바꿔 끼우기 명령어 사전에서 자세히 →
+🔧 torch.optim.SGD · AdamW — Optimizer만 바꿔 끼우기 명령어 사전에서 자세히 →
 
 ```
 optimizer = torch.optim.SGD(model.parameters(), lr=0.05, momentum=0.9)
@@ -3546,9 +3853,9 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.01)
 
 예시(같은 조건 40 epoch): lr=0.0001은 안정적이지만 느리고(최소 valid loss ≈ 0.53), lr=0.01은 빠르게 줄고(≈ 0.12), lr=0.5는 초반에 크게 흔들려요. 좋은 학습률은 Optimizer · batch 크기 · 모델 · 정규화와 함께 정해져요. 정답 하나가 아니라 후보 범위를 정해 곡선으로 비교하는 하이퍼파라미터예요.
 
-[그림: AdamW에서 학습률 0.0001, 0.01, 0.5로 학습한 valid loss 곡선] 무엇을 보나: 초승달 모양 toy 데이터(train 240 · valid 80)에 강의와 같은 2→64→64→2 모델, AdamW, 40 epoch, seed 7로 lr만 바꿔 학습한 실제 valid loss예요. 파랑(0.0001)은 매끈하지만 40 epoch 내내 천천히 내려가고, 초록(0.01)은 2~3 epoch 만에 낮아져 안정, 빨강(0.5)은 초반에 그래프 밖으로 튀어 오르고 끝까지 출렁여요. 🤔 왜? 보폭 = lr × 기울기. 너무 작으면 방향은 맞아도 정한 시간 안에 못 가고, 너무 크면 바닥을 지나쳐 반대 벽으로 튀어요. 빨강도 가끔 낮은 값을 찍지만 매 epoch 크게 흔들려서 "어느 epoch를 고를지" 믿기 어려워요. 그래서 최솟값 하나보다 곡선 모양을 같이 봐요.
+[그림: AdamW에서 학습률 0.0001, 0.01, 0.5로 학습한 valid loss 곡선] 무엇을 보나: 초승달 모양 toy 데이터(train 240 · valid 80)에 2→64→64→2 예시 모델, AdamW, 40 epoch, seed 7로 lr만 바꿔 학습한 실제 valid loss예요. 파랑(0.0001)은 매끈하지만 40 epoch 내내 천천히 내려가고, 초록(0.01)은 2~3 epoch 만에 낮아져 안정, 빨강(0.5)은 초반에 그래프 밖으로 튀어 오르고 끝까지 출렁여요. 🤔 왜? 보폭 = lr × 기울기. 너무 작으면 방향은 맞아도 정한 시간 안에 못 가고, 너무 크면 바닥을 지나쳐 반대 벽으로 튀어요. 빨강도 가끔 낮은 값을 찍지만 매 epoch 크게 흔들려서 "어느 epoch를 고를지" 믿기 어려워요. 그래서 최솟값 하나보다 곡선 모양을 같이 봐요.
 
-🤔 왜 너무 크면 진동·발산하고 너무 작으면 느려? — 갱신량은 lr × 기울기예요. lr이 크면 한 번에 너무 멀리 뛰어 최적점을 지나쳐 반대편으로 가고, 거기서 또 크게 뛰면서 loss가 출렁이거나 점점 커져요(NaN까지). lr이 작으면 방향은 맞아도 보폭이 작아 정한 epoch 안에 도착을 못 해요. (Day9의 경사하강 체험에서 직접 볼 수 있어요.)
+🤔 왜 너무 크면 진동·발산하고 너무 작으면 느려? — 갱신량은 lr × 기울기예요. lr이 크면 한 번에 너무 멀리 뛰어 최적점을 지나쳐 반대편으로 가고, 거기서 또 크게 뛰면서 loss가 출렁이거나 점점 커져요(NaN까지). lr이 작으면 방향은 맞아도 보폭이 작아 정한 epoch 안에 도착을 못 해요. (경사하강 체험에서 직접 볼 수 있어요.)
 
 ### 학습률 문제를 의심할 수 있는 신호
 
@@ -3559,7 +3866,7 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=0.01, weight_decay=0.01)
 | loss가 위아래로 크게 진동 | lr 과대 · batch 너무 작음 · 데이터 이상 | 보폭이 크거나, 작은 batch의 기울기가 들쭉날쭉 |
 | 초반 개선 후 후반 정체 | Scheduler 또는 Early Stopping 후보 | 처음 lr이 끝부분의 미세 조정엔 너무 큼 |
 
-🔧 학습률 후보 비교 명령어 사전에서 자세히 →
+🔧 AdamW(lr=…) — 학습률 후보 비교 명령어 사전에서 자세히 →
 
 ```
 for lr in [0.0001, 0.01, 0.5]:
@@ -3606,7 +3913,7 @@ epoch당 iteration 수 = ⌈ 샘플 수 ÷ batch_size ⌉      (drop_last=False�
 
 [그림: batch 8, 32, 240으로 학습할 때 step마다 기록한 train loss] 무엇을 보나: 같은 모델·SGD(lr=0.05)·seed로 batch 크기만 바꿔 15 epoch 학습하며 step마다 그 batch의 loss를 찍었어요. 주황(8)은 위아래로 크게 요동, 보라(32)는 중간, 초록(240 = 전체)은 매끈한 한 줄이에요. 대신 초록은 epoch당 1번만 갱신해서 15 epoch 뒤에도 가장 덜 내려갔어요. 🤔 왜? batch loss·기울기는 "전체의 어림값"이라 샘플 8개로 낸 평균은 어떤 8개가 뽑혔냐에 따라 크게 달라요. 흔들림과 갱신 횟수는 맞바꾸는 관계예요 — 그래서 batch 크기도 lr과 함께 곡선으로 비교해요.
 
-| 교재 설명 예시 · batch size | iteration / epoch | 최소 valid loss | 마지막 valid acc | 해석 |
+| 설명용 예시 · batch size | iteration / epoch | 최소 valid loss | 마지막 valid acc | 해석 |
 |---|---|---|---|---|
 | 8 | 30 | 0.102 | 0.925 | step 많음 · gradient 변동 큼 |
 | 32 | 8 | 0.117 | 0.925 | 중간 크기 |
@@ -3639,7 +3946,7 @@ optimizer.step(closure=None)             # 현재 .grad와 optimizer 상태로 �
 
 예시: train 60건, hidden 64, 규제 없음 → valid loss 최저점은 약 13 epoch. 그 뒤 train loss는 계속 줄지만 valid loss는 다시 커져요. 마지막 epoch가 항상 최선은 아니에요. 모델 크기, epoch 수, 데이터 양, 노이즈, 규제 여부가 모두 과적합에 영향을 줘요.
 
-[그림: train 60건 규제 없는 모델의 train loss와 valid loss, best epoch 15 표시] 무엇을 보나: 강의 설정처럼 train 60건 · hidden 64 · 규제 없음(Adam, lr=0.01)으로 200 epoch 학습한 실제 곡선. 보라 train loss는 끝까지 0을 향해 내려가는데, 분홍 valid loss는 15 epoch에서 바닥을 찍고 그 뒤 계속 올라가요. 🤔 왜? 15 epoch까지는 두 달 모양이라는 "공통 규칙"을 배워 둘 다 좋아져요. 그 뒤로는 train 60건에만 있는 노이즈 점까지 맞추느라 train loss만 더 깎이고, 새 자료(valid)에선 오히려 틀려요. 마지막 epoch(200)가 최선이 아닌 이유예요.
+[그림: train 60건 규제 없는 모델의 train loss와 valid loss, best epoch 15 표시] 무엇을 보나: 예시 설정대로 train 60건 · hidden 64 · 규제 없음(Adam, lr=0.01)으로 200 epoch 학습한 실제 곡선. 보라 train loss는 끝까지 0을 향해 내려가는데, 분홍 valid loss는 15 epoch에서 바닥을 찍고 그 뒤 계속 올라가요. 🤔 왜? 15 epoch까지는 두 달 모양이라는 "공통 규칙"을 배워 둘 다 좋아져요. 그 뒤로는 train 60건에만 있는 노이즈 점까지 맞추느라 train loss만 더 깎이고, 새 자료(valid)에선 오히려 틀려요. 마지막 epoch(200)가 최선이 아닌 이유예요.
 
 🤔 왜 train은 계속 좋아지는데 valid는 나빠져? — 모델은 train loss를 줄이는 방향으로만 움직여요. 처음엔 데이터에 공통인 큰 규칙을 배우니 둘 다 좋아지지만, 그걸 다 배우고 나면 train에만 있는 우연한 패턴과 노이즈까지 외워서 train loss를 더 깎아요. 그 외운 내용은 새 자료(valid)엔 없으니 오히려 틀리게 돼요. 모델이 크거나(외울 공간이 많음), 데이터가 적거나(외우기 쉬움), 오래 학습할수록(외울 시간이 많음) 잘 생겨요. 그래서 마지막 숫자 하나가 아니라 epoch별 곡선을 봐야 언제부터 외우기 시작했는지 보여요.
 
@@ -3652,7 +3959,7 @@ optimizer.step(closure=None)             # 현재 .grad와 optimizer 상태로 �
 | 둘 다 진동 | 큰 폭 변동 | 큰 폭 변동 | lr 과대 · batch 과소 | lr · batch · 입력 스케일 |
 | NaN 발생 | NaN | NaN | 수치 불안정 · 잘못된 loss | 입력 · lr · gradient norm |
 
-🔧 epoch별 기록 남기기 명령어 사전에서 자세히 →
+🔧 pd.DataFrame(history) · plt.plot() — epoch별 기록 명령어 사전에서 자세히 →
 
 ```
 history["valid_loss"].append(valid_loss)
@@ -3752,29 +4059,20 @@ model.eval()                  # 평가 모드 (= train(False))
 
 예시 (patience=3, min_delta=0): valid loss 0.65 → 0.50 → 0.42 → 0.45 → 0.47 → 0.46. 3 epoch에 best 저장, 4·5·6에서 대기 1·2·3회 → 6 epoch에 중단 → 3 epoch 상태로 복원.
 
-[그림: valid loss 곡선 위에 best epoch 15, patience 10 대기 구간, stop epoch 25, best로 되돌리는 화살표] 무엇을 보나: 위 과적합 곡선에 patience=10을 적용한 모습. 15 epoch에서 best(노란 점) 저장 → 노란 구간 10 epoch 동안 더 좋아지지 않음 → 25 epoch에 멈춤(빨간 선) → 화살표처럼 15 epoch 상태로 되돌려요. 점선은 멈추지 않았다면 갔을 길(valid가 계속 나빠짐)이에요. 🤔 왜? "더 이상 안 좋아진다"는 기다려 봐야 알 수 있어서, 멈춘 순간(25)의 모델은 이미 best보다 10 epoch 더 외운 상태예요. 그래서 멈추기와 되돌리기(load_state_dict(best_state))가 세트예요. 강의 예시(best 13 · stop 25)와 같은 구조예요.
+[그림: valid loss 곡선 위에 best epoch 15, patience 10 대기 구간, stop epoch 25, best로 되돌리는 화살표] 무엇을 보나: 위 과적합 곡선에 patience=10을 적용한 모습. 15 epoch에서 best(노란 점) 저장 → 노란 구간 10 epoch 동안 더 좋아지지 않음 → 25 epoch에 멈춤(빨간 선) → 화살표처럼 15 epoch 상태로 되돌려요. 점선은 멈추지 않았다면 갔을 길(valid가 계속 나빠짐)이에요. 🤔 왜? "더 이상 안 좋아진다"는 기다려 봐야 알 수 있어서, 멈춘 순간(25)의 모델은 이미 best보다 10 epoch 더 외운 상태예요. 그래서 멈추기와 되돌리기(load_state_dict(best_state))가 세트예요. 설명용 예시(best 13 · stop 25)도 같은 구조예요.
 
 🤔 왜 멈추고, 왜 되돌려? — 과적합이 시작되면 학습을 더 할수록 valid가 나빠지니까, 개선이 멈춘 시점에서 끝내면 시간도 아끼고 외우기도 막아요. 그런데 "개선이 멈췄다"는 건 patience만큼 기다려 본 뒤에야 알 수 있어서, 멈춘 순간의 모델은 이미 best보다 몇 epoch 더 학습된(조금 나빠진) 상태예요. 그래서 중단 여부 판단과 별개로, best 시점의 state_dict를 저장해 뒀다가 복원해요. 감시는 train이 아니라 valid로 해요 — train은 학습에 직접 쓰여서 거의 항상 계속 좋아지니 기준이 될 수 없어요.
 
 설명용 가상 곡선에서 patience와 min_delta를 바꿔 보세요. (실제 실험값이 아니에요)
 
-🔧 Early Stopping 직접 짜기 명령어 사전에서 자세히 →
+🔧 copy.deepcopy(model.state_dict()) · load_state_dict() — Early Stopping 명령어 사전에서 자세히 →
 
 ```
 best_state = copy.deepcopy(model.state_dict())
 model.load_state_dict(best_state)                   # 멈춘 시점이 아니라 best로!
 ```
 
-### 네 기법 비교
-
-| 기법 | 무엇을 바꾸나 | train/eval 차이 | 주요 설정 | 주의 |
-|---|---|---|---|---|
-| Dropout | activation 일부를 무작위로 0 | 있음 | p | p 과대 → Underfitting |
-| BatchNorm | 중간 activation 정규화 | 있음 | num_features, momentum | 작은 batch, 모드 전환 |
-| Weight Decay | 파라미터 크기 억제 | 없음 | weight_decay | 과대 → train 성능 저하 |
-| Early Stopping | 학습 epoch 수 제한 | 선택 과정 | patience, min_delta | best state 복원 필수 |
-
-## 증상으로 진단
+## 🩺 증상으로 진단 — 곡선이 이상하면
 
 먼저 물어볼 것: ① train과 valid 중 어디가 문제? ② 초반부터인가, 후반부터인가? ③ loss와 accuracy가 같은 결론인가? ④ 한 설정만 바꿨나?
 
@@ -3790,24 +4088,92 @@ model.load_state_dict(best_state)                   # 멈춘 시점이 아니라
 | 실행마다 valid 결과가 다름 | eval 누락, seed, shuffle | model.eval() 확인 | test를 반복 확인하진 않기 |
 | BatchNorm 결과가 이상함 | batch 너무 작음, 모드 착각 | batch 크기·train/eval 확인 | drop_last |
 
+## 🧩 설계 정리 — 네 기법이 바꾸는 것과 주의점
+
+| 기법 | 무엇을 바꾸나 | train/eval 차이 | 주요 설정 | 주의 |
+|---|---|---|---|---|
+| Dropout | activation 일부를 무작위로 0 | 있음 | p | p 과대 → Underfitting |
+| BatchNorm | 중간 activation 정규화 | 있음 | num_features, momentum | 작은 batch, 모드 전환 |
+| Weight Decay | 파라미터 크기 억제 | 없음 | weight_decay | 과대 → train 성능 저하 |
+| Early Stopping | 학습 epoch 수 제한 | 선택 과정 | patience, min_delta | best state 복원 필수 |
+
+💡 비교 원칙: 한 번에 하나만 바꾸고, 같은 데이터 분할 · seed · epoch로 valid 곡선을 기록해 고른 뒤, test는 마지막에 한 번만 봐요.
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 예시 실험 설정
+
+| 실험 | 예시 설정 |
+|---|---|
+| 데이터 | 초승달 모양 2D · 2클래스 · 400건 → train 240 · valid 80 · test 80 |
+| Optimizer 비교 | SGD(lr=0.05, momentum=0.9) vs AdamW(lr=0.01, weight_decay=0.01) |
+| 학습률 비교 | 2→64→64→2 · AdamW · lr ∈ {0.0001, 0.01, 0.5} · 40 epoch · seed 7 |
+| batch 비교 | batch 8 · 32 · 240 → epoch당 30 · 8 · 1 iteration |
+| 과적합 실험 | train 60건 · hidden 64 · 규제 없음 · Adam lr=0.01 · 200 epoch |
+| Scheduler | ReduceLROnPlateau(mode="min", factor=0.5, patience=4, min_lr=1e-4) |
+| 규제 | nn.Dropout(0.3) · weight_decay 0 vs 0.5 (AdamW) |
+| Early Stopping | patience 10 · best state 복원 |
+
+### 모드별 동작
+
+|  | model.train() | model.eval() |
+|---|---|---|
+| Dropout | 확률 p로 끄고 남은 값 × 1/(1−p) | 그대로 통과 |
+| BatchNorm | 현재 batch 평균 · 분산, running 통계 갱신 | running_mean · running_var 사용 |
+| 기울기 기록 | 모드와 무관 — 끄려면 torch.no_grad() |  |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch | 모델·Optimizer(SGD·AdamW)·Scheduler·Dropout·BatchNorm·DataLoader 전부 (GPU · Tensor · ANN 환경에서 설치) | import torch, from torch import nn, from torch.utils.data import DataLoader |
+| (파이썬 기본) | best 모델 상태를 통째로 복사 | import copy |
+| pandas (선택) | epoch별 기록(history)을 CSV 표로 저장·비교 | import pandas as pd |
+| matplotlib (선택) | train·valid 학습 곡선 그래프 그리기 | import matplotlib.pyplot as plt |
+
+### 🔧 설치 · 확인
+
+```
+python -m pip install pandas matplotlib            # 기록 CSV · 학습 곡선 그림용
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"   # 기존 환경 그대로인지
+```
+
+⚠️ torch는 이미 맞춰 둔 CPU/CUDA 빌드를 그대로 유지해요. 새로 깔아야 한다면 pytorch.org 선택기에서 내 환경에 맞는 명령을 써요. 그냥 pip install torch로 덮어쓰면 GPU 빌드가 CPU 빌드로 바뀔 수 있어요.
+
+🤔 왜 새 패키지가 거의 없어? — Optimizer · Scheduler · Dropout · BatchNorm은 모두 torch 안에 들어 있어요. 핵심은 새 도구보다 같은 학습 루프에서 조건을 하나씩 바꿔 비교하는 것이라, 기록을 표와 그래프로 남길 도구만 더하면 돼요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| GPU · Tensor · ANN | 학습 루프 다섯 단계 · Autograd · 경사하강의 바탕 |
+| CNN · 이미지 분류 | 같은 학습 루프 · 규제 도구를 이미지 모델에 |
+| 전이학습과 오류 분석 | 층마다 다른 lr · Fine-tuning · 재현성 |
+
 ## 원본 자료
 
-- 강의: Day10_Optimizer_Regularization_20261030_v2.pdf — 큰 그림 p2–11 · Optimizer p17–25 · 학습률·Scheduler p27–35 · Batch·Epoch p38–45 · 과적합·학습 곡선 p48–54 · Dropout·모드 p57–64 · BatchNorm·Weight Decay p67–74 · Early Stopping p77–81 · 오류 처방 p82·p86–87
+- 원본: Day10_Optimizer_Regularization_20261030_v2.pdf — 큰 그림 p2–11 · Optimizer p17–25 · 학습률·Scheduler p27–35 · Batch·Epoch p38–45 · 과적합·학습 곡선 p48–54 · Dropout·모드 p57–64 · BatchNorm·Weight Decay p67–74 · Early Stopping p77–81 · 오류 처방 p82·p86–87
+
+- 결과 값 · 그림: 이 노트를 만든 PC에서 실제 실행 (CPU · seed 고정). 스크립트 tools/io_day10.py, 그림 tools/visuals/make_day10.py
 
 - 공식 문서: torch.optim (SGD · AdamW · lr_scheduler) · nn.Dropout · nn.BatchNorm1d · DataLoader
 
 ## 🔧 Day10 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day10)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | torch (Day9 환경 유지) · 기록·그래프용 pandas, matplotlib |
+| 📦 패키지 · 명령어 | torch (기존 환경 유지) · 기록·그래프용 pandas, matplotlib |
 | ① Optimizer | torch.optim.SGD(momentum=), torch.optim.AdamW() |
 | ② 학습률 · Scheduler | lr=, ReduceLROnPlateau, scheduler.step(valid_loss) |
 | ③ Batch · Iteration · Epoch | DataLoader(batch_size=, shuffle=, drop_last=), optimizer.zero_grad() / step() |
-| ④ 과적합 · 학습 곡선 | history 기록, torch.manual_seed() |
+| ④ 과적합 · 학습 곡선 | list.append 기록 · pd.DataFrame(history).to_csv() · plt.plot(), torch.manual_seed() |
 | ⑤ Dropout · BatchNorm | nn.Dropout(p), nn.BatchNorm1d(), model.train() / model.eval() |
 | ⑥ Weight Decay · Early Stopping | weight_decay=, copy.deepcopy(model.state_dict()), load_state_dict() |
 
-### Optimizer만 바꿔 끼우기
+### torch.optim.SGD · AdamW — Optimizer만 바꿔 끼우기
 
 ```
 model = Net()
@@ -3834,7 +4200,7 @@ for xb, yb in train_loader:          # 학습 루프는 그대로!
 | AdamW(lr=0.01, weight_decay=0.01) | valid loss 0.0438 · acc 0.988 (epoch 1 train loss 0.5556) | 파라미터마다 보폭을 조절 — 이 데이터·설정에선 이렇게 나왔을 뿐, 항상 1등은 아님 |
 | sorted(optimizer.state[첫 weight].keys()) (AdamW) | ['exp_avg', 'exp_avg_sq', 'step'] | step마다 쌓은 이동평균 — state_dict()에 같이 저장돼요 |
 
-교재 설명 예시(같은 split · 40 epochs): SGD valid acc ≈ 0.913, AdamW ≈ 0.925. 초반 수렴 속도와 후반 변동이 달랐지만, 이 그래프 하나로 "항상 AdamW가 우수하다"고 결론 내리지 않아요.
+설명용 예시(같은 split · 40 epochs): SGD valid acc ≈ 0.913, AdamW ≈ 0.925. 초반 수렴 속도와 후반 변동이 달랐지만, 이 그래프 하나로 "항상 AdamW가 우수하다"고 결론 내리지 않아요.
 
 torch.optim.SGD(params, lr=0.001, momentum=0, dampening=0, weight_decay=0, nesterov=False, ...) torch.optim.AdamW(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.01, amsgrad=False, ...)
 
@@ -3853,14 +4219,17 @@ torch.optim.SGD(params, lr=0.001, momentum=0, dampening=0, weight_decay=0, neste
 
 💡 AdamW는 step마다 내부 상태(이동평균)를 갱신하고, 그 상태도 optimizer.state_dict()에 들어 있어요. 학습을 이어서 하려면 이것도 저장해요.
 
-### 학습률 후보 비교
+### AdamW(lr=…) — 학습률 후보 비교
 
 ```
 for lr in [0.0001, 0.01, 0.5]:
     torch.manual_seed(7)                       # 고정: seed
     model = Net()                              # 고정: 모델
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
-    history = train(model, optimizer, train_loader, valid_data, epochs=40)
+    history = {"valid_loss": []}
+    for epoch in range(40):
+        ...                                    # 같은 학습 루프 1 epoch
+        history["valid_loss"].append(valid_loss)   # eval + no_grad로 잰 valid loss
     print(lr, min(history["valid_loss"]))      # 바꾼 건 lr 하나뿐
 ```
 
@@ -3883,8 +4252,8 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=4, min_lr=1e-4)
 
 for epoch in range(epochs):
-    train_one_epoch(model, train_loader, optimizer)
-    valid_loss = evaluate_loss(model, valid_loader)
+    ...                                            # 학습 루프 1 epoch
+    valid_loss = ...                               # eval + no_grad로 잰 valid loss
     scheduler.step(valid_loss)                     # valid 후, 감시할 값을 넣어서!
     current_lr = optimizer.param_groups[0]["lr"]   # 지금 lr 확인
 ```
@@ -3909,7 +4278,7 @@ torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.1, pa
 | threshold | "의미 있는 개선"으로 칠 최소 변화 (기본 1e-4) | 키우면 아주 작은 개선은 개선으로 안 쳐요 |
 | cooldown, min_lr, eps | 깎은 뒤 쉬는 epoch / lr 하한 / 이보다 작은 lr 변화는 적용 안 함 | min_lr 아래로는 안 내려가요 |
 
-| 교재 예시 구간 | validation 상황 | learning rate | 해석 |
+| 설명용 예시 구간 | validation 상황 | learning rate | 해석 |
 |---|---|---|---|
 | 1~18 epoch | 개선 또는 patience 이내 | 0.0100 | 기본 학습률 유지 |
 | 19~23 epoch | 의미 있는 개선 없음 | 0.0050 | factor=0.5 적용 |
@@ -3974,13 +4343,13 @@ optimizer.step(closure=None)             # 현재 .grad와 optimizer 상태로 �
 
 🤔 왜 순서가 언제나 zero_grad → forward → loss → backward → step? — iteration 하나는 "이번 batch의 기울기로 한 번 갱신"이에요. 지난 기울기를 먼저 지워야 이번 것만 남아요. 일부러 여러 batch의 기울기를 모으고 싶을 때(누적 학습, 예: GPU 메모리 부족 시 gradient accumulation)만 zero_grad 위치를 의도적으로 바꿔요.
 
-### epoch별 기록 남기기
+### pd.DataFrame(history) · plt.plot() — epoch별 기록
 
 ```
 history = {"train_loss": [], "valid_loss": [], "train_acc": [], "valid_acc": []}
 for epoch in range(epochs):
-    train_loss, train_acc = train_one_epoch(...)
-    valid_loss, valid_acc = evaluate(...)          # 같은 eval 조건으로
+    ...                                            # 학습 루프 1 epoch → train_loss, train_acc
+    ...                                            # 같은 eval 조건으로 → valid_loss, valid_acc
     history["train_loss"].append(train_loss)
     history["valid_loss"].append(valid_loss)
     history["train_acc"].append(train_acc)
@@ -4160,15 +4529,15 @@ print(len(optimizer.param_groups))      # 2
 
 🤔 왜 bias·BatchNorm은 감쇠에서 빼기도 해? — weight decay의 목적은 입력에 곱해지는 가중치가 지나치게 커지는 걸 막는 거예요. bias는 출력 위치만 옮기고, BatchNorm의 scale·shift는 정규화 뒤 범위를 되돌리는 역할이라 0쪽으로 끌어당기면 오히려 그 역할을 방해할 수 있어요.
 
-### Early Stopping 직접 짜기
+### copy.deepcopy(model.state_dict()) · load_state_dict() — Early Stopping
 
 ```
 import copy
 best_loss = reference = float("inf")
 wait = 0
 for epoch in range(max_epochs):
-    train_one_epoch(...)
-    valid_loss = evaluate_loss(...)
+    ...                                             # 학습 루프 1 epoch
+    valid_loss = ...                                # eval + no_grad로 잰 valid loss
     if valid_loss < best_loss:                      # 조금이라도 좋아지면 best 저장
         best_loss = valid_loss
         best_state = copy.deepcopy(model.state_dict())
@@ -4181,7 +4550,7 @@ for epoch in range(max_epochs):
 model.load_state_dict(best_state)                   # 멈춘 시점이 아니라 best로!
 ```
 
-▶ 실제로 돌려 보면 교재 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001
+▶ 실제로 돌려 보면 설명용 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -4199,16 +4568,16 @@ model.load_state_dict(best_state)                   # 멈춘 시점이 아니라
 | patience | 개선 없이 기다려 줄 epoch 수 | 작으면 잠깐 흔들려도 일찍 멈춤(덜 학습 위험), 크면 오래 더 돌아 시간 낭비 |
 | min_delta | 개선으로 인정할 최소 변화량 | 키우면 아주 작은 개선은 "개선 아님"으로 쳐서 더 빨리 멈춤 |
 
-🤔 왜 best_loss와 reference를 따로 둬? — 역할이 달라서예요. best_loss는 "가장 좋았던 모델"을 저장하려고 작은 개선도 다 기록하고, reference는 "기다림을 리셋할 만큼 충분히 좋아졌나"를 min_delta 기준으로 판단해요. 교재 예: loss 1.00 → .80 → .79 → .78, min_delta=.05, patience=2 → .79와 .78은 .80보다 0.05 이상 좋아진 게 아니라 대기 1·2회 → 4번째에 중단. 하지만 best는 .78로 저장돼 있어요. 🤔 왜 copy.deepcopy? — state_dict()는 지금 학습 중인 가중치를 가리키는 묶음이라, 그냥 담아 두면 다음 epoch 학습 때 같이 바뀌어 버려요. 그 순간 값을 통째로 복사해야 best가 보존돼요.
+🤔 왜 best_loss와 reference를 따로 둬? — 역할이 달라서예요. best_loss는 "가장 좋았던 모델"을 저장하려고 작은 개선도 다 기록하고, reference는 "기다림을 리셋할 만큼 충분히 좋아졌나"를 min_delta 기준으로 판단해요. 설명용 예: loss 1.00 → .80 → .79 → .78, min_delta=.05, patience=2 → .79와 .78은 .80보다 0.05 이상 좋아진 게 아니라 대기 1·2회 → 4번째에 중단. 하지만 best는 .78로 저장돼 있어요. 🤔 왜 copy.deepcopy? — state_dict()는 지금 학습 중인 가중치를 가리키는 묶음이라, 그냥 담아 두면 다음 epoch 학습 때 같이 바뀌어 버려요. 그 순간 값을 통째로 복사해야 best가 보존돼요.
 
-💡 Scheduler와 같이 쓸 땐 순서가 train → valid loss → scheduler.step(valid_loss) → best 저장·patience 확인. 보통 Early Stopping의 patience를 Scheduler보다 길게 둬서, lr을 낮춘 뒤 다시 좋아질 기회를 줘요. (교재 예시: best epoch 13, stop epoch 25 → 최종 모델은 13 epoch 상태)
+💡 Scheduler와 같이 쓸 땐 순서가 train → valid loss → scheduler.step(valid_loss) → best 저장·patience 확인. 보통 Early Stopping의 patience를 Scheduler보다 길게 둬서, lr을 낮춘 뒤 다시 좋아질 기회를 줘요. (설명용 예시: best epoch 13, stop epoch 25 → 최종 모델은 13 epoch 상태)
 
 🤔 왜 Early Stopping patience가 더 길어야 해? — 둘 다 "정체"를 보고 반응해요. Early Stopping이 먼저 끝나 버리면 Scheduler가 lr을 낮춰 볼 기회가 없어요. Scheduler가 먼저 lr을 줄이고, 그래도 안 좋아질 때 Early Stopping이 멈추게 하려면 기다리는 시간이 더 길어야 해요.
 
 ## 📖 Day10 용어 (42개)
 - **규제** (Regularization (규제)): 계수가 지나치게 커지지 않게 벌점을 줘서 학습을 제어하는 것. 로지스틱회귀에선 C로 조절하며, C가 작을수록 규제가 세요. 스케일링과는 다른 개념.
 - **수렴** (Convergence (수렴)): 학습이 반복하며 더 나아지지 않는 안정된 답에 도달하는 것. max_iter(반복 상한)가 너무 작으면 도달 전에 멈춰 수렴 경고가 나요.
-- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 이 수업 분류의 주 지표.
+- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.
 - **결측** (Missing value (결측값)): 데이터가 비어 있는 칸. 모델 대부분은 빈칸을 못 받아서 채우거나(대체) 처리해야 해요.
 - **하이퍼파라미터** (Hyperparameter (하이퍼파라미터)): 학습 전에 사람이 정하는 설정값(예: K, weights, C, max_depth). train으로 자동 결정되는 계수와 달리 후보를 정해 valid·교차검증으로 비교해 골라요.
 - **과적합** (Overfitting (과적합)): 학습 자료의 우연한 잡음까지 외워서 train 점수만 높고 새 자료(valid) 점수는 낮은 상태. 두 점수 격차가 핵심 신호예요.
@@ -4262,35 +4631,33 @@ _2026-11-02(월) · 합성곱 · Kernel · Pooling · BatchNorm · ImageFolder �
 
 - 전이학습은 ImageNet으로 미리 배운 ResNet18의 몸통(Backbone)을 얼려 두고, 마지막 Head를 내 클래스 수에 맞게 바꿔 배워요. 필요하면 뒤쪽 층(layer4)부터 작은 lr로 열어요.
 
-🔧 Day11 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 사진 한 장이 클래스 점수가 되기까지
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
+ANN(가중합 + 비선형 층)은 입력을 한 줄로 펴서 모든 칸을 모든 뉴런에 연결해요. 사진에 그러면 파라미터가 폭발하고, "옆 픽셀끼리 가깝다"는 정보도 사라져요. CNN은 작은 창 하나를 사진 전체에 돌려 쓰니까 파라미터가 적고, 물체가 사진 어디에 있어도 찾아요.
 
-## 📦 필요한 패키지
+사진 [N,3,64,64]→ Conv 블록 × 2 특징 추출부(Backbone)→ Global Avg Pool [N,32,1,1]→ flatten [N,32]→ Head Linear [N,K] 점수(logit)
 
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+사진 한 장이 점수가 되기까지, 그리고 그 모델을 배우고 빌려 쓰고 재는 과정은 아래 여덟 단계예요. 이 페이지의 ①~⑧이 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| torch | Conv2d·Pooling 같은 층, 손실 함수, 학습 루프 (Day9에서 설치) | import torch, from torch import nn, import torch.nn.functional as F |
-| torchvision | 이미지 폴더 읽기, 변환·증강, 사전학습 모델(ResNet18) | from torchvision import datasets, transforms, from torchvision.models import resnet18, ResNet18_Weights |
-| Pillow | PNG·JPG 이미지 파일 열기 (ImageFolder가 내부에서 사용) | from PIL import Image |
-| matplotlib (선택) | 이미지·Feature Map·학습 곡선 그리기 | import matplotlib.pyplot as plt |
-
-### 🔧 설치 · 확인
+| ① 이미지 Tensor | 사진 → [N, C, H, W] 숫자 묶음 | 모델은 사진을 어떤 모양으로 받나? |
+| ② 합성곱 | Kernel을 옮기며 곱해 더해 Feature Map 만들기 | 어떤 패턴이 어디에 있나? |
+| ③ Pooling · BatchNorm · 조립 | 줄이고 · 단위 맞추고 · 블록을 쌓아 Head까지 | "어디에"를 어떻게 "무엇이"로 바꾸나? |
+| ④ 이미지 데이터 | ImageFolder · transforms · 증강 | 폴더의 사진을 어떻게 (Tensor, 라벨) 쌍으로? |
+| ⑤ 학습 · 평가 · 저장 | 예측 → 손실 → 기울기 → 갱신, valid로 고르기, state_dict | 어떻게 배우고, 고르고, 남기나? |
+| ⑥ 전이학습 | 사전학습 Backbone 고정 + 새 Head | 내 사진이 적으면? |
+| ⑦ CPU · GPU 측정 | 같은 조건에서 처리량 · 메모리 재기 | 어디서 돌려야 빠른가? |
+| ⑧ 문제 진단 | 자주 하는 실수 · 증상 → 원인 | 이상하면 어디부터 보나? |
 
 ```
-python -m pip install pillow matplotlib
-python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__); print('CUDA:', torch.cuda.is_available())"
+분류 모델 = Backbone(특징 추출) + Head(점수)
+  └ Backbone: [Conv → (BatchNorm) → ReLU → MaxPool] × 블록 수   ← 직접 쌓거나(SmallCNN) 빌려 옴(ResNet18)
+  └ Head:     Global Avg Pool → flatten → Linear(채널 수 → K)
+학습 루프:   예측 → 손실 → zero_grad → backward → step              ← 모델이 ANN이든 CNN이든 같음
 ```
 
-⚠️ torch와 torchvision은 서로 짝이 맞는 버전이어야 해요. 둘 다 pytorch.org 선택기에서 내 환경(CPU/CUDA)에 맞는 명령으로 함께 깔아요. 이미 GPU용 torch가 잘 돌면 덮어쓰지 마세요.
-
-🤔 왜 짝을 맞춰야 해? — torchvision 안의 일부 연산은 torch의 C++ 내부 코드에 맞춰 미리 컴파일돼 있어요. 버전이 어긋나면 import 단계에서 바로 오류가 나거나, 특정 연산만 이상하게 실패해요.
-
-💡 pip 이름 ≠ import 이름: Pillow → PIL.
-
-## 이거 어디에 써?
-
-Day9~10의 ANN은 입력을 한 줄로 펴서 모든 칸을 모든 뉴런에 연결했어요. 사진에 그러면 파라미터가 폭발하고, "옆 픽셀끼리 가깝다"는 정보도 사라져요. CNN은 작은 창 하나를 사진 전체에 돌려 쓰니까 파라미터가 적고, 물체가 사진 어디에 있어도 찾아요.
+어디에 쓰나:
 
 🏭
 
@@ -4307,107 +4674,6 @@ Day9~10의 ANN은 입력을 한 줄로 펴서 모든 칸을 모든 뉴런에 연
 🧩
 
 데이터가 적을 때사전학습 모델 + 전이학습
-
-사진 크기를 바꿔 가며 첫 층 파라미터 수를 비교해 보세요.
-
-🤔 왜 CNN은 사진이 커져도 파라미터가 그대로야? — ANN은 픽셀 하나하나마다 자기 전용 가중치가 있어서 픽셀 수만큼 늘어나요. Conv는 3×3짜리 Kernel 하나를 모든 위치에 돌려 써요(가중치 공유). "세로선"은 왼쪽 위에 있든 오른쪽 아래에 있든 같은 모양이니, 위치마다 따로 배울 필요가 없거든요. 그래서 개수는 16·3·3·3 + 16 = 448로 고정이에요.
-
-## ⓪ PyTorch 한 장 정리 — 데이터 → 예측 → 손실 → 기울기 → 갱신
-
-CNN으로 넘어가기 전에 Day9~10의 학습 흐름을 한 장으로 다시 묶어요. 모델이 ANN이든 CNN이든 이 다섯 단계는 똑같고, 바뀌는 건 "모델 칸" 안쪽뿐이에요. 예시는 PyTorch 공식 한국어 튜토리얼 「파이토치 기본 익히기」의 FashionMNIST(옷 사진 28×28 흑백, 10개 클래스, 학습용 60,000장)예요.
-
-[그림: train_ds[i], DataLoader, model(X), loss_fn, backward(), step() 여섯 칸에 각 단계의 shape를 적고 step에서 다음 배치로 돌아가는 화살표를 그린 흐름도] 무엇을 보나: 배치 하나가 왼쪽에서 오른쪽으로 지나가요. 샘플 1개 (1, 28, 28)가 DataLoader에서 64개씩 묶여 (64, 1, 28, 28)이 되고, 모델을 지나면 클래스 10개 점수(로짓) (64, 10), 손실 함수를 지나면 숫자 하나 ()가 돼요. backward()는 가중치마다 같은 모양의 기울기를 채우고(첫 층 (512, 784)), step()이 가중치를 옮긴 뒤 다음 배치로 돌아가요. shape는 같은 모양의 텐서를 실제로 모델에 넣어 확인했어요. 🤔 왜 이렇게 나눠 봐? 에러의 대부분은 "칸과 칸 사이 shape가 안 맞아서" 나요. 각 칸의 입·출력 모양을 알면 어디서 틀렸는지 바로 짚을 수 있어요.
-
-🤔 왜 1 epoch가 938번 step이야? — epoch는 "학습 데이터를 한 바퀴", step은 "배치 하나로 가중치를 한 번 갱신"이에요. 60,000장을 64장씩 나누면 937.5묶음이고, 남은 32장도 마지막 묶음으로 쓰니까 올림해서 938번(drop_last=False일 때). batch_size를 키우면 step 수는 줄고, 줄이면 늘어요.
-
-🔧 전체 흐름: 학습 루프 한 장 명령어 사전에서 자세히 →
-
-```
-pred = model(X); loss = loss_fn(pred, y)          # ① 예측 ② 손실
-optimizer.zero_grad(); loss.backward(); optimizer.step()   # ③ 초기화 ④ 기울기 ⑤ 갱신
-```
-
-### shape 맞추기 — dim에 적은 축이 사라진다
-
-텐서를 다룰 땐 shape부터 확인해요. 2×3 텐서 [[1, 2, 3], [4, 5, 6]]로 보면:
-
-| 계산 | 어느 방향으로 더하나 | 결과 | 남는 shape |
-|---|---|---|---|
-| sum(dim=0) | ↓ 세로로 (줄 축이 사라짐) | [5, 7, 9] | (3,) |
-| sum(dim=1) | → 가로로 (칸 축이 사라짐) | [6, 15] | (2,) |
-
-🤔 왜 예측 클래스는 argmax(dim=1)? — 로짓은 (64, 10) = "64장 × 클래스 10개 점수"예요. 사진마다 10개 점수 중 가장 큰 곳을 골라야 하니 클래스 축(dim=1)을 없애야 해요. 그러면 (64,) — 사진마다 답 하나가 남아요. dim=0으로 하면 거꾸로 "클래스마다 가장 높은 사진 번호"가 나와 엉뚱한 값이 돼요.
-
-🔧 shape 확인·바꾸기 reshape · flatten(1) · sum(dim) · argmax(dim=1) 명령어 사전에서 자세히 →
-
-```
-x.flatten(1)            # (N, 1, 28, 28) → (N, 784)
-pred.argmax(dim=1)      # (N, 10) → (N,)
-```
-
-### 데이터 · 모델 · 손실 · 갱신 · 평가 · 저장
-
-| 단계 | 하는 일 | 🤔 왜 이렇게? |
-|---|---|---|
-| Dataset | "몇 개인지(__len__)"와 "i번째 샘플 1개(__getitem__)"만 알려 줌 | DataLoader가 이 두 가지만 알면 섞기·묶기를 알아서 해 줘요. 데이터 형식이 달라도 이 두 칸만 맞추면 돼요 |
-| DataLoader | 64개씩 묶고, 학습 데이터는 epoch마다 섞음 | 한 장씩은 느리고 기울기가 들쭉날쭉, 전부 한 번에는 메모리가 부족 → 미니배치가 중간 |
-| 모델 | Flatten → Linear(784, 512) → ReLU → Linear(512, 10) | 앞 층의 출력 수 = 다음 층의 입력 수. ReLU가 없으면 Linear를 여러 층 쌓아도 Linear 하나와 같아요 |
-| 손실 | 분류는 CrossEntropyLoss(로짓 + 정수 정답), 회귀는 MSELoss | "얼마나 틀렸나"를 숫자 하나로 만들어야 그걸 줄이는 방향(기울기)을 구할 수 있어요 |
-| 갱신 | SGD: p ← p − lr × p.grad / Adam: 가중치마다 보폭 조절 | Adam은 처음 시도하기 무난하고, SGD는 규칙이 단순해서 동작을 이해하기 좋아요(Day10) |
-| 평가 | model.eval() + torch.no_grad()로 안 본 데이터 정확도 | 학습 손실은 내려가는데 평가 정확도가 떨어지면 과적합 → epoch 줄이기, Dropout 추가 |
-| 저장 | state_dict()(가중치 묶음)만 저장하고, 불러올 땐 같은 구조의 모델에 넣음 | 모델 객체 통째보다 가볍고, 코드가 조금 바뀌어도 불러오기 쉬워요 |
-
-🔧 직접 만드는 Dataset + DataLoader 명령어 사전에서 자세히 →
-
-```
-class MyDS(Dataset):  # __len__ · __getitem__ 두 개만
-DataLoader(ds, batch_size=64, shuffle=True)
-```
-
-🔧 nn.Module로 모델 정의 명령어 사전에서 자세히 →
-
-```
-self.layers = nn.Sequential(nn.Flatten(), nn.Linear(28*28, 512), nn.ReLU(), nn.Linear(512, 10))
-def forward(self, x): return self.layers(x)
-```
-
-🔧 손실 · 최적화 CrossEntropyLoss · SGD · Adam 명령어 사전에서 자세히 →
-
-```
-loss_fn = nn.CrossEntropyLoss()                        # 로짓 그대로 넣기
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
-```
-
-🔧 평가 함수 test() · 저장 state_dict 명령어 사전에서 자세히 →
-
-```
-with torch.no_grad(): hit = model(X).argmax(1) == y     # model.eval() 먼저
-torch.save(model.state_dict(), "model.pth")
-```
-
-### 자주 하는 실수 4가지
-
-| 실수 | 무슨 일이 생기나 | 🤔 왜? |
-|---|---|---|
-| zero_grad()를 빠뜨림 | 기울기가 배치마다 계속 쌓여 갱신이 점점 커짐 | backward()는 p.grad에 더하는 동작이라, 지우지 않으면 지난 배치 기울기가 남아요 |
-| CrossEntropyLoss에 softmax 값을 넣음 | 손실이 잘 안 줄고 이상한 값이 나옴 | 이 손실은 안에서 softmax를 한 번 더 해요. 이미 0~1로 눌린 값에 또 softmax를 하니 차이가 뭉개져요 → 로짓 그대로 넣기 |
-| 모델과 데이터의 장치가 다름 | RuntimeError: Expected all tensors to be on the same device | GPU에 있는 가중치와 CPU에 있는 데이터는 곱할 수 없어요 → 둘 다 .to(device) |
-| 평가 때 eval()·no_grad()를 빠뜨림 | 점수가 실행할 때마다 흔들리고 메모리를 더 씀 | Dropout이 켜진 채라 매번 다른 칸을 끄고, 쓰지도 않을 기울기 기록까지 남겨요 |
-
-실수 1·2·3을 실제로 저질러 본 결과는 명령어 사전의 "실제로 돌려 보면" 표에 있어요.
-
-### 파라미터 두 종류
-
-가중치(model.parameters())는 학습이 바꾸는 값, 하이퍼파라미터는 학습 전에 사람이 정하는 값이에요.
-
-| 하이퍼파라미터 | 키우면 | 줄이면 |
-|---|---|---|
-| lr (학습률) | 빨리 움직이지만 발산 위험 | 안정적이지만 느림 |
-| batch_size | step 수 ↓, 메모리 ↑ | step 수 ↑, 기울기가 들쭉날쭉 |
-| epochs | 과적합 위험 ↑ | 덜 학습 |
-| 은닉 크기 (예: 512) | 표현력 ↑, 과적합 ↑ | 단순한 패턴만 |
-
-🤔 왜 "키우면 좋다"가 없어? — 하이퍼파라미터는 거의 다 맞바꾸기예요. 빠르면 불안정하고, 크면 과적합하기 쉬워요. 그래서 valid 점수를 보며 하나씩 바꿔 비교해요(Day10 학습률 비교와 같은 방식).
 
 ## ① 이미지 Tensor — [N, C, H, W]
 
@@ -4430,6 +4696,24 @@ hwc  = img.permute(1, 2, 0)           # [32, 32, 3]  → plt.imshow(hwc)
 nchw = img.unsqueeze(0)               # [1, 3, 32, 32] → 사진 한 장을 모델에 넣을 때
 ```
 
+### shape 맞추기 — dim에 적은 축이 사라진다
+
+텐서를 다룰 땐 shape부터 확인해요. 2×3 텐서 [[1, 2, 3], [4, 5, 6]]로 보면:
+
+| 계산 | 어느 방향으로 더하나 | 결과 | 남는 shape |
+|---|---|---|---|
+| sum(dim=0) | ↓ 세로로 (줄 축이 사라짐) | [5, 7, 9] | (3,) |
+| sum(dim=1) | → 가로로 (칸 축이 사라짐) | [6, 15] | (2,) |
+
+🤔 왜 예측 클래스는 argmax(dim=1)? — 로짓은 (64, 10) = "64장 × 클래스 10개 점수"예요. 사진마다 10개 점수 중 가장 큰 곳을 골라야 하니 클래스 축(dim=1)을 없애야 해요. 그러면 (64,) — 사진마다 답 하나가 남아요. dim=0으로 하면 거꾸로 "클래스마다 가장 높은 사진 번호"가 나와 엉뚱한 값이 돼요.
+
+🔧 shape 확인·바꾸기 reshape · flatten(1) · sum(dim) · argmax(dim=1) 명령어 사전에서 자세히 →
+
+```
+x.flatten(1)            # (N, 1, 28, 28) → (N, 784)
+pred.argmax(dim=1)      # (N, 10) → (N,)
+```
+
 ## ② 합성곱 (Convolution) — 작은 창을 옮기며 곱해 더하기
 
 | 용어 | 뜻 |
@@ -4444,11 +4728,17 @@ nchw = img.unsqueeze(0)               # [1, 3, 32, 32] → 사진 한 장을 모
 
 🤔 왜 "작은 창"으로 봐? — 사진에서 의미 있는 패턴(선·모서리·점)은 가까운 픽셀끼리 만들어요. 멀리 떨어진 픽셀까지 한 번에 볼 필요가 없으니 작은 창으로 충분하고, 넓은 범위는 층을 쌓아서(수용영역 확장) 나중에 봐요. 그리고 같은 창을 모든 위치에 쓰니까 사진을 옮기면 결과도 같이 옮겨져요(등변) → 물체가 어디 있든 같은 검출기로 찾아요.
 
+### 가중치 공유 — 사진이 커져도 파라미터는 그대로
+
+사진 크기를 바꿔 가며 첫 층 파라미터 수를 비교해 보세요.
+
+🤔 왜 CNN은 사진이 커져도 파라미터가 그대로야? — ANN은 픽셀 하나하나마다 자기 전용 가중치가 있어서 픽셀 수만큼 늘어나요. Conv는 3×3짜리 Kernel 하나를 모든 위치에 돌려 써요(가중치 공유). "세로선"은 왼쪽 위에 있든 오른쪽 아래에 있든 같은 모양이니, 위치마다 따로 배울 필요가 없거든요. 그래서 개수는 16·3·3·3 + 16 = 448로 고정이에요.
+
 [그림: 6×6 입력 위의 3×3 창, 세로선 Kernel, 4×4 출력 Feature Map] 무엇을 보나: 분홍 창(3×3) 안의 숫자와 가운데 Kernel의 숫자를 같은 자리끼리 곱해서 모두 더하면 1+1+1 = 3 → 출력의 분홍 칸이 돼요. 창을 오른쪽·아래로 한 칸씩 옮기며 같은 계산을 반복해서 4×4 Feature Map을 채워요. 🤔 왜 세로선 위에서만 3이야? Kernel이 가운데 세로줄에만 1을 갖고 있으니, 창 가운데 세로줄이 입력의 세로선(1,1,1)과 겹칠 때만 크게 나와요. 오른쪽 아래의 외딴 점 1개는 1만 나와요 → "세로선 모양"에만 강하게 반응하는 검출기예요.
 
 아래에서 직접 해 보세요. 왼쪽 입력 칸을 클릭하면 0↔1이 바뀌고, 오른쪽 출력 칸에 마우스를 올리면 그 칸을 만든 창과 계산이 보여요.
 
-💡 기본 설정(세로선 Kernel, padding 0, stride 1)에서는 세로선 위에서만 1+1+1 = 3, 나머지는 0이 나와요(개념지도 예시와 같은 계산). 이 Kernel은 세로선에 반응하는 검출기예요. 학습된 CNN은 이런 검출기를 데이터에서 스스로 찾아요.
+💡 기본 설정(세로선 Kernel, padding 0, stride 1)에서는 세로선 위에서만 1+1+1 = 3, 나머지는 0이 나와요. 이 Kernel은 세로선에 반응하는 검출기예요. 학습된 CNN은 이런 검출기를 데이터에서 스스로 찾아요.
 
 [그림: 흑백 도형 사진에 세로 경계, 가로 경계, 흐리기, 선명하게 Kernel을 적용한 4개의 Feature Map과 각 Kernel 숫자] 무엇을 보나: 같은 사진에 Kernel 숫자만 바꿔 진짜로 합성곱(F.conv2d, padding 1)을 한 결과예요. 세로 경계 Kernel은 사각형의 왼쪽·오른쪽 변만, 가로 경계 Kernel은 위·아래 변만 빨강/파랑으로 켜요. 원은 둘 다에서 일부만 켜지고, 흐리기는 경계를 뭉개고, 선명하게는 테두리를 더 밝게 강조해요. 🤔 왜? 세로 경계 Kernel은 "오른쪽 열 − 왼쪽 열"이라 좌우 밝기 차이가 있는 곳(세로 변)에서만 0이 아니에요. 평평한 면은 양쪽이 같아 0이 되죠. 즉 Kernel의 숫자 배치 = "어떤 모양을 찾을지". CNN은 이 숫자 9개를 학습으로 정하고, 출력 채널 수만큼 이런 검출기를 동시에 가져요.
 
@@ -4502,15 +4792,13 @@ Conv 블록 하나 = Conv(패턴 찾기) → (BatchNorm) → ReLU(음수 지우�
 
 🤔 왜 ReLU가 꼭 있어야 해? — Conv도 결국 "곱해서 더하기"(선형)라서, 비선형 없이 몇 층을 쌓아도 선형 하나와 똑같아요. ReLU가 사이에 끼어야 층마다 새로운 걸 배우고, 블록을 반복하는 의미가 생겨요.
 
-사진 [N,3,64,64]→ Conv 블록 × 2 특징 추출부(Backbone)→ Global Avg Pool [N,32,1,1]→ flatten [N,32]→ Head Linear [N,K] 점수(logit)
+블록 두 개짜리 SmallCNN이면 큰 그림의 흐름대로 공간은 64 → 16 → 1, 채널은 3 → 32. "어디에 있나"를 점점 버리고 "무엇이 있나"로 바꾸는 과정이에요. 큰 모델(VGG·ResNet)도 같은 모양이에요.
 
-공간은 64 → 16 → 1, 채널은 3 → 32. "어디에 있나"를 점점 버리고 "무엇이 있나"로 바꾸는 과정이에요. 큰 모델(VGG·ResNet)도 같은 모양이에요.
-
-[그림: 수업 예제 데이터의 세로 줄무늬·가로 줄무늬 사진에 4개 Kernel을 적용한 채널별 Feature Map] 무엇을 보나: 수업 예제 데이터(vertical, horizontal 폴더) 사진 두 장을 Conv(1→4채널) + ReLU에 넣은 결과예요. 줄마다 오른쪽 4장이 채널 4개 = Feature Map 4장. 세로 줄무늬 사진은 ch0(세로 경계)이 밝고(평균 0.27), 가로 줄무늬 사진은 ch1(가로 경계)이 밝아요(0.21). ※ Kernel은 이해를 돕기 위해 손으로 정한 값이고 학습된 게 아니에요. 🤔 왜 이게 분류로 이어져? 마지막에 Global Avg Pool이 채널마다 평균 하나만 남기면 [ch0 0.27, ch1 0.05, …] 같은 짧은 숫자 줄이 돼요. 이 숫자만 봐도 세로/가로를 가를 수 있죠. 학습은 이런 "잘 갈라 주는 Kernel"을 스스로 찾는 과정이에요.
+[그림: 예제 데이터의 세로 줄무늬·가로 줄무늬 사진에 4개 Kernel을 적용한 채널별 Feature Map] 무엇을 보나: 예제 데이터(vertical, horizontal 폴더) 사진 두 장을 Conv(1→4채널) + ReLU에 넣은 결과예요. 줄마다 오른쪽 4장이 채널 4개 = Feature Map 4장. 세로 줄무늬 사진은 ch0(세로 경계)이 밝고(평균 0.27), 가로 줄무늬 사진은 ch1(가로 경계)이 밝아요(0.21). ※ Kernel은 이해를 돕기 위해 손으로 정한 값이고 학습된 게 아니에요. 🤔 왜 이게 분류로 이어져? 마지막에 Global Avg Pool이 채널마다 평균 하나만 남기면 [ch0 0.27, ch1 0.05, …] 같은 짧은 숫자 줄이 돼요. 이 숫자만 봐도 세로/가로를 가를 수 있죠. 학습은 이런 "잘 갈라 주는 Kernel"을 스스로 찾는 과정이에요.
 
 [그림: SmallCNN 각 단계에서 공간 크기는 64에서 1로 줄고 채널 수는 3에서 32로 느는 막대그래프] 무엇을 보나: 아래 SmallCNN 표의 shape를 막대로 그린 거예요. 보라(공간 H)는 Pool마다 절반 → GAP에서 1, 주황(채널 C)은 Conv마다 늘어 32. 🤔 왜 채널을 늘려? 공간을 줄이면 정보가 줄어드니, 그만큼 "찾는 패턴의 종류"(채널)를 늘려 보충해요. 뒤쪽 층은 앞쪽 패턴을 조합한 더 복잡한 패턴(모서리 → 부품)을 보니 종류도 더 많이 필요해요.
 
-🔧 SmallCNN 만들기 명령어 사전에서 자세히 →
+🔧 Conv 블록 쌓기 — SmallCNN 명령어 사전에서 자세히 →
 
 ```
 nn.Conv2d(3, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
@@ -4526,7 +4814,7 @@ nn.BatchNorm2d(16),            # 채널 수와 같아야 함
 
 [그림: BatchNorm 전에는 세 채널 값 분포가 서로 다른 위치와 폭이고, 후에는 모두 0 중심 폭 1로 겹치는 히스토그램] 무엇을 보나: 일부러 채널마다 크기를 다르게 만든 Conv 출력(왼쪽)은 채널 1이 -4 근처에 넓게, 채널 0은 +3 근처에, 채널 2는 0.5 근처에 좁게 몰려 있어요. BatchNorm2d(3)(train 모드)를 지나면(오른쪽) 세 채널이 모두 평균 0 · 표준편차 1로 거의 겹쳐요. 🤔 왜 좋아? 다음 층 입장에선 채널마다 "숫자 단위"가 제각각이면 어떤 가중치는 크게, 어떤 건 작게 움직여야 해서 하나의 lr로 맞추기 어려워요. 단위를 맞춰 주면 같은 lr로 모두 고르게 배울 수 있어요. (실제 BN은 이 뒤에 채널별로 배우는 크기 γ·위치 β를 다시 곱하고 더해요.)
 
-## ④ 이미지 읽기 · 증강 · 학습 · 평가 · 저장
+## ④ 이미지 데이터 — ImageFolder · transforms · 증강
 
 ### ImageFolder — 폴더 이름이 곧 라벨
 
@@ -4541,7 +4829,7 @@ data/
 
 하위 폴더 이름을 정렬해서 0, 1, 2…를 붙여요. 결과는 class_to_idx로 꼭 확인해요.
 
-[그림: ] 무엇을 보나: 수업 예제 데이터 폴더(horizontal, vertical)가 그대로 라벨이 되는 흐름이에요. 이름을 알파벳 순으로 정렬해 horizontal = 0, vertical = 1. 사진 한 장은 transform을 거쳐 Tensor가 되고 그 폴더 번호와 짝지어져요. 🤔 왜 정렬해? 컴퓨터가 폴더를 읽는 순서는 운영체제마다 다를 수 있어요. 정렬해 두면 어느 컴퓨터에서든 같은 번호가 붙어요. 대신 폴더 이름을 바꾸면 번호도 바뀌니 class_to_idx를 꼭 같이 저장해요.
+[그림: ] 무엇을 보나: 예제 데이터 폴더(horizontal, vertical)가 그대로 라벨이 되는 흐름이에요. 이름을 알파벳 순으로 정렬해 horizontal = 0, vertical = 1. 사진 한 장은 transform을 거쳐 Tensor가 되고 그 폴더 번호와 짝지어져요. 🤔 왜 정렬해? 컴퓨터가 폴더를 읽는 순서는 운영체제마다 다를 수 있어요. 정렬해 두면 어느 컴퓨터에서든 같은 번호가 붙어요. 대신 폴더 이름을 바꾸면 번호도 바뀌니 class_to_idx를 꼭 같이 저장해요.
 
 🤔 왜 train / valid / test 셋으로 나눠? — train은 배우기, valid는 모델·epoch을 고르기, test는 최종 확인용이에요. valid로 여러 번 고르다 보면 valid에도 맞춰지니까, 한 번도 고르는 데 안 쓴 test가 있어야 "새 사진에서도 될까?"를 정직하게 알 수 있어요.
 
@@ -4567,7 +4855,68 @@ train_tf = transforms.Compose([
 
 ⚠️ 라벨을 바꾸는 증강은 금지. 예를 들어 가로/세로 줄무늬를 구분하는 문제라면 90도 회전은 가로를 세로로 만들어 정답을 틀리게 해요. 숫자 6/9 구분에 180도 회전도 마찬가지예요. "이 변환을 해도 정답이 같은가?"를 먼저 물어봐요.
 
-[그림: 도형 사진에 좌우 반전, 10도 회전, 잘라 확대, 밝기 변화를 적용한 6장과, 세로 줄무늬 사진을 90도 돌려 가로 줄무늬가 된 예] 무엇을 보나: 초록 테두리 6장은 한 장의 사진에 torchvision 증강을 하나씩 적용한 모습이에요(뒤집기 · 10도 회전 · 잘라서 확대 · 어둡게/밝게). 모양은 달라졌지만 "사각형·원·삼각형이 있는 사진"이라는 정답은 그대로예요. 아래 오른쪽 빨간 테두리는 수업 예제 데이터의 vertical 사진을 90도 돌린 것 → 가로 줄무늬가 돼서 정답이 바뀌어요. 🤔 왜 이게 과적합을 줄여? 모델 입장에선 매 epoch 같은 사진이 조금씩 다르게 보이니 "왼쪽 위 픽셀이 빨갛다" 같은 우연한 배치를 외울 수 없고, 어떤 변형에도 남는 특징(모양·질감)을 써야만 맞힐 수 있어요.
+[그림: 도형 사진에 좌우 반전, 10도 회전, 잘라 확대, 밝기 변화를 적용한 6장과, 세로 줄무늬 사진을 90도 돌려 가로 줄무늬가 된 예] 무엇을 보나: 초록 테두리 6장은 한 장의 사진에 torchvision 증강을 하나씩 적용한 모습이에요(뒤집기 · 10도 회전 · 잘라서 확대 · 어둡게/밝게). 모양은 달라졌지만 "사각형·원·삼각형이 있는 사진"이라는 정답은 그대로예요. 아래 오른쪽 빨간 테두리는 예제 데이터의 vertical 사진을 90도 돌린 것 → 가로 줄무늬가 돼서 정답이 바뀌어요. 🤔 왜 이게 과적합을 줄여? 모델 입장에선 매 epoch 같은 사진이 조금씩 다르게 보이니 "왼쪽 위 픽셀이 빨갛다" 같은 우연한 배치를 외울 수 없고, 어떤 변형에도 남는 특징(모양·질감)을 써야만 맞힐 수 있어요.
+
+### 폴더 구조가 아닐 때 — Dataset 직접 만들기
+
+데이터가 배열 · CSV처럼 폴더 구조가 아니면 Dataset을 직접 만들어요. "몇 개인지(__len__)"와 "i번째 샘플 1개(__getitem__)" 두 가지만 알려 주면 DataLoader가 섞기 · 묶기를 해 줘요.
+
+🔧 직접 만드는 Dataset + DataLoader 명령어 사전에서 자세히 →
+
+```
+class MyDS(Dataset):  # __len__ · __getitem__ 두 개만
+DataLoader(ds, batch_size=64, shuffle=True)
+```
+
+## ⑤ 학습 · 평가 · 저장 — 데이터 → 예측 → 손실 → 기울기 → 갱신
+
+모델이 ANN이든 CNN이든 학습 흐름의 다섯 단계는 똑같고, 바뀌는 건 "모델 칸" 안쪽뿐이에요. 아래 그림의 예시는 FashionMNIST(옷 사진 28×28 흑백, 10개 클래스, 학습용 60,000장)와 ANN 모델이에요.
+
+[그림: train_ds[i], DataLoader, model(X), loss_fn, backward(), step() 여섯 칸에 각 단계의 shape를 적고 step에서 다음 배치로 돌아가는 화살표를 그린 흐름도] 무엇을 보나: 배치 하나가 왼쪽에서 오른쪽으로 지나가요. 샘플 1개 (1, 28, 28)가 DataLoader에서 64개씩 묶여 (64, 1, 28, 28)이 되고, 모델을 지나면 클래스 10개 점수(로짓) (64, 10), 손실 함수를 지나면 숫자 하나 ()가 돼요. backward()는 가중치마다 같은 모양의 기울기를 채우고(첫 층 (512, 784)), step()이 가중치를 옮긴 뒤 다음 배치로 돌아가요. shape는 같은 모양의 텐서를 실제로 모델에 넣어 확인했어요. 🤔 왜 이렇게 나눠 봐? 에러의 대부분은 "칸과 칸 사이 shape가 안 맞아서" 나요. 각 칸의 입·출력 모양을 알면 어디서 틀렸는지 바로 짚을 수 있어요.
+
+🤔 왜 1 epoch가 938번 step이야? — epoch는 "학습 데이터를 한 바퀴", step은 "배치 하나로 가중치를 한 번 갱신"이에요. 60,000장을 64장씩 나누면 937.5묶음이고, 남은 32장도 마지막 묶음으로 쓰니까 올림해서 938번(drop_last=False일 때). batch_size를 키우면 step 수는 줄고, 줄이면 늘어요.
+
+🔧 전체 흐름: 학습 루프 한 장 명령어 사전에서 자세히 →
+
+```
+pred = model(X); loss = loss_fn(pred, y)          # ① 예측 ② 손실
+optimizer.zero_grad(); loss.backward(); optimizer.step()   # ③ 초기화 ④ 기울기 ⑤ 갱신
+```
+
+### 데이터 · 모델 · 손실 · 갱신 · 평가 · 저장
+
+| 단계 | 하는 일 | 🤔 왜 이렇게? |
+|---|---|---|
+| Dataset | "몇 개인지(__len__)"와 "i번째 샘플 1개(__getitem__)"만 알려 줌 | DataLoader가 이 두 가지만 알면 섞기·묶기를 알아서 해 줘요. 데이터 형식이 달라도 이 두 칸만 맞추면 돼요 |
+| DataLoader | 64개씩 묶고, 학습 데이터는 epoch마다 섞음 | 한 장씩은 느리고 기울기가 들쭉날쭉, 전부 한 번에는 메모리가 부족 → 미니배치가 중간 |
+| 모델 | Flatten → Linear(784, 512) → ReLU → Linear(512, 10) | 앞 층의 출력 수 = 다음 층의 입력 수. ReLU가 없으면 Linear를 여러 층 쌓아도 Linear 하나와 같아요 |
+| 손실 | 분류는 CrossEntropyLoss(로짓 + 정수 정답), 회귀는 MSELoss | "얼마나 틀렸나"를 숫자 하나로 만들어야 그걸 줄이는 방향(기울기)을 구할 수 있어요 |
+| 갱신 | SGD: p ← p − lr × p.grad / Adam: 가중치마다 보폭 조절 | Adam은 처음 시도하기 무난하고, SGD는 규칙이 단순해서 동작을 이해하기 좋아요(Optimizer) |
+| 평가 | model.eval() + torch.no_grad()로 안 본 데이터 정확도 | 학습 손실은 내려가는데 평가 정확도가 떨어지면 과적합 → epoch 줄이기, Dropout 추가 |
+| 저장 | state_dict()(가중치 묶음)만 저장하고, 불러올 땐 같은 구조의 모델에 넣음 | 모델 객체 통째보다 가볍고, 코드가 조금 바뀌어도 불러오기 쉬워요 |
+
+🔧 nn.Module로 모델 정의 명령어 사전에서 자세히 →
+
+```
+self.layers = nn.Sequential(nn.Flatten(), nn.Linear(28*28, 512), nn.ReLU(), nn.Linear(512, 10))
+def forward(self, x): return self.layers(x)
+```
+
+🔧 손실 · 최적화 CrossEntropyLoss · SGD · Adam 명령어 사전에서 자세히 →
+
+```
+loss_fn = nn.CrossEntropyLoss()                        # 로짓 그대로 넣기
+optimizer = optim.Adam(model.parameters(), lr=1e-3)
+```
+
+🔧 평가 eval() · no_grad() · 저장 state_dict 명령어 사전에서 자세히 →
+
+```
+with torch.no_grad(): hit = model(X).argmax(1) == y     # model.eval() 먼저
+torch.save(model.state_dict(), "model.pth")
+```
+
+### CNN 학습 — 손실 · valid로 best 고르기 · 읽는 법까지 저장
 
 🔧 손실 · 학습 루프 · valid 평가 · best 저장 명령어 사전에서 자세히 →
 
@@ -4585,7 +4934,20 @@ torch.save({"state_dict": best_state, "class_to_idx": train_ds.class_to_idx, ...
 ckpt = torch.load("best_model.pt", weights_only=True)
 ```
 
-## ⑤ 전이학습 — 이미 공부한 뇌 빌려 쓰기
+### 파라미터 두 종류
+
+가중치(model.parameters())는 학습이 바꾸는 값, 하이퍼파라미터는 학습 전에 사람이 정하는 값이에요.
+
+| 하이퍼파라미터 | 키우면 | 줄이면 |
+|---|---|---|
+| lr (학습률) | 빨리 움직이지만 발산 위험 | 안정적이지만 느림 |
+| batch_size | step 수 ↓, 메모리 ↑ | step 수 ↑, 기울기가 들쭉날쭉 |
+| epochs | 과적합 위험 ↑ | 덜 학습 |
+| 은닉 크기 (예: 512) | 표현력 ↑, 과적합 ↑ | 단순한 패턴만 |
+
+🤔 왜 "키우면 좋다"가 없어? — 하이퍼파라미터는 거의 다 맞바꾸기예요. 빠르면 불안정하고, 크면 과적합하기 쉬워요. 그래서 valid 점수를 보며 하나씩 바꿔 비교해요(학습률 비교와 같은 방식).
+
+## ⑥ 전이학습 — 이미 공부한 뇌 빌려 쓰기
 
 데이터가 많은 관련 작업(ImageNet, 1000클래스)으로 미리 학습한 모델에서 마지막 층(Head)을 떼고 내 클래스 수 K에 맞는 새 층을 붙여요. 본체(Backbone)를 고정하고 새 층만 배우거나, 일부·전체를 작은 lr로 미세조정해요.
 
@@ -4629,7 +4991,7 @@ model.fc = nn.Linear(model.fc.in_features, 2)   # 2) Head 교체 (고정 코드 
 {"params": model.fc.parameters(),     "lr": 1e-3},   # 새 Head는 크게
 ```
 
-## ⑥ CPU·GPU 속도 비교 · 성능표 — 공정하게 재기
+## ⑦ CPU·GPU 속도 비교 · 성능표 — 공정하게 재기
 
 모델은 그대로, 계산 장소만 바꿔서 비교해요. 데이터 · batch · 모델 · epoch를 똑같이 고정해요.
 
@@ -4648,9 +5010,22 @@ torch.cuda.synchronize()
 seconds = time.perf_counter() - start
 ```
 
-[그림: SmallCNN 학습 step 처리량을 batch size 1부터 256까지 CPU와 GPU로 실측한 로그 그래프] 무엇을 보나: 이 노트를 만든 노트북(RTX 5080 Laptop)에서 SmallCNN 학습 step을 batch size만 바꿔 직접 잰 처리량이에요(워밍업 후, synchronize 포함). batch 1에서는 CPU와 GPU가 거의 같지만(약 800 images/s), batch 256에선 GPU가 CPU보다 10배 이상 빨라요. CPU는 batch 16쯤에서 이미 한계에 닿아요. 🤔 왜? GPU는 수천 개의 작은 계산기를 동시에 돌리는 장치라, 일감이 적으면 대부분 놀고 "명령 띄우기·데이터 옮기기" 고정 비용만 남아요. batch가 커져야 계산기들이 다 일을 해서 진짜 속도가 나와요. 숫자는 장치마다 다르니 내 환경에서 다시 재야 해요.
+[그림: SmallCNN 학습 step 처리량을 batch size 1부터 256까지 CPU와 GPU로 실측한 로그 그래프] 무엇을 보나: RTX 5080 Laptop GPU 노트북에서 SmallCNN 학습 step을 batch size만 바꿔 직접 잰 처리량이에요(워밍업 후, synchronize 포함). batch 1에서는 CPU와 GPU가 거의 같지만(약 800 images/s), batch 256에선 GPU가 CPU보다 10배 이상 빨라요. CPU는 batch 16쯤에서 이미 한계에 닿아요. 🤔 왜? GPU는 수천 개의 작은 계산기를 동시에 돌리는 장치라, 일감이 적으면 대부분 놀고 "명령 띄우기·데이터 옮기기" 고정 비용만 남아요. batch가 커져야 계산기들이 다 일을 해서 진짜 속도가 나와요. 숫자는 장치마다 다르니 내 환경에서 다시 재야 해요.
 
-## 증상으로 진단
+## ⑧ 문제가 생기면 — 자주 하는 실수 · 증상으로 진단
+
+### 학습 루프에서 자주 하는 실수 4가지
+
+| 실수 | 무슨 일이 생기나 | 🤔 왜? |
+|---|---|---|
+| zero_grad()를 빠뜨림 | 기울기가 배치마다 계속 쌓여 갱신이 점점 커짐 | backward()는 p.grad에 더하는 동작이라, 지우지 않으면 지난 배치 기울기가 남아요 |
+| CrossEntropyLoss에 softmax 값을 넣음 | 손실이 잘 안 줄고 이상한 값이 나옴 | 이 손실은 안에서 softmax를 한 번 더 해요. 이미 0~1로 눌린 값에 또 softmax를 하니 차이가 뭉개져요 → 로짓 그대로 넣기 |
+| 모델과 데이터의 장치가 다름 | RuntimeError: Expected all tensors to be on the same device | GPU에 있는 가중치와 CPU에 있는 데이터는 곱할 수 없어요 → 둘 다 .to(device) |
+| 평가 때 eval()·no_grad()를 빠뜨림 | 점수가 실행할 때마다 흔들리고 메모리를 더 씀 | Dropout이 켜진 채라 매번 다른 칸을 끄고, 쓰지도 않을 기울기 기록까지 남겨요 |
+
+실수 1·2·3을 실제로 저질러 본 결과는 명령어 사전의 "실제로 돌려 보면" 표에 있어요.
+
+### 증상 → 의심할 것
 
 | 이런 일이 생기면 | 의심할 것 |
 |---|---|
@@ -4662,6 +5037,98 @@ seconds = time.perf_counter() - start
 | 전이학습 성능이 이상하게 낮음 | weights.transforms() 안 씀, Backbone BN이 train 모드, Head를 고정 코드보다 먼저 교체 |
 | 학습 파라미터 수가 1,026보다 훨씬 큼 | requires_grad = False가 안 됨 |
 | GPU 시간이 비정상적으로 짧음 | torch.cuda.synchronize() 없이 잼 |
+
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| Conv2d (Kernel) | 패턴 반응 지도 (Feature Map) — 가중치 공유로 파라미터가 사진 크기와 무관 | 넓은 범위의 문맥 (층을 쌓아야 수용영역이 넓어짐) |
+| MaxPool2d | 절반 크기 · 작은 이동에 덜 흔들리는 신호 | 정확한 픽셀 위치 |
+| BatchNorm2d | 채널마다 평균 0 · 표준편차 1로 맞춘 값 (+ γ · β) | train / eval 모드를 알아서 바꿔 주기 |
+| Global Avg Pool + Head | 사진 크기와 무관한 길이의 특징 → 클래스 점수(logit) | 확률 (softmax는 손실 · 해석 단계에서) |
+| ImageFolder | 폴더 이름 정렬 순서로 붙인 라벨 · class_to_idx | 사람이 기대한 번호 순서 |
+| 증강 (train만) | 매 epoch 조금씩 다른 같은-정답 사진 | 라벨 보존 — 변환마다 사람이 확인 |
+| valid · best 저장 | 고른 epoch의 가중치 + 읽는 법(class_to_idx · 전처리) | 새 사진 성능 (test로 마지막에 한 번) |
+| 전이학습 (Freeze + 새 Head) | 적은 데이터 · 적은 학습 파라미터로 시작하는 좋은 출발점 | 내 데이터에서의 성능 — 같은 전처리(weights.transforms())를 써야 함 |
+| 속도 측정 | 같은 조건에서의 images/s · Peak VRAM | 다른 장치에서의 같은 숫자 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 학습 루프 — 칸마다 shape (FashionMNIST · ANN · batch 64)
+
+| 칸 | 입력 → 출력 | shape |
+|---|---|---|
+| train_ds[i] | 샘플 1개 (사진, 정답) | (1, 28, 28), 정수 1개 |
+| DataLoader | 64개씩 묶기 | (64, 1, 28, 28), (64,) |
+| model(X) | 클래스 10개 점수 (logit) | (64, 10) |
+| loss_fn(pred, y) | 숫자 하나 | () |
+| loss.backward() | 가중치마다 같은 모양의 기울기 | 첫 층 (512, 784) |
+| pred.argmax(dim=1) | 사진마다 예측 클래스 하나 | (64,) |
+
+### SmallCNN — 층마다 shape · 파라미터 (입력 [8, 3, 64, 64], K=2)
+
+| 층 | 출력 shape | 파라미터 |
+|---|---|---|
+| Conv2d(3, 16, 3, padding=1) → ReLU | [8, 16, 64, 64] | 448 |
+| MaxPool2d(2) | [8, 16, 32, 32] | 0 |
+| Conv2d(16, 32, 3, padding=1) → ReLU | [8, 32, 32, 32] | 4,640 |
+| MaxPool2d(2) | [8, 32, 16, 16] | 0 |
+| AdaptiveAvgPool2d(1) | [8, 32, 1, 1] | 0 |
+| flatten(x, 1) | [8, 32] | 0 |
+| Linear(32, 2) | [8, 2] | 66 |
+| 합계 | 5,154 |  |
+
+### 공식
+
+```
+출력 크기    H_out = ⌊(H + 2P − K) / S⌋ + 1                (dilation 1)
+파라미터 수  출력채널 × 입력채널 × K × K + 출력채널(bias)
+수용영역     r=1, j=1 → 층마다  r += (K−1)·j,  j *= S
+1 epoch의 step 수 = ⌈샘플 수 / batch_size⌉                 (drop_last=False)
+```
+
+### 전이학습 방식별 학습 파라미터 (ResNet18, K=2)
+
+| 방식 | 여는 구간 | lr (예시 설정) | 학습 파라미터 |
+|---|---|---|---|
+| Head-only | fc | 1e-3 | 1,026 |
+| Partial | layer4 + fc | layer4 1e-4 · fc 1e-3 | 8,394,754 |
+| 전체 미세조정 | 전부 | 작은 lr | 11,177,538 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch | Conv2d·Pooling 같은 층, 손실 함수, 학습 루프 (PyTorch 기초에서 설치) | import torch, from torch import nn, import torch.nn.functional as F |
+| torchvision | 이미지 폴더 읽기, 변환·증강, 사전학습 모델(ResNet18) | from torchvision import datasets, transforms, from torchvision.models import resnet18, ResNet18_Weights |
+| Pillow | PNG·JPG 이미지 파일 열기 (ImageFolder가 내부에서 사용) | from PIL import Image |
+| matplotlib (선택) | 이미지·Feature Map·학습 곡선 그리기 | import matplotlib.pyplot as plt |
+
+### 🔧 설치 · 확인
+
+```
+python -m pip install pillow matplotlib
+python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__); print('CUDA:', torch.cuda.is_available())"
+```
+
+⚠️ torch와 torchvision은 서로 짝이 맞는 버전이어야 해요. 둘 다 pytorch.org 선택기에서 내 환경(CPU/CUDA)에 맞는 명령으로 함께 깔아요. 이미 GPU용 torch가 잘 돌면 덮어쓰지 마세요.
+
+🤔 왜 짝을 맞춰야 해? — torchvision 안의 일부 연산은 torch의 C++ 내부 코드에 맞춰 미리 컴파일돼 있어요. 버전이 어긋나면 import 단계에서 바로 오류가 나거나, 특정 연산만 이상하게 실패해요.
+
+💡 pip 이름 ≠ import 이름: Pillow → PIL.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 사전학습 가중치는 내려받지 않고 resnet18(weights=None)로 구조 · 파라미터 수만 확인했어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| Optimizer · 과적합 · Dropout · BatchNorm | 여기서 쓰는 SGD/Adam · 학습률 · train/eval 모드의 원리 |
+| 순서 모델 (RNN · LSTM · Autoencoder · Transformer) | 공간 대신 시간 순서가 있는 데이터를 다루는 모델 |
+| OpenCV 이미지 · 영상 전처리 | 모델에 넣기 전 사진을 읽고 · 자르고 · 고치는 법 |
+| 전이학습과 오류 분석 | 전이학습 모델을 실제로 학습하고 틀린 사진을 분석하기 |
 
 ## 원본 자료
 
@@ -4678,14 +5145,14 @@ seconds = time.perf_counter() - start
 ## 🔧 Day11 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day11)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | torch, torchvision, pillow |
-| ⓪ PyTorch 한 장 정리 | Dataset · DataLoader · nn.Module · CrossEntropyLoss · SGD/Adam · eval()+no_grad() · state_dict |
-| ① 이미지 Tensor [N, C, H, W] | torch.rand(), permute(), unsqueeze(0) |
+| ① 이미지 Tensor [N, C, H, W] | torch.rand(), permute(), unsqueeze(0), reshape · flatten(1) · sum(dim) · argmax(dim=1) |
 | ② 합성곱 Conv2d | nn.Conv2d(in, out, kernel_size, stride=, padding=), F.conv2d() |
-| ③ Pooling · BatchNorm · CNN 조립 | nn.MaxPool2d(), nn.BatchNorm2d(), nn.AdaptiveAvgPool2d(1), torch.flatten(x, 1) |
-| ④ 이미지 읽기 · 증강 · 학습 · 평가 · 저장 | datasets.ImageFolder(), transforms.Compose(), nn.CrossEntropyLoss(), torch.inference_mode(), torch.save() |
-| ⑤ 전이학습 (Head-only · Partial) | resnet18(weights=), weights.transforms(), requires_grad = False, model.fc = nn.Linear() |
-| ⑥ CPU·GPU 속도 비교 · 성능표 | time.perf_counter(), torch.cuda.synchronize(), torch.cuda.max_memory_allocated() |
+| ③ Pooling · BatchNorm · CNN 조립 | nn.Sequential, nn.MaxPool2d(), nn.BatchNorm2d(), nn.AdaptiveAvgPool2d(1), torch.flatten(x, 1) |
+| ④ 이미지 데이터 · 증강 | datasets.ImageFolder(), transforms.Compose(), Dataset 상속 · DataLoader |
+| ⑤ 학습 · 평가 · 저장 | nn.Module · CrossEntropyLoss · SGD/Adam · zero_grad/backward/step · eval()+no_grad() · torch.inference_mode() · state_dict · torch.save() |
+| ⑥ 전이학습 (Head-only · Partial) | resnet18(weights=), weights.transforms(), requires_grad = False, model.fc = nn.Linear() |
+| ⑦ CPU·GPU 속도 비교 · 성능표 | time.perf_counter(), torch.cuda.synchronize(), torch.cuda.max_memory_allocated() |
+| 📦 패키지 · 명령어 | torch, torchvision, pillow |
 
 ### 전체 흐름: 학습 루프 한 장 (FashionMNIST)
 
@@ -4716,7 +5183,7 @@ for epoch in range(epochs):            # 에폭 반복
         optimizer.zero_grad()          # ③ 초기화
         loss.backward()                # ④ 기울기
         optimizer.step()               # ⑤ 갱신
-    test(model)                        # 평가 (아래 test 항목)
+    # 평가: model.eval() + torch.no_grad()로 정확도 (아래 평가 · 저장 항목)
 torch.save(model.state_dict(), "model.pth")
 ```
 
@@ -4727,16 +5194,16 @@ torch.save(model.state_dict(), "model.pth")
 | device | cuda | 이 PC는 NVIDIA GPU가 있어서 cuda (PC마다 달라요) |
 | len(DataLoader(60,000개, batch_size=64)) | 938 | FashionMNIST 한 epoch = 938번 step |
 | len(train_dl) (1,280장) | 20 | 1,280 ÷ 64 = 20 묶음 |
-| 학습 전 test(model) | 0.004 | 학습 전이라 찍기 수준 (이번 무작위 시작값에선 기대값 0.1보다도 낮게 나왔어요) |
+| 학습 전 정확도 (eval · no_grad) | 0.004 | 학습 전이라 찍기 수준 (이번 무작위 시작값에선 기대값 0.1보다도 낮게 나왔어요) |
 | epoch 1·2·3 (학습 손실, 평가 정확도) | [(1.407, 1.0), (0.243, 1.0), (0.077, 1.0)] | 손실은 계속 줄고, 정확도는 첫 epoch부터 1.0 — 규칙이 쉬운 합성 데이터라서예요(실제 FashionMNIST는 이렇게 안 돼요) |
 
 | 줄 | 뜻 | 🤔 왜? |
 |---|---|---|
 | device = ("cuda" if ... else "mps" if ... else "cpu") | NVIDIA GPU → Apple GPU → CPU 순서로 고름 | 같은 코드를 어느 컴퓨터에서 돌려도 쓸 수 있는 장치를 자동으로 고르려고 |
 | datasets.FashionMNIST(..., download=True) | 옷 사진 데이터를 data/에 받아 Dataset으로 | 공식 튜토리얼의 연습용 데이터. 처음 한 번만 내려받아요 |
-| model.train() | Dropout·BatchNorm을 학습 동작으로 | test() 안에서 eval()로 바꿨으니 epoch마다 다시 켜야 해요 |
+| model.train() | Dropout·BatchNorm을 학습 동작으로 | 평가할 때 eval()로 바꿨으니 epoch마다 다시 켜야 해요 |
 | X.to(device), y.to(device) | 배치를 모델과 같은 장치로 | 모델은 한 번만 옮기면 되지만 배치는 새로 꺼낼 때마다 옮겨야 해요 |
-| ③ → ④ → ⑤ 순서 | 지우고 → 계산하고 → 갱신 | 순서를 바꾸면 지난 기울기가 섞이거나 기울기 없이 갱신해요 (Day9) |
+| ③ → ④ → ⑤ 순서 | 지우고 → 계산하고 → 갱신 | 순서를 바꾸면 지난 기울기가 섞이거나 기울기 없이 갱신해요 (학습 루프) |
 
 ⚠️ download=True는 인터넷으로 데이터를 내려받아요(약 30MB). 이미 받은 폴더가 있으면 다시 받지 않아요.
 
@@ -4869,17 +5336,16 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)    # 가중치마다 보폭 
 | model.parameters() | 학습할 가중치 목록 | optimizer는 여기 넘긴 것만 갱신해요 |
 | lr | 한 번에 움직이는 크기 | Adam은 보통 1e-3부터 |
 
-### 평가 함수 test() · 저장 state_dict
+### 평가 model.eval() · torch.no_grad() · 저장 state_dict
 
 ```
-def test(model):
-    model.eval(); correct = 0          # Dropout 끔
-    with torch.no_grad():              # 기울기 기록 끔
-        for X, y in test_dl:           # 안 본 데이터
-            X, y = X.to(device), y.to(device)
-            hit = model(X).argmax(1) == y
-            correct += hit.sum().item()
-    return correct / len(test_dl.dataset)
+model.eval(); correct = 0              # Dropout 끔
+with torch.no_grad():                  # 기울기 기록 끔
+    for X, y in test_dl:               # 안 본 데이터
+        X, y = X.to(device), y.to(device)
+        hit = model(X).argmax(1) == y
+        correct += hit.sum().item()
+acc = correct / len(test_dl.dataset)   # 정확도 (샘플 수로 나눔)
 
 torch.save(model.state_dict(), "model.pth")
 model.load_state_dict(torch.load("model.pth"))
@@ -4889,11 +5355,11 @@ model.load_state_dict(torch.load("model.pth"))
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| test(model) | 1.000 | eval() + no_grad() 로 잰 정확도 |
+| correct / len(test_dl.dataset) | 1.000 | eval() + no_grad() 로 잰 정확도 |
 | len(test_dl), len(test_dl.dataset) | 4, 256 | 배치 수로 나누면 정확도가 64배 커져요 |
 | list(model.state_dict().keys()) | ['layers.1.weight', 'layers.1.bias', 'layers.3.weight', 'layers.3.bias'] | 층 번호.weight / .bias |
 | state_dict 저장 크기 | 1,592 KB | 가중치 407,050개 × 4바이트 |
-| 새 Net()에 load_state_dict → test | <All keys matched successfully> · 같은 정확도: True | 구조는 코드로, 값만 채워 넣기 |
+| 새 Net()에 load_state_dict → 정확도 다시 재기 | <All keys matched successfully> · 같은 정확도: True | 구조는 코드로, 값만 채워 넣기 |
 | Dropout 모델 train() 두 번 / eval() 두 번 | 0.797, 0.264 / 0.112, 0.112 | eval()을 빠뜨리면 평가할 때마다 값이 흔들려요 |
 
 | 표현 | 뜻 | 🤔 왜? |
@@ -4913,7 +5379,7 @@ hwc  = img.permute(1, 2, 0)           # [32, 32, 3]  → plt.imshow(hwc)
 nchw = img.unsqueeze(0)               # [1, 3, 32, 32] → 사진 한 장을 모델에 넣을 때
 ```
 
-▶ 실제로 돌려 보면 torch.rand 난수(seed 0) · 강의 데이터 train/horizontal/train_horizontal_000.png
+▶ 실제로 돌려 보면 torch.rand 난수(seed 0) · 예제 데이터 train/horizontal/train_horizontal_000.png
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -4969,7 +5435,7 @@ print(F.conv2d(inp, kernel)[0, 0])                          # 3×3, 세로선 �
 | padding | 가장자리 0 덧대기 (기본 0) | 3×3에 1이면 크기 유지, 0이면 층마다 2칸씩 줄어듦 |
 | bias | 편향 사용 (기본 True) | 바로 뒤에 BatchNorm이 오면 False로 끄기도 함 — BN이 평균을 빼면서 bias 효과를 지워 버리거든요 |
 
-### SmallCNN 만들기
+### Conv 블록 쌓기 — nn.Sequential · nn.MaxPool2d · nn.AdaptiveAvgPool2d (SmallCNN)
 
 ```
 class SmallCNN(nn.Module):
@@ -5073,7 +5539,7 @@ print(train_ds.class_to_idx)       # {'horizontal': 0, 'vertical': 1}  ← 폴�
 print(images.shape, labels.shape)  # torch.Size([32, 3, 64, 64]) torch.Size([32])
 ```
 
-▶ 실제로 돌려 보면 강의 데이터 data/train (horizontal 30 · vertical 30) · data/valid (10 · 10)
+▶ 실제로 돌려 보면 예제 데이터 data/train (horizontal 30 · vertical 30) · data/valid (10 · 10)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -5093,7 +5559,7 @@ print(images.shape, labels.shape)  # torch.Size([32, 3, 64, 64]) torch.Size([32]
 | transforms.Compose([...]) | 변환을 순서대로 연결 | 순서가 중요: ToTensor 전엔 PIL용, 후엔 Tensor용 변환(Normalize) |
 | transforms.Resize((64, 64)) | 목표 크기로 맞춤 (크기 필수) | 크게 하면 디테일↑·계산↑, 작게 하면 빠르지만 작은 물체가 뭉개짐 |
 | transforms.ToTensor() | PIL [H,W,C] 0~255 → Tensor [C,H,W] 0~1 실수 | 인자 없음. 빼면 모델이 PIL을 못 받음 |
-| transforms.Normalize(mean, std) | 채널마다 (x − mean) / std | 사전학습 모델엔 그 모델이 배울 때 쓴 값을 써야 함 (ResNet18 Head-only 항목의 weights.transforms(), 이론은 Day11 ⑤ 전이학습) |
+| transforms.Normalize(mean, std) | 채널마다 (x − mean) / std | 사전학습 모델엔 그 모델이 배울 때 쓴 값을 써야 함 (ResNet18 Head-only 항목의 weights.transforms(), 이론은 ⑥ 전이학습) |
 | DataLoader(…, shuffle=True) | batch로 묶기, train은 섞기 | train을 안 섞으면 같은 클래스만 연달아 나와 학습이 한쪽으로 쏠림. valid는 섞을 필요 없음 |
 
 ### 손실 · 학습 루프 · valid 평가 · best 저장
@@ -5125,7 +5591,7 @@ for epoch in range(1, num_epochs + 1):
 model.load_state_dict(best_state)
 ```
 
-▶ 실제로 돌려 보면 강의 데이터 train 60장으로 SmallCNN 8 epoch (seed 0, NVIDIA GeForce RTX 5080 Laptop GPU) — 숫자는 작은 데이터라 흔들릴 수 있어요
+▶ 실제로 돌려 보면 예제 데이터 train 60장으로 SmallCNN 8 epoch (seed 0, NVIDIA GeForce RTX 5080 Laptop GPU) — 숫자는 작은 데이터라 흔들릴 수 있어요
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -5209,7 +5675,7 @@ model.fc.train()
 print(sum(p.numel() for p in model.parameters() if p.requires_grad))   # 1026
 ```
 
-▶ 실제로 돌려 보면 ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 PNG 한 장
+▶ 실제로 돌려 보면 ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 예제 PNG 한 장
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -5285,7 +5751,7 @@ if device.type == "cuda":
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| CPU · 강의 train 60장, batch 32 | 5,081 images/s · 메모리 N/A | CPU에선 VRAM 값 없음 |
+| CPU · 예제 train 60장, batch 32 | 5,081 images/s · 메모리 N/A | CPU에선 VRAM 값 없음 |
 | GPU(NVIDIA GeForce RTX 5080 Laptop GPU) · 같은 조건 | 21,048 images/s · peak 95.1 MiB | CPU의 약 4.1배 — 60장·batch 32라 GPU가 덜 바쁨 |
 | CPU · 난수 1024장, batch 256 | 4,477 images/s |  |
 | GPU · 난수 1024장, batch 256 | 49,138 images/s · peak 342.2 MiB | batch가 크면 GPU가 약 11배 |
@@ -5386,30 +5852,33 @@ _2026-11-02(월) · Padding/Mask · RNN · LSTM · Autoencoder · Attention · T
 
 - Autoencoder는 목적이 다른 갈래: 미래가 아니라 입력 자신을 좁은 통로로 되살리고, 잘 못 되살리면 "이상 후보". 예측·재구성 결과는 따로 기록해요.
 
-🔧 Day12 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 순서를 읽는 모델들
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
+사진은 "한 장" 데이터예요. 센서 · 문장 · 로그 · 오디오는 순서가 의미를 가지는 데이터예요. 같은 단어라도 순서를 바꾸면 뜻이 달라져요(“woman ate raccoon” vs “raccoon ate woman”). 그래서 시계열은 순서를 마구 섞으면 같은 문제가 아니에요.
 
-## 📦 필요한 패키지
+순서 데이터 [B, T, F] + lengths · Mask→ RNN 메모 한 장 h→ LSTM 더하는 기억 통로 c→ Transformer 모든 위치를 한 번에 (T²)
 
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+RNN → LSTM → Transformer는 "순서를 더 잘 읽기"의 발전이고, Autoencoder는 미래가 아니라 입력 자신을 되살리는 다른 갈래예요. 이 페이지의 ①~⑦이 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| torch | RNN·LSTM·Transformer 층, Padding 도구, 손실 함수, DataLoader 전부 (Day9부터 설치됨) | import torch, from torch import nn, from torch.nn.utils.rnn import pad_sequence |
-| matplotlib (선택) | loss 곡선, 예측 vs 실제, Mask·Latent 그림 | import matplotlib.pyplot as plt |
-
-### 🔧 확인
+| ① 순서 데이터 | [B, T, F] · Padding · Mask · Window | 길이가 다른 순서를 어떻게 한 묶음으로? 채운 칸은 어떻게 빼나? |
+| ② RNN | 같은 Cell을 시점마다 반복해 h로 요약 | 과거를 어떻게 다음 시점으로 넘기나? |
+| ③ LSTM | Gate로 지우고 · 쓰고 · 꺼내는 c 통로 | 먼 과거의 기울기는 왜 사라지고, 어떻게 살리나? |
+| ④ Attention · Transformer | Q · K · V 가중합 + Position · Mask | 필요한 위치를 차례로 거치지 않고 직접 보려면? |
+| ⑤ Autoencoder | 좁은 Latent로 줄였다가 되살리기 | 정답이 없을 때 "낯선 입력"을 어떻게 찾나? |
+| ⑥ 아키텍처 비교 | 같은 조건 · 목적별 표 | 무엇을 기준으로 고르나? |
+| ⑦ 길이 · 속도 측정 | T vs T², Padding 낭비, 실측 | 길어지면 무엇이 얼마나 무거워지나? |
 
 ```
-python -c "import torch; print(torch.__version__); print('CUDA:', torch.cuda.is_available())"
+입력  [B, T, F] + lengths 또는 padding_mask (True = 채운 칸)
+  ├ RNN / LSTM:   시점마다 같은 가중치 반복 → output [B, T, H] · h_n (· c_n)
+  ├ Transformer:  Embedding + Position → Self-Attention(+Mask) → Pooling [B, E]
+  └ Autoencoder:  x [B, 8] → z [B, 2] → x̂ [B, 8]   (목적이 다름: 재구성)
+Head  → 분류 logit · 다음 값 · 재구성 오차
 ```
 
-💡 오늘 쓰는 순서 모델 도구(nn.RNN, nn.LSTM, nn.MultiheadAttention, pad_sequence …)는 전부 torch 안에 들어 있어서 따로 설치할 게 없어요. 정상 설치된 환경은 그대로 두고, 기본 학습은 CPU로, GPU 비교는 GPU가 있을 때만 해요.
-
-🤔 왜 설치 버전을 기록해? — 시간·메모리 측정값과 일부 기본 동작은 PyTorch 버전·장치에 따라 달라져요. 나중에 결과를 다시 만들거나 남과 비교하려면 "어떤 환경에서 잰 숫자인지"가 같이 있어야 해요.
-
-## 이거 어디에 써?
-
-Day11의 이미지는 "한 장" 데이터였죠. 오늘은 순서가 의미를 가지는 데이터예요(센서·문장·로그·오디오). 같은 단어라도 순서를 바꾸면 뜻이 달라져요(“woman ate raccoon” vs “raccoon ate woman”). 그래서 시계열은 순서를 마구 섞으면 같은 문제가 아니에요.
+어디에 쓰나:
 
 📈
 
@@ -5436,7 +5905,7 @@ Day11의 이미지는 "한 장" 데이터였죠. 오늘은 순서가 의미를 �
 
 ## ① 순서 데이터 [B, T, F] · Padding · Mask · Window
 
-| 축 | 뜻 | 예 (오늘 LSTM 예측) |
+| 축 | 뜻 | 예 (LSTM 다음 값 예측) |
 |---|---|---|
 | B · Batch | Window(순서) 개수 | B개 |
 | T · Time | 시점 수 (길이) | T=12, 과거 12개 관측 |
@@ -5451,9 +5920,9 @@ Day11의 이미지는 "한 장" 데이터였죠. 오늘은 순서가 의미를 �
 ○ 실제 길이로 평균:  (3+1+4) ÷ 3     = 2.67
 ```
 
-🤔 왜 길이가 달라도 같은 모델에 넣을 수 있어? — 순서 모델은 모든 시점에 같은 가중치를 써요. 시점마다 다른 가중치(W₁, W₂, …)를 쓰면 길이 4로 배운 모델은 5번째 시점용 W₅가 없어서 못 읽고, 길이가 바뀔 때마다 새로 배워야 하죠. 같은 W를 반복하면 길이가 4든 50이든 그대로 읽어요. 그래서 nn.RNN(input_size, hidden_size)에는 길이 T를 정하는 인자가 아예 없어요. (Day11 Conv가 "모든 위치에 같은 Kernel"이었던 것과 같은 생각이에요.)
+🤔 왜 길이가 달라도 같은 모델에 넣을 수 있어? — 순서 모델은 모든 시점에 같은 가중치를 써요. 시점마다 다른 가중치(W₁, W₂, …)를 쓰면 길이 4로 배운 모델은 5번째 시점용 W₅가 없어서 못 읽고, 길이가 바뀔 때마다 새로 배워야 하죠. 같은 W를 반복하면 길이가 4든 50이든 그대로 읽어요. 그래서 nn.RNN(input_size, hidden_size)에는 길이 T를 정하는 인자가 아예 없어요. (CNN의 가중치 공유 — "모든 위치에 같은 Kernel"과 같은 생각이에요.)
 
-🤔 왜 Padding은 계속 빼라고 해? — Padding은 길이를 맞추려고 채운 0이라 실제 값이 아니에요. 평균에 섞이면 위처럼 값이 작아지고, "마지막 값"을 꺼내면 진짜 마지막이 아닌 0을 꺼내고, Attention에선 가짜 칸에 비율을 나눠 줘요. 그래서 오늘 모든 모델에서 따로 빼요.
+🤔 왜 Padding은 계속 빼라고 해? — Padding은 길이를 맞추려고 채운 0이라 실제 값이 아니에요. 평균에 섞이면 위처럼 값이 작아지고, "마지막 값"을 꺼내면 진짜 마지막이 아닌 0을 꺼내고, Attention에선 가짜 칸에 비율을 나눠 줘요. 그래서 모든 순서 모델에서 따로 빼요.
 
 [그림: 길이 12, 8, 10, 5인 센서 순서 네 개를 12로 맞추며 회색 Padding을 채운 그림과, True/False로 된 4×12 Mask 행렬] 무엇을 보나: 왼쪽은 길이가 다른 센서 기록 4개를 가장 긴 12에 맞춘 모습이에요. 회색 빗금 칸이 채워 넣은 0(Padding). 오른쪽은 같은 모양의 Mask로, 회색 T(True) 칸이 정확히 왼쪽의 회색 칸과 겹쳐요. 빨간 숫자는 "0까지 넣고 평균"한 값인데, 샘플3은 진짜 평균 0.38이 0.16으로 반 토막 나요. 🤔 왜 짧을수록 더 틀려? 짧은 샘플일수록 채운 0이 많아서 평균의 분모(12)에서 가짜 칸 비중이 커져요. 그러면 모델은 "짧다"는 사실을 "값이 작다"로 착각해요. Mask로 회색 칸을 빼고 진짜 길이로 나누면 길이와 상관없이 정직한 평균이 나와요.
 
@@ -5558,62 +6027,7 @@ self.lstm = nn.LSTM(1, 16, batch_first=True)   # F=1 → H=16
 output, _ = self.lstm(x)                       # [B, 12, 16]
 ```
 
-## ④ Autoencoder — 정답이 입력 자신
-
-RNN·LSTM은 미래를 맞혀요. Autoencoder는 목적이 달라요. 입력 x를 작게 줄였다가(z) 다시 원래대로 되살리기(x̂). 긴 글을 세 줄로 요약했다가 다시 풀어 쓰는 것과 비슷해요. 오늘은 Linear 층으로 만든 MLP형이라 시간축이 없어요.
-
-x · 8 [B,8]→ Encoder 8 → 4 → 2→ z · 2 Latent [B,2]→ Decoder 2 → 4 → 8→ x̂ ≈ x [B,8]
-
-|  | 예측 (LSTM) | 재구성 (Autoencoder) |
-|---|---|---|
-| 입력 → 출력 | 과거 12개 → 다음 1개 | x 8개 → x̂ 8개 |
-| 정답 | 미래 값 | x 자신 |
-| 지표 | 예측 MSE | 재구성 오차 |
-
-| 가운데(Latent)가 | 결과 |
-|---|---|
-| 너무 넓으면 (모델이 너무 크면) | 그대로 베끼기만 함 → 배운 게 없고 일반화가 약해짐 |
-| 적당히 좁으면 | 중요한 패턴만 골라 담음 |
-| 너무 좁으면 | 중요한 정보까지 잃음 → Underfitting |
-
-[그림: ] 무엇을 보나: 오늘 Autoencoder(8 → 4 → 2 → 4 → 8)를 막대 높이 = 칸 수로 그린 모래시계예요. 가운데 검은 2칸이 Latent z. 끝에서 나온 x̂를 처음 x와 비교한 차이가 재구성 오차예요. 🤔 왜 모래시계 모양이어야 해? 가운데가 8칸이면 "그대로 복사"로 오차 0을 쉽게 만들어요. 2칸으로 조이면 8개 숫자를 2개로 요약하는 규칙을 배워야만 되살릴 수 있어요. 그 규칙이 바로 "정상 데이터의 패턴"이고, 이 패턴에서 벗어난 입력은 2칸에 잘 안 담겨서 되살리기에 실패해요.
-
-🤔 왜 가운데를 일부러 좁게 만들어? — 통로가 입력만큼 넓으면 "그대로 복사"가 제일 쉬운 답이라 아무 규칙도 안 배워요. 8개를 2개로 줄여야 하면, 8개 값 사이에 공통으로 반복되는 패턴을 찾아 그것만 담을 수밖에 없어요. 그게 Autoencoder가 배우는 "주요 패턴"이에요. 다만 분류 모델이 아니라서 z의 각 칸이 무슨 뜻인지는 따로 분석해야 해요.
-
-🤔 왜 "오차 큼 = 이상"이 아니라 "이상 후보"야? — 정상 데이터로만 배운 모델은 낯선 입력을 잘 못 되살려서 오차가 커져요. 하지만 전처리 실수, 모델 용량, 학습 분포 밖의 정상 데이터 때문에도 오차가 클 수 있어서 확정할 수 없어요. 그래서 점검할 후보로만 표시해요.
-
-[그림: 정상 샘플은 입력과 재구성이 거의 겹치고 칸별 오차가 0에 가깝지만, 이상 샘플은 재구성이 크게 어긋나 칸별 오차 막대가 큰 그림] 무엇을 보나: 사인파 조각(8칸, 진폭·위상 무작위)으로 정상만 학습한 진짜 Autoencoder(8-4-2-4-8)의 결과예요. 왼쪽 정상 샘플은 검은 입력 x와 초록 점선 x̂가 거의 겹쳐 오차 0.002, 아래 칸별 막대도 안 보일 만큼 작아요. 오른쪽 이상 샘플(일부러 만든 패턴 없는 잡음)은 x̂가 엉뚱하게 "사인파처럼" 매끈하게 나와 오차 1.171(약 600배). 🤔 왜 이상 샘플을 사인파처럼 되살려? Decoder는 2칸 z로부터 "자기가 배운 패턴(사인파)"밖에 그릴 줄 몰라요. 그래서 낯선 입력도 가장 비슷한 사인파로 바꿔 그리고, 그 차이가 그대로 오차가 돼요.
-
-[그림: 정상 valid 400개와 이상 60개의 재구성 오차 분포 히스토그램과 99% 분위수 기준선] 무엇을 보나: 샘플마다 오차 1개(reduction="none" → mean(dim=1))를 모아 그린 분포예요(가로 로그 눈금). 초록 정상 valid는 0.001 근처에 모이고, 빨강 이상은 0.05~1로 멀리 떨어져 있어요. 보라 점선이 아래 코드의 torch.quantile(valid_err, 0.99) 기준값이에요. 🤔 왜 정상도 4개가 넘어가? "valid 오차의 99%"를 기준으로 잡으면 정의상 정상의 약 1%(400개 중 4개)는 기준을 넘어요. 기준을 높이면 놓치는 이상이, 낮추면 헛경보가 늘어요 → 몇 %로 할지는 업무가 정하고, 넘은 것은 "확정"이 아니라 "점검 후보"예요. (여기 이상 샘플은 일부러 티 나게 만든 거라 실제보다 깔끔하게 갈려요.)
-
-⚠️ 예측 MSE와 재구성 오차는 정답도 단위도 달라요. 평균 내거나 한 표에서 순위 매기지 말고 목적별로 표를 따로 만드세요.
-
-🔧 Autoencoder forward와 재구성 오차 명령어 사전에서 자세히 →
-
-```
-loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
-score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)
-```
-
-[그림: 2칸 Latent z 평면에 정상 샘플이 위상 색깔 순서대로 고리 모양으로 놓이고 이상 샘플은 흩어진 산점도] 무엇을 보나: 학습된 Encoder(model[:4])로 뽑은 z 2칸을 좌표로 찍었어요. 정상 점들의 색(사인파 위상)이 무지개처럼 순서대로 고리를 이뤄요. 빨간 ✕(이상)는 고리 안쪽·바깥 등 아무 데나 흩어져요. 🤔 왜 고리야? 정상 데이터는 사실 "진폭·위상" 두 가지만 달라요. Autoencoder가 아무도 안 알려 줬는데 이 두 성질을 2칸에 펼쳐 담은 거예요. 다만 z[0]·z[1] 각각이 무슨 뜻인지는 정해져 있지 않아서 이렇게 그려 보며 해석해야 해요.
-
-[그림: Latent 크기 1, 2, 4, 8에 따른 valid 재구성 MSE 막대. 1에서 0.032, 2부터 0.002 이하] 무엇을 보나: 가운데 칸 수만 1·2·4·8로 바꿔 학습한 valid 재구성 오차예요(앞뒤 층 16칸, 같은 데이터·epoch, seed 3개 중 최솟값). 1칸이면 0.032로 크고, 2칸부터 0.002 이하로 뚝 떨어져요. 🤔 왜 2에서 꺾여? 이 데이터의 본질이 "진폭·위상" 두 숫자라서 2칸이면 거의 다 담겨요. 그보다 줄이면 필요한 정보를 잃고(Underfitting), 늘려도 얻는 게 적고 복사에 가까워져요. 실전에선 이렇게 크기를 바꿔 가며 "꺾이는 지점"을 찾아요.
-
-🔧 샘플별 오차 reduction="none" 명령어 사전에서 자세히 →
-
-```
-loss_fn = nn.MSELoss(reduction="none")
-error = loss_fn(recon, x).mean(dim=1)      # [B, F] → [B]  샘플마다 점수 1개
-```
-
-🔧 입력 = 정답 Batch · Denoising · 기준값 명령어 사전에서 자세히 →
-
-```
-loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
-threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함
-```
-
-## ⑤ Attention · Transformer — 필요한 위치를 직접 골라 본다
+## ④ Attention · Transformer — 필요한 위치를 직접 골라 본다
 
 LSTM의 남은 문제: 여전히 한 시점씩 차례로 계산해서 느리고, 먼 시점 정보는 중간을 모두 거쳐 와야 해요. Attention은 순차 전달 대신 위치끼리의 관계를 한 번에 직접 가중합으로 계산해요.
 
@@ -5654,7 +6068,7 @@ weight = softmax( Q · Kᵀ / √d )     ← 어디를 얼마나 볼지 (합 = 1
 | LayerNorm | 위치 하나 안의 Feature로 정규화 → 길이·Padding이 제각각이어도 OK (BatchNorm은 여러 샘플을 묶어 정규화해서 순서 데이터엔 불편) |
 | 한 층 구성 | Self-Attention(위치끼리 섞기) + Feedforward(위치마다 따로 변환), 각각 뒤에 Residual + LayerNorm. 입력·출력 크기 [B, T, E]가 같아서 여러 층을 쌓아 문맥을 강화할 수 있어요 |
 
-[그림: 실제 4칸과 Padding 2칸으로 된 길이 6 순서의 Self-Attention 가중치 6×6 표. Mask가 없으면 pad 열에 비율이 가고, key_padding_mask를 쓰면 pad 열이 0] 무엇을 보나: 길이 6 순서(실제 x0~x3 + Padding 2칸)에 softmax(QKᵀ/√d)를 직접 계산한 Attention 가중치 표예요. 행 = 보는 주체(Query), 열 = 보이는 대상(Key), 한 행의 합 = 1. 왼쪽(Mask 없음)은 빨간 점선 안 pad 열에 행마다 0.3~0.6이나 새어 나가요. 오른쪽(key_padding_mask)은 pad 열이 전부 0.00이고 그 몫이 실제 칸으로 재분배돼요. ※ Q·K 투영은 무작위(seed 4)라 어떤 칸이 진한지에는 의미가 없어요. 🤔 왜 열만 0이고 pad 행은 남아? Mask는 "이 Key를 보지 마"라는 표시라 열을 막아요. pad 위치도 Query로서 출력은 계속 만들어지니(아래 두 줄), Pooling 때 그 출력을 따로 빼야 해요(masked_mean).
+[그림: 실제 4칸과 Padding 2칸으로 된 길이 6 순서의 Self-Attention 가중치 6×6 표. Mask가 없으면 pad 열에 비율이 가고, key_padding_mask를 쓰면 pad 열이 0] 무엇을 보나: 길이 6 순서(실제 x0~x3 + Padding 2칸)에 softmax(QKᵀ/√d)를 직접 계산한 Attention 가중치 표예요. 행 = 보는 주체(Query), 열 = 보이는 대상(Key), 한 행의 합 = 1. 왼쪽(Mask 없음)은 빨간 점선 안 pad 열에 행마다 0.3~0.6이나 새어 나가요. 오른쪽(key_padding_mask)은 pad 열이 전부 0.00이고 그 몫이 실제 칸으로 재분배돼요. ※ Q·K 투영은 무작위(seed 4)라 어떤 칸이 진한지에는 의미가 없어요. 🤔 왜 열만 0이고 pad 행은 남아? Mask는 "이 Key를 보지 마"라는 표시라 열을 막아요. pad 위치도 Query로서 출력은 계속 만들어지니(아래 두 줄), Pooling 때 그 출력을 따로 빼야 해요(Mask로 실제 위치만 평균).
 
 [그림: 6×6 Causal Mask. 대각선과 그 아래는 O(볼 수 있음), 대각선 위는 X(미래라서 차단)] 무엇을 보나: Causal Mask(attn_mask, [T, T])예요. 행 t3을 보면 t0~t3(초록 O)만 볼 수 있고 t4·t5(회색 X)는 막혀요. 아래로 갈수록 볼 수 있는 칸이 하나씩 늘어 계단(삼각형) 모양이 돼요. 🤔 왜 삼각형? "다음 값 맞히기"에서 t3 시점의 예측이 t4를 보면 정답을 베끼는 셈이에요. "자기 자신과 과거만"이라는 규칙을 모든 행에 적용하면 대각선 위가 전부 막힌 삼각형이 돼요. Padding Mask(열 단위)와 달리 위치 쌍 단위로 막아요.
 
@@ -5679,6 +6093,61 @@ self.pos = nn.Embedding(max_len, d_model)          # 위치 0~63 → 16칸 벡�
 z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)
 ```
 
+## ⑤ Autoencoder — 정답이 입력 자신
+
+RNN · LSTM · Transformer는 미래나 클래스를 맞혀요. Autoencoder는 목적이 달라요. 입력 x를 작게 줄였다가(z) 다시 원래대로 되살리기(x̂). 긴 글을 세 줄로 요약했다가 다시 풀어 쓰는 것과 비슷해요. 여기 예시는 Linear 층으로 만든 MLP형이라 시간축이 없어요.
+
+x · 8 [B,8]→ Encoder 8 → 4 → 2→ z · 2 Latent [B,2]→ Decoder 2 → 4 → 8→ x̂ ≈ x [B,8]
+
+|  | 예측 (LSTM) | 재구성 (Autoencoder) |
+|---|---|---|
+| 입력 → 출력 | 과거 12개 → 다음 1개 | x 8개 → x̂ 8개 |
+| 정답 | 미래 값 | x 자신 |
+| 지표 | 예측 MSE | 재구성 오차 |
+
+| 가운데(Latent)가 | 결과 |
+|---|---|
+| 너무 넓으면 (모델이 너무 크면) | 그대로 베끼기만 함 → 배운 게 없고 일반화가 약해짐 |
+| 적당히 좁으면 | 중요한 패턴만 골라 담음 |
+| 너무 좁으면 | 중요한 정보까지 잃음 → Underfitting |
+
+[그림: ] 무엇을 보나: 예시 Autoencoder(8 → 4 → 2 → 4 → 8)를 막대 높이 = 칸 수로 그린 모래시계예요. 가운데 검은 2칸이 Latent z. 끝에서 나온 x̂를 처음 x와 비교한 차이가 재구성 오차예요. 🤔 왜 모래시계 모양이어야 해? 가운데가 8칸이면 "그대로 복사"로 오차 0을 쉽게 만들어요. 2칸으로 조이면 8개 숫자를 2개로 요약하는 규칙을 배워야만 되살릴 수 있어요. 그 규칙이 바로 "정상 데이터의 패턴"이고, 이 패턴에서 벗어난 입력은 2칸에 잘 안 담겨서 되살리기에 실패해요.
+
+🤔 왜 가운데를 일부러 좁게 만들어? — 통로가 입력만큼 넓으면 "그대로 복사"가 제일 쉬운 답이라 아무 규칙도 안 배워요. 8개를 2개로 줄여야 하면, 8개 값 사이에 공통으로 반복되는 패턴을 찾아 그것만 담을 수밖에 없어요. 그게 Autoencoder가 배우는 "주요 패턴"이에요. 다만 분류 모델이 아니라서 z의 각 칸이 무슨 뜻인지는 따로 분석해야 해요.
+
+🤔 왜 "오차 큼 = 이상"이 아니라 "이상 후보"야? — 정상 데이터로만 배운 모델은 낯선 입력을 잘 못 되살려서 오차가 커져요. 하지만 전처리 실수, 모델 용량, 학습 분포 밖의 정상 데이터 때문에도 오차가 클 수 있어서 확정할 수 없어요. 그래서 점검할 후보로만 표시해요.
+
+[그림: 정상 샘플은 입력과 재구성이 거의 겹치고 칸별 오차가 0에 가깝지만, 이상 샘플은 재구성이 크게 어긋나 칸별 오차 막대가 큰 그림] 무엇을 보나: 사인파 조각(8칸, 진폭·위상 무작위)으로 정상만 학습한 진짜 Autoencoder(8-4-2-4-8)의 결과예요. 왼쪽 정상 샘플은 검은 입력 x와 초록 점선 x̂가 거의 겹쳐 오차 0.002, 아래 칸별 막대도 안 보일 만큼 작아요. 오른쪽 이상 샘플(일부러 만든 패턴 없는 잡음)은 x̂가 엉뚱하게 "사인파처럼" 매끈하게 나와 오차 1.171(약 600배). 🤔 왜 이상 샘플을 사인파처럼 되살려? Decoder는 2칸 z로부터 "자기가 배운 패턴(사인파)"밖에 그릴 줄 몰라요. 그래서 낯선 입력도 가장 비슷한 사인파로 바꿔 그리고, 그 차이가 그대로 오차가 돼요.
+
+[그림: 정상 valid 400개와 이상 60개의 재구성 오차 분포 히스토그램과 99% 분위수 기준선] 무엇을 보나: 샘플마다 오차 1개(reduction="none" → mean(dim=1))를 모아 그린 분포예요(가로 로그 눈금). 초록 정상 valid는 0.001 근처에 모이고, 빨강 이상은 0.05~1로 멀리 떨어져 있어요. 보라 점선이 아래 코드의 torch.quantile(valid_err, 0.99) 기준값이에요. 🤔 왜 정상도 4개가 넘어가? "valid 오차의 99%"를 기준으로 잡으면 정의상 정상의 약 1%(400개 중 4개)는 기준을 넘어요. 기준을 높이면 놓치는 이상이, 낮추면 헛경보가 늘어요 → 몇 %로 할지는 업무가 정하고, 넘은 것은 "확정"이 아니라 "점검 후보"예요. (여기 이상 샘플은 일부러 티 나게 만든 거라 실제보다 깔끔하게 갈려요.)
+
+⚠️ 예측 MSE와 재구성 오차는 정답도 단위도 달라요. 평균 내거나 한 표에서 순위 매기지 말고 목적별로 표를 따로 만드세요.
+
+🔧 Autoencoder forward와 재구성 오차 명령어 사전에서 자세히 →
+
+```
+loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
+score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)
+```
+
+[그림: 2칸 Latent z 평면에 정상 샘플이 위상 색깔 순서대로 고리 모양으로 놓이고 이상 샘플은 흩어진 산점도] 무엇을 보나: 학습된 Encoder(model[:4])로 뽑은 z 2칸을 좌표로 찍었어요. 정상 점들의 색(사인파 위상)이 무지개처럼 순서대로 고리를 이뤄요. 빨간 ✕(이상)는 고리 안쪽·바깥 등 아무 데나 흩어져요. 🤔 왜 고리야? 정상 데이터는 사실 "진폭·위상" 두 가지만 달라요. Autoencoder가 아무도 안 알려 줬는데 이 두 성질을 2칸에 펼쳐 담은 거예요. 다만 z[0]·z[1] 각각이 무슨 뜻인지는 정해져 있지 않아서 이렇게 그려 보며 해석해야 해요.
+
+[그림: Latent 크기 1, 2, 4, 8에 따른 valid 재구성 MSE 막대. 1에서 0.032, 2부터 0.002 이하] 무엇을 보나: 가운데 칸 수만 1·2·4·8로 바꿔 학습한 valid 재구성 오차예요(앞뒤 층 16칸, 같은 데이터·epoch, seed 3개 중 최솟값). 1칸이면 0.032로 크고, 2칸부터 0.002 이하로 뚝 떨어져요. 🤔 왜 2에서 꺾여? 이 데이터의 본질이 "진폭·위상" 두 숫자라서 2칸이면 거의 다 담겨요. 그보다 줄이면 필요한 정보를 잃고(Underfitting), 늘려도 얻는 게 적고 복사에 가까워져요. 실전에선 이렇게 크기를 바꿔 가며 "꺾이는 지점"을 찾아요.
+
+🔧 샘플별 오차 reduction="none" 명령어 사전에서 자세히 →
+
+```
+loss_fn = nn.MSELoss(reduction="none")
+error = loss_fn(recon, x).mean(dim=1)      # [B, F] → [B]  샘플마다 점수 1개
+```
+
+🔧 입력 = 정답 Batch · Denoising · 기준값 명령어 사전에서 자세히 →
+
+```
+loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
+threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함
+```
+
 ## ⑥ 아키텍처 비교 — 목표·길이·자원에 맞게 고르기
 
 점수 하나가 아니라 입력 구조와 학습 비용을 함께 비교해요.
@@ -5693,7 +6162,7 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)
 | Shape | output [B,T,H], h_n [L·D,B,H] | [B,8] → [B,2] → [B,8] | [B,T,E] → [B,T,E] → Pooling [B,E] |
 | 대표 지표 | Accuracy·MSE | Reconstruction error | Accuracy·AUC·MSE |
 
-[그림: RNN 321개, LSTM 1,233개, Autoencoder 98개, Transformer 1층 FFN 32는 3,298개, FFN 기본 2048은 69,826개인 파라미터 수 막대그래프] 무엇을 보나: 이 페이지 코드의 모델들을 실제로 만들어 sum(p.numel())로 센 크기예요(세로 로그 눈금, 한 칸 = 10배). LSTM(1,233)은 같은 hidden 16인 RNN(321)의 약 4배, Transformer는 dim_feedforward=32면 3,298개인데 기본값 2048을 그대로 두면 69,826개로 20배 넘게 커져요. 🤔 왜 이런 차이가? LSTM은 Gate 3개 + 후보 1개로 가중치가 네 벌이고, Transformer의 FFN은 d_model × dim_feedforward × 2라 중간 크기에 정비례해요. 점수가 비슷하다면 작은 쪽이 빠르고 과적합도 덜하니, 비교표에 Params를 꼭 같이 적는 이유예요.
+[그림: RNN 321개, LSTM 1,233개, Autoencoder 98개, Transformer 1층 FFN 32는 3,298개, FFN 기본 2048은 69,826개인 파라미터 수 막대그래프] 무엇을 보나: 이 페이지 예시 모델들을 실제로 만들어 sum(p.numel())로 센 크기예요(세로 로그 눈금, 한 칸 = 10배). LSTM(1,233)은 같은 hidden 16인 RNN(321)의 약 4배, Transformer는 dim_feedforward=32면 3,298개인데 기본값 2048을 그대로 두면 69,826개로 20배 넘게 커져요. 🤔 왜 이런 차이가? LSTM은 Gate 3개 + 후보 1개로 가중치가 네 벌이고, Transformer의 FFN은 d_model × dim_feedforward × 2라 중간 크기에 정비례해요. 점수가 비슷하다면 작은 쪽이 빠르고 과적합도 덜하니, 비교표에 Params를 꼭 같이 적는 이유예요.
 
 | 비교 규칙 | 🤔 왜? |
 |---|---|
@@ -5713,7 +6182,7 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)
 
 🤔 왜 길어지면 Transformer가 더 무거워져? — 모든 위치 쌍을 비교하니까 길이 T면 T×T번 비교하고, 그 점수 표를 메모리에 들고 있어야 해요. 길이 2배 → 순차 단계는 2배, Attention 점수는 4배. 다만 RNN은 단계를 나눠 돌릴 수 없고 Attention은 한꺼번에 계산하니, 실제 시간은 장치·Batch·오버헤드에 따라 달라져요 — 직접 재 봐야 해요. Transformer가 항상 빠르거나 RNN이 항상 가벼운 건 아니에요.
 
-[그림: 왼쪽은 길이 T에 따른 순차 단계 T와 Attention 점수 칸 T제곱의 로그 그래프, 오른쪽은 CPU에서 실측한 LSTM과 Transformer 순전파 시간] 무엇을 보나: 왼쪽은 계산량 "개수"예요. 두 선 모두 로그-로그라 직선인데, 보라(T²)가 주황(T)보다 두 배 가파르게 올라가요(T=512면 26만 칸). 오른쪽은 이 노트북 CPU에서 nn.LSTM과 TransformerEncoder 1층(B=32, E=16)을 실제로 잰 순전파 시간이에요. T=128 근처까지는 둘 다 1ms 아래에서 측정 잡음 속에 비슷하다가, 512에서는 Transformer가 약 10ms로 LSTM(약 2.3ms)의 4배쯤이 돼요. 🤔 왜 짧을 땐 비슷해? 짧은 길이에선 T² 표가 작아서 계산보다 함수 호출 같은 고정 비용이 시간을 차지해요. 길어질수록 T² 항이 고정 비용을 압도하면서 차이가 벌어져요. 숫자는 장치·버전마다 달라요 → 직접 재 봐야 하는 이유.
+[그림: 왼쪽은 길이 T에 따른 순차 단계 T와 Attention 점수 칸 T제곱의 로그 그래프, 오른쪽은 CPU에서 실측한 LSTM과 Transformer 순전파 시간] 무엇을 보나: 왼쪽은 계산량 "개수"예요. 두 선 모두 로그-로그라 직선인데, 보라(T²)가 주황(T)보다 두 배 가파르게 올라가요(T=512면 26만 칸). 오른쪽은 노트북 CPU에서 nn.LSTM과 TransformerEncoder 1층(B=32, E=16)을 실제로 잰 순전파 시간이에요. T=128 근처까지는 둘 다 1ms 아래에서 측정 잡음 속에 비슷하다가, 512에서는 Transformer가 약 10ms로 LSTM(약 2.3ms)의 4배쯤이 돼요. 🤔 왜 짧을 땐 비슷해? 짧은 길이에선 T² 표가 작아서 계산보다 함수 호출 같은 고정 비용이 시간을 차지해요. 길어질수록 T² 항이 고정 비용을 압도하면서 차이가 벌어져요. 숫자는 장치·버전마다 달라요 → 직접 재 봐야 하는 이유.
 
 🤔 왜 Padding 비율이 높으면 손해야? — 실제 정보가 없는 칸에도 연산과 메모리를 써요. 길이가 비슷한 것끼리 묶는 Bucket, PackedSequence, Nested Tensor가 상황에 따라 이 낭비를 줄여 줘요.
 
@@ -5724,6 +6193,65 @@ torch.cuda.synchronize(x.device)
 seconds = time.perf_counter() - start
 ```
 
+## 📋 명세 — 한눈에 보는 참조표
+
+### 모델별 입력 · 출력 shape (batch_first=True)
+
+| 모델 · 층 | 입력 | 출력 | 메모 |
+|---|---|---|---|
+| nn.RNN(F, H) | [B, T, F] | output [B, T, D·H], h_n [L·D, B, H] | h_n은 batch_first와 상관없이 층·방향이 맨 앞 |
+| nn.LSTM(F, H) | [B, T, F] | output, (h_n, c_n) | h_n · c_n은 같은 모양, 다른 뜻 (꺼낸 메모 / 보관 기억) |
+| 다음 값 예측 Window | [N, 12, 1] | [N, 1] | unfold(0, 13, 1) = 과거 12 + 정답 1 |
+| nn.MultiheadAttention(E, heads) | Q · K · V [B, T, E] | output [B, T, E], weights [B, T, T] | weights 한 행의 합 = 1 |
+| nn.TransformerEncoder | [B, T, E] | [B, T, E] | 입출력 크기가 같아 층을 쌓을 수 있음 → Pooling [B, E] |
+| Autoencoder (8-4-2-4-8) | [B, 8] | z [B, 2] → x̂ [B, 8] | 정답 = 입력 자신 |
+| MSELoss(reduction="none") → mean(dim=1) | [B, F] | [B] | 샘플마다 재구성 오차 1개 |
+
+### Mask 약속
+
+| Mask | shape | True의 뜻 | 막는 것 |
+|---|---|---|---|
+| Padding Mask (key_padding_mask · src_key_padding_mask) | [B, T] | 채운 칸 → 무시 | 그 위치를 Key로 보는 것 (열). 그 위치의 출력은 남으므로 Pooling에서 다시 뺌 |
+| Causal Mask (attn_mask, bool) | [T, T] | 볼 수 없음 | 미래 위치 쌍 (대각선 위 삼각형) |
+| lengths (pack_padded_sequence) | [B] | — | RNN · LSTM이 실제 길이 뒤의 Padding을 건너뜀 → h_n = 실제 마지막 시점 |
+
+### 길이 T에 따른 비용
+
+|  | RNN · LSTM | Attention |
+|---|---|---|
+| 계산 단계 | 순차 T단계 (병렬 불가) | 한 번에 (병렬) |
+| 점수 칸 수 | — | T² (T=128이면 16,384) |
+| 길이 2배 | 2배 | 점수 칸 4배 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch | RNN·LSTM·Transformer 층, Padding 도구, 손실 함수, DataLoader 전부 (PyTorch 기초에서 설치) | import torch, from torch import nn, from torch.nn.utils.rnn import pad_sequence |
+| matplotlib (선택) | loss 곡선, 예측 vs 실제, Mask·Latent 그림 | import matplotlib.pyplot as plt |
+
+### 🔧 확인
+
+```
+python -c "import torch; print(torch.__version__); print('CUDA:', torch.cuda.is_available())"
+```
+
+💡 순서 모델 도구(nn.RNN, nn.LSTM, nn.MultiheadAttention, pad_sequence …)는 전부 torch 안에 들어 있어서 따로 설치할 게 없어요. 정상 설치된 환경은 그대로 두고, 기본 학습은 CPU로, GPU 비교는 GPU가 있을 때만 해요.
+
+🤔 왜 설치 버전을 기록해? — 시간·메모리 측정값과 일부 기본 동작은 PyTorch 버전·장치에 따라 달라져요. 나중에 결과를 다시 만들거나 남과 비교하려면 "어떤 환경에서 잰 숫자인지"가 같이 있어야 해요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| CNN · 이미지 분류 · 전이학습 | 위치마다 같은 Kernel(가중치 공유) — 시점마다 같은 가중치와 같은 생각 |
+| LLM 원리 — Token · Embedding · Attention | Self-Attention · Position · Mask를 토큰 · 언어 모델로 넓히기 |
+| OpenCV 이미지 · 영상 전처리 | 영상 = 프레임의 순서 — 프레임을 읽고 처리하는 법 |
+
 ## 원본 자료
 
 - 강의: 20261102_2.pdf (Day12 딥러닝 핵심 아키텍처 및 학습, 104쪽) · 요약: Day12_개념지도.pdf
@@ -5733,14 +6261,14 @@ seconds = time.perf_counter() - start
 ## 🔧 Day12 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day12)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | torch (이미 설치된 것 그대로) |
 | ① 순서 데이터 · Padding · Mask · Window | pad_sequence(), masked_fill(), unfold(), pack_padded_sequence() |
 | ② RNN | nn.RNN() → output, h_n |
 | ③ LSTM | nn.LSTM() → output, (h_n, c_n) |
-| ④ Autoencoder | nn.Sequential(nn.Linear …), nn.MSELoss(reduction="none"), TensorDataset |
-| ⑤ Attention · Transformer | nn.MultiheadAttention(), nn.TransformerEncoderLayer(), nn.TransformerEncoder(), src_key_padding_mask |
+| ④ Attention · Transformer | nn.MultiheadAttention(), nn.TransformerEncoderLayer(), nn.TransformerEncoder(), nn.Embedding, src_key_padding_mask |
+| ⑤ Autoencoder | nn.Sequential(nn.Linear …), nn.MSELoss(reduction="none"), TensorDataset, torch.quantile() |
 | ⑥ 아키텍처 비교 | 같은 분할·지표로 Params·Best Epoch·Valid·시간·메모리 기록 |
 | ⑦ 길이 T · Padding · 속도 측정 | perf_counter(), torch.cuda.synchronize(), torch.cuda.max_memory_allocated() |
+| 📦 패키지 · 명령어 | torch (이미 설치된 것 그대로) |
 
 ### Mask 만들기 · Padding 칸 0으로 · pad_sequence()
 
@@ -5759,7 +6287,7 @@ valid = (~(torch.arange(5)[None, :] >= torch.tensor([4, 2, 5])[:, None])).unsque
 mean = (padded * valid).sum(1) / valid.sum(1)         # 실제 칸만 평균
 ```
 
-▶ 실제로 돌려 보면 torch.randn(4, 6, 3) (seed 0) · 강의 sequences.json train 앞 4개
+▶ 실제로 돌려 보면 torch.randn(4, 6, 3) (seed 0) · 예제 sequences.json train 앞 4개
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -5771,8 +6299,8 @@ mean = (padded * valid).sum(1) / valid.sum(1)         # 실제 칸만 평균
 | padded[1, :, 0] | 2 2 0 0 0 | 길이 2짜리 뒤를 0으로 채움 |
 | (padded * valid).sum(1) / valid.sum(1) [:, 0] | 1 2 3 | 실제 칸만 평균 → 1 · 2 · 3 그대로 |
 | padded.mean(1)[:, 0] ← Mask 없이 평균 | 0.8 0.8 3 | Padding 0이 섞여 짧은 샘플일수록 작아짐 |
-| 강의 데이터: [d['length'] for d in train[:4]] | [8, 6, 12, 11] |  |
-| pad_sequence(강의 4개, batch_first=True).shape | [4, 12, 3] | [B=4, T=최대 12, F=3] |
+| 예제 데이터: [d['length'] for d in train[:4]] | [8, 6, 12, 11] |  |
+| pad_sequence(예제 4개, batch_first=True).shape | [4, 12, 3] | [B=4, T=최대 12, F=3] |
 
 | 인자 | 뜻 | 바꾸면? |
 |---|---|---|
@@ -5793,7 +6321,7 @@ y = window[:, 12:13]                       # [N, 1]
 # 예: 길이 20, size=5, step=1 → Window 20 − 5 + 1 = 16개
 ```
 
-▶ 실제로 돌려 보면 강의 series.csv의 train 구간(180개) · torch.arange(20)
+▶ 실제로 돌려 보면 예제 series.csv의 train 구간(180개) · torch.arange(20)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -5826,7 +6354,7 @@ out_packed, h_n = rnn(packed)                     # h_n = 샘플마다 '실제' 
 output, out_lengths = pad_packed_sequence(out_packed, batch_first=True)   # 다시 [B, T, H]로
 ```
 
-▶ 실제로 돌려 보면 강의 sequences.json train 앞 4개 (길이 [8, 6, 12, 11], F=3) · nn.RNN(3, 8) seed 0
+▶ 실제로 돌려 보면 예제 sequences.json train 앞 4개 (길이 [8, 6, 12, 11], F=3) · nn.RNN(3, 8) seed 0
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -5904,7 +6432,7 @@ print(LSTMForecaster()(x).shape)                       # torch.Size([4, 1])
 loss = nn.MSELoss()(pred, y)                           # 예측 [B,1] vs 다음 실제 값 [B,1]
 ```
 
-▶ 실제로 돌려 보면 torch.randn(4, 12, 1) (seed 0) · 강의 series.csv 창(train 168개 · valid 48개)으로 100 step 학습
+▶ 실제로 돌려 보면 torch.randn(4, 12, 1) (seed 0) · 예제 series.csv 창(train 168개 · valid 48개)으로 100 step 학습
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -6083,7 +6611,7 @@ encoder = nn.TransformerEncoder(layer, num_layers=2)   # 같은 Layer를 복제�
 | num_layers (Encoder, 필수) | Layer 반복 수 | 늘리면 문맥을 더 깊게 섞지만 파라미터·시간이 층 수에 비례 |
 | norm, enable_nested_tensor, mask_check | 최종 LayerNorm(기본 None) · 최적화(기본 True) · Mask 검사(기본 True) | enable_nested_tensor=False면 Padding 건너뛰기 최적화를 끔 → 경고 없이 단순하게 동작 |
 
-### Position Embedding + Padding Mask + 실제 위치만 평균
+### Position Embedding + Padding Mask + 실제 위치만 평균 — nn.Embedding · src_key_padding_mask · masked_fill
 
 ```
 class TransformerClassifier(nn.Module):
@@ -6098,14 +6626,13 @@ class TransformerClassifier(nn.Module):
         pos = torch.arange(x.size(1), device=x.device)     # [T]
         z = self.encoder(x + self.pos(pos),                # [T, E] → Batch에 Broadcasting
                          src_key_padding_mask=padding_mask)
-        return self.head(masked_mean(z, padding_mask))     # [B, E] → logits [B, 2]
-
-def masked_mean(x, padding_mask):
-    if bool(padding_mask.all(dim=1).any()):
-        raise ValueError("실제 길이는 1 이상")              # 전부 Padding이면 0으로 나누게 됨
-    valid = (~padding_mask).unsqueeze(-1)                  # [B, T, 1], True = 실제 값
-    summed = x.masked_fill(~valid, 0).sum(dim=1)
-    return summed / valid.sum(dim=1)                       # 분모 = 실제 길이
+        # 실제 위치만 평균 (Masked Mean Pooling)
+        valid = (~padding_mask).unsqueeze(-1)              # [B, T, 1], True = 실제 값
+        n = valid.sum(dim=1)                               # [B, 1] 실제 길이
+        if bool((n == 0).any()):
+            raise ValueError("실제 길이는 1 이상")          # 전부 Padding이면 0으로 나누게 됨
+        pooled = z.masked_fill(~valid, 0).sum(dim=1) / n   # [B, E], 분모 = 실제 길이
+        return self.head(pooled)                           # logits [B, 2]
 ```
 
 ▶ 실제로 돌려 보면 torch.randn(3, 6, 16) (seed 0), 길이 [6, 4, 2], 학습 전 모델 · eval
@@ -6114,10 +6641,10 @@ def masked_mean(x, padding_mask):
 |---|---|---|
 | model(x, padding_mask).shape | [3, 2] | [B, 2] logits |
 | Padding 칸을 99로 바꾼 뒤 출력 차이 | 0.00e+00 | ≈ 0 → Mask가 잘 걸림 (Padding 불변) |
-| encoder 출력의 Padding 위치는? (99로 바꾼 뒤 차이) | 2.43 | Padding 위치 출력은 남아 있고 값도 변함 → masked_mean으로 빼야 함 |
+| encoder 출력의 Padding 위치는? (99로 바꾼 뒤 차이) | 2.43 | Padding 위치 출력은 남아 있고 값도 변함 → Pooling에서 Mask로 빼야 함 |
 | Position 있음: 순서를 뒤집은 뒤 출력 차이 | 0.155 | 순서가 바뀌면 결과도 바뀜 |
 | Position 없음: 순서를 뒤집은 뒤 출력 차이 | 5.96e-08 | ≈ 0 → 순서를 모르는 모델 |
-| masked_mean(z, 전부 True인 mask) | ValueError: 실제 길이는 1 이상 | 0 ÷ 0 = NaN을 미리 막음 |
+| 모든 위치가 Padding인 mask로 Pooling | ValueError: 실제 길이는 1 이상 | 0 ÷ 0 = NaN을 미리 막음 |
 | model.pos(torch.arange(65)) ← max_len 64 초과 | IndexError | 없는 위치 번호 |
 
 | 인자 / 규칙 | 뜻 | 바꾸면? |
@@ -6125,7 +6652,7 @@ def masked_mean(x, padding_mask):
 | nn.Embedding(max_len, d_model) | 학습 가능한 Position Embedding | 입력 길이 T가 max_len보다 길면 없는 위치 번호라 오류 |
 | x + self.pos(pos) | 입력에 위치 표현을 더함 | 빼면 순서를 섞어도 결과가 같아짐 (순서를 모르는 모델) |
 | src_key_padding_mask | [B, T], True = Padding Key 제외 | Mask를 넣어도 Padding 위치의 출력은 남아 있음 → Pooling에서 다시 빼야 함 |
-| masked_mean 분모 | 실제 길이 | T로 나누면 짧은 순서일수록 평균이 작아져 길이가 점수에 섞임 |
+| Pooling 분모 valid.sum(dim=1) | 실제 길이 | T로 나누면 짧은 순서일수록 평균이 작아져 길이가 점수에 섞임 |
 | 길이 0 검사 | 모든 위치가 Padding인 샘플 막기 | 검사 없이 나누면 0 ÷ 0 = NaN이 학습 전체로 퍼짐 |
 
 💡 제대로 됐는지 확인하는 법 — Padding 칸 값을 99로 바꿔도 출력이 같으면 Mask가 잘 걸린 것(Padding 불변). Position 없이 순서를 섞었는데 결과가 같으면 모델이 순서를 모른다는 뜻.
@@ -6235,34 +6762,33 @@ _2026-11-04(수) · 이미지 배열 · 색공간 · Resize · Filter · Thresho
 
 - 영상은 같은 처리를 Frame마다 반복하고, 증강은 라벨 뜻이 안 바뀌는 변형을 train에만 쓰며, 결과는 원본과 다시 비교해 검증한다.
 
-🔧 Day13 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
-
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| opencv-python | 이미지·영상 읽기/쓰기, 색 변환, 필터, 이진화, 형태학, 회전 | import cv2 |
-| numpy | OpenCV 이미지의 실제 정체 (숫자 배열), 자르기·계산 | import numpy as np |
-| matplotlib | 원본·결과를 나란히 그려서 비교 | import matplotlib.pyplot as plt |
-
-### 🔧 설치 · 확인
-
-```
-python --version
-python -m pip install opencv-python numpy matplotlib
-python -m pip show opencv-python numpy matplotlib
-python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK
-```
-
-💡 pip 이름과 import 이름이 달라요: opencv-python → import cv2. 강의는 OpenCV 4.x 공식 문서를 최종 기준으로 확인하라고 안내해요.
-
-🤔 왜? — 원본 폴더(data/)는 건드리지 않고 결과는 outputs/에 따로 저장해요. 원본을 덮어쓰면 나중에 비교·재현·복구를 할 수 없기 때문이에요.
-
-## 이거 어디에 써?
+## 🗺️ 큰 그림 — 숫자 격자를 "쓸 수 있는 입력"으로
 
 카메라가 남기는 건 숫자 격자뿐이에요. 컴퓨터는 "흠집"이 뭔지 몰라요. 전처리는 촬영 조건이 제각각인 사진·영상을 다음 단계(규칙 판단이나 모델)가 쓸 수 있는 입력으로 맞춰 주는 일이에요.
+
+읽기·확인 imread · shape→ 밝기로 cvtColor→ 크기 맞추기 resize→ 잡음 줄이기 GaussianBlur→ 경계·영역 Canny / threshold→ 저장·재확인 imwrite · imread
+
+처리를 지날 때마다 숫자의 뜻이 색 → 밝기 → 경계 → 물체 → 모양으로 바뀌어요. 이 페이지의 ①~⑦이 이 흐름이에요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 이미지 = 숫자 배열 | 읽기 · shape · dtype · BGR 채널 | 이 사진은 어떤 숫자 격자인가? |
+| ② 색공간 · 크기 | Gray · HSV 변환, resize와 보간법 | 목적에 맞는 표현 · 크기는? |
+| ③ Filter · Edge | Blur로 잡음 줄이기, Canny로 경계 찾기 | 여기가 잡음인가, 경계인가? |
+| ④ Threshold · 형태학 | 0/255로 가르고 모양 다듬기 | 여기가 물체인가? |
+| ⑤ 영상 | 같은 처리를 Frame마다, 저장 FPS · 크기 | 시간 순서와 재생 속도를 지켰나? |
+| ⑥ 데이터 증강 | 정답이 그대로인 변형을 train에만 | 변형 후에도 라벨이 같은가? |
+| ⑦ 일괄 처리 · 검증 | 같은 설정으로 폴더 처리, 원본과 비교 | 필요한 정보가 남아 있나? |
+
+| 출력 한 칸을 정할 때 보는 곳 | 예 |
+|---|---|
+| 자기 칸만 | Gray 변환, Threshold |
+| 주변 칸까지 | Blur, Canny, Morphology |
+| 다른 자리에서 | Resize, 회전(warpAffine) |
+
+🤔 왜 이렇게 나눠 봐? — 어떤 칸을 보는지가 곧 그 처리의 성격이에요. "자기 칸만" 보는 처리는 잡음인지 아닌지 판단할 수 없고, "주변 칸까지" 보는 처리는 그걸 판단할 수 있는 대신 세부가 흐려져요. 그래서 순서와 인자를 목적에 맞게 골라야 해요.
+
+어디에 쓰나:
 
 🏭
 
@@ -6274,21 +6800,11 @@ python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK
 
 🧠
 
-모델 입력 준비크기 224×224로 맞추고 증강 (Day14로 연결)
+모델 입력 준비크기 224×224로 맞추고 증강 (전이학습으로 연결)
 
 🎥
 
 영상 처리Frame마다 같은 처리 후 다시 영상으로 저장
-
-읽기·확인 imread · shape→ 밝기로 cvtColor→ 크기 맞추기 resize→ 잡음 줄이기 GaussianBlur→ 경계·영역 Canny / threshold→ 저장·재확인 imwrite · imread
-
-| 출력 한 칸을 정할 때 보는 곳 | 예 |
-|---|---|
-| 자기 칸만 | Gray 변환, Threshold |
-| 주변 칸까지 | Blur, Canny, Morphology |
-| 다른 자리에서 | Resize, 회전(warpAffine) |
-
-🤔 왜 이렇게 나눠 봐? — 어떤 칸을 보는지가 곧 그 처리의 성격이에요. "자기 칸만" 보는 처리는 잡음인지 아닌지 판단할 수 없고, "주변 칸까지" 보는 처리는 그걸 판단할 수 있는 대신 세부가 흐려져요. 그래서 순서와 인자를 목적에 맞게 골라야 해요.
 
 ## ① 이미지 = 숫자 배열
 
@@ -6307,7 +6823,7 @@ python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK
 
 🤔 왜 shape부터 확인해? — shape를 모르고 처리하면 채널 축과 공간 축을 뒤바꾸거나, 잘못된 크기로 저장할 수 있어요. 그리고 uint8은 0~255만 담을 수 있는 자료형이라 더하기·빼기를 함부로 하면 값이 넘쳐요(⑥ 밝기 조절에서 다시 나와요). 그래서 읽자마자 shape · dtype · min/max를 찍어 봐요.
 
-🤔 왜 세로(y)가 먼저? — 이미지는 NumPy 배열이고, 배열은 "몇 번째 줄(행), 몇 번째 칸(열)" 순서로 셉니다. 줄 = 세로 위치(y), 칸 = 가로 위치(x)라서 (H, W), img[y, x]가 돼요. 참고로 Day11 PyTorch Conv2d는 [N, C, H, W](채널이 앞)라서, 모델에 넣을 땐 축 순서를 또 바꿔야 해요.
+🤔 왜 세로(y)가 먼저? — 이미지는 NumPy 배열이고, 배열은 "몇 번째 줄(행), 몇 번째 칸(열)" 순서로 셉니다. 줄 = 세로 위치(y), 칸 = 가로 위치(x)라서 (H, W), img[y, x]가 돼요. 참고로 PyTorch(이미지 Tensor)는 [N, C, H, W](채널이 앞)라서, 모델에 넣을 땐 축 순서를 또 바꿔야 해요.
 
 [그림: 색 사각형, 원, 사각형, 흰 선이 있는 원본 이미지] 원본 (240, 320, 3) — BGR을 제대로 표시 무엇을 보나: 위쪽 색 칸이 왼쪽부터 빨강·초록·파랑, 배경은 왼쪽이 어둡고 오른쪽이 밝아요. 아래 장의 모든 변환이 이 사진에서 출발해요. 🤔 왜 이런 그림? 색(BGR 순서)·밝기 변화(그림자)·가는 줄무늬(확대/축소)·직선(경계)을 한 장에서 다 확인하려고요.
 
@@ -6315,7 +6831,7 @@ python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK
 
 ⚠️ OpenCV(imread)는 B, G, R, Matplotlib(imshow)는 R, G, B. Matplotlib로 볼 땐 cv2.cvtColor(img, cv2.COLOR_BGR2RGB) 후 표시, RGB 배열을 imwrite로 저장할 땐 다시 BGR로 되돌려요.
 
-🤔 왜 OpenCV는 BGR일까? — 강의 PDF는 "OpenCV 기본 색상 순서는 BGR"이라는 사실만 알려 줘요. 흔히 알려진 배경은, OpenCV가 처음 만들어질 무렵 카메라 장비·Windows 이미지 형식이 BGR 순서로 저장하는 경우가 많았고, 그 뒤로는 기존 코드와의 호환 때문에 바꾸지 않았다는 거예요. 이유가 무엇이든 실전 규칙은 하나: 라이브러리가 바뀌는 경계에서 색 순서를 꼭 맞춘다.
+🤔 왜 OpenCV는 BGR일까? — 흔히 알려진 배경은, OpenCV가 처음 만들어질 무렵 카메라 장비·Windows 이미지 형식이 BGR 순서로 저장하는 경우가 많았고, 그 뒤로는 기존 코드와의 호환 때문에 바꾸지 않았다는 거예요. 이유가 무엇이든 실전 규칙은 하나: 라이브러리가 바뀌는 경계에서 색 순서를 꼭 맞춘다.
 
 🔧 읽기 cv2.imread() · 저장 cv2.imwrite() 명령어 사전에서 자세히 →
 
@@ -6404,7 +6920,7 @@ half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA
 10  10  10            1/9 1/9 1/9         (튀는 점 100이 20으로 누그러짐)
 ```
 
-💡 이 계산은 Day11 CNN의 합성곱(Conv2d)과 같은 계산이에요. 오늘은 사람이 Kernel 값을 정하고, CNN은 그 값을 배워요.
+💡 이 계산은 CNN의 합성곱(Conv2d)과 같은 계산이에요. 필터는 사람이 Kernel 값을 정하고, CNN은 그 값을 배워요.
 
 | Kernel 설정 | 효과 | 🤔 왜? |
 |---|---|---|
@@ -6483,7 +6999,7 @@ Gray 값 :  40   110   160   220
 | Otsu | 밝기 히스토그램으로 자동 결정 | 물체·배경 밝기가 두 무리로 갈릴 때 유용 | Blur가 도움될 수 있음 |
 | Adaptive | 지역마다 따로 계산 | 조명이 고르지 않아도 대응 | blockSize·C 조정 필요 |
 
-🤔 왜 Fixed는 조명에 약해? — 조명이 밝아지면 물체·배경 밝기가 함께 올라가요. T=128로 고정해 두면 어제는 배경이던 곳이 오늘은 물체가 될 수 있어요. 사진마다 사람이 T를 다시 정할 수도 없고요.
+🤔 왜 Fixed는 조명에 약해? — 조명이 밝아지면 물체·배경 밝기가 함께 올라가요. T=128로 고정해 두면 어두운 날엔 배경이던 곳이 밝은 날엔 물체가 될 수 있어요. 사진마다 사람이 T를 다시 정할 수도 없고요.
 
 [그림: 보통 날과 어두운 날의 밝기 히스토그램과 고정 T=128 이진화 결과] 무엇을 보나: 같은 장면을 어둡게(×0.55) 찍으면 히스토그램의 두 봉우리(물체·배경)가 통째로 왼쪽으로 이동해요. 보통 날엔 T=128이 두 봉우리 사이라 물체(26%)를 잘 잡지만, 어두운 날엔 두 봉우리가 모두 128 왼쪽이라 화면 100%가 물체로 판정돼요. 🤔 왜? T는 "밝기 숫자"에 고정된 선인데, 조명은 물체와 배경의 숫자를 함께 움직이기 때문이에요. 선은 그대로인데 데이터가 이사를 가 버린 셈 — 그래서 히스토그램을 보고 T를 따라 움직이는 Otsu가 필요해요.
 
@@ -6538,7 +7054,7 @@ opened = cv2.morphologyEx(binary, op=cv2.MORPH_OPEN, kernel=kernel, iterations=1
 
 영상은 시간 순서로 이어진 Frame(이미지)의 묶음. 그래서 영상 처리 = 이미지 처리 + 시간 순서 + 저장 설정. 한 장 처리 함수를 그대로 재사용해요.
 
-read() Frame 한 장 읽기→ process_frame() Gray · Resize · Edge→ write() 출력 영상에 추가↻ 끝나면 release()
+read() Frame 한 장 읽기→ 한 장 처리 Gray · Resize · Edge→ write() 출력 영상에 추가↻ 끝나면 release()
 
 | 속성 | 뜻 | 확인 |
 |---|---|---|
@@ -6561,12 +7077,12 @@ read() Frame 한 장 읽기→ process_frame() Gray · Resize · Edge→ write()
 
 ```
     ok, frame = cap.read()
-        result = process_frame(frame)
+    if frame_idx % step == 0:          # 5장마다 1장만 처리
 ```
 
 🤔 왜 건너뛰어? 왜 조심해? — 옆 Frame끼리는 거의 똑같아서, 건너뛰면 처리량이 크게 줄어요. 하지만 그 사이에 지나간 빠른 사건을 놓칠 수 있고, 줄어든 Frame을 원래 FPS로 저장하면 재생시간도 짧아져요. 시간 기준이 필요하면 CAP_PROP_POS_MSEC이나 FPS로 Timestamp를 계산해요.
 
-[그림: 48개 Frame 타임라인에서 5장마다 처리하는 Frame과 놓친 빠른 사건을 표시한 그림] 무엇을 보나: 수업 예제 영상(48장, 12FPS = 4초)의 Frame을 한 칸씩 늘어놓았어요. 진보라 10칸이 step=5로 처리하는 Frame이고, 아래 썸네일처럼 옆 Frame끼리는 거의 같아요. 빨간 테두리 #12~14에만 있는 빠른 사건은 처리 Frame(#10, #15) 사이에 끼어 한 장도 안 뽑혀요. 🤔 왜? 건너뛰기는 "옆 Frame은 비슷하다"는 가정에 기대요. 그 가정 덕에 처리량이 1/5로 줄지만, step보다 짧게 지나가는 사건에서는 가정이 깨져서 놓쳐요. 그래서 step은 잡아야 할 사건의 길이(초 × FPS)보다 작게 정해요.
+[그림: 48개 Frame 타임라인에서 5장마다 처리하는 Frame과 놓친 빠른 사건을 표시한 그림] 무엇을 보나: 예제 영상(48장, 12FPS = 4초)의 Frame을 한 칸씩 늘어놓았어요. 진보라 10칸이 step=5로 처리하는 Frame이고, 아래 썸네일처럼 옆 Frame끼리는 거의 같아요. 빨간 테두리 #12~14에만 있는 빠른 사건은 처리 Frame(#10, #15) 사이에 끼어 한 장도 안 뽑혀요. 🤔 왜? 건너뛰기는 "옆 Frame은 비슷하다"는 가정에 기대요. 그 가정 덕에 처리량이 1/5로 줄지만, step보다 짧게 지나가는 사건에서는 가정이 깨져서 놓쳐요. 그래서 step은 잡아야 할 사건의 길이(초 × FPS)보다 작게 정해요.
 
 🔧 읽기 cv2.VideoCapture() · 저장 cv2.VideoWriter() 명령어 사전에서 자세히 →
 
@@ -6631,6 +7147,8 @@ crop = img[h//10 : h - h//10, w//10 : w - w//10]         # NumPy 자르기 [y, x
 
 프로젝트에서는 이미지 폴더와 영상을 같은 설정으로 처리하고, 원본 대비 결과를 수치와 그림으로 검증해요. 파일이 열리더라도 작업에 필요한 경계·글자·관심 영역이 남아 있어야 해요.
 
+🤔 왜 원본과 결과 폴더를 나눠? — 원본 폴더(data/)는 건드리지 않고 결과는 outputs/에 따로 저장해요. 원본을 덮어쓰면 나중에 비교·재현·복구를 할 수 없기 때문이에요.
+
 🔧 폴더 일괄 처리 sorted(Path.glob()) 명령어 사전에서 자세히 →
 
 ```
@@ -6674,6 +7192,83 @@ for path in sorted(src_dir.glob("*.png")):       # 순서 고정
 
 - 영상 Writer의 FPS·Frame Size·채널이 일치하나?
 
+## 🧩 설계 정리 — 각 단계가 만드는 것과 보장하지 않는 것
+
+| 단계 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| imread | BGR uint8 배열 (H, W, 3) | 읽기 성공 — 실패해도 에러 없이 None |
+| cvtColor (Gray · HSV) | 목적에 맞는 표현 (밝기 하나 / 색상·채도·명도) | 원래 색 정보 (Gray는 색을 버림) |
+| resize | 정해진 (W, H) 크기 | 원본 비율 · 가는 세부 (보간법에 따라 계단 · 번짐 · 중간값) |
+| Blur (Gaussian · Median · Bilateral) | 잡음이 줄어든 밝기 | 가는 세부 · 경계 선명도 |
+| Canny | 경계 지도 (0 / 255) | 닫힌 물체 영역 |
+| threshold (Fixed · Otsu · Adaptive) | 물체 / 배경 이진 지도 | 조명이 바뀐 사진에서 같은 결과 (Fixed) |
+| morphologyEx | 먼지 · 구멍을 다듬은 모양 | 작은 진짜 결함의 보존 |
+| VideoCapture → VideoWriter | Frame마다 같은 처리를 한 영상 | 저장 성공 — 크기 · 채널이 안 맞으면 조용히 0장 |
+| 증강 (train만) | 같은 정답의 다른 사진 | 라벨 보존 — 과제마다 사람이 확인 |
+| shape · dtype 검증 | "그릇 모양"이 맞다는 확인 | 내용 보존 → 차이 그림 · 내용 숫자로 따로 확인 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 단계별 입력 → 출력 (shape · dtype · 값)
+
+| 명령 | 입력 | 출력 | 약속 |
+|---|---|---|---|
+| cv2.imread(path, IMREAD_COLOR) | 파일 경로 | (H, W, 3) uint8 BGR, 예 (240, 320, 3) | 실패하면 None (에러 아님) |
+| cv2.cvtColor(img, COLOR_BGR2GRAY) | (H, W, 3) | (H, W) uint8, 예 (240, 320) | 채널 축이 사라짐 |
+| cv2.resize(img, (W, H)) | (h, w[, C]) | (H, W[, C]) | 크기는 (W, H)로 주고, 결과 shape는 (H, W) |
+| GaussianBlur · medianBlur · bilateralFilter | 이미지 | 같은 shape · dtype | ksize는 홀수 (median은 1보다 큰 홀수) |
+| cv2.Canny(gray, t1, t2) | (H, W) uint8 | (H, W), 값 0 또는 255 | t2 이상은 확실한 경계, t1~t2는 이어질 때만 |
+| cv2.threshold(gray, T, 255, type) | (H, W) | (retval, dst), dst 값 0 / 255 | Otsu를 쓰면 retval = 자동으로 고른 T |
+| cv2.adaptiveThreshold(...) | (H, W) uint8 | (H, W), 0 / 255 | 칸마다 기준 = 주변 blockSize 평균 − C |
+| cv2.morphologyEx(binary, op, kernel) | 이진 이미지 | 같은 shape | Opening = 침식 → 팽창, Closing = 팽창 → 침식 |
+| cap.read() | 열린 VideoCapture | (ok, frame) | 마지막 다음엔 ok=False |
+| cv2.VideoWriter(path, fourcc, fps, (W, H)) | Frame들 | 영상 파일 | Frame 크기 · 채널이 설정과 다르면 조용히 저장 실패 |
+| cv2.convertScaleAbs(img, alpha, beta) | uint8 | uint8 | 0~255 밖은 잘라냄 (img + 30은 넘쳐서 돌아감) |
+
+### 좌표 · 크기 순서
+
+| (H, W) — 행 먼저 | (W, H) — 가로 먼저 |
+|---|---|
+| img.shape, img[y, x], NumPy 자르기 img[y1:y2, x1:x2] | cv2.resize의 dsize, VideoWriter의 frameSize, CAP_PROP_FRAME_WIDTH / HEIGHT, 회전 중심 (x, y) |
+
+### 영상 수치
+
+```
+재생시간 = Frame 수 ÷ FPS                  예) 48장 ÷ 12FPS = 4초
+step 처리 간격(초) = step ÷ FPS            예) 5 ÷ 12 ≈ 0.417초
+```
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| opencv-python | 이미지·영상 읽기/쓰기, 색 변환, 필터, 이진화, 형태학, 회전 | import cv2 |
+| numpy | OpenCV 이미지의 실제 정체 (숫자 배열), 자르기·계산 | import numpy as np |
+| matplotlib | 원본·결과를 나란히 그려서 비교 | import matplotlib.pyplot as plt |
+
+### 🔧 설치 · 확인
+
+```
+python --version
+python -m pip install opencv-python numpy matplotlib
+python -m pip show opencv-python numpy matplotlib
+python -c "import cv2; print(cv2.__version__)"      # 4.x 가 나오면 OK
+```
+
+💡 pip 이름과 import 이름이 달라요: opencv-python → import cv2. 함수 동작 · 인자는 OpenCV 4.x 공식 문서를 기준으로 확인해요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| CNN · 이미지 분류 · 전이학습 | 사람이 정하던 Kernel을 모델이 학습 — 전처리한 사진이 들어가는 곳 |
+| 전이학습과 오류 분석 | 224×224로 맞추고 증강한 입력으로 사전학습 모델 학습 · 틀린 사진 분석 |
+| 순서 모델 (RNN · LSTM · Transformer) | Frame의 시간 순서 자체를 모델로 읽기 |
+
 ## 원본 자료
 
 - 강의: Day13_20261104.pdf (p.2–11 큰 그림, p.18–35 배열·색공간·Resize, p.36–54 Filter·Threshold·형태학, p.55–73 영상·증강, p.74–89 프로젝트·검증)
@@ -6685,14 +7280,14 @@ for path in sorted(src_dir.glob("*.png")):       # 순서 고정
 ## 🔧 Day13 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day13)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install opencv-python numpy matplotlib |
 | ① 이미지 = 숫자 배열 | cv2.imread(), cv2.imwrite(), img.shape, cv2.split() / merge(), cv2.imshow() |
 | ② 색공간 · 크기 | cv2.cvtColor(), cv2.resize() |
 | ③ Filter · Edge | cv2.GaussianBlur(), cv2.medianBlur(), cv2.bilateralFilter(), cv2.Canny() |
 | ④ Threshold · 형태학 | cv2.threshold(), cv2.adaptiveThreshold(), cv2.getStructuringElement(), cv2.morphologyEx() |
-| ⑤ 영상 Frame 처리 | cv2.VideoCapture(), cv2.VideoWriter(), cap.get(CAP_PROP_FPS) |
+| ⑤ 영상 Frame 처리 | cv2.VideoCapture() · cap.read(), cv2.VideoWriter(), cap.get(CAP_PROP_FPS), frame_idx % step |
 | ⑥ 데이터 증강 | cv2.flip(), cv2.getRotationMatrix2D() + cv2.warpAffine(), cv2.convertScaleAbs() |
 | ⑦ 일괄 처리 · 검증 | sorted(Path.glob()), imread(path, 0) 재읽기, 검증표 |
+| 📦 패키지 · 명령어 | pip install opencv-python numpy matplotlib |
 
 ### 읽기 cv2.imread() · 저장 cv2.imwrite()
 
@@ -6828,7 +7423,7 @@ half  = cv2.resize(img, dsize=None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA
 | src (필수) | 입력 이미지 |  |
 | dsize (필수 자리) | 출력 크기 (W, H), 배율을 쓸 땐 None 또는 (0, 0) | 가로세로 비율이 원본과 다르면 찌그러짐 (320×240 → 224×224는 4:3 → 1:1) |
 | fx, fy (기본 0) | 가로·세로 배율 | 둘 다 0.5면 비율 유지하며 절반. dsize와 동시에 쓰기보다 한 방식만 골라야 코드가 명확 |
-| interpolation | 보간법 (기본 INTER_LINEAR) | 축소는 AREA, Mask는 NEAREST — 이유는 Day13 보간법 표 참고 |
+| interpolation | 보간법 (기본 INTER_LINEAR) | 축소는 AREA, Mask는 NEAREST — 이유는 보간법 표 참고 |
 
 ⚠️ 제일 많이 하는 실수: shape는 (H, W), dsize는 (W, H). 순서가 반대예요. 🤔 왜 반대? — shape는 NumPy 배열의 "줄 수, 칸 수"이고, dsize는 OpenCV의 "이미지 크기" 표기(가로×세로, 예: 320×240)를 따르기 때문이에요. 서로 다른 관례가 한 코드에서 만나니 헷갈리는 거예요.
 
@@ -6959,12 +7554,6 @@ closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
 ### 읽기 cv2.VideoCapture() · 저장 cv2.VideoWriter()
 
 ```
-def process_frame(frame):                 # Frame 함수는 파일을 열고 닫지 않음
-    gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    small = cv2.resize(gray, size, interpolation=cv2.INTER_AREA)
-    edge  = cv2.Canny(cv2.GaussianBlur(small, (3, 3), 0), 80, 160)
-    return cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR)   # 컬러 Writer엔 3채널로
-
 size = (160, 120)                         # (W, H)
 cap = cv2.VideoCapture("data/sample.avi")
 writer = None
@@ -6979,7 +7568,10 @@ try:
         ok, frame = cap.read()
         if not ok:                        # 끝 또는 읽기 실패
             break
-        writer.write(process_frame(frame))   # write는 반복 안에서
+        gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)          # 한 장 처리 = 이미지와 같은 함수
+        small = cv2.resize(gray, size, interpolation=cv2.INTER_AREA)
+        edge  = cv2.Canny(cv2.GaussianBlur(small, (3, 3), 0), 80, 160)
+        writer.write(cv2.cvtColor(edge, cv2.COLOR_GRAY2BGR))      # 컬러 Writer엔 3채널로 · write는 반복 안에서
 finally:
     cap.release()                         # release는 반복이 끝난 뒤
     if writer is not None:
@@ -7010,7 +7602,7 @@ finally:
 | isColor=True | (선택) 컬러 Frame 여부 (기본 True) | Gray Frame을 저장하려면 False로 두거나, GRAY2BGR로 3채널로 바꿔서 넣기 |
 | release() | 파일·카메라 자원 해제 | 안 하면 파일 끝 정보가 안 써져 재생이 안 될 수 있고, 카메라도 계속 잡고 있음 |
 
-🤔 왜 Frame 함수와 반복·I/O를 나눠? — process_frame 안에서 VideoCapture를 매번 열면 반복 I/O로 성능이 크게 떨어지고 자원 관리도 복잡해져요. 처리 함수는 "배열 → 배열"만 하고, 열기·반복·저장은 바깥에서 맡으면 같은 함수를 이미지에도 그대로 쓸 수 있어요.
+🤔 왜 열기·저장은 반복 밖에서 한 번만? — Frame마다 VideoCapture·VideoWriter를 새로 열면 반복 I/O로 성능이 크게 떨어지고 자원 관리도 복잡해져요. 한 장 처리(cvtColor · resize · Canny)는 "배열 → 배열"이라 이미지에도 그대로 쓰고, 열기 · 반복 · 저장 · release는 바깥에서 한 번씩 맡아요.
 
 ⚠️ 영상 저장이 안 될 때 확인 순서: ① writer.isOpened() True? ② Frame (W, H) = frameSize? ③ Gray Frame + isColor=True 아닌지? ④ 확장자·fourcc·설치 코덱 조합? ⑤ release 후 파일 크기와 다시 읽기 확인. MJPG는 손실 압축이라 픽셀이 원본과 완전히 같지는 않아요.
 
@@ -7133,10 +7725,10 @@ print(cv2.imread(str(out_dir / path.name), 0).shape)   # 다시 읽어 확인 �
 | str(path) | Path를 문자열로 | cv2 함수는 문자열 경로를 받음 |
 | imread(path, 0) | 저장 결과를 Gray로 다시 읽기 | 저장이 "성공"해도 크기·채널이 의도와 같은지는 다시 읽어 봐야 앎 |
 
-### Frame 건너뛰며 처리 frame_idx % step
+### Frame 건너뛰며 처리 cap.read() + frame_idx % step
 
 ```
-# cap · process_frame 은 위 VideoCapture 항목과 같아요
+# cap 은 위 VideoCapture 항목처럼 연 것
 step = 5
 frame_idx = 0
 while True:
@@ -7144,7 +7736,7 @@ while True:
     if not ok:
         break
     if frame_idx % step == 0:          # 5장마다 1장만 처리
-        result = process_frame(frame)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)   # 고른 Frame에만 계산
     frame_idx += 1
 ```
 
@@ -7210,37 +7802,30 @@ _2026-11-05(목) · 데이터셋 설계 · 전이학습 · Fine-tuning · 클래
 
 - Grad-CAM은 "모델이 어디에 반응했나"를 보여 주는 단서일 뿐 원인을 확정하지 않는다. 비교 조건과 설정을 기록해야 결과를 설명할 수 있다.
 
-🔧 Day14 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 빌려 온 모델로 분류기를 만들고, 틀린 이유를 찾기까지
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
+이미지를 처리하는 코드(OpenCV 전처리) 다음 단계는 이미지를 분류하는 모델을 만들고, 틀린 사례를 분석해서 다음에 뭘 고칠지 정하는 거예요. 전이학습은 그 출발을 적은 데이터 · 적은 계산으로 할 수 있게 해 줘요.
 
-## 📦 필요한 패키지
+데이터셋 · 분할→ 사전학습 Backbone + 새 Head→ 학습 범위 선택→ 불균형 대응→ 지표 · 오류 이미지→ Grad-CAM→ 다음 실험 가설
 
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+분류기 하나는 아래 일곱 단계를 지나요. 이 페이지의 ①~⑦이 이 순서 그대로예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| torch, torchvision | 모델·학습 엔진 / 사전학습 모델(ResNet18)·ImageFolder·transforms | import torch, from torchvision.models import resnet18 |
-| scikit-learn | Confusion Matrix, F1, 분류 보고서, 그룹 단위 분할 | from sklearn.metrics import f1_score |
-| numpy | 숫자 배열 계산 | import numpy as np |
-| Pillow | 이미지 파일 열기 (ImageFolder가 내부에서 씀) | from PIL import Image |
-| opencv-python | 이미지 읽기·저장, Heatmap 겹쳐 그리기 (Day13 전처리 연결) | import cv2 |
-
-### 🔧 설치 · 확인
+| ① 데이터셋 | 폴더 = 라벨 · 그룹 단위 분할 · 개수 확인 | 라벨과 분할을 믿을 수 있나? |
+| ② Backbone · Head | 사전학습 특징 빌리기 · 새 Head · 얼리기 | 무엇을 빌려 오고, 무엇을 새로 만드나? |
+| ③ Fine-tuning | Head-only → Partial → Full · 층별 학습률 · best 복원 | 어디까지 다시 학습시킬까? |
+| ④ 불균형 | class weight · Weighted sampler | 적은 클래스를 포기하지 않게 하려면? |
+| ⑤ 평가 · 오류 분석 | Confusion Matrix · Macro F1 · 오답 이미지 | 어디서, 무엇을 무엇으로 틀렸나? |
+| ⑥ Grad-CAM | 클래스 점수에 기여한 위치 열지도 | 모델은 어디에 반응했나? |
+| ⑦ 비교 · 재현 | 하나만 바꿔 비교 · seed · checkpoint 저장 | 다른 사람도 같은 결과를 얻나? |
 
 ```
-python -m pip install torch torchvision scikit-learn opencv-python Pillow numpy
-python -c "import torch, torchvision, sklearn, cv2; print(torch.__version__, torchvision.__version__, sklearn.__version__, cv2.__version__)"
-python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능
-
-device = "cuda" if torch.cuda.is_available() else "cpu"      # 선택한 device를 기록
+분류 모델 = Backbone (빌려 옴 · 특징 추출) + Head (새로 학습 · 클래스 점수)
+  ├ 학습: train으로만 · 학습 범위(얼리기) · 층별 lr · 불균형 보정
+  ├ 선택: valid로만 · 주 지표 Macro F1 · best epoch
+  └ 확인: test는 마지막 한 번 · 오답 이미지 · Grad-CAM → 다음 실험 가설
 ```
-
-💡 pip 이름과 import 이름이 다른 경우: scikit-learn → sklearn, opencv-python → cv2, Pillow → PIL. torch와 torchvision은 서로 짝이 맞는 버전이어야 해서 함께 설치해요.
-
-⚠️ 사전학습 가중치(Weight)는 처음 쓸 때 인터넷에서 내려받아 캐시에 저장돼요. 수업 전에 미리 받아 두고, 다운로드가 실패했다고 weights=None(무작위 가중치)으로 조용히 바꾸지 않습니다. 🤔 왜? — 무작위 가중치는 "전이학습"이 아니라서, 결과가 나빠져도 그 이유를 엉뚱하게 해석하게 돼요. 그리고 출처를 믿을 수 없는 checkpoint는 torch.load 하지 않아요(파일 안의 코드가 실행될 수 있어서).
-
-## 이거 어디에 써?
-
-Day13까지는 이미지를 처리하는 코드를 다뤘어요. 오늘은 이미지를 분류하는 모델을 만들고, 틀린 사례를 분석해서 다음에 뭘 고칠지 정하는 법을 배워요.
 
 🤔 왜 전이학습? — 처음부터(Scratch) 학습하면 "모서리·질감·모양을 알아보는 법"부터 배워야 해서 데이터와 시간이 아주 많이 들어요. 사전학습 Backbone은 이미 그걸 알고 있으니, 우리는 그 특징을 우리 클래스로 연결하는 부분만 배우면 돼요 → 적은 데이터·적은 계산으로 출발할 수 있어요. 다만 우리 데이터에서의 성능은 따로 다시 확인해야 해요.
 
@@ -7260,9 +7845,7 @@ Day13까지는 이미지를 처리하는 코드를 다뤘어요. 오늘은 이�
 
 모델 점검배경·워터마크 같은 엉뚱한 단서에 기대는지 확인
 
-데이터셋 · 분할→ 사전학습 Backbone + 새 Head→ 학습 범위 선택→ 불균형 대응→ 지표 · 오류 이미지→ Grad-CAM→ 다음 실험 가설
-
-💡 하루 내내 지키는 약속
+💡 처음부터 끝까지 지키는 원칙
 
 - train으로만 배우고, valid로만 고르고, test는 마지막 확인용으로 남긴다.
 
@@ -7316,7 +7899,7 @@ train = ImageFolder("data/train")
 print(train.class_to_idx)              # {'circle': 0, 'square': 1, 'triangle': 2}
 ```
 
-[그림: 수업 예제 데이터 train, valid, test의 클래스별 이미지 수 막대그래프] 무엇을 보나: 수업 예제 데이터를 실제로 센 개수예요. train은 circle 120 · square 40 · triangle 20(6 : 2 : 1), valid는 30 · 30 · 30, test는 10 · 10 · 10이에요. 🤔 왜? train만 기울어 있으면 모델은 "일단 circle"이라고 답하는 쉬운 길부터 배워요(④). 반대로 valid·test가 균형이라, 소수 클래스를 놓치면 평가에서 바로 드러나요. 그래서 학습 전에 Counter(targets)로 분할마다 개수를 먼저 확인해요.
+[그림: 예제 데이터 train, valid, test의 클래스별 이미지 수 막대그래프] 무엇을 보나: 예제 도형 데이터를 실제로 센 개수예요. train은 circle 120 · square 40 · triangle 20(6 : 2 : 1), valid는 30 · 30 · 30, test는 10 · 10 · 10이에요. 🤔 왜? train만 기울어 있으면 모델은 "일단 circle"이라고 답하는 쉬운 길부터 배워요(④). 반대로 valid·test가 균형이라, 소수 클래스를 놓치면 평가에서 바로 드러나요. 그래서 학습 전에 Counter(targets)로 분할마다 개수를 먼저 확인해요.
 
 🔧 그룹 단위 분할 (예시 도구: GroupShuffleSplit) 명령어 사전에서 자세히 →
 
@@ -7329,7 +7912,7 @@ tr_idx, va_idx = next(gss.split(rows, groups=rows.group_id))   # 같은 group_id
 
 RGB 이미지 Batch→ Backbone (빌려 옴) 특징 추출 · 풀링→ 특징 벡터 ResNet18은 512개→ 새 Head (새로 학습) Linear(512, 3)→ 클래스 점수 Logit 3개
 
-Backbone은 가장자리·질감·형태처럼 여러 이미지 문제에서 다시 쓸 수 있는 특징을 만들어요. Head는 그 특징을 오늘 우리 클래스 수에 맞는 점수(Logit)로 바꾸는 마지막 층이에요.
+Backbone은 가장자리·질감·형태처럼 여러 이미지 문제에서 다시 쓸 수 있는 특징을 만들어요. Head는 그 특징을 우리 문제의 클래스 수에 맞는 점수(Logit)로 바꾸는 마지막 층이에요.
 
 🤔 왜 Head는 갈아 끼워? — 원래 ResNet18의 Head(fc)는 ImageNet 1000개 클래스 점수를 내도록 학습돼 있어요. 우리는 3클래스라 출력 개수부터 맞지 않고, "1000개 중 몇 번"이라는 의미도 우리 문제와 무관해요. 반면 Backbone이 뽑는 모서리·질감 같은 특징은 어느 문제에나 쓸모가 있어서 그대로 빌려 와요.
 
@@ -7396,9 +7979,9 @@ total     = sum(p.numel() for p in model.parameters())
 
 🤔 왜 Backbone은 작은 학습률? — Backbone은 이미 좋은 값 근처에 있어요. 큰 보폭으로 움직이면 잘 배운 특징을 한 번에 망가뜨려요. 새 Head는 무작위에서 출발하니 크게, 기존 층은 작게 움직여요. 그래서 많이 열수록(C) Backbone 학습률을 더 줄여요.
 
-[그림: 단계 A, B, C별 Backbone과 Head의 학습률을 로그 눈금 막대로 비교] 무엇을 보나: 강의 예시 학습률을 log 눈금으로 그렸어요. Head(분홍)는 1e-3 근처로 거의 그대로인데, Backbone(보라)은 A에선 고정, B에선 1e-4, C에선 1e-5로 열수록 10배씩 작아져요. 🤔 왜? 보폭(lr)이 크면 한 번에 값이 크게 바뀌어요. 무작위에서 출발한 Head는 크게 움직여야 빨리 배우지만, 이미 좋은 값 근처의 Backbone을 크게 움직이면 잘 배운 특징이 망가져요. 많이 열수록 망가질 수 있는 부분이 늘어나니 보폭을 더 줄여요.
+[그림: 단계 A, B, C별 Backbone과 Head의 학습률을 로그 눈금 막대로 비교] 무엇을 보나: 예시 설정의 학습률을 log 눈금으로 그렸어요. Head(분홍)는 1e-3 근처로 거의 그대로인데, Backbone(보라)은 A에선 고정, B에선 1e-4, C에선 1e-5로 열수록 10배씩 작아져요. 🤔 왜? 보폭(lr)이 크면 한 번에 값이 크게 바뀌어요. 무작위에서 출발한 Head는 크게 움직여야 빨리 배우지만, 이미 좋은 값 근처의 Backbone을 크게 움직이면 잘 배운 특징이 망가져요. 많이 열수록 망가질 수 있는 부분이 늘어나니 보폭을 더 줄여요.
 
-⚠️ 전이학습이 항상 더 좋은 건 아니다 — 원래 학습한 데이터(Source)의 특징이 우리 데이터(Target)의 배경·잡음·색과 안 맞으면 Head-only가 낮게 나올 수 있어요. 강의의 설명용 소형 모델 예시(ResNet18 결과 아님)에서는 Scratch(처음부터) Macro F1 0.911, Head-only 0.269, Partial 0.674였어요. 이럴 땐 실패로 숨기지 말고 도메인 차이와 학습 조건을 설명합니다. Partial도 학습률·epoch·불균형 때문에 다시 한 클래스로 치우칠 수 있어요.
+⚠️ 전이학습이 항상 더 좋은 건 아니다 — 원래 학습한 데이터(Source)의 특징이 우리 데이터(Target)의 배경·잡음·색과 안 맞으면 Head-only가 낮게 나올 수 있어요. 설명용 소형 모델 예시(ResNet18 결과 아님)에서는 Scratch(처음부터) Macro F1 0.911, Head-only 0.269, Partial 0.674였어요. 이럴 땐 실패로 숨기지 말고 도메인 차이와 학습 조건을 설명합니다. Partial도 학습률·epoch·불균형 때문에 다시 한 클래스로 치우칠 수 있어요.
 
 | 전략 (설명용 소형 모델) | 학습 파라미터 | 총 파라미터 | 비율 |
 |---|---|---|---|
@@ -7408,7 +7991,7 @@ total     = sum(p.numel() for p in model.parameters())
 
 lr과 epoch: lr은 보폭, epoch는 학습 예산. lr이 너무 작으면 정해진 epoch 안에 덜 배우고, 너무 크면 초반 loss가 튀어요. 그리고 마지막 epoch가 가장 좋은 epoch는 아니라서 valid loss가 가장 낮았던 순간(best)을 따로 저장해 둡니다.
 
-[그림: 작은 데모 CNN의 epoch별 train loss와 valid loss 곡선, best epoch 13 표시] 무엇을 보나: 작은 데모 CNN(ResNet18 아님)을 수업 예제 데이터로 15 epoch 학습한 실제 곡선이에요. train loss(보라)는 꾸준히 내려가지만 valid loss(주황)는 들쭉날쭉해서, 가장 낮은 곳은 epoch 13(0.294)이고 마지막 epoch 15는 1.649로 다시 나빠졌어요. 🤔 왜? 학습은 train만 보고 움직이니, 어느 epoch가 "처음 보는 사진"에 가장 좋은지는 보장하지 않아요(lr 0.01로 작은 데이터에선 특히 출렁여요). 그래서 매 epoch valid loss를 재고 가장 좋았던 순간의 가중치를 deepcopy해 두었다가 마지막에 되돌려요.
+[그림: 작은 데모 CNN의 epoch별 train loss와 valid loss 곡선, best epoch 13 표시] 무엇을 보나: 작은 데모 CNN(ResNet18 아님)을 예제 데이터로 15 epoch 학습한 실제 곡선이에요. train loss(보라)는 꾸준히 내려가지만 valid loss(주황)는 들쭉날쭉해서, 가장 낮은 곳은 epoch 13(0.294)이고 마지막 epoch 15는 1.649로 다시 나빠졌어요. 🤔 왜? 학습은 train만 보고 움직이니, 어느 epoch가 "처음 보는 사진"에 가장 좋은지는 보장하지 않아요(lr 0.01로 작은 데이터에선 특히 출렁여요). 그래서 매 epoch valid loss를 재고 가장 좋았던 순간의 가중치를 deepcopy해 두었다가 마지막에 되돌려요.
 
 🔧 층 열기 · 층별 학습률 명령어 사전에서 자세히 →
 
@@ -7537,7 +8120,7 @@ conf, pred = probs.max(dim=1)          # 가장 큰 확률과 그 클래스 = �
 wrong = (pred != y_valid).nonzero().flatten()
 ```
 
-[그림: 작은 데모 CNN이 맞힌 예 3장과 틀린 예 5장을 실제 라벨, 예측, 확률과 함께 보여 주는 갤러리] 무엇을 보나: 작은 데모 CNN(수업 예제 데이터로 몇 초 학습, Macro F1 0.944)의 실제 valid 결과예요. 윗줄은 맞힌 예, 아랫줄은 오답 5장 전부(T = 실제, P = 예측과 확률). 오답 4장이 실제 circle이고, 확률은 0.50~0.64로 모두 아슬아슬했어요. 또 오답 대부분이 배경이 밝고 도형이 흐린 색이에요. 🤔 왜? 확률을 같이 보면 "자신 있게 틀린"(0.9 이상) 위험한 오답은 없고 경계선에서 흔들린 것뿐이라는 걸 알 수 있어요. 그리고 오답 사진을 직접 보니 "도형과 배경의 대비가 낮을 때 틀린다"는 가설이 생겨요 — 이건 행렬 숫자만으로는 절대 안 보여요. 다음 실험(대비 증강 등)으로 확인할 거리예요.
+[그림: 작은 데모 CNN이 맞힌 예 3장과 틀린 예 5장을 실제 라벨, 예측, 확률과 함께 보여 주는 갤러리] 무엇을 보나: 작은 데모 CNN(예제 데이터로 몇 초 학습, Macro F1 0.944)의 실제 valid 결과예요. 윗줄은 맞힌 예, 아랫줄은 오답 5장 전부(T = 실제, P = 예측과 확률). 오답 4장이 실제 circle이고, 확률은 0.50~0.64로 모두 아슬아슬했어요. 또 오답 대부분이 배경이 밝고 도형이 흐린 색이에요. 🤔 왜? 확률을 같이 보면 "자신 있게 틀린"(0.9 이상) 위험한 오답은 없고 경계선에서 흔들린 것뿐이라는 걸 알 수 있어요. 그리고 오답 사진을 직접 보니 "도형과 배경의 대비가 낮을 때 틀린다"는 가설이 생겨요 — 이건 행렬 숫자만으로는 절대 안 보여요. 다음 실험(대비 증강 등)으로 확인할 거리예요.
 
 ## ⑥ Grad-CAM — 모델은 어디에 반응했나?
 
@@ -7561,7 +8144,7 @@ CAM  = ReLU( Σ_k  α_k × FeatureMap_k )          ← 점수를 "올린" 곳만
 
 🤔 왜 보통 마지막 Conv block? — 위치 정보가 남아 있는 마지막 층이라서요. 그 뒤(풀링·Head)로 가면 위치가 사라져 지도를 못 그리고, 더 앞쪽은 위치는 선명하지만 아직 "이게 square다" 같은 클래스 의미가 약해요. 여러 층을 비교할 땐 별도 실험으로 기록해요.
 
-[그림: 작은 데모 CNN에서 계산한 circle, square, triangle 이미지의 Grad-CAM 열지도와 겹쳐 보기] 무엇을 보나: ⚠️ 작은 데모 CNN(수업 예제 도형 데이터로 CPU에서 몇 초 학습, ResNet18 아님)의 마지막 Conv(8×8)로 실제 계산한 Grad-CAM이에요. 왼쪽 입력, 가운데 열지도(빨강 = 점수에 기여 큼), 오른쪽 겹쳐 보기. square·triangle은 도형 위·모서리에 반응했지만, circle은 맞혔는데도(P=0.85) 도형이 아니라 배경 쪽에 반응했어요. 🤔 왜? Grad-CAM은 "점수를 올린 위치"를 보여 줄 뿐 "사람이 보기에 옳은 근거"를 보장하지 않아요. circle 행처럼 정답을 맞혀도 엉뚱한 곳(배경 밝기·잡음)에 기댔을 수 있다는 편향 후보가 되고, 그 영역을 가려 점수가 실제로 바뀌는지 확인해야 원인이라 말할 수 있어요. 8×8 지도를 32×32로 늘린 거라 흐릿한 것도 정상이에요.
+[그림: 작은 데모 CNN에서 계산한 circle, square, triangle 이미지의 Grad-CAM 열지도와 겹쳐 보기] 무엇을 보나: ⚠️ 작은 데모 CNN(예제 도형 데이터로 CPU에서 몇 초 학습, ResNet18 아님)의 마지막 Conv(8×8)로 실제 계산한 Grad-CAM이에요. 왼쪽 입력, 가운데 열지도(빨강 = 점수에 기여 큼), 오른쪽 겹쳐 보기. square·triangle은 도형 위·모서리에 반응했지만, circle은 맞혔는데도(P=0.85) 도형이 아니라 배경 쪽에 반응했어요. 🤔 왜? Grad-CAM은 "점수를 올린 위치"를 보여 줄 뿐 "사람이 보기에 옳은 근거"를 보장하지 않아요. circle 행처럼 정답을 맞혀도 엉뚱한 곳(배경 밝기·잡음)에 기댔을 수 있다는 편향 후보가 되고, 그 영역을 가려 점수가 실제로 바뀌는지 확인해야 원인이라 말할 수 있어요. 8×8 지도를 32×32로 늘린 거라 흐릿한 것도 정상이에요.
 
 💡 target을 바꾸면 질문이 바뀐다 — 같은 square 사진이라도 "square 점수의 근거는?"과 "circle 점수의 근거는?"은 다른 질문이라 열지도도 달라져요. 그리고 열지도는 가장 밝은 곳을 1로 맞춘 값이라 밝기 ≠ 점수예요. 확률 0.03인 클래스도 밝게 보일 수 있어요.
 
@@ -7624,11 +8207,93 @@ torch.save({"weights": best_state, "classes": train_set.classes,
 
 [그림: 같은 설정에서 seed만 바꿔 학습한 작은 데모 CNN의 valid Macro F1 점 그래프] 무엇을 보나: 작은 데모 CNN을 데이터·구조·epoch(15)·lr을 모두 같게 두고 torch.manual_seed만 바꿔 6번 학습한 실제 결과예요. valid Macro F1이 seed 3은 0.734, seed 2는 1.000 — 0.266이나 차이 나요. 🤔 왜? seed는 첫 가중치와 배치 순서를 정해요. 데이터가 작고 epoch가 짧으면 출발점·순서 운이 결과를 크게 흔들어요. 그래서 "A 설정이 B보다 0.05 좋다"는 결론은 seed 하나로 내리면 안 되고, 여러 seed의 범위를 비교하거나 seed를 고정·기록해 같은 조건에서 비교해요.
 
+## 🧩 설계 정리 — 각 단계가 만드는 것과 보장하지 않는 것
+
+| 단계 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| 데이터셋 · 그룹 단위 분할 | 분할마다 같은 클래스 번호 · 누수 없는 train / valid / test | 라벨이 맞는지 · 분포가 실제 사용 환경과 같은지 |
+| 사전학습 Backbone + 새 Head | 적은 데이터로 출발할 수 있는 특징 | 우리 데이터에서의 성능 (도메인 차이가 크면 낮을 수 있음) |
+| 학습 범위 · 층별 학습률 · best 복원 | 기준선과 비교할 후보 모델 | 개선 — 같은 분할 · 지표 · epoch 예산으로 비교해야 앎 |
+| class weight · Sampler | 소수 클래스의 학습 비중 | 모든 클래스의 개선 (다수 클래스가 떨어질 수 있음) |
+| Confusion Matrix · Macro F1 | 무엇을 무엇으로 헷갈렸나 · 클래스마다 한 표인 요약 | 왜 틀렸나 |
+| 오답 이미지 · Grad-CAM | 원인 가설 · 편향 후보 | 인과 — 가리기 · 재실험으로 따로 확인 |
+| seed · checkpoint 기록 | 재현 · 같은 조건 비교 | seed 하나 결과의 일반성 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 예시 데이터
+
+| 항목 | 값 |
+|---|---|
+| 형식 | ImageFolder (train/ · valid/ · test/ 아래 클래스 폴더) · 40×40 PNG · RGB |
+| 클래스 매핑 | {'circle': 0, 'square': 1, 'triangle': 2} (폴더 이름 정렬 순) |
+| 개수 (실제 센 값) | train 120 · 40 · 20 (6 : 2 : 1) · valid 30 · 30 · 30 · test 10 · 10 · 10 |
+| 분할 단위 | 독립인 단위 — 사람 · 영상 · 원본 ID가 있으면 그룹 단위 |
+
+### 모델 · 학습 — 예시 설정
+
+| 항목 | 예시 값 |
+|---|---|
+| Backbone | ResNet18 · ResNet18_Weights.DEFAULT (= IMAGENET1K_V1) |
+| Head | nn.Linear(512, 3) — 학습 파라미터 1,539개 |
+| 입력 규칙 | weights.transforms(): resize 256 → crop 224 · mean [0.485, 0.456, 0.406] · std [0.229, 0.224, 0.225] · RGB |
+| 학습 파라미터 수 | Head-only 1,539 · layer4 + Head 8,395,267 · 전체 11,178,051 |
+| 학습률 (Backbone / Head) | A: — / 1e-3 · B: 1e-4 / 1e-3 · C: 1e-5 / 5e-4 |
+| BN 정책 | 얼린 Backbone을 eval 모드로 둘지 정하고 기록 |
+
+### 평가 · 기록
+
+| 항목 | 값 |
+|---|---|
+| 주 지표 | Macro F1 (valid로 선택, test는 마지막 한 번) |
+| 보조 지표 | Accuracy · 클래스별 Precision / Recall / support · 시간 · 학습 파라미터 수 |
+| 오답 기록 | 파일 경로 · 실제(T) · 예측(P) · 확률 |
+| Grad-CAM 기록 | 대상 층 · target class |
+| checkpoint 필드 | weights · classes · lr · epochs · seed · test_used — 불러올 때 map_location="cpu", weights_only=True |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch, torchvision | 모델·학습 엔진 / 사전학습 모델(ResNet18)·ImageFolder·transforms | import torch, from torchvision.models import resnet18 |
+| scikit-learn | Confusion Matrix, F1, 분류 보고서, 그룹 단위 분할 | from sklearn.metrics import f1_score |
+| numpy | 숫자 배열 계산 | import numpy as np |
+| Pillow | 이미지 파일 열기 (ImageFolder가 내부에서 씀) | from PIL import Image |
+| opencv-python | 이미지 읽기·저장, Heatmap 겹쳐 그리기 (OpenCV 전처리와 같은 도구) | import cv2 |
+
+### 🔧 설치 · 확인
+
+```
+python -m pip install torch torchvision scikit-learn opencv-python Pillow numpy
+python -c "import torch, torchvision, sklearn, cv2; print(torch.__version__, torchvision.__version__, sklearn.__version__, cv2.__version__)"
+python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능
+
+device = "cuda" if torch.cuda.is_available() else "cpu"      # 선택한 device를 기록
+```
+
+💡 pip 이름과 import 이름이 다른 경우: scikit-learn → sklearn, opencv-python → cv2, Pillow → PIL. torch와 torchvision은 서로 짝이 맞는 버전이어야 해서 함께 설치해요.
+
+⚠️ 사전학습 가중치(Weight)는 처음 쓸 때 인터넷에서 내려받아 캐시에 저장돼요. 쓰기 전에 미리 받아 두고, 다운로드가 실패했다고 weights=None(무작위 가중치)으로 조용히 바꾸지 않습니다. 🤔 왜? — 무작위 가중치는 "전이학습"이 아니라서, 결과가 나빠져도 그 이유를 엉뚱하게 해석하게 돼요. 그리고 출처를 믿을 수 없는 checkpoint는 torch.load 하지 않아요(파일 안의 코드가 실행될 수 있어서).
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+결과값은 실제로 실행해서 얻은 값이에요. ResNet18은 사전학습 가중치를 받지 않고 구조만(weights=None) 만들어 개수 · shape를 확인했고, 학습 결과는 예제 도형 데이터로 CPU에서 학습한 작은 모델의 값이에요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| OpenCV 이미지 전처리 · 데이터 증강 | RGB 변환 · 크기 맞추기 · 소수 클래스 보완과 대비 증강 가설 확인 |
+| 객체탐지 · YOLO | "무엇인가"에서 "어디에 있나"까지 — 박스 · IoU · mAP |
+| OCR · 문서 AI | 이미지 속 글자 읽기 · 근거와 함께 구조화 |
+| Occlusion · Counterfactual 테스트 | Grad-CAM이 가리킨 영역을 가렸을 때 점수가 실제로 바뀌는지 |
+| Threshold · 확률 보정 | 업무 비용에 맞춰 판단 기준 정하기 |
+
 ## 원본 자료
 
-- 강의: Day14_20261105.pdf (p.2–11 큰 그림, p.17–26 데이터셋, p.27–46 전이학습·Fine-tuning, p.47–58 불균형, p.59–68 평가·오류, p.69–79 Grad-CAM, p.80–99 비교·프로젝트·Weight 점검)
+- 원본: Day14_20261105.pdf (p.2–11 큰 그림, p.17–26 데이터셋, p.27–46 전이학습·Fine-tuning, p.47–58 불균형, p.59–68 평가·오류, p.69–79 Grad-CAM, p.80–99 비교·프로젝트·Weight 점검) · 요약 Day14_oneday요약.pdf (대표 코드 흐름, 파라미터별 변화). 도형 3클래스 예제 데이터, 학습률 단계 A/B/C, 설명용 소형 모델 · 합성 예시(Macro F1 0.911 · 0.269 · 0.674, Sampler 혼동 행렬)는 원본 자료의 것.
 
-- 요약: Day14_oneday요약.pdf (대표 코드 흐름, 파라미터별 변화)
+- 결과 값: 이 PC에서 실제 실행 — 스크립트 tools/io_day14.py, 그림 tools/visuals/make_day14.py. ResNet18은 다운로드 없이 weights=None 구조만, 학습 곡선 · 오답 갤러리 · Grad-CAM · seed 비교는 CPU에서 몇 초 학습한 작은 데모 CNN.
 
 - 공식 문서: Torchvision Models (resnet18 · Weights · transforms) · ImageFolder
 
@@ -7639,7 +8304,7 @@ torch.save({"weights": best_state, "classes": train_set.classes,
 ## 🔧 Day14 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day14)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install torch torchvision scikit-learn opencv-python Pillow |
+| 📦 패키지 · 명령어 | pip install torch torchvision scikit-learn opencv-python Pillow |
 | ① 데이터셋 설계 · 누수 | ImageFolder(), class_to_idx, Counter(targets), GroupShuffleSplit |
 | ② Backbone · Head | resnet18(weights=), weights.transforms(), requires_grad, nn.Linear, model.eval() |
 | ③ Fine-tuning 범위 · 학습률 | layer4.requires_grad_(True), AdamW([{"params", "lr"}]), best 복원 |
@@ -7664,7 +8329,7 @@ for ds in [train, valid, test]:
     print(ds.root, Counter(ds.targets)) # train: Counter({0: 120, 1: 40, 2: 20})
 ```
 
-▶ 실제로 돌려 보면 강의 데이터 data/train · valid · test
+▶ 실제로 돌려 보면 예제 데이터 data/train · valid · test
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -7725,7 +8390,7 @@ model.fc = nn.Linear(in_features, num_classes)   # ③ 새 Head (새로 만든 �
 preprocess = weights.transforms()       # 이 가중치가 원하는 평가용 입력 변환
 ```
 
-▶ 실제로 돌려 보면 ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 train circle 한 장(40×40)
+▶ 실제로 돌려 보면 ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 예제 train circle 한 장(40×40)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -7837,7 +8502,7 @@ for epoch in range(8):
 model.load_state_dict(best_state)                 # best로 되돌리기
 ```
 
-▶ 실제로 돌려 보면 강의 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · 8 epoch
+▶ 실제로 돌려 보면 예제 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · 8 epoch
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -7875,7 +8540,7 @@ print(class_weight)                              # tensor([0.30, 0.90, 1.80])
 loss_fn = nn.CrossEntropyLoss(weight=class_weight.to(device))
 ```
 
-▶ 실제로 돌려 보면 강의 train 개수 [120, 40, 20] · 'best 복원' 항목과 같은 모델·seed·8 epoch에 weight만 추가
+▶ 실제로 돌려 보면 예제 train 개수 [120, 40, 20] · 'best 복원' 항목과 같은 모델·seed·8 epoch에 weight만 추가
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -7913,7 +8578,7 @@ sampler = WeightedRandomSampler(sample_weight, num_samples=len(sample_weight), r
 loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)   # shuffle은 쓰지 않음
 ```
 
-▶ 실제로 돌려 보면 강의 train 180장 (120 · 40 · 20), generator seed 0
+▶ 실제로 돌려 보면 예제 train 180장 (120 · 40 · 20), generator seed 0
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -7943,7 +8608,7 @@ loader = DataLoader(train_dataset, batch_size=32, sampler=sampler)   # shuffle�
 | Class weight | 1.000 | 0.667 | 0.633 | 0.763 |
 | Sampler | 1.000 | 0.733 | 0.700 | 0.810 |
 
-강의의 설명용 합성 예시예요. 이 순위가 다른 데이터에서도 유지되지는 않아요.
+설명용 합성 예시예요. 이 순위가 다른 데이터에서도 유지되지는 않아요.
 
 ### confusion_matrix · classification_report
 
@@ -7958,7 +8623,7 @@ print(report["macro avg"]["f1-score"])
 print(f1_score(y_true, y_pred, average="macro"))
 ```
 
-▶ 실제로 돌려 보면 강의 valid 90장 (30 · 30 · 30) — 'best 복원'(Head-only)·'Class weight' 항목에서 학습한 두 모델의 예측
+▶ 실제로 돌려 보면 예제 valid 90장 (30 · 30 · 30) — 'best 복원'(Head-only)·'Class weight' 항목에서 학습한 두 모델의 예측
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -7994,7 +8659,7 @@ for i in wrong[:8]:                        # 오분류 최대 8장
     print(paths[i], "T=", class_names[y_valid[i]], "P=", class_names[pred[i]], f"{conf[i]:.2f}")
 ```
 
-▶ 실제로 돌려 보면 강의 valid 90장 — 'Class weight' 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)
+▶ 실제로 돌려 보면 예제 valid 90장 — 'Class weight' 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -8036,7 +8701,7 @@ finally:
         h.remove()                                       # 꼭 지우기!
 ```
 
-▶ 실제로 돌려 보면 ResNet18 구조(weights=None, 3클래스 Head) · 강의 circle 한 장을 preprocess → [1, 3, 224, 224]
+▶ 실제로 돌려 보면 ResNet18 구조(weights=None, 3클래스 Head) · 예제 circle 한 장을 preprocess → [1, 3, 224, 224]
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -8125,7 +8790,7 @@ model.load_state_dict(saved["weights"]); model.eval()
 - **혼동행렬** (Confusion Matrix (혼동행렬)): 실제(행) × 예측(열)으로 맞힘·틀림을 네 칸(TN, FP, FN, TP)에 세어 둔 표. 어떤 종류의 오류인지 나눠 볼 수 있어요.
 - **Precision** (Precision (정밀도)): 양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP). 헛경고가 늘면 낮아져요.
 - **Recall** (Recall (재현율)): 실제 양성 중 모델이 찾아낸 비율. TP ÷ (TP + FN). 놓침이 늘면 낮아져요.
-- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 이 수업 분류의 주 지표.
+- **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.
 - **누수** (Data Leakage (데이터 누수)): 검증·테스트용 정보나 예측 시점에 알 수 없는 값(예: 실행 후에야 생기는 elapsed_ms)이 학습에 섞여 들어가 점수가 실제보다 좋게 나오는 문제.
 - **그룹 단위 분할** (Group split (그룹 단위 분할)): 같은 고객·요청 등 한 그룹의 행이 학습과 평가 양쪽에 동시에 들어가지 않게 그룹째로 나누는 방법.
 - **불균형 자료** (Imbalanced data (클래스 불균형 자료)): 한 클래스가 다른 클래스보다 훨씬 많은 자료(예: 성공 14 · 실패 6). Accuracy가 속기 쉬워 실제 양성 수, Precision·Recall 관점도 함께 봐요.
@@ -8175,36 +8840,9 @@ _2026-11-06(금) · 객체탐지 · IoU · mAP · YOLO 학습/추론 · 추적_ 
 
 - YOLO는 train → val → predict → track 네 명령으로 학습부터 영상 추적까지 한다.
 
-🔧 Day15 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 사진 한 장이 박스 목록이 되기까지
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| ultralytics | YOLO 학습·검증·추론·추적을 한 번에 | from ultralytics import YOLO |
-| opencv-python | 이미지·영상 읽기/쓰기, 박스 그리기 | import cv2 |
-| lap | 추적할 때 프레임 사이 박스 짝짓기 계산 | 직접 import 안 함 (track()이 내부에서 씀) |
-| PyYAML | dataset.yaml 읽고 쓰기 | import yaml |
-| numpy, pandas | 좌표 배열 계산, 결과를 표(CSV)로 저장 | import numpy as np, import pandas as pd |
-| torch, torchvision | YOLO가 내부에서 쓰는 딥러닝 엔진 + 박스 계산 도구(box_convert, box_iou) (Day9부터 설치됨) | import torch, from torchvision.ops import box_iou |
-
-### 🔧 설치 · 확인
-
-```
-python -m pip install ultralytics lap opencv-python PyYAML pandas
-python -c "import ultralytics, cv2, torch; print(ultralytics.__version__, cv2.__version__, torch.__version__)"
-python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능
-```
-
-⚠️ torch는 다시 깔지 말 것. 이미 맞춰 둔 CUDA 버전이 꼬일 수 있어요. 수업 기준 버전은 requirements.txt(ultralytics 8.4.21, lap 0.5.12)를 따르세요.
-
-💡 pip 이름과 import 이름이 다른 경우가 있어요: opencv-python → cv2, PyYAML → yaml, scikit-learn → sklearn, Pillow → PIL.
-
-## 이거 어디에 써?
-
-Day14까지는 "이 사진은 고양이다"처럼 사진 전체에 이름표 하나를 붙였어요(분류). 객체탐지는 "고양이는 여기, 강아지는 저기"처럼 물체마다 위치까지 찾아요.
+이미지 분류는 "이 사진은 고양이다"처럼 사진 전체에 이름표 하나를 붙여요. 객체탐지는 "고양이는 여기, 강아지는 저기"처럼 물체마다 위치까지 찾아요.
 
 🅿️
 
@@ -8230,6 +8868,23 @@ Day14까지는 "이 사진은 고양이다"처럼 사진 전체에 이름표 하
 | 추적 | 탐지 + 프레임 간 같은 ID | "아까 걔가 지금 어디 갔어?" |
 
 🤔 왜 분류로는 안 돼? — 사진 한 장에 물체가 여러 개 있고, 같은 사람이라도 위치·크기가 제각각이에요. 분류는 사진 전체에 답 하나만 내니까 "안전모 안 쓴 사람이 어디 있는지", "차가 몇 대인지"를 말할 수 없어요.
+
+객체탐지는 아래 다섯 부분으로 나눠 보면 쉬워요. 이 페이지의 ①~⑤가 이 순서예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 박스 좌표 | xyxy · xywh · 정규화 · YOLO 라벨 txt | 지금 이 숫자 4개는 어떤 형식인가? |
+| ② IoU · 평가 지표 | IoU · TP/FP/FN · Precision · Recall · mAP | "맞았다"를 어떻게 채점하나? |
+| ③ YOLO · 학습 | 격자 후보 · Backbone/Neck/Head · .pt · dataset.yaml | 모델은 후보를 어떻게 내고, 무엇으로 배우나? |
+| ④ conf · NMS · 추론 | 점수 필터 · 중복 제거 · predict | 수백 개 후보가 어떻게 몇 개로 줄어드나? |
+| ⑤ 추적 | Track ID · ID switch | 프레임 사이 같은 물체를 어떻게 잇나? |
+
+```
+추론: 사진 → Backbone → Neck → Head → 후보 (160×128 예: 420개)
+        → conf 필터 → NMS → 최종 박스 (class · xyxy · conf)
+        → (영상이면) 추적기 → + track_id
+평가: 예측 ↔ 정답 IoU → TP · FP · FN → Precision · Recall → AP → mAP50 · mAP50-95
+```
 
 ## ① 박스 좌표 — 같은 박스, 세 가지 표현
 
@@ -8280,7 +8935,9 @@ cxcywh = box_convert(boxes, in_fmt="xyxy", out_fmt="cxcywh")
 labels = cxcywh / torch.tensor([160, 128, 160, 128])                # x는 W, y는 H로
 ```
 
-## ② IoU와 평가 지표
+## ② IoU와 평가 지표 — "맞았다"를 채점하는 법
+
+### IoU — 겹친 넓이 ÷ 합친 넓이
 
 IoU = 겹친 넓이 ÷ 두 박스를 합친 넓이. 0이면 안 겹침, 1이면 완전히 같음. 파란 박스를 끌어 보세요(오른쪽 아래 모서리는 크기 조절).
 
@@ -8355,9 +9012,11 @@ metrics = model.val(data="dataset.yaml", split="val", imgsz=640, conf=0.001, iou
 print(metrics.box.map50)   # mAP50
 ```
 
-## ③ YOLO 모델과 학습
+## ③ YOLO — 격자 · 구조 · 학습
 
 YOLO(You Only Look Once)는 사진을 한 번 통과시켜 모든 위치·크기의 물체 후보를 동시에 예측해요. 그래서 빠르고, 영상에 많이 써요.
+
+### 격자 — 칸마다 후보 하나
 
 구체적으로는 사진을 격자(칸)로 나누고 칸마다 박스 숫자 4개 + 클래스별 점수를 내요. 160×128 사진이면 이렇게 돼요:
 
@@ -8372,9 +9031,13 @@ YOLO(You Only Look Once)는 사진을 한 번 통과시켜 모든 위치·크기
 
 🤔 왜 격자를 세 가지 크기로 써? — 촘촘한 격자는 위치 정보가 자세해서 작은 물체에 유리하고, 성긴 격자는 넓은 범위를 한 번에 봐서 큰 물체의 전체 모양을 잘 잡아요. Neck이 서로 다른 크기의 특징을 섞어 주는 이유가 이거예요.
 
+### Backbone · Neck · Head
+
 사진→ Backbone 특징 뽑기→ Neck 큰·작은 크기 정보 합치기→ Head 클래스·박스·점수 예측→ 후보 정리 conf·NMS
 
 [그림: ] 무엇을 보나: 왼쪽에서 오른쪽으로 사진이 흘러가요. Backbone은 사진을 20×16 → 10×8 → 5×4로 점점 작게 줄이면서(네모가 작아지고 색이 진해짐) 더 "뜻"에 가까운 특징을 뽑아요. Neck은 세 줄을 위아래로 오가며 섞고, Head는 세 크기에서 각각 후보를 내 합계 420개가 돼요. 🤔 왜? 큰 지도(20×16)는 위치는 자세하지만 "이게 뭔지"는 잘 몰라요. 작은 지도(5×4)는 반대예요. Neck이 둘을 섞어 줘야 "작은 물체도 뭔지 알고, 큰 물체도 어디인지 아는" 예측이 돼요. (그림은 원리를 보여 주는 단순화예요.)
+
+### 설계도 vs 학습된 가중치 — .yaml · .pt
 
 |  | yolo26n.yaml | yolo26n.pt |
 |---|---|---|
@@ -8382,7 +9045,9 @@ YOLO(You Only Look Once)는 사진을 한 번 통과시켜 모든 위치·크기
 | 비유 | 빈 뇌 | 이미 공부한 뇌 |
 | 언제 | 처음부터 학습 | 보통 이걸로 시작 (전이학습) |
 
-🤔 왜 보통 .pt로 시작해? — .yaml(빈 뇌)은 선·모서리 같은 기초부터 배워야 해서 데이터도 많고 시간도 오래 걸려요. .pt는 이미 수많은 사진으로 기초를 익힌 상태라, 내 데이터로는 "내 물체" 구분만 더 배우면 돼요. Day14 전이학습과 같은 원리예요.
+🤔 왜 보통 .pt로 시작해? — .yaml(빈 뇌)은 선·모서리 같은 기초부터 배워야 해서 데이터도 많고 시간도 오래 걸려요. .pt는 이미 수많은 사진으로 기초를 익힌 상태라, 내 데이터로는 "내 물체" 구분만 더 배우면 돼요. 전이학습과 같은 원리예요.
+
+### 학습 데이터 — 폴더 구조 · dataset.yaml · 증강
 
 학습 데이터 폴더 구조와 안내서(dataset.yaml):
 
@@ -8414,9 +9079,9 @@ model = YOLO("yolo26n.pt")       # 학습된 뇌 불러오기 (.yaml이면 빈 �
 model.train(data="dataset.yaml", epochs=30, imgsz=640, batch=16, device=0, workers=0)
 ```
 
-[그림: epoch별 train/val box loss 곡선과 mAP50, mAP50-95 곡선] 무엇을 보나: results.csv를 직접 그린 예예요(합성 도형으로 100 epoch 학습한 작은 데모 모델 — 수업 결과가 아니에요). 왼쪽은 loss가 들쭉날쭉하면서도 전체적으로 내려가고, 오른쪽은 한동안 0이다가 50 epoch쯤부터 점수가 생겨요. 초록(mAP50)은 늘 분홍(mAP50-95)보다 위에 있고, 그 간격이 박스가 엉성한 정도예요. 분홍 점은 mAP50-95가 가장 높았던 epoch예요. 🤔 왜? 마지막 epoch가 꼭 최고가 아니기 때문에 이렇게 val 점수를 매 epoch 기록해 두고 가장 좋았던 순간을 best.pt로 저장해요(ultralytics 8.4는 val mAP50-95가 가장 높은 epoch를 고르니, 분홍 점이 바로 그 순간이에요).
+[그림: epoch별 train/val box loss 곡선과 mAP50, mAP50-95 곡선] 무엇을 보나: results.csv를 직접 그린 예예요(합성 도형으로 100 epoch 학습한 작은 데모 모델). 왼쪽은 loss가 들쭉날쭉하면서도 전체적으로 내려가고, 오른쪽은 한동안 0이다가 50 epoch쯤부터 점수가 생겨요. 초록(mAP50)은 늘 분홍(mAP50-95)보다 위에 있고, 그 간격이 박스가 엉성한 정도예요. 분홍 점은 mAP50-95가 가장 높았던 epoch예요. 🤔 왜? 마지막 epoch가 꼭 최고가 아니기 때문에 이렇게 val 점수를 매 epoch 기록해 두고 가장 좋았던 순간을 best.pt로 저장해요(ultralytics 8.4는 val mAP50-95가 가장 높은 epoch를 고르니, 분홍 점이 바로 그 순간이에요).
 
-## ④ confidence · NMS · 추론
+## ④ confidence · NMS · 추론 — 후보를 결과로
 
 모델은 처음에 후보 박스를 아주 많이 뱉어요. 이걸 두 단계로 걸러요.
 
@@ -8430,11 +9095,15 @@ model.train(data="dataset.yaml", epochs=30, imgsz=640, batch=16, device=0, worke
 
 🤔 왜 후보가 이렇게 많이 나와? — 칸마다 무조건 예측을 하니까요. 물체 근처의 여러 칸이 "여기 원 있어!"라고 동시에 외쳐서 한 물체에 박스가 여러 개 겹쳐 나와요. 그래서 걸러내는 단계가 꼭 필요해요.
 
+### NMS — 겹치는 중복 박스 정리
+
 NMS 순서: 점수 제일 높은 박스를 남김 → 그 박스와 많이 겹치는(IoU 큰) 같은 클래스 박스를 지움 → 남은 것 중 다음으로 높은 박스로 반복.
 
 [그림: 후보 4개를 점수순으로 세우고, 1등을 남기고 겹치는 같은 클래스 후보를 지우고, 다음 1등을 남기는 NMS 단계 그림] 무엇을 보나: 0) 후보 4개(연습용 값)를 점수순으로 줄 세워요. 1) 1등 square 0.95를 남기고, 같은 square인 0.85와 IoU를 재면 0.90 ≥ 0.7 → 빨간 X로 삭제. 2) 남은 것 중 1등 circle 0.80을 남겨요 — 같은 circle 후보가 없어 지울 게 없어요. 3) triangle 0.40도 남기고 끝. 4개 → 3개. 🤔 왜? 1등과 거의 같은 자리를 가리키는 후보는 "같은 물체를 또 외친 것"이라 버려요. 하지만 NMS는 정답을 모르니까, 엉뚱한 곳의 0.40처럼 틀린 박스도 겹치는 게 없으면 그대로 남아요 — 그건 conf나 모델 실력의 몫이에요.
 
 🤔 왜 "같은 클래스"끼리만 지워? — 사람 위에 안전모 박스가 크게 겹치는 건 정상이에요. 클래스가 다르면 다른 물체니까 지우면 안 돼요.
+
+### 임계값 세 가지 — conf · NMS IoU · 평가 IoU
 
 | 이름 | 무엇끼리 비교? | 어디서? |
 |---|---|---|
@@ -8466,7 +9135,7 @@ result.boxes.xyxy.cpu().numpy()          # [N, 4] 픽셀 좌표 (.conf · .cls�
 cv2.imwrite("out.jpg", result.plot())    # 박스 그린 그림
 ```
 
-## ⑤ 추적 (Tracking)
+## ⑤ 추적 (Tracking) — 프레임 사이를 같은 ID로
 
 탐지는 프레임마다 따로 "사람 2명"이라고만 말해요. 추적은 프레임 사이를 연결해서 "7번 사람이 오른쪽으로 이동 중"처럼 같은 물체에 같은 Track ID를 붙여요. 이게 있어야 사람 수 세기, 이동 경로, 머문 시간 같은 걸 할 수 있어요.
 
@@ -8493,6 +9162,71 @@ result.boxes.id.int().tolist()   # 프레임별 Track ID (없으면 id가 None)
 
 [그림: 사진 1장 처리 시간을 읽기, 전처리, 모델 추론, 후처리로 나눈 가로 막대와 추론만 본 막대 비교] 무엇을 보나: 작은 데모 모델로 CPU에서 160px 사진을 처리할 때 걸린 시간을 쪼갠 막대예요(result.speed의 preprocess · inference · postprocess + 직접 잰 imread, 여러 장의 중앙값). 위 막대가 실제 전체, 아래 빗금 막대는 "모델 추론"만 잘라 본 것 — 같은 실행인데 FPS 숫자가 달라져요. 🤔 왜? 한 장이 결과가 되려면 읽기 → 전처리 → 추론 → 후처리를 모두 거쳐야 하니까 시간은 더해져요. 여기선 추론이 대부분이라 차이가 작지만, 큰 사진·영상 디코딩·추적·저장이 붙으면 추론 밖의 시간이 훨씬 커져요. 그래서 FPS를 말할 땐 "어디부터 어디까지 쟀는지"를 같이 적어요(숫자는 이 PC 기준이라 장비마다 달라요).
 
+## 🧩 설계 정리 — 단계마다 만드는 것과 보장하지 않는 것
+
+| 단계 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| 라벨 txt | 물체마다 클래스 cx cy w h (0~1) | W · H를 맞게 나눴는지 — 박스를 그려서 확인 |
+| Head 출력 | 칸마다 후보 (예: 420개) | 물체 수 — 한 물체에 후보가 여러 개 |
+| conf 필터 | 점수 기준 이상인 후보 | 중복 제거 — NMS가 따로 |
+| NMS | 같은 클래스 중복을 지운 최종 박스 | 정답 여부 — 채점은 정답과 IoU로 |
+| 평가 (val) | Precision · Recall · mAP50 · mAP50-95 | 현장 성능 — train/val 누수가 있으면 부풀려짐 |
+| 추적 (track) | 프레임 사이 같은 track_id | 가려짐 · 엇갈림 뒤의 같은 번호 (ID switch) |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 라벨 · 데이터 형식
+
+| 항목 | 형식 |
+|---|---|
+| 라벨 txt 한 줄 | 클래스 cx cy w h — 좌표는 0~1 (x는 W, y는 H로 나눔) |
+| 폴더 | images/train · images/val + 같은 이름의 labels/…/*.txt |
+| dataset.yaml | path · train · val · names (번호 → 클래스 이름) |
+| result.boxes | .xyxy 픽셀 · .xywh · .xywhn 0~1 · .conf · .cls · (추적 시) .id |
+
+### 임계값 — 예시 설정
+
+| 이름 | 비교 대상 | 예시 값 |
+|---|---|---|
+| conf (predict) | 후보 하나의 점수 | 0.25 |
+| iou (predict NMS) | 예측 ↔ 예측 | 0.7 |
+| 평가 IoU | 예측 ↔ 정답 | 0.5 (mAP50) · 0.50~0.95 (mAP50-95) |
+| conf (val) | 평가용 — 곡선 전체를 그리려고 낮게 | 0.001 |
+
+### 예시 데이터 · 모델
+
+| 항목 | 값 |
+|---|---|
+| 사진 | 합성 도형 160×128 · 3클래스 (0 square · 1 circle · 2 triangle) |
+| 격자 · 후보 | 20×16 · 10×8 · 5×4 → 320 + 80 + 20 = 420 |
+| 모델 | yolo26n.pt에서 시작한 작은 데모 모델 (100 epoch) |
+| 추적기 | tracker="botsort.yaml" · persist=True |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| ultralytics | YOLO 학습·검증·추론·추적을 한 번에 | from ultralytics import YOLO |
+| opencv-python | 이미지·영상 읽기/쓰기, 박스 그리기 | import cv2 |
+| lap | 추적할 때 프레임 사이 박스 짝짓기 계산 | 직접 import 안 함 (track()이 내부에서 씀) |
+| PyYAML | dataset.yaml 읽고 쓰기 | import yaml |
+| numpy, pandas | 좌표 배열 계산, 결과를 표(CSV)로 저장 | import numpy as np, import pandas as pd |
+| torch, torchvision | YOLO가 내부에서 쓰는 딥러닝 엔진 + 박스 계산 도구(box_convert, box_iou) (이미 설치된 환경 그대로) | import torch, from torchvision.ops import box_iou |
+
+### 🔧 설치 · 확인
+
+```
+python -m pip install ultralytics lap opencv-python PyYAML pandas
+python -c "import ultralytics, cv2, torch; print(ultralytics.__version__, cv2.__version__, torch.__version__)"
+python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능
+```
+
+⚠️ torch는 다시 깔지 말 것. 이미 맞춰 둔 CUDA 버전이 꼬일 수 있어요. 버전은 프로젝트의 requirements.txt로 고정해요(예: ultralytics 8.4.21, lap 0.5.12).
+
+💡 pip 이름과 import 이름이 다른 경우가 있어요: opencv-python → cv2, PyYAML → yaml, scikit-learn → sklearn, Pillow → PIL.
+
+### 터미널(CLI)로 같은 일
+
 🔧 같은 걸 터미널(CLI)로 yolo detect ... 명령어 사전에서 자세히 →
 
 ```
@@ -8500,19 +9234,33 @@ yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
 yolo detect predict model=best.pt source=samples/ conf=0.25
 ```
 
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| 전이학습과 오류 분석 | 사전학습 가중치에서 시작하기 · 오류 분석 |
+| 과적합 · 학습 곡선 | train은 좋아지는데 val이 정체할 때 읽는 법 |
+| OCR · 문서 구조화 · VLM | 탐지한 영역에서 글자 읽기 · 엣지 배포 |
+
 ## 원본 자료
 
-- 강의: Day15_20261106.pdf · 요약: Day15_oneday요약.pdf
+- 원본: Day15_20261106.pdf · 요약: Day15_oneday요약.pdf
+
+- 결과 값 · 그림: 합성 도형 데이터로 직접 학습한 작은 데모 모델(YOLO26n, 100 epoch)로 이 노트를 만든 PC에서 실제 실행 — 원본 자료의 결과가 아님. 스크립트 tools/io_day15.py, 그림 tools/visuals/make_day15.py
 
 - 공식 문서: Ultralytics Modes (train · val · predict · track)
 
 ## 🔧 Day15 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day15)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install ultralytics lap opencv-python |
-| ① 박스 좌표 | cv2.rectangle(), cv2.putText() |
-| ② IoU · 평가 지표 | model.val() → metrics.box.map50 |
-| ③ YOLO 모델 · 학습 | YOLO(), model.train() |
+| 📦 패키지 · 명령어 | pip install ultralytics lap opencv-python, CLI yolo detect train / val / predict / track |
+| ① 박스 좌표 | cv2.rectangle(), cv2.putText(), box_convert() |
+| ② IoU · 평가 지표 | box_iou(), model.val() → metrics.box.map50 |
+| ③ YOLO · 학습 | YOLO(), model.train() |
 | ④ confidence · NMS · 추론 | model.predict(conf=, iou=), result.boxes |
 | ⑤ 추적 | model.track(persist=, tracker=) |
 
@@ -8809,61 +9557,32 @@ _2026-11-09(월) · 문서 전처리 · Tesseract · PSM · CER · 정규식 · 
 
 - VLM은 이미지+질문을 함께 보고 답하지만 그럴듯한 오답이 있어 원문 근거와 대조해야 하고, 배포는 지원 모델을 ONNX → TensorRT Engine으로 바꿔 Jetson·DeepStream에서 돌린다.
 
-🤝 하루 내내 지키는 약속 3가지
+## 🗺️ 큰 그림 — 문서 사진이 근거 있는 업무 데이터가 되기까지
 
-- 원본을 덮어쓰지 않는다 — 원본·전처리본·OCR 결과·최종 JSON을 따로 저장하고, 좌표가 어느 이미지 기준인지 같이 적어요. 🤔 왜? 전처리를 바꿔 다시 돌리거나 "이 값이 어디서 나왔지?"를 확인하려면 출발점이 남아 있어야 해요.
+사진의 픽셀·물체를 다루는 비전(OpenCV 전처리 · 분류 · 객체탐지)과 달리, 문서 AI는 사진 속 글자를 읽고, 문서에 질문하고, 그 결과를 근거와 함께 업무 데이터로 남겨요. 마지막엔 이런 모델을 현장 장비에서 돌리는 배포 구조까지 이어져요. 핵심은 "값만 남기지 않는다" — 값이 어디서 왔는지(원문·위치), 믿어도 되는지(검증 상태)를 같이 남겨요.
 
-- 값은 근거와 함께 — raw(원문) · value(정규화 값) · bbox · confidence를 한 묶음으로. 근거가 없으면 0이나 빈 문자열이 아니라 null + 검토 이유를 남겨요. 🤔 왜? 0은 "금액이 0원"이라는 진짜 값처럼 보여요. null이어야 "못 찾음"이 구분돼요.
+[그림: ] 무엇을 보나: 왼쪽 문서가 위쪽 OCR 길(전처리 → 글자·위치·점수)과 아래쪽 VLM 길(원본이나 잘라 낸 부분 + 질문 → 답변·근거 후보)로 갈라졌다가, 가운데 구조화·검증에서 다시 만나요. 오른쪽 점선 상자가 최종 산출물이에요. 🤔 왜? OCR은 "정확히 무슨 글자가 어디 있나"에 강하고, VLM은 "이게 무슨 뜻인가"에 강해요. 둘 다 틀릴 수 있으니 마지막에 원문·규칙과 대조하는 단계가 꼭 있어야 하고, 대조 결과(검토 이유)까지 남겨야 사람이 다시 확인할 수 있어요.
 
-- 분모와 출처를 섞지 않는다 — 같은 문서·정답·정규화 규칙에서 비교하고, 직접 돌린 결과인지 남이 기록한 결과인지 적어요. 🤔 왜? 문서 10장 CER과 100장 CER, 내가 돌린 값과 남이 적은 값을 나란히 놓으면 비교가 아니라 착시예요.
+문서 한 장은 아래 여덟 단계를 지나요. 이 페이지의 ①~⑧이 이 순서 그대로예요.
 
-🔧 Day16 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
-
-본문에는 핵심 코드 한두 줄만 남겼어요.
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| opencv-python | 문서 이미지 읽기, Gray·이진화·원근 보정 | import cv2 |
-| numpy | 모서리 좌표 배열(np.float32), 픽셀 계산 | import numpy as np |
-| pandas | OCR 단어 결과를 표(DataFrame)로 다루기, 평가표 저장 | import pandas as pd |
-| pytesseract | Python에서 Tesseract OCR 엔진을 불러 쓰는 연결 고리 | import pytesseract, from pytesseract import Output |
-| (표준 라이브러리) re, json, datetime, dataclasses | 정규식으로 날짜·금액 찾기, JSON 저장, 날짜 검증, 결과 구조 정의 | import re, json (설치 불필요) |
-| jiwer | 정답과 OCR 결과로 CER·WER 계산 (직접 짠 cer()와 같은 값) | import jiwer |
-| scikit-image (선택) | 연습용 내장 이미지 — data.page()는 왼쪽이 어두운 스캔 페이지 | from skimage import data |
-| VLM을 실제로 돌릴 때 (준비된 모델이 있을 때만) |  |  |
-| transformers | VLM 모델·Processor 불러오기, pipeline, 답 생성 | from transformers import pipeline, AutoProcessor, AutoModelForImageTextToText |
-| torch | 모델이 내부에서 쓰는 계산 엔진 (Day9부터 설치됨) | import torch |
-| 배포 (pip 아님) — TensorRT(trtexec 명령 포함)·JetPack·DeepStream은 NVIDIA가 장치·버전별로 따로 배포하는 소프트웨어예요. 수업 기준은 PC의 TensorRT 11.3, Jetson은 그 JetPack이 지원하는 조합. |  |  |
-
-### 🔧 설치 · 확인
+| ① 전처리 | Gray · 이진화(Otsu · Adaptive) · 원근 보정 | 엔진이 읽기 좋은 반듯하고 선명한 입력인가? |
+| ② OCR 실행 | Tesseract · PSM · Text + Box + Confidence | 무슨 글자가 어디에, 얼마나 확신하며? |
+| ③ 품질 평가 | CER · WER · 필드 정확도 | 글자 · 단어 · 필드 중 무엇이 얼마나 틀렸나? |
+| ④ 구조화 | 정규식 · Key-value · JSON · 업무 규칙 검증 | 값과 근거(raw · bbox)를 함께 남겼나? |
+| ⑤ VLM | 이미지 + 질문 → 답 · Processor · generate | 모델에 이미지와 질문을 어떻게 넣나? |
+| ⑥ 근거 검증 · Hybrid | 원문 대조 · 채택 / 보류 · OCR+VLM 역할 분리 · 보안 | 자연스러운 답 = 사실인가? |
+| ⑦ 엣지 배포 | ONNX → TensorRT Engine · Jetson · DeepStream | 대상 장치에서 같은 결과로, 충분히 빠르게 도나? |
+| ⑧ 애플리케이션 설계 | 모듈 분리 · 산출물 저장 · 상태 규칙 · 실패 케이스 | 한 문서의 처리를 끝까지 추적할 수 있나? |
 
 ```
-python -m pip install opencv-python numpy pandas pytesseract jiwer scikit-image
-python -c "import cv2, pytesseract; print(cv2.__version__, pytesseract.get_tesseract_version())"
-tesseract --version          # 진짜 OCR 엔진 프로그램이 깔려 있나?
-tesseract --list-langs       # kor, eng 언어 데이터가 있나?
-
-# (선택) VLM
-python -m pip install transformers
-# (선택) 배포 — NVIDIA GPU + TensorRT가 설치된 환경에서
-trtexec --help
+문서 AI 애플리케이션
+  ├ OCR 경로: 전처리 → Tesseract → Text · Box · Confidence → 정규식 · 규칙 → 필드 JSON
+  ├ VLM 경로: 원본 · Crop + 질문 → Processor → VLM → 답변 · 근거 후보
+  └ Fusion · Validation: 원문 · 형식 · 업무 규칙 대조 → passed · warning · failed + 검토 이유
+→ 신경망 모델은 ONNX → TensorRT Engine으로 엣지(Jetson · DeepStream)에 배포
 ```
-
-```
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-```
-
-🤔 왜 엔진이 따로야? — Tesseract는 C++로 만든 독립 프로그램이에요. pytesseract는 그 프로그램에 이미지를 넘기고, 나온 글자를 Python 값으로 받아 주는 "통역사"일 뿐이에요. 그래서 통역사만 있고 엔진이 없으면 TesseractNotFoundError가 나요.
-
-⚠️ torch는 다시 깔지 마세요(맞춰 둔 CUDA 버전이 꼬일 수 있어요). 그리고 환경 기록이 중요해요: Python·패키지·모델·언어 데이터 버전과 장치를 적어 두지 않으면 같은 코드라도 다른 글자가 나올 수 있어요.
-
-💡 pip 이름 ≠ import 이름: opencv-python → cv2. 그리고 pip 패키지 pytesseract ≠ 프로그램 tesseract. pipeline(device_map="auto")를 쓰려면 보통 accelerate 패키지도 필요해요.
-
-## 이거 어디에 써?
-
-Day13~15는 사진의 픽셀·물체를 다뤘어요(OpenCV, 분류, YOLO). Day16은 사진 속 글자를 읽고, 문서에 질문하고, 그 결과를 근거와 함께 업무 데이터로 남기는 "문서 AI"예요. 마지막엔 이런 모델을 현장 장비에서 돌리는 배포 구조까지 봐요.
 
 🧾
 
@@ -8881,9 +9600,13 @@ Day13~15는 사진의 픽셀·물체를 다뤘어요(OpenCV, 분류, YOLO). Day1
 
 현장 영상 분석Jetson + DeepStream으로 카메라 옆에서 추론
 
-오늘 만드는 문서 AI의 전체 모양이에요. 핵심은 "값만 남기지 않는다" — 값이 어디서 왔는지(원문·위치), 믿어도 되는지(검증 상태)를 같이 남겨요.
+🤝 처음부터 끝까지 지키는 약속 3가지
 
-[그림: ] 무엇을 보나: 왼쪽 문서가 위쪽 OCR 길(전처리 → 글자·위치·점수)과 아래쪽 VLM 길(원본이나 잘라 낸 부분 + 질문 → 답변·근거 후보)로 갈라졌다가, 가운데 구조화·검증에서 다시 만나요. 오른쪽 점선 상자가 최종 산출물이에요. 🤔 왜? OCR은 "정확히 무슨 글자가 어디 있나"에 강하고, VLM은 "이게 무슨 뜻인가"에 강해요. 둘 다 틀릴 수 있으니 마지막에 원문·규칙과 대조하는 단계가 꼭 있어야 하고, 대조 결과(검토 이유)까지 남겨야 사람이 다시 확인할 수 있어요.
+- 원본을 덮어쓰지 않는다 — 원본·전처리본·OCR 결과·최종 JSON을 따로 저장하고, 좌표가 어느 이미지 기준인지 같이 적어요. 🤔 왜? 전처리를 바꿔 다시 돌리거나 "이 값이 어디서 나왔지?"를 확인하려면 출발점이 남아 있어야 해요.
+
+- 값은 근거와 함께 — raw(원문) · value(정규화 값) · bbox · confidence를 한 묶음으로. 근거가 없으면 0이나 빈 문자열이 아니라 null + 검토 이유를 남겨요. 🤔 왜? 0은 "금액이 0원"이라는 진짜 값처럼 보여요. null이어야 "못 찾음"이 구분돼요.
+
+- 분모와 출처를 섞지 않는다 — 같은 문서·정답·정규화 규칙에서 비교하고, 직접 돌린 결과인지 남이 기록한 결과인지 적어요. 🤔 왜? 문서 10장 CER과 100장 CER, 내가 돌린 값과 남이 적은 값을 나란히 놓으면 비교가 아니라 착시예요.
 
 ⚠️ 처음부터 지킬 원칙 4가지 — ① 개인정보·기밀: 외부 OCR·VLM 서비스에 올리기 전 허용 범위 확인. ② 원본 보존: 원본·전처리본·OCR 결과·최종 JSON을 따로 저장. ③ 사실성: 자연스러운 답보다 원문 문자열·좌표가 우선. ④ 평가: 샘플 몇 개 성공이 아니라 문서 유형·해상도·언어·표 구조별 오류를 기록.
 
@@ -8909,7 +9632,7 @@ gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)          # (H, W, 3) → (H, W)
 
 ### 이진화 — 전역 Otsu vs 적응형 Adaptive
 
-이진화(Threshold)는 밝기 0~255인 Gray를 기준선으로 갈라 글자 0 / 배경 255 두 값만 남기는 거예요(Day13 ④에서 자세히 봤어요). 문서에서는 그림자 때문에 "기준선 하나"가 자주 실패해요.
+이진화(Threshold)는 밝기 0~255인 Gray를 기준선으로 갈라 글자 0 / 배경 255 두 값만 남기는 거예요(기초는 OpenCV Threshold). 문서에서는 그림자 때문에 "기준선 하나"가 자주 실패해요.
 
 [그림: 그림자 진 문서의 가로 한 줄 밝기 그래프에 Otsu 전역 기준선과 Adaptive 지역 기준선을 겹쳐 그린 그림] 무엇을 보나: 왼쪽 분홍 줄(y=225)의 밝기를 오른쪽에 그렸어요. 회색 선이 실제 밝기 — 왼쪽으로 갈수록 그림자 때문에 종이도 어두워지고, 뾰족하게 꺼진 곳이 글자 획이에요. 빨간 점선(Otsu, 146)은 어디서나 같은 높이라 빨간 구간의 종이까지 선 아래로 떨어져 검게 칠해져요. 초록 선(Adaptive)은 배경 밝기를 따라 오르내리며 늘 배경보다 조금 아래에 있어서 글자 획만 그 아래로 내려가요. 🤔 왜? Adaptive는 "전체에서 어두운가?"가 아니라 "내 주변보다 어두운가?"를 물어요. 그림자는 글자와 주변 종이를 같이 어둡게 만드니, 주변과 비교하면 그림자 효과가 상쇄돼요.
 
@@ -8922,9 +9645,9 @@ adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.
 
 ### 🔬 값을 바꾸면 실제로 어떻게 될까
 
-oneday 요약본이 왼쪽이 어두운 스캔 페이지(scikit-image 내장 data.page())를 이진화한 뒤 Tesseract(PSM 6)로 읽어, 숫자 하나씩만 바꿔 가며 CER을 잰 결과예요.
+왼쪽이 어두운 스캔 페이지(scikit-image 내장 data.page())를 이진화한 뒤 Tesseract(PSM 6)로 읽어, 숫자 하나씩만 바꿔 가며 CER을 잰 실측 결과예요.
 
-[그림: blockSize 3, 15, 31, 101과 C 0, 11, 30, 60, 그리고 Gray·Otsu·Adaptive 이진화 방법에 따른 CER 막대 그래프] 무엇을 보나: 보라색이 강의 코드 값(31, 11)이에요. blockSize 3은 0.137로 나빠지고, 15가 0.050으로 가장 좋았어요. 30(짝수)은 아예 실행 오류. C는 0이면 0.388로 크게 나빠지고, 30에서 0.020으로 코드 값보다도 좋았어요. 오른쪽은 이진화 방법 비교 — Otsu(0.361)가 이진화 안 한 Gray(0.324)보다도 나빴어요. 🤔 왜? Otsu는 페이지 전체에 기준 하나(157)를 써서, 어두운 왼쪽은 종이까지 검게 칠해져 글자가 묻혀요. Adaptive는 주변 31×31마다 기준을 따로 잡아 그림자를 상쇄해요. 그리고 C=0이면 "주변 평균보다 조금만 어두워도 검정"이라 종이 결이 점으로 찍히고, 60이면 기준이 너무 낮아 흐린 획까지 하얗게 사라져요.
+[그림: blockSize 3, 15, 31, 101과 C 0, 11, 30, 60, 그리고 Gray·Otsu·Adaptive 이진화 방법에 따른 CER 막대 그래프] 무엇을 보나: 보라색이 예시 설정 값(31, 11)이에요. blockSize 3은 0.137로 나빠지고, 15가 0.050으로 가장 좋았어요. 30(짝수)은 아예 실행 오류. C는 0이면 0.388로 크게 나빠지고, 30에서 0.020으로 예시 값보다도 좋았어요. 오른쪽은 이진화 방법 비교 — Otsu(0.361)가 이진화 안 한 Gray(0.324)보다도 나빴어요. 🤔 왜? Otsu는 페이지 전체에 기준 하나(157)를 써서, 어두운 왼쪽은 종이까지 검게 칠해져 글자가 묻혀요. Adaptive는 주변 31×31마다 기준을 따로 잡아 그림자를 상쇄해요. 그리고 C=0이면 "주변 평균보다 조금만 어두워도 검정"이라 종이 결이 점으로 찍히고, 60이면 기준이 너무 낮아 흐린 획까지 하얗게 사라져요.
 
 💡 정답은 "31, 11"이 아니에요. 이 페이지에선 C=30이 더 좋았듯, 알맞은 값은 문서마다 달라요. 후보 몇 개를 돌려 보고 CER이 가장 낮은 걸 고르는 게 방법이에요 — 그래서 ③ 평가가 전처리 선택의 잣대가 돼요.
 
@@ -8973,9 +9696,9 @@ ocr = pytesseract.image_to_data(binary, lang="kor+eng", config="--oem 3 --psm 6"
 words = ocr[ocr.level.eq(5) & ocr.text.str.strip().ne("")]   # 단어 행 + 빈 글자 제외
 ```
 
-[그림: 가상 청구서의 단어마다 confidence 색으로 박스를 그리고 text, conf, left, top, width, height 표로 정리한 설명용 그림] 무엇을 보나: (설명용 그림 — 박스는 글자를 그린 위치, conf는 가상 값이에요) 왼쪽 단어 박스 하나 = 오른쪽 표 한 줄. 박스 색이 conf예요(초록 ≥ 80, 주황 50~80, 빨강 < 50). 합계 금액은 강의 예시와 같은 bbox [530,820,790,865], conf 88.6. 표의 left·top·width·height를 [left, top, left+width, top+height]로 바꾸면 xyxy가 돼요. 🤔 왜? 수량 1, 3처럼 짧은 숫자는 엔진이 비교할 앞뒤 글자가 없어서 맞게 읽어도 점수가 낮게 나오기 쉬워요. 그래서 낮은 점수를 "삭제"가 아니라 "사람이 볼 목록(review)"에 넣는 거예요.
+[그림: 가상 청구서의 단어마다 confidence 색으로 박스를 그리고 text, conf, left, top, width, height 표로 정리한 설명용 그림] 무엇을 보나: (설명용 그림 — 박스는 글자를 그린 위치, conf는 가상 값이에요) 왼쪽 단어 박스 하나 = 오른쪽 표 한 줄. 박스 색이 conf예요(초록 ≥ 80, 주황 50~80, 빨강 < 50). 합계 금액은 구조화 예시와 같은 bbox [530,820,790,865], conf 88.6. 표의 left·top·width·height를 [left, top, left+width, top+height]로 바꾸면 xyxy가 돼요. 🤔 왜? 수량 1, 3처럼 짧은 숫자는 엔진이 비교할 앞뒤 글자가 없어서 맞게 읽어도 점수가 낮게 나오기 쉬워요. 그래서 낮은 점수를 "삭제"가 아니라 "사람이 볼 목록(review)"에 넣는 거예요.
 
-[그림: 단어 21개 confidence 분포에서 오답 DOCO3 하나가 65.6점, 나머지 20개는 92.8점 이상이고 기준 50과 90 선을 비교한 그림] 무엇을 보나: oneday 요약본이 정면 보정한 청구서를 실제로 OCR한 결과예요. 21단어 중 틀린 건 DOC03을 DOCO3(숫자 0 → 글자 O)로 읽은 하나뿐이고, 그 점수는 65.6이에요. 기준 50이면 오답이 그대로 통과(검토 0개), 기준 90이면 오답 하나만 정확히 걸려요(검토 1개). 🤔 왜? "50"이 상식적인 기준처럼 보여도 엔진은 틀린 글자에도 꽤 높은 점수를 줘요. 0과 O는 모양이 거의 같아서 엔진 입장에선 "꽤 확신"하거든요. 그래서 기준은 감으로 정하지 말고 오답들의 점수 분포를 먼저 본 뒤 그어요.
+[그림: 단어 21개 confidence 분포에서 오답 DOCO3 하나가 65.6점, 나머지 20개는 92.8점 이상이고 기준 50과 90 선을 비교한 그림] 무엇을 보나: 정면 보정한 영어 청구서를 실제로 OCR한 결과예요. 21단어 중 틀린 건 DOC03을 DOCO3(숫자 0 → 글자 O)로 읽은 하나뿐이고, 그 점수는 65.6이에요. 기준 50이면 오답이 그대로 통과(검토 0개), 기준 90이면 오답 하나만 정확히 걸려요(검토 1개). 🤔 왜? "50"이 상식적인 기준처럼 보여도 엔진은 틀린 글자에도 꽤 높은 점수를 줘요. 0과 O는 모양이 거의 같아서 엔진 입장에선 "꽤 확신"하거든요. 그래서 기준은 감으로 정하지 말고 오답들의 점수 분포를 먼저 본 뒤 그어요.
 
 ## ③ OCR 품질 평가 — 글자 · 단어 · 필드를 따로
 
@@ -8989,16 +9712,27 @@ words = ocr[ocr.level.eq(5) & ocr.text.str.strip().ne("")]   # 단어 행 + 빈 
 
 편집 거리(Levenshtein distance)는 "정답을 OCR 결과로 바꾸려면 글자를 최소 몇 번 고쳐야 하나"예요. 고치는 방법은 세 가지: S 다른 글자로 바꾸기, D 지우기(OCR이 빠뜨림), I 끼워 넣기(OCR이 없는 걸 추가).
 
-[그림: 정답과 OCR 결과를 한 글자씩 맞춰 놓고 치환 S, 삭제 D, 삽입 I를 색칠한 두 가지 정렬 예] 무엇을 보나: 위는 강의 예시 — 정답 1234500을 12345O0로 읽었어요. 숫자 0을 영문 O로 바꾼 S 1번 → CER = 1/7 ≈ 14.3%. 아래는 날짜 예시로 S·D·I가 모두 나와요: :를 끼워 넣고(I), 0→O·1→l로 바꾸고(S), 0을 빠뜨렸어요(D). 🤔 왜? 줄을 이렇게 맞춰 봐야 "어떤 실수를 했는지"가 보여요. 그리고 7글자 중 1글자(14%)만 틀려도 그게 금액이면 필드 값은 통째로 틀린 거라, CER과 필드 정확도를 따로 봐요.
+[그림: 정답과 OCR 결과를 한 글자씩 맞춰 놓고 치환 S, 삭제 D, 삽입 I를 색칠한 두 가지 정렬 예] 무엇을 보나: 위는 금액 예시 — 정답 1234500을 12345O0로 읽었어요. 숫자 0을 영문 O로 바꾼 S 1번 → CER = 1/7 ≈ 14.3%. 아래는 날짜 예시로 S·D·I가 모두 나와요: :를 끼워 넣고(I), 0→O·1→l로 바꾸고(S), 0을 빠뜨렸어요(D). 🤔 왜? 줄을 이렇게 맞춰 봐야 "어떤 실수를 했는지"가 보여요. 그리고 7글자 중 1글자(14%)만 틀려도 그게 금액이면 필드 값은 통째로 틀린 거라, CER과 필드 정확도를 따로 봐요.
 
 직접 해 보세요. 금액·날짜를 바꿔 넣으면 CER, S·D·I, 그리고 "숫자만 뽑았을 때 필드 값이 같은지"가 함께 바뀌어요.
 
-🔧 CER 계산 함수 명령어 사전에서 자세히 →
+### CER을 잴 때 먼저 고정할 규칙
 
-```
-errors = levenshtein(reference, prediction)   # 최소 S·D·I 횟수
-return errors / len(reference)                # 분모 = 정답 글자 수
-```
+| 규칙 | 뜻 | 어기면? |
+|---|---|---|
+| 분모 = 정답 글자 수 | 정답을 OCR 결과로 바꾸는 최소 S·D·I 횟수 ÷ 정답 길이 | OCR 결과 길이로 나누면, 글자를 잔뜩 빠뜨린 결과가 오히려 점수가 좋아 보여요 |
+| S · D · I 비용 모두 1 | 같은 글자면 0, 다르면 치환 1 | 치환 비용을 2로 하면 "지우고 넣기"와 같아져 다른 지표가 돼요 |
+| 빈 정답은 따로 집계 | 0으로 나누지 않음 | 조용히 0점 처리하면 "글자 없는 페이지에 글자를 지어낸" 오류가 숨어요 |
+| 정규화 규칙 | 공백 · 줄바꿈 · 대소문자 · 기호를 비교 전에 어떻게 다룰지 먼저 고정하고 양쪽에 똑같이 | 규칙이 바뀌면 같은 결과도 CER이 달라져요(위 체험의 "공백 지우기") |
+
+🤔 왜 문서별 평균과 micro CER을 구분해? — 문서별 CER을 평균 내면 10글자짜리 영수증과 2,000글자짜리 계약서가 같은 무게예요. micro CER은 전체 오류 수 ÷ 전체 정답 글자 수라서 글자 하나하나가 같은 무게예요. 짧은 문서 몇 장이 크게 틀리면 두 값이 크게 달라지니, 어떤 걸 보고했는지 적어요.
+
+| 같은 영어 청구서 · 촬영 상태 (기록된 Tesseract 결과) | CER |
+|---|---|
+| 정면 · 깨끗한 문서 | 0.006 — DOC03 → DOCO3 한 글자만 틀림 |
+| 기울어진 사진 그대로 | 0.025 |
+| 작은 사진 그대로 → 보정 후 | 0.063 → 0.019 |
+| 그림자 사진 그대로 (OCR 결과가 빈 문자열) | 1.000 — 전부 빠뜨림 |
 
 🔧 라이브러리로 한 줄 jiwer.cer() 명령어 사전에서 자세히 →
 
@@ -9007,9 +9741,9 @@ read = " ".join(text.split())                   # OCR 글자 — 줄바꿈·여�
 score = jiwer.cer(truth, read)                  # (정답, 예측) 순서!
 ```
 
-[그림: 0.5배, 0.4배, 0.4배를 2배 확대한 청구서 사진의 CER과 필드 정답 수를 나란히 비교한 막대 그래프] 무엇을 보나: oneday 요약본이 청구서를 일부러 작게 줄여 OCR한 결과예요. 0.4배 사진은 CER이 겨우 6.6%인데 공급자 필드를 통째로 놓쳤어요(2/3). 2배로 키우면 CER 0.008, 필드 3/3으로 회복돼요. 🤔 왜? OCR이 줄 맨 앞에 ‘ 한 글자를 붙여 ‘SUPPLIER: ALPHA STUDIO로 읽었는데, 구조화 규칙이 ^SUPPLIER:(줄이 SUPPLIER로 시작)라서 매칭이 안 됐어요. 글자 하나 = CER엔 작은 오류, 하지만 라벨 규칙을 깨면 값 전체를 잃어요. 그래서 CER과 필드 정답을 함께 봐요.
+[그림: 0.5배, 0.4배, 0.4배를 2배 확대한 청구서 사진의 CER과 필드 정답 수를 나란히 비교한 막대 그래프] 무엇을 보나: 영어 청구서를 일부러 작게 줄여 OCR한 실측 결과예요. 0.4배 사진은 CER이 겨우 6.6%인데 공급자 필드를 통째로 놓쳤어요(2/3). 2배로 키우면 CER 0.008, 필드 3/3으로 회복돼요. 🤔 왜? OCR이 줄 맨 앞에 ‘ 한 글자를 붙여 ‘SUPPLIER: ALPHA STUDIO로 읽었는데, 구조화 규칙이 ^SUPPLIER:(줄이 SUPPLIER로 시작)라서 매칭이 안 됐어요. 글자 하나 = CER엔 작은 오류, 하지만 라벨 규칙을 깨면 값 전체를 잃어요. 그래서 CER과 필드 정답을 함께 봐요.
 
-[그림: 같은 문서를 금액 CER 14.3%, 필드 정확도 66.7%, JSON 문법 100%, 원문 근거 불일치 검토로 따로 채점한 네 칸 그림] 무엇을 보나: 강의의 가상 수치예요. 같은 문서 한 장인데 금액 CER은 14.3%(1/7 글자), 필드 정확도는 66.7%(3개 중 2개), JSON 문법은 100%(파싱 성공), 원문 근거는 "금액 불일치 → 검토"예요. 🤔 왜? 잣대마다 보는 단위와 분모가 달라서예요. JSON이 완벽해도 값이 틀릴 수 있고, CER이 낮아도 그 한 글자가 금액이면 업무상 실패예요. 그래서 하나로 합치지 않고 같은 문서·정답·정규화 규칙에서 따로 비교해요.
+[그림: 같은 문서를 금액 CER 14.3%, 필드 정확도 66.7%, JSON 문법 100%, 원문 근거 불일치 검토로 따로 채점한 네 칸 그림] 무엇을 보나: 설명용 가상 수치예요. 같은 문서 한 장인데 금액 CER은 14.3%(1/7 글자), 필드 정확도는 66.7%(3개 중 2개), JSON 문법은 100%(파싱 성공), 원문 근거는 "금액 불일치 → 검토"예요. 🤔 왜? 잣대마다 보는 단위와 분모가 달라서예요. JSON이 완벽해도 값이 틀릴 수 있고, CER이 낮아도 그 한 글자가 금액이면 업무상 실패예요. 그래서 하나로 합치지 않고 같은 문서·정답·정규화 규칙에서 따로 비교해요.
 
 ## ④ 구조화 — 글자를 업무 데이터(JSON)로
 
@@ -9046,12 +9780,24 @@ with open("invoice_001.json", "w", encoding="utf-8") as f:
 
 🤔 왜 표 OCR ≠ 표 구조 인식? — "900,000"이라는 글자를 정확히 읽어도, 그게 "GPU 서버 임대" 행의 "금액" 열인지 모르면 쓸 수가 없어요. 글자 읽기와 행·열 관계 복원은 다른 문제라 따로 평가해요.
 
-🔧 업무 규칙으로 검증 validate_invoice() 명령어 사전에서 자세히 →
+### 업무 규칙으로 검증 — passed · warning · failed
 
-```
-if value is None or value == "":                # 금액 0은 누락이 아님
-    errors.append(f"필수 필드 누락: {name}")
-```
+| 규칙 | 예 |
+|---|---|
+| 필수 필드 | document_id · issued_at · supplier · total_amount |
+| 형식 | 날짜는 ISO 8601(2026-11-09), 금액은 정수, 통화는 별도 필드 |
+| 관계 | 공급가액 + 세액 = 합계, 수량 × 단가 ≈ 금액 |
+| 범위 | 날짜·금액·수량이 허용 범위 안인지 |
+| 상태 | passed · warning · failed + 사람이 확인할 이유 |
+
+| 검사 코드에서 자주 틀리는 곳 | 올바른 쪽 | 🤔 왜? |
+|---|---|---|
+| if not value:로 누락 판단 | value is None or value == "" | if not value는 금액 0도 누락으로 처리해요 (0은 거짓으로 취급되니까). 0원은 진짜 값이에요 |
+| isinstance(value, int)로 금액 판단 | type(value) is int | Python에서 bool은 int의 한 종류(True == 1)라 isinstance(True, int)가 True예요 |
+| 모양 확인 없이 doc.get(...) | isinstance(doc, dict) 먼저 | 리스트·None이 들어오면 .get에서 프로그램이 죽어요 |
+| 첫 오류에서 멈춤 | 오류를 목록으로 모아 반환 | 첫 오류에서 멈추면 사람이 여러 번 고쳐야 해요 |
+
+⚠️ 검증에 실패했다고 0이나 빈 문자열로 자동 치환하면 안 돼요. 진짜 0원과 "못 읽음"이 구분되지 않아요. warning·failed 상태와 이유를 남기고 사람이 보게 해요. 날짜·문자열·좌표까지 전부 검사하려면 Schema(데이터 모양 규칙)로 확장해요.
 
 ## ⑤ VLM — 이미지를 보고 질문에 답하는 모델
 
@@ -9117,7 +9863,7 @@ missing = {"answer", "evidence", "page", "bbox"} - data.keys()   # 빠진 필수
 
 ### 🔬 실제 VLM은 얼마나 지어낼까
 
-oneday 요약본이 SmolVLM-256M-Instruct(do_sample=False)에 정면 보정한 청구서를 보여 주고 질문 6개를 던진 결과예요. 아래쪽 세 질문은 문서에 없는 값이에요.
+SmolVLM-256M-Instruct(do_sample=False)에 정면 보정한 영어 청구서를 보여 주고 질문 6개를 던진 실측 결과예요. 아래쪽 세 질문은 문서에 없는 값이에요.
 
 | 질문 | VLM 답 | OCR 원문 | 대조 결과 |
 |---|---|---|---|
@@ -9130,12 +9876,16 @@ oneday 요약본이 SmolVLM-256M-Instruct(do_sample=False)에 정면 보정한 �
 
 ⚠️ 프롬프트로는 못 막았어요. 질문 끝에 "없으면 null이라고 답해"를 붙여도 세금은 여전히 0., "JSON으로 답해"라고 해도 33000만 답했어요. 🤔 왜? 작은 VLM일수록 지시를 잘 안 따르고, 생성 모델은 원래 "질문에 어울리는 그럴듯한 답"을 만드는 게 기본 동작이에요. 빈칸이 있으면 근처에 보이는 숫자나 글자로 채워 버려요. 그래서 믿을 건 프롬프트가 아니라 원문 대조예요.
 
-🔧 가장 단순한 결합 규칙 명령어 사전에서 자세히 →
+### 가장 단순한 결합 규칙 — 원문과 같으면 채택, 아니면 보류
 
-```
-if answer == total["raw"]:          # VLM 답이 OCR 원문과 같으면
-    final = total["value"]          # → 채택 (아니면 None = 보류)
-```
+| 비교 | 결과 | 기록 |
+|---|---|---|
+| VLM 답 = OCR이 읽은 원문 글자(raw) | ✅ 채택 — 정규화 값(value)을 최종 값으로 | 답 · 원문 · bbox |
+| 다르거나, 원문에 해당 필드가 없음 | ⏸ 보류 — 최종 값 None, 사람이 확인 | 답 · 보류 이유 |
+
+위 표의 6개 답에 적용하면 채택 3 · 보류 3이에요. 대조 없이 VLM 답을 그대로 저장하면 할인액 질문의 33000이 그대로 "할인액"이 돼요. max_new_tokens가 너무 작아 에러 없이 잘린 33도 원문 33000과 달라 보류로 걸러져요.
+
+🤔 왜 보류를 정답으로 안 세? — 보류는 "사람이 확인해야 함"이지 "맞음"이 아니에요. 보류를 정답에 넣으면 자동화율이 부풀고, 빼고 세면 "자동으로 처리된 것 중 몇 개가 맞았나"와 "몇 개를 사람에게 넘겼나"를 따로 볼 수 있어요. 그리고 보류 값을 0이나 ""로 채우면 진짜 값과 구분이 안 되니 None으로 둬요.
 
 ### OCR + VLM을 합치는 세 가지 방식
 
@@ -9254,11 +10004,11 @@ trtexec --loadEngine=model.engine                     # 저장한 Engine 추론 
 
 ⚠️ 모든 OCR·VLM 애플리케이션이 Engine 하나로 바뀌는 건 아니에요. TensorRT는 지원되는 신경망 모델용이고, 기본은 "어떻게 배포할지 설계"하는 것까지예요.
 
-## ⑧ OCR·VLM 미니 애플리케이션 설계
+## ⑧ OCR·VLM 애플리케이션 설계
 
-지금까지 배운 조각을 한 문서의 처리 기록으로 이어 붙여요. 모듈마다 책임을 나누고, 중간 산출물을 전부 남기는 게 핵심이에요.
+앞의 ①~⑦ 조각을 한 문서의 처리 기록으로 이어 붙여요. 모듈마다 책임을 나누고, 중간 산출물을 전부 남기는 게 핵심이에요.
 
-[그림: ] 무엇을 보나: 왼쪽은 데이터가 흐르는 길(입력 → OCR/VLM 모듈 → Fusion·Validation → 결과 JSON), 아래 회색 띠는 흐르는 동안 남기는 산출물, 오른쪽은 강의의 폴더 구조와 파일별 역할이에요. 🤔 왜? 기능별로 파일을 나누면 OCR 엔진을 바꿔도 ocr.py만 고치면 되고, 결과가 이상할 때 어느 단계 산출물부터 틀렸는지 거슬러 올라갈 수 있어요.
+[그림: ] 무엇을 보나: 왼쪽은 데이터가 흐르는 길(입력 → OCR/VLM 모듈 → Fusion·Validation → 결과 JSON), 아래 회색 띠는 흐르는 동안 남기는 산출물, 오른쪽은 예시 폴더 구조와 파일별 역할이에요. 🤔 왜? 기능별로 파일을 나누면 OCR 엔진을 바꿔도 ocr.py만 고치면 되고, 결과가 이상할 때 어느 단계 산출물부터 틀렸는지 거슬러 올라갈 수 있어요.
 
 ### 한 문서의 처리 기록 — 6단계
 
@@ -9311,13 +10061,121 @@ class OCRWord:   # text: str · confidence: float · bbox: tuple[int, int, int, 
 
 🤔 왜 "실패 상황"까지 미리 정해? — 정상 문서만 시험하면 기울어진 문서·근거 없는 답이 왔을 때 프로그램이 조용히 틀린 값을 내보내요. 실패할 때 어떻게 실패해야 하는지(멈춤·경고·검토)를 정해 두는 게 안전한 프로그램이에요.
 
-다음 수업(11/10)에서는 오늘 만든 document.json·OCR/VLM 결과를 FastAPI의 요청·응답(JSON API)으로 연결해요.
+이렇게 만든 document.json·OCR/VLM 결과는 FastAPI 같은 웹 API의 요청·응답(JSON)으로 그대로 이어 붙일 수 있어요.
+
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| 전처리 (이진화 · 원근 보정) | 엔진 전제에 맞춘 반듯하고 대비 큰 입력 | OCR 품질 — 설정은 검증 문서의 CER로 골라야 함 |
+| OCR (Tesseract) | Text · Box · Confidence | 정답 (conf ≠ 정답 확률) · 읽기 순서 · 표 구조 |
+| CER · 필드 정확도 | 글자 단위 · 업무 필드 단위의 오류율 | 서로를 대신하지 않음 — 낮은 CER에도 필드를 통째로 잃을 수 있음 |
+| 정규식 · date() · 업무 규칙 | raw + value + bbox 필드 · passed / warning / failed | OCR이 잘못 읽은 값을 고치는 것 (관계 검사로 걸러낼 뿐) |
+| VLM | 문맥을 이해한 답변 · 근거 후보 | 사실성 — 문서에 없는 값도 그럴듯하게 답함 |
+| JSON 구조 검사 | 필수 key · bbox 모양 · 범위 | 내용이 사실인지 |
+| 원문 대조 (채택 / 보류) | 근거 있는 값만 자동 확정 | 보류 건의 정답 — 사람 검토 몫 |
+| ONNX → TensorRT Engine | 대상 GPU에 맞춘 빠른 추론 | 원본과 같은 수치 · 다른 장치 · 버전에서의 실행 |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 필드 레코드 (JSON)
+
+| 키 | 뜻 |
+|---|---|
+| document_id · page | 문서 · 페이지 식별 |
+| image_size · coordinate_space | bbox가 어떤 이미지 기준인지 (예: processed_px_xyxy, 1000×1200) |
+| fields.<이름>.value | 정규화 값 (날짜 ISO 8601 문자열 · 금액 정수) — 근거가 없으면 null |
+| fields.<이름>.raw | OCR 원문 그대로 |
+| fields.<이름>.confidence · bbox | 엔진 점수 · [x1, y1, x2, y2] |
+| 상태 · 이유 | passed · warning · failed + review_reasons (예: total_mismatch) |
+
+### VLM 응답 계약
+
+| 항목 | 값 |
+|---|---|
+| 필수 key | answer · evidence · page · bbox |
+| 모를 때 | answer: null + 검토 상태 |
+| 최종 판정 | 원문과 같으면 채택, 아니면 보류 (None, 정답으로 세지 않음) |
+
+### 예시 설정
+
+| 항목 | 예시 값 | 비고 |
+|---|---|---|
+| Adaptive threshold | GAUSSIAN_C · blockSize 31 · C 11 | 문서마다 다름 — 검증 문서 CER로 선택 |
+| 원근 보정 출력 | (700, 1000) (width, height) · 흰 테두리 | 모서리 순서 왼위 → 오위 → 오아래 → 왼아래 |
+| Tesseract | lang="kor+eng" · --oem 3 --psm 6 | 한 줄 crop이면 PSM 7, 단어 하나면 8 |
+| 검토 기준 conf | 50 (설명용) | 오답들의 점수 분포를 본 뒤 정함 |
+| VLM 생성 | max_new_tokens=128 · do_sample=False | 모델 ID · 조건을 실행 기록에 |
+
+### 환경 — 예시
+
+| 항목 | 값 |
+|---|---|
+| OCR 엔진 | Tesseract 5.5.x 실행 파일 + kor · eng 언어 데이터 (pip 아님) |
+| VLM | transformers (예: SmolVLM-256M-Instruct) |
+| 배포 | PC: TensorRT 11.3 · Jetson: 그 JetPack이 지원하는 TensorRT · DeepStream 조합 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| opencv-python | 문서 이미지 읽기, Gray·이진화·원근 보정 | import cv2 |
+| numpy | 모서리 좌표 배열(np.float32), 픽셀 계산 | import numpy as np |
+| pandas | OCR 단어 결과를 표(DataFrame)로 다루기, 평가표 저장 | import pandas as pd |
+| pytesseract | Python에서 Tesseract OCR 엔진을 불러 쓰는 연결 고리 | import pytesseract, from pytesseract import Output |
+| (표준 라이브러리) re, json, datetime, dataclasses | 정규식으로 날짜·금액 찾기, JSON 저장, 날짜 검증, 결과 구조 정의 | import re, json (설치 불필요) |
+| jiwer | 정답과 OCR 결과로 CER·WER 계산 (편집 거리 ÷ 정답 길이) | import jiwer |
+| scikit-image (선택) | 연습용 내장 이미지 — data.page()는 왼쪽이 어두운 스캔 페이지 | from skimage import data |
+| VLM을 실제로 돌릴 때 (준비된 모델이 있을 때만) |  |  |
+| transformers | VLM 모델·Processor 불러오기, pipeline, 답 생성 | from transformers import pipeline, AutoProcessor, AutoModelForImageTextToText |
+| torch | 모델이 내부에서 쓰는 계산 엔진 (가상환경에 이미 있으면 그대로) | import torch |
+| 배포 (pip 아님) — TensorRT(trtexec 명령 포함)·JetPack·DeepStream은 NVIDIA가 장치·버전별로 따로 배포하는 소프트웨어예요. 예시 환경은 PC의 TensorRT 11.3, Jetson은 그 JetPack이 지원하는 조합. |  |  |
+
+### 🔧 설치 · 확인
+
+```
+python -m pip install opencv-python numpy pandas pytesseract jiwer scikit-image
+python -c "import cv2, pytesseract; print(cv2.__version__, pytesseract.get_tesseract_version())"
+tesseract --version          # 진짜 OCR 엔진 프로그램이 깔려 있나?
+tesseract --list-langs       # kor, eng 언어 데이터가 있나?
+
+# (선택) VLM
+python -m pip install transformers
+# (선택) 배포 — NVIDIA GPU + TensorRT가 설치된 환경에서
+trtexec --help
+```
+
+```
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+```
+
+🤔 왜 엔진이 따로야? — Tesseract는 C++로 만든 독립 프로그램이에요. pytesseract는 그 프로그램에 이미지를 넘기고, 나온 글자를 Python 값으로 받아 주는 "통역사"일 뿐이에요. 그래서 통역사만 있고 엔진이 없으면 TesseractNotFoundError가 나요.
+
+⚠️ torch는 다시 깔지 마세요(맞춰 둔 CUDA 버전이 꼬일 수 있어요). 그리고 환경 기록이 중요해요: Python·패키지·모델·언어 데이터 버전과 장치를 적어 두지 않으면 같은 코드라도 다른 글자가 나올 수 있어요.
+
+💡 pip 이름 ≠ import 이름: opencv-python → cv2. 그리고 pip 패키지 pytesseract ≠ 프로그램 tesseract. pipeline(device_map="auto")를 쓰려면 보통 accelerate 패키지도 필요해요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+결과값은 실제로 실행해서 얻은 값이에요. OpenCV · 정규식 · JSON · dataclass는 직접 실행했고, Tesseract가 없는 PC라 OCR 결과는 기록된 실제 Tesseract 출력으로 거르기 · 채점만 다시 계산했어요. VLM 답은 기록된 SmolVLM 결과이고, TensorRT는 실행하지 않았어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| OpenCV 이미지 전처리 | Gray · Threshold · 형태학의 기초 |
+| 객체탐지 · YOLO | 박스 · IoU — OCR word box와 같은 "위치" 표현 |
+| FastAPI | document.json · OCR/VLM 결과를 JSON API 요청 · 응답으로 연결 |
+| Prompt · 출력 계약 | "모르면 null" · JSON 출력 계약 · 검증과 재시도 |
+| 표 구조 인식 · 문서 레이아웃 모델 | 선 없는 표 · 병합 셀 · 읽기 순서 복원 |
 
 ## 원본 자료
 
-- 강의: Day16_20261109.pdf — 큰 그림 p2–18 · 전처리 p19–28 · OCR 실행·평가 p31–38 · 구조화·검증 p41–48 · VLM p51–58 · 근거·Hybrid·보안·메모리 p59–71 · 배포 p74–82 · 미니 애플리케이션 p85–92 · 정리 p98–99
+- 원본: Day16_20261109.pdf — 큰 그림 p2–18 · 전처리 p19–28 · OCR 실행·평가 p31–38 · 구조화·검증 p41–48 · VLM p51–58 · 근거·Hybrid·보안·메모리 p59–71 · 배포 p74–82 · 미니 애플리케이션 p85–92 · 정리 p98–99
 
-- 요약: Day16_oneday요약.pdf — 하루 지도 · 교시별 핵심 · 파라미터를 바꿔 다시 실행한 실측 결과(Tesseract 5.5.2 · SmolVLM-256M-Instruct, 합성 영어 문서 기준이라 실제 한국어 문서·손글씨 성능을 뜻하지는 않아요)
+- 요약: Day16_oneday요약.pdf — 파라미터를 바꿔 다시 실행한 실측 결과(Tesseract 5.5.2 · SmolVLM-256M-Instruct, 합성 영어 문서 기준이라 실제 한국어 문서·손글씨 성능을 뜻하지는 않아요). 가상 청구서(AI Lab · 1,234,500원) · 평가 가상 수치 · 폴더 구조 예시는 원본 자료의 것.
+
+- 결과 값: 명령어 사전의 실행 결과는 tools/io_day16.py, 그림은 tools/visuals/make_day16.py. 이 PC엔 Tesseract · jiwer가 없어 OCR은 기록된 Tesseract 5.5.0 출력으로, CER은 같은 정의로 직접 계산. VLM · TensorRT는 실행하지 않음.
 
 - 공식 문서: OpenCV Thresholding · OpenCV Geometric Transformations (warpPerspective)
 
@@ -9332,15 +10190,15 @@ class OCRWord:   # text: str · confidence: float · bbox: tuple[int, int, int, 
 ## 🔧 Day16 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day16)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | pip install opencv-python numpy pandas pytesseract + Tesseract 프로그램 (VLM은 transformers) |
+| 📦 패키지 · 명령어 | pip install opencv-python numpy pandas pytesseract + Tesseract 프로그램 (VLM은 transformers) |
 | ① 문서 전처리 | cv2.imread(), cv2.cvtColor(), cv2.threshold(), cv2.adaptiveThreshold(), cv2.getPerspectiveTransform(), cv2.warpPerspective(), cv2.perspectiveTransform()(좌표 되돌리기), cv2.resize() |
 | ② OCR 실행 · Box · Confidence | pytesseract.image_to_data(lang=, config="--oem 3 --psm 6", output_type=Output.DATAFRAME) |
-| ③ OCR 품질 평가 | levenshtein() → cer(), jiwer.cer(), 필드 정확도 |
-| ④ 구조화 · JSON · 검증 | re.search(), re.sub(), json.dump(), validate_invoice() |
+| ③ OCR 품질 평가 | jiwer.cer() · jiwer.wer(), " ".join(text.split()) 정규화 |
+| ④ 구조화 · JSON · 검증 | re.search(), re.sub(), re.findall(re.MULTILINE), date(), json.dump() |
 | ⑤ VLM 이미지 질의응답 | pipeline("image-text-to-text"), processor.apply_chat_template(), model.generate() |
-| ⑥ 근거 검증 · Hybrid · 보안 | json.loads() + 필수 key·bbox 검사, if answer == raw → 채택 / None(보류) |
+| ⑥ 근거 검증 · Hybrid · 보안 | json.loads() + JSONDecodeError, 필수 key 집합 빼기 · bbox 검사 |
 | ⑦ 엣지 배포 (TensorRT · Jetson · DeepStream) | torch.onnx.export(), trtexec --onnx= --saveEngine=, --loadEngine=, --minShapes/--optShapes/--maxShapes |
-| ⑧ OCR·VLM 미니 애플리케이션 설계 | @dataclass OCRResult, VLMResult, 폴더별 역할 |
+| ⑧ OCR·VLM 애플리케이션 설계 | @dataclass — OCRWord · OCRResult · VLMResult 결과 상자 |
 
 ### 읽기 · Gray 변환 cv2.imread() · cv2.cvtColor()
 
@@ -9357,7 +10215,7 @@ if not cv2.imwrite("gray.png", gray):
     raise OSError("gray.png 저장 실패")
 ```
 
-▶ 실제로 돌려 보면 수업 청구서 data/doc03.png
+▶ 실제로 돌려 보면 예제 청구서 data/doc03.png
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -9460,7 +10318,7 @@ warped = cv2.warpPerspective(
 ```
 box = np.float32([[[40, 370]]])                      # 보정본에서 찾은 TOTAL: 의 왼쪽 위 점, shape (1, 1, 2)
 back = cv2.perspectiveTransform(box, np.linalg.inv(M))
-print(back)                                         # 강의 요약본의 실제 사진(모서리 좌표가 다름)에선 [[[64.7 349.6]]] → 사진에서 직접 읽은 (65, 350)과 1px 안
+print(back)                                         # 원본 자료의 실제 사진(모서리 좌표가 다름)에선 [[[64.7 349.6]]] → 사진에서 직접 읽은 (65, 350)과 1px 안
 
 small = cv2.resize(warped, None, fx=2, fy=2,        # 가로·세로 2배
                    interpolation=cv2.INTER_CUBIC)
@@ -9481,12 +10339,12 @@ small = cv2.resize(warped, None, fx=2, fy=2,        # 가로·세로 2배
 |---|---|---|
 | np.linalg.inv(M) | M(사진 → 보정본)의 역행렬 = 보정본 → 사진 | M을 그대로 쓰면 한 번 더 "펴는" 셈이라 엉뚱한 곳을 가리켜요 |
 | 점 shape (N, 1, 2) | perspectiveTransform이 기대하는 모양 | (N, 2)로 넣으면 에러 — 이미지가 아니라 점을 옮기는 함수라 따로 있어요(warpPerspective는 이미지용) |
-| fx=2, fy=2 | 가로·세로 배율 (dsize=None일 때) | 요약본 실측: 0.4배로 줄인 흐린 사진이 CER 0.066 → 0.008, 필드 2/3 → 3/3 |
+| fx=2, fy=2 | 가로·세로 배율 (dsize=None일 때) | 실측: 0.4배로 줄인 흐린 사진이 CER 0.066 → 0.008, 필드 2/3 → 3/3 |
 | INTER_CUBIC | 주변 16칸으로 부드럽게 새 픽셀 계산 | INTER_NEAREST면 계단이 그대로 커져 확대 효과가 줄어요 |
 
 🤔 왜 확대만 했는데 더 잘 읽어? — 새 정보가 생긴 건 아니에요. Tesseract 공식 문서(ImproveQuality)에 따르면 글자가 어느 정도 커야(대문자 높이 30px 안팎) 가장 잘 읽혀서, 너무 작은 글자는 획이 1~2픽셀로 뭉개져 모양을 못 알아봐요. 키워 주면 엔진이 익숙한 크기로 보게 되는 거예요.
 
-⚠️ 흔한 실수: 모서리 순서 — 요약본에서 corners의 시작점을 오른쪽 위로 바꿨더니(값은 같고 순서만 한 칸 밀림) 문서가 90도 돌아가 찌그러져 CER 0.008 → 1.254, 필드 3/3 → 0/3이 됐어요. 두 점만 맞바꾸면 사각형이 꼬여 화면 대부분이 검게 나왔고요(CER 1.0). Day16 본문 원근 보정 체험의 "2번 ↔ 4번" 버튼이 바로 그 상황이에요. 🤔 CER이 1을 넘을 수 있어? — 네. 분모는 정답 글자 수인데, 엉뚱한 글자를 잔뜩 끼워 넣으면(I) 오류 수가 정답 길이보다 많아질 수 있어요.
+⚠️ 흔한 실수: 모서리 순서 — 실측에서 corners의 시작점을 오른쪽 위로 바꿨더니(값은 같고 순서만 한 칸 밀림) 문서가 90도 돌아가 찌그러져 CER 0.008 → 1.254, 필드 3/3 → 0/3이 됐어요. 두 점만 맞바꾸면 사각형이 꼬여 화면 대부분이 검게 나왔고요(CER 1.0). Day16 본문 원근 보정 체험의 "2번 ↔ 4번" 버튼이 바로 그 상황이에요. 🤔 CER이 1을 넘을 수 있어? — 네. 분모는 정답 글자 수인데, 엉뚱한 글자를 잔뜩 끼워 넣으면(I) 오류 수가 정답 길이보다 많아질 수 있어요.
 
 ### 단어별 결과 받기 pytesseract.image_to_data()
 
@@ -9508,7 +10366,7 @@ columns = ["text", "conf", "left", "top", "width", "height"]
 print(words[columns])
 ```
 
-▶ 실제로 돌려 보면 이 PC엔 Tesseract가 없어서, 수업 lesson.json에 기록된 실제 Tesseract 5.5.0(eng, psm 6) 결과로 표를 만들고 거르기만 실행 — lowres_raw.png(작은 사진) 기준
+▶ 실제로 돌려 보면 이 PC엔 Tesseract가 없어서, 예제 lesson.json에 기록된 실제 Tesseract 5.5.0(eng, psm 6) 결과로 표를 만들고 거르기만 실행 — lowres_raw.png(작은 사진) 기준
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -9546,53 +10404,6 @@ print(words[columns])
 
 💡 객체탐지의 box와 OCR의 word box는 둘 다 "위치"예요. 차이는 OCR box에는 문자열·줄·블록 정보가 함께 붙는다는 것.
 
-### CER 계산 함수
-
-```
-def levenshtein(a: str, b: str) -> int:
-    dp = list(range(len(b) + 1))           # 빈 문자열 → b의 앞 j글자: j번 삽입
-    for i, ca in enumerate(a, start=1):
-        prev, dp[0] = dp[0], i
-        for j, cb in enumerate(b, start=1):
-            old = dp[j]
-            dp[j] = min(
-                dp[j] + 1,                 # 삭제 (D)
-                dp[j - 1] + 1,             # 삽입 (I)
-                prev + (ca != cb),         # 치환 (S) — 같으면 +0
-            )
-            prev = old
-    return dp[-1]
-
-def cer(reference: str, prediction: str) -> float:
-    if not reference:
-        raise ValueError("빈 정답 문서는 별도 평가합니다")
-    errors = levenshtein(reference, prediction)
-    return errors / len(reference)
-```
-
-▶ 실제로 돌려 보면 강의 예시 문자열 + lesson.json의 정답 글자 vs 기록된 실제 Tesseract 결과 (doc03 계열)
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| levenshtein("1,234,500원", "1,234,5O0원") | 1 | 0 → O 치환(S) 1번 |
-| cer("1,234,500원", "1,234,5O0원") | 0.100 | 1 ÷ 정답 10글자 |
-| levenshtein("33000", "3300") · ("33000", "330000") | 1 · 1 | 빠뜨림(D) 1 · 끼워 넣음(I) 1 |
-| cer(정답, doc03 OCR) — 정면 깨끗한 문서 | 0.006 | DOC03 → DOCO3 한 글자만 틀림 |
-| cer(정답, rotated_raw OCR) | 0.025 | 기울어진 사진 그대로 |
-| cer(정답, lowres_raw / lowres_corrected OCR) | 0.063 / 0.019 | 작은 사진 → 보정하면 줄어듦 |
-| cer(정답, shadow_raw OCR) — OCR 결과가 빈 문자열 | 1.000 | 전부 빠뜨림 = 1.0 |
-| cer("", "abc") | ValueError: 빈 정답 문서는 별도 평가합니다 | 빈 정답은 0으로 나누지 않고 따로 집계 |
-
-| 코드 · 규칙 | 뜻 | 바꾸면? |
-|---|---|---|
-| dp 한 줄 | 표 전체 대신 직전 줄만 기억하며 최소 횟수를 채움 | 결과는 같고 메모리만 아껴요 |
-| prev + (ca != cb) | 두 글자가 같으면 비용 0, 다르면 1(치환) | 치환 비용을 2로 하면 "지우고 넣기"와 같아져 다른 지표가 돼요 |
-| len(reference) | 분모 = 정답 글자 수 | OCR 결과 길이로 나누면, 글자를 잔뜩 빠뜨린 결과가 오히려 점수가 좋아 보여요 |
-| 빈 정답 → ValueError | 0으로 나누기 방지 + 따로 집계 | 조용히 0점 처리하면 "글자 없는 페이지에 글자를 지어낸" 오류가 숨어요 |
-| 정규화 규칙 | 공백·대소문자·기호를 비교 전에 어떻게 다룰지 먼저 고정 | 규칙이 바뀌면 같은 결과도 CER이 달라져요(Day16 본문 CER 체험의 "공백 지우기" 체크박스) |
-
-🤔 왜 문서별 평균과 micro CER을 구분해? — 문서별 CER을 평균 내면 10글자짜리 영수증과 2,000글자짜리 계약서가 같은 무게예요. micro CER은 전체 오류 수 ÷ 전체 정답 글자 수라서 글자 하나하나가 같은 무게예요. 짧은 문서 몇 장이 크게 틀리면 두 값이 크게 달라지니, 어떤 걸 보고했는지 적어요.
-
 ### 라이브러리로 한 줄 jiwer.cer()
 
 ```
@@ -9604,7 +10415,7 @@ score = jiwer.cer(truth, read)                  # (정답, 예측) 순서!
 print(round(score, 3))
 ```
 
-▶ 실제로 돌려 보면 jiwer가 이 PC에 없어 같은 정의(편집 거리 ÷ 정답 글자 수)인 CER 계산 함수의 cer()로 계산 — doc01 psm 3 기록 · lowres_raw 기록
+▶ 실제로 돌려 보면 jiwer가 이 PC에 없어 같은 정의(편집 거리 ÷ 정답 글자 수)로 직접 cer()를 계산 — doc01 psm 3 기록 · lowres_raw 기록
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -9644,7 +10455,7 @@ if am:
 print(issued_at, total)        # 2026-11-09 1234500
 ```
 
-▶ 실제로 돌려 보면 사전 코드의 text 문자열 + 수업 doc03의 실제 Tesseract 기록 문자열
+▶ 실제로 돌려 보면 사전 코드의 text 문자열 + 예제 doc03의 실제 Tesseract 기록 문자열
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -9674,7 +10485,7 @@ print(issued_at, total)        # 2026-11-09 1234500
 
 🤔 왜 패턴으로 찾고 date()로 또 검사해? — 정규식은 "모양"만 봐요. 2026-13-45도 모양은 날짜예요. date(2026, 13, 45)는 ValueError를 내니까, 패턴은 후보 찾기, date는 진짜인지 확인으로 역할을 나눠요. 그리고 실패하면 아무 값이나 넣지 말고 None으로 남겨요.
 
-🔬 정규식을 느슨하게 바꾸면 (oneday 요약본 실측, 실제 OCR 문자열) · re.search(r"^TOTAL: (\d+)$", text, re.MULTILINE) → "33000" ✅ · re.search(r"(\d+)", text) (첫 숫자) → "3" ❌ — 맨 윗줄 DOCO3의 3을 금액으로 집었어요. · re.MULTILINE만 빼도 → None → match.group(1)에서 프로그램이 멈춰요. 🤔 왜? ^·$는 기본이 "글 전체의 처음·끝"이에요. 여러 줄 글에서 "줄마다 처음·끝"으로 보려면 MULTILINE이 필요해요. 그리고 라벨(TOTAL:)을 빼면 "숫자처럼 생긴 아무거나"가 후보가 돼요.
+🔬 정규식을 느슨하게 바꾸면 (실측, 실제 OCR 문자열) · re.search(r"^TOTAL: (\d+)$", text, re.MULTILINE) → "33000" ✅ · re.search(r"(\d+)", text) (첫 숫자) → "3" ❌ — 맨 윗줄 DOCO3의 3을 금액으로 집었어요. · re.MULTILINE만 빼도 → None → match.group(1)에서 프로그램이 멈춰요. 🤔 왜? ^·$는 기본이 "글 전체의 처음·끝"이에요. 여러 줄 글에서 "줄마다 처음·끝"으로 보려면 MULTILINE이 필요해요. 그리고 라벨(TOTAL:)을 빼면 "숫자처럼 생긴 아무거나"가 후보가 돼요.
 
 ```
 amounts = re.findall(r"^[A-Z]+ \d+ \d+ (\d+)$", text, re.MULTILINE)   # 품목 줄의 마지막 숫자들
@@ -9727,58 +10538,6 @@ with open("invoice_001.json", "w", encoding="utf-8") as f:
 
 🤔 왜 정규화한 값만 저장하면 문제야? — 오류가 났을 때 "원래 뭐라고 적혀 있었는지, 어디 있었는지"를 확인할 수 없어요. 실제 기록에는 이미지 경로·적용한 변환·schema version(이 JSON 모양의 버전)도 같이 남겨요.
 
-### 업무 규칙으로 검증 validate_invoice()
-
-| 규칙 | 예 |
-|---|---|
-| 필수 필드 | document_id · issued_at · supplier · total_amount |
-| 형식 | 날짜는 ISO 8601(2026-11-09), 금액은 정수, 통화는 별도 필드 |
-| 관계 | 공급가액 + 세액 = 합계, 수량 × 단가 ≈ 금액 |
-| 범위 | 날짜·금액·수량이 허용 범위 안인지 |
-| 상태 | passed · warning · failed + 사람이 확인할 이유 |
-
-```
-def validate_invoice(doc: dict) -> list[str]:
-    if not isinstance(doc, dict):
-        return ["입력은 객체여야 합니다"]
-    errors = []
-    if not doc.get("document_id"):
-        errors.append("document_id 누락")
-    fields = doc.get("fields", {})
-    if not isinstance(fields, dict):
-        return errors + ["fields는 객체여야 합니다"]
-    for name in ["issued_at", "supplier", "total_amount"]:
-        item = fields.get(name)
-        value = item.get("value") if isinstance(item, dict) else None
-        if value is None or value == "":
-            errors.append(f"필수 필드 누락: {name}")
-        elif name == "total_amount":
-            if type(value) is not int or value < 0:
-                errors.append("합계는 0 이상의 정수여야 합니다")
-    return errors
-```
-
-▶ 실제로 돌려 보면 json.dump 항목의 record와 일부러 망가뜨린 사본들
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| validate_invoice(record) | [] | 빈 목록 = 통과 |
-| total_amount value = 0 | [] | 0원은 진짜 값 — 누락이 아님 |
-| total_amount value = "1234500" (글자) | ['합계는 0 이상의 정수여야 합니다'] | 정수가 아님 |
-| total_amount value = True | ['합계는 0 이상의 정수여야 합니다'] | type() is int 검사라 bool도 걸러짐 |
-| supplier 필드 삭제 | ['필수 필드 누락: supplier'] | 필수 필드 검사 |
-| {"fields": "x"} | ['document_id 누락', 'fields는 객체여야 합니다'] | 문제를 모아서 한꺼번에 |
-| validate_invoice([record]) | ['입력은 객체여야 합니다'] | dict가 아니면 바로 거절 (.get 에러 없이) |
-
-| 코드 | 뜻 | 바꾸면? |
-|---|---|---|
-| isinstance(doc, dict) 먼저 | 모양을 확인한 뒤에 필드에 접근 | 빼면 리스트·None이 들어올 때 .get에서 프로그램이 죽어요 |
-| value is None or value == "" | "없음"만 누락으로 봄 | if not value:로 쓰면 금액 0도 누락으로 처리돼요 (0은 거짓으로 취급되니까) |
-| type(value) is not int | 정확히 int만 금액으로 인정 | isinstance(value, int)로 쓰면 True도 통과해요 — Python에서 bool은 int의 한 종류(True == 1)라서 |
-| 오류 목록 반환 | 문제를 전부 모아서 돌려줌 | 첫 오류에서 멈추면 사람이 여러 번 고쳐야 해요 |
-
-⚠️ 검증에 실패했다고 0이나 빈 문자열로 자동 치환하면 안 돼요. 진짜 0원과 "못 읽음"이 구분되지 않아요. warning·failed 상태와 이유를 남기고 사람이 보게 해요. 날짜·문자열·좌표까지 전부 검사하려면 이 함수를 Schema(데이터 모양 규칙)로 확장해요.
-
 ### 간단 버전 pipeline("image-text-to-text")
 
 ```
@@ -9813,7 +10572,7 @@ print(result[0]["generated_text"])
 | max_new_tokens | 새로 만들 답의 최대 길이(토큰) | 너무 작으면 JSON이 중간에 잘려 파싱 실패. 크면 느려지고 쓸데없는 말이 붙을 수 있어요 |
 | return_full_text=False | 새 답 부분만 돌려받기 | True면 질문(입력)까지 붙어 나와서 답만 따로 잘라야 해요 |
 
-🔬 max_new_tokens를 3으로 줄이면 — oneday 요약본에서 SmolVLM-256M에 "What is the total amount?"를 물었을 때 128이면 33000, 3이면 33이 나왔어요. 에러 없이 잘린 숫자가 나온 거예요. 🤔 왜 에러가 안 나? 모델은 토큰을 한 조각씩 만들다 개수 제한에 닿으면 그냥 멈출 뿐이에요. "답이 덜 끝났다"는 신호가 따로 없어서, 잘린 33도 멀쩡한 답처럼 보여요. 그래서 다음 단계(Day16 ⑥ 근거 검증)에서 OCR 원문과 대조하면 33 ≠ 33000으로 걸러져 보류돼요.
+🔬 max_new_tokens를 3으로 줄이면 — SmolVLM-256M에 "What is the total amount?"를 물었을 때 128이면 33000, 3이면 33이 나왔어요. 에러 없이 잘린 숫자가 나온 거예요. 🤔 왜 에러가 안 나? 모델은 토큰을 한 조각씩 만들다 개수 제한에 닿으면 그냥 멈출 뿐이에요. "답이 덜 끝났다"는 신호가 따로 없어서, 잘린 33도 멀쩡한 답처럼 보여요. 그래서 다음 단계(Day16 ⑥ 근거 검증)에서 OCR 원문과 대조하면 33 ≠ 33000으로 걸러져 보류돼요.
 
 💡 do_sample=False — 매번 가장 확률 높은 토큰만 고르는 방식(greedy)이라 같은 입력이면 같은 답이 나와요. 결과를 기록하고 다시 실행해 대조하려면 이 설정이 필요해요.
 
@@ -9911,35 +10670,6 @@ print("설명용 이미지의 Box 범위:", valid_box)
 
 ⚠️ JSON 파싱 성공 ≠ 내용이 사실. 이 코드는 구조만 봐요. answer·evidence·page가 맞는지는 OCR 원문과 그 bbox를 잘라 낸 이미지(crop)에 대조한 뒤 확인완료·검토필요·실패를 정해요.
 
-### 가장 단순한 결합 규칙
-
-```
-if answer == total["raw"]:          # VLM 답이 OCR 원문과 같으면
-    final = total["value"]          # → 채택
-else:
-    final = None                    # → 보류, 사람이 확인 (정답으로 세지 않음)
-```
-
-▶ 실제로 돌려 보면 VLM 답 6개는 Day16 본문 표에 기록된 SmolVLM 결과(이 PC에선 VLM 미실행) · OCR 원문(raw)은 수업 doc03의 실제 Tesseract 기록에서 ^TOTAL: · ^SUPPLIER: · ^DATE: 정규식으로 뽑음 (문서에 없는 항목은 None)
-
-| 📥 입력 | 📤 출력 | 뜻 |
-|---|---|---|
-| answer='33000' vs raw='33000' | final = '33000' | ✅ 채택 |
-| answer='ALPHA STUDIO' vs raw='ALPHA STUDIO' | final = 'ALPHA STUDIO' | ✅ 채택 |
-| answer='2026-11-03' vs raw='2026-11-03' | final = '2026-11-03' | ✅ 채택 |
-| answer='0.' vs raw=None | final = None | ⏸ 보류 — 문서에 근거 없음 |
-| answer='33000' vs raw=None | final = None | ⏸ 보류 — 문서에 근거 없음 |
-| answer='ALPHA STUDIO' vs raw=None | final = None | ⏸ 보류 — 문서에 근거 없음 |
-| max_new_tokens=3으로 잘린 답 '33' vs raw '33000' | final = None | 에러 없이 잘린 답도 대조에서 걸러짐 |
-| 채택 수 · 보류 수 | 3 · 3 | 보류는 정답으로 세지 않아요 |
-
-| 코드 | 뜻 | 바꾸면? |
-|---|---|---|
-| answer == total["raw"] | VLM 답을 OCR이 읽은 원문 글자와 비교 | 대조 없이 final = answer로 하면 할인액 질문의 33000이 그대로 "할인액"으로 저장돼요(요약본 실측) |
-| final = None | 보류 — 값이 없다는 게 아니라 "확인 전" | 0이나 ""를 넣으면 진짜 값과 구분이 안 돼요 |
-
-🤔 왜 보류를 정답으로 안 세? — 보류는 "사람이 확인해야 함"이지 "맞음"이 아니에요. 보류를 정답에 넣으면 자동화율이 부풀고, 빼고 세면 "자동으로 처리된 것 중 몇 개가 맞았나"와 "몇 개를 사람에게 넘겼나"를 따로 볼 수 있어요. Day16 ⑥ "실제 VLM은 얼마나 지어낼까" 표라면 6개 중 채택 3 · 보류 3.
-
 ### PyTorch → ONNX 내보내기 torch.onnx.export()
 
 ```
@@ -10013,18 +10743,10 @@ class VLMResult:
     raw_text: str
     model_id: str
 
-def run_ocr(image) -> OCRResult:
-    raise NotImplementedError("OCR 어댑터를 연결하세요")      # 엔진별 어댑터 구현은 별도
-
-def ask_document(image_path, question, pipe) -> VLMResult:
-    messages = [{"role": "user", "content": [
-        {"type": "image", "path": str(image_path)},
-        {"type": "text", "text": question},
-    ]}]
-    raise NotImplementedError("VLM 어댑터를 연결하세요")      # 호출·파싱은 별도
+# 엔진별 어댑터(Tesseract · VLM 호출)는 이 상자들을 돌려주도록 따로 구현
 ```
 
-▶ 실제로 돌려 보면 수업 doc03의 기록된 Tesseract 단어로 결과 상자 만들기
+▶ 실제로 돌려 보면 예제 doc03의 기록된 Tesseract 단어로 결과 상자 만들기
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -10033,7 +10755,6 @@ def ask_document(image_path, question, pipe) -> VLMResult:
 | OCRWord('a', 1.0, (0, 0, 1, 1)) == OCRWord('a', 1.0, (0, 0, 1, 1)) | True | 값이 같으면 같다(__eq__ 자동) |
 | OCRWord(text="a", conf=1.0, bbox=(0, 0, 1, 1)) (이름 오타) | TypeError: OCRWord.__init__() got an unexpected keyword argument 'conf' | dict와 달리 오타를 바로 알려 줌 |
 | VLMResult(answer=None, evidence=None, raw_text="0.", model_id="SmolVLM-256M") | VLMResult(answer=None, evidence=None, raw_text='0.', model_id='SmolVLM-256M') | 근거 없으면 None + 원문은 따로 |
-| run_ocr(image) | NotImplementedError: OCR 어댑터를 연결하세요 | 아직 어댑터가 없다는 걸 분명히 |
 
 | 설계 | 뜻 | 안 하면? |
 |---|---|---|
@@ -10103,49 +10824,45 @@ _2026-11-10(화) · FastAPI · HTTP 요청/응답 · CRUD · Pydantic 검증 · 
 
 - FastAPI는 "이 주소로 이런 요청이 오면 이 함수를 실행해"를 연결해 주는 도구예요. RAG·Agent를 사람들이 쓰는 서비스로 만들 때 입구가 돼요.
 
-- 오늘은 AI가 나중에 쓸 지식의 원본을 등록·조회·수정·삭제(CRUD)하고 JSON 파일에 저장하는 API를 만들어요.
+- 대표 예시는 AI가 나중에 참고할 지식의 원본을 등록·조회·수정·삭제(CRUD)하고 JSON 파일에 저장하는 지식 관리 API예요.
 
 - 응답 한 번으로 끝내지 않고 상태 코드(200·201·204·404·422)와 실제 파일, 재시작 후 값까지 확인해야 완성이에요.
 
-🔧 Day17 명령어 한눈에 — 이론 구역별 명령어·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 요청 하나가 지식 파일에 닿기까지
 
-본문에는 핵심 코드 한두 줄만 남겼어요.
+[그림: 사용자 화면 아래 FastAPI가 있고, 그 아래 지식 관리 API, RAG, AI Agent 세 칸과 각각의 저장소가 있는 그림] 무엇을 보나: 맨 위 사용자 화면의 요청은 모두 FastAPI라는 입구를 지나요. 그 아래 세 갈래 중 초록 실선(지식 관리 API + JSON 파일)이 이 페이지에서 다루는 부분이고, 회색 점선(RAG, Agent)은 그 위에 나중에 붙는 계층이에요. 🤔 왜 이 순서? RAG는 지식을 검색하고 Agent는 그걸 도구로 불러 쓰는데, 둘 다 원본이 정리돼 있어야 시작할 수 있어요. 원본이 낡으면 검색도 답변도 같이 흔들려요.
 
-## 📦 필요한 패키지
+요청 하나는 아래 순서로 처리되고, 이 페이지의 ①~⑪도 이 흐름을 따라가요.
 
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| fastapi | 주소(Route)와 함수를 연결하고, 입력 검증·자동 문서(/docs)를 만들어 줌 | from fastapi import FastAPI, HTTPException, Response |
-| uvicorn | 실제로 네트워크 요청을 받아 FastAPI 앱에 넘겨주는 서버 프로그램 | 직접 import 안 함 — python -m uvicorn main:app으로 실행 |
-| pydantic | 입력·응답 데이터의 모양 검사 (fastapi를 깔면 같이 설치됨) | from pydantic import BaseModel, Field |
-| json, pathlib, threading | 파일 읽기/쓰기, 파일 경로, 잠금 — 파이썬 기본 내장이라 설치 안 함 | import json, from pathlib import Path, from threading import Lock |
-| jinja2 (선택) | JSON 대신 HTML 화면을 만들 때 쓰는 템플릿 엔진 | from fastapi.templating import Jinja2Templates |
-| pytest, httpx (선택) | 자동 테스트. TestClient가 내부에서 httpx를 씀 | from fastapi.testclient import TestClient |
-
-### 🔧 설치 · 확인 (PowerShell)
-
-```
-python --version                                   # 3.10 이상인지
-python -m venv .venv                               # 프로젝트 전용 가상환경 만들기
-.\.venv\Scripts\Activate.ps1                       # 가상환경 켜기
-python -m pip install fastapi uvicorn
-python -c "import sys; print(sys.executable)"      # 지금 쓰는 python이 .venv 안의 것인지
-python -m pip show fastapi pydantic uvicorn        # 설치된 버전 확인
-```
-
-💡 활성화(Activate.ps1)가 보안 정책 때문에 막힐 때는 정책을 억지로 바꾸지 말고, 가상환경의 python을 경로로 직접 부르면 돼요. 활성화는 "python이라고만 쳐도 .venv 것을 쓰게 해 주는" 편의 기능일 뿐이에요.
+| ① 입구 | FastAPI 앱 · Uvicorn 서버 · /docs | 요청을 누가 받아 어느 함수로 넘기나? |
+| ② 요청 · 응답 | Method · Path · Query · Body · Status | 무엇을 어떤 모양으로 주고받나? |
+| ③ 저장소 | JSON 파일 · 임시 파일 교체 · Lock | 껐다 켜도, 동시에 와도 데이터가 안전한가? |
+| ④ 조회 | GET 목록 · 상세 · Query 조건 | 없는 건 404인가, 빈 배열인가? |
+| ⑤ 등록 · 검증 | POST · Pydantic · 422 · next_id | 잘못된 입력이 저장 전에 막히나? 새 ID는 누가 정하나? |
+| ⑥ 수정 | PUT 전체 교체 | ID · 항목 수를 지키며 그 자리만 바꾸나? |
+| ⑦ 삭제 · 상태 코드 | DELETE 204 · 상태 코드 정리 | 실패가 실패로 드러나나? |
+| ⑧ 끝까지 확인 | 추적 시나리오 · 재시작 | 응답만이 아니라 파일에 진짜 남았나? |
+| ⑨ 구조 | main · Router · Repository · schemas | 저장 방식을 바꿔도 URL은 그대로인가? |
+| ⑩ 한계 · 확장 | 파일 → DB · Agent 연결 | 파일로는 부족한 게 무엇이고, Agent는 이 API를 어떻게 쓰나? |
+| ⑪ 문제 진단 | 증상 → 가장 가까운 원인 | 어느 층에서 막혔나? |
 
 ```
-.\.venv\Scripts\python.exe -m pip install fastapi uvicorn
-.\.venv\Scripts\python.exe -m uvicorn main:app --reload
-Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요청 확인
+클라이언트 (브라우저 · /docs · 다른 프로그램)
+  └ Uvicorn: 네트워크에서 요청 받기
+       └ FastAPI: Route 찾기 → 입력 검증(Pydantic) → 함수 호출 → 응답(JSON + 상태 코드)
+            └ 저장 코드: with LOCK → 읽기 · 변경 · 임시 파일에 쓰고 replace
+                 └ data/knowledge.json
 ```
 
-🤔 왜 pip 대신 python -m pip? — PC에 파이썬이 여러 개 있으면 pip가 엉뚱한 파이썬에 설치할 수 있어요. python -m pip은 "지금 이 python에 설치해"라는 뜻이라 설치한 곳과 실행하는 곳이 어긋나지 않아요. python -m uvicorn도 같은 이유예요.
+## ① API와 FastAPI — 서비스의 입구
 
-## 이거 어디에 써?
+API(Application Programming Interface)는 프로그램끼리 주고받는 약속된 창구예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.
 
-새로 온 직원이 "우리 팀 개발환경은 어디서 확인해요?"라고 물으면, 나중에는 AI Agent가 대답해 줄 거예요. 그런데 Agent가 답하려면 근거가 되는 안내문이 어딘가에 정리돼 있어야 해요. 오늘은 그 안내문(지식)의 원본을 넣고·찾고·고치고·지우는 API를 만들어요.
+### 어디에 쓰나 — 지식 관리 API · RAG · Agent
+
+새로 온 직원이 "우리 팀 개발환경은 어디서 확인해요?"라고 물으면, 나중에는 AI Agent가 대답해 줄 거예요. 그런데 Agent가 답하려면 근거가 되는 안내문이 어딘가에 정리돼 있어야 해요. 지식 관리 API는 그 안내문(지식)의 원본을 넣고·찾고·고치고·지우는 일을 맡아요.
 
 🧑‍💼
 
@@ -10163,9 +10880,7 @@ RAG의 재료검색·답변 생성이 읽어 갈 원본 저장소
 
 Agent 도구Agent가 "지식 조회"를 부를 때 실제로 찾는 곳
 
-[그림: 사용자 화면 아래 FastAPI가 있고, 그 아래 지식 관리 API(오늘), RAG(이후), AI Agent(이후) 세 칸과 각각의 저장소가 있는 그림] 무엇을 보나: 맨 위 사용자 화면의 요청은 모두 FastAPI라는 입구를 지나요. 그 아래 세 갈래 중 초록 실선(지식 관리 API + JSON 파일)만 오늘 만들고, 회색 점선(RAG, Agent)은 이후 수업에서 붙여요. 🤔 왜 이 순서? RAG는 지식을 검색하고 Agent는 그걸 도구로 불러 쓰는데, 둘 다 원본이 정리돼 있어야 시작할 수 있어요. 원본이 낡으면 검색도 답변도 같이 흔들려요.
-
-|  | 지식 관리 API (오늘) | RAG (다음 단계) | AI Agent (이후) |
+|  | 지식 관리 API | RAG | AI Agent |
 |---|---|---|---|
 | 답하는 질문 | "안내문을 어떻게 유지하지?" | "관련 근거가 어디 있지?" | "이 작업엔 어떤 도구가 필요하지?" |
 | 하는 일 | 등록·조회·수정·삭제, 저장 상태 확인 | 문서 검색 → 문맥 제공 → 답변·출처 | 도구 선택·호출 제안 → 실행 결과 점검 |
@@ -10173,11 +10888,347 @@ Agent 도구Agent가 "지식 조회"를 부를 때 실제로 찾는 곳
 
 🤔 왜 셋을 따로 나눠? — 같은 서비스로 이어 붙일 수는 있지만 책임이 달라요. 원본 저장은 "정확히 남기기", 검색은 "잘 찾기", Agent는 "무슨 도구를 쓸지 판단하기"예요. 한 덩어리로 섞으면 검색 방식을 바꿀 때 저장 코드까지 건드리게 돼요.
 
-⚠️ FastAPI ≠ AI 모델 ≠ Agent. 오늘 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 나중에 만들 검색 인덱스는 자동으로 바뀌지 않아요(따로 다시 만들어야 해요).
+⚠️ FastAPI ≠ AI 모델 ≠ Agent. 지식 관리 API 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 검색용 인덱스는 자동으로 바뀌지 않아요(따로 다시 만들어야 해요).
 
-## 📋 명세 — 지식 관리 API (JSON 파일 버전)
+### 첫 서버 띄우기 — main.py · uvicorn · /docs
 
-오늘 만든 API의 약속을 한곳에 모았어요. Day19에서 저장소를 PostgreSQL로 바꿔도 1·2·4번(바깥 약속)은 그대로예요.
+🔧 main.py — 첫 JSON 응답 명령어 사전에서 자세히 →
+
+```
+app = FastAPI(title="Knowledge API")       # 앱 객체 만들기
+@app.get("/health")                        # GET /health 요청이 오면
+```
+
+🔧 서버 실행 명령어 사전에서 자세히 →
+
+```
+python -m uvicorn main:app --reload
+http://127.0.0.1:8000/health      → {"status":"ok"}
+```
+
+🔧 /docs — 자동 문서에서 요청 보내기 명령어 사전에서 자세히 →
+
+## ② HTTP 요청과 응답
+
+HTTP는 브라우저·프로그램이 서버와 대화하는 규칙이에요. 대화는 항상 요청 1개 ↔ 응답 1개가 한 쌍이에요.
+
+[그림: http://127.0.0.1:8000/api/knowledge/2?category=api 를 통신 방식, 내 컴퓨터, 포트, 자원 경로, Path 값, Query로 나눠 색칠한 그림] 무엇을 보나: URL 하나를 색깔별로 잘랐어요. 127.0.0.1:8000까지가 "어느 서버", /api/knowledge가 "무슨 자원", /2가 "그중 어느 것(Path 값)", ?category=api가 "어떤 조건으로(Query)"예요. 🤔 왜 둘을 나눠? Path는 대상을 콕 집을 때(2번 지식), Query는 목록을 걸러낼 때(분류가 api인 것만) 써요. 빠지면 안 되는 건 Path, 있어도 없어도 되는 건 Query가 자연스러워요.
+
+| 이름 | 예시 | 역할 |
+|---|---|---|
+| Method | GET · POST · PUT · DELETE | 무엇을 하려는지 (요청의 의도) |
+| Path | /api/knowledge/4 | 어떤 자원의 어느 것인지 |
+| Query | ?category=api | 목록을 거를 선택 조건 |
+| Header | Content-Type: application/json | 본문 형식 같은 부가 정보 |
+| Body | {"title": "실습 환경 안내", ...} | 새로 만들거나 고칠 데이터 (GET엔 보통 없음) |
+| Status | 200 · 201 · 204 · 404 · 422 | 처리 결과를 숫자로 |
+| Response body | 지식 JSON / 오류 detail / 없음 | 클라이언트가 받는 내용 |
+
+```
+# 요청                                   # 응답
+GET /api/knowledge/2                     Status: 200
+Host: 127.0.0.1:8000                     Content-Type: application/json
+(Body 없음)                              {"id": 2, "title": "서버 실행",
+                                          "category": "api",
+                                          "content": "uvicorn으로 개발 서버를 켠다."}
+```
+
+[그림: 클라이언트, Uvicorn, Route, 타입 검증, 처리 함수, storage.py 여섯 칸을 지나 200, 404, 422로 갈라지는 흐름도] 무엇을 보나: GET /api/knowledge/2 한 건이 ①→⑥을 차례로 지나요. 같은 경로라도 어디서 멈추느냐에 따라 결과가 갈라져요 — foo는 ④ 타입 검증에서 정수로 못 바꿔 422(함수는 아예 실행 안 됨), 9999는 ⑤ 함수가 끝까지 못 찾아 404, 2는 ⑥에서 찾아 200. 🤔 왜 알아야 해? 상태 코드만 보고 "어느 단계에서 막혔는지"를 바로 알 수 있어서, 오류가 나면 고칠 곳을 좁힐 수 있어요.
+
+🤔 왜 URL을 직접 쪼개서 해석하지 않아? — FastAPI가 Route(Method+Path 대조) → 타입 검증 → 함수 → 응답을 순서대로 연결해 줘요. 우리는 "knowledge_id: int"라고 약속만 적으면, 문자열 "2"를 정수 2로 바꾸고 안 되면 422를 돌려주는 일까지 자동이에요.
+
+## ③ JSON 파일 저장소
+
+이 API의 저장소는 데이터베이스가 아니라 JSON 파일 하나예요. 서버를 껐다 켜도 지식이 남아 있게 하려면 메모리(변수)가 아니라 파일에 써야 해요.
+
+```
+// data/knowledge.json
+{
+  "next_id": 4,
+  "entries": [
+    {"id": 1, "title": "가상환경", "category": "setup", "content": "프로젝트별 패키지를 분리한다."},
+    {"id": 2, "title": "서버 실행", "category": "api",   "content": "uvicorn으로 개발 서버를 켠다."},
+    {"id": 3, "title": "입력 오류", "category": "api",   "content": "422이면 입력값을 확인한다."}
+  ]
+}
+```
+
+| 키 | 뜻 |
+|---|---|
+| entries | 지식 항목 목록. 항목 1건 = id + 제목 + 본문 + 분류 |
+| id | 서버가 발급하는 번호. 사용자가 정하지 않아요 |
+| next_id | 다음에 줄 번호. 파일 안에만 두고, API 응답에는 내보내지 않아요 |
+
+⚠️ JSON 문자열은 큰따옴표만 돼요('가상환경' ❌). 마지막 항목 뒤 쉼표도 안 돼요. 파일 문법이 깨지면 서버가 읽다가 실패해요.
+
+🔧 json.load · json.dump · Path.replace — JSON 파일 읽기 · 안전하게 쓰기 명령어 사전에서 자세히 →
+
+```
+json.dump(data, f, ensure_ascii=False, indent=2)
+temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기
+```
+
+[그림: 왼쪽은 원본에 바로 쓰다 중간에 끊겨 반쯤 쓰인 파일, 오른쪽은 임시 파일에 다 쓴 뒤 원본과 바꿔치기하는 그림] 무엇을 보나: 왼쪽은 knowledge.json을 바로 "w"로 열어 쓰다가 도중에 멈춘 경우예요. "w"로 여는 순간 원본 내용이 지워지니, 반쯤 쓰인 깨진 JSON만 남아요. 오른쪽은 .tmp에 먼저 끝까지 쓰고, 성공했을 때만 replace()로 바꿔치기해요. 🤔 왜? 쓰다 실패해도 망가지는 건 임시 파일뿐이라 원본이 살아남아요. 그래서 "저장 실패 = 예전 데이터 그대로"가 보장돼요.
+
+🔧 threading.Lock — 읽기부터 저장까지 한 번에 잠그기 명령어 사전에서 자세히 →
+
+```
+with LOCK:                       # 이 블록은 한 번에 한 요청만
+    data = read_data()           # 1. 읽고
+```
+
+[그림: 동시에 20건을 등록했을 때 Lock 없이는 1건, with LOCK은 20건이 저장된 가로 막대그래프] 무엇을 보나: 스레드 20개가 동시에 "파일 읽기 → 항목 추가 → 저장"을 했을 때 파일에 남은 항목 수예요(5번 반복한 가운데 값, 읽기와 저장 사이에 0.01초 틈을 일부러 넣어 차이를 크게 보이게 했어요). Lock이 없으면 20건을 보냈는데 1건만 남았어요. 🤔 왜? 20개가 모두 "빈 파일"을 거의 동시에 읽고, 각자 1건을 더해 저장했어요. 나중에 저장한 쪽이 앞선 저장을 덮어써서 결국 하나만 남아요. with LOCK:으로 읽기~저장을 묶으면 앞 요청이 끝날 때까지 다음 요청이 기다리니 20건이 다 남아요.
+
+## ④ 조회 (GET) — 목록·상세·조건
+
+🔧 @app.get — 목록 조회 명령어 사전에서 자세히 →
+
+```
+@app.get("/api/knowledge")
+    return data["entries"]          # list를 돌려주면 JSON 배열
+```
+
+🔧 Path 매개변수 · HTTPException — 상세 조회 + 404 명령어 사전에서 자세히 →
+
+```
+@app.get("/api/knowledge/{knowledge_id}")
+    raise HTTPException(404, "Knowledge not found")   # 끝까지 없으면 404
+```
+
+🔧 Query 매개변수 · Query(max_length=) — 목록 거르기 명령어 사전에서 자세히 →
+
+```
+@app.get("/api/knowledge")
+def list_knowledge(category: str | None = None):     # 기본값이 있으면 → Query, 생략 가능
+```
+
+## ⑤ 등록 (POST) · 입력 검증
+
+새 지식은 URL이 아니라 Body에 담아 보내요. ID는 보내지 않아요 — 서버가 정해요.
+
+```
+POST /api/knowledge
+Content-Type: application/json
+
+{
+  "title": "실습 환경 안내",
+  "content": "Python 3.10 이상을 사용한다.",
+  "category": "setup"
+}
+```
+
+🔧 BaseModel · Field — 입력 모양 정하기 명령어 사전에서 자세히 →
+
+```
+class KnowledgeWrite(BaseModel):                          # POST·PUT 입력
+    title: str = Field(min_length=1, max_length=80)
+```
+
+🔧 @app.post(status_code=201, response_model=) — 등록 명령어 사전에서 자세히 →
+
+```
+@app.post("/api/knowledge", status_code=201, response_model=Knowledge)
+def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite로 검사
+```
+
+[그림: 위는 len+1 방식으로 ID 2 삭제 후 새 항목이 3을 받아 충돌, 아래는 next_id 방식으로 4를 받는 그림] 무엇을 보나: 위 줄은 "목록 길이 + 1"로 번호를 매긴 경우예요. ID 2를 지우면 길이가 2가 되고, 새 항목이 3을 받아 이미 있는 3번과 겹쳐요(빨강). 아래 줄은 next_id를 파일에 따로 적어 두는 방식 — 삭제해도 4는 그대로라 새 항목은 4를 받아요. 🤔 왜? ID는 "이 지식의 이름표"라 한 번 쓴 번호는 다시 쓰면 안 돼요. 지워진 2번을 기억하던 다른 프로그램이 새 항목을 옛 지식으로 착각할 수 있어요. 그래서 next_id는 줄이지 않고, entries와 같은 파일에 저장해 재시작해도 이어져요.
+
+🔧 422 — 잘못된 입력은 저장 전에 막힘 명령어 사전에서 자세히 →
+
+## ⑥ 수정 (PUT)
+
+```
+PUT /api/knowledge/4
+Content-Type: application/json
+
+{"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}
+```
+
+이 API의 PUT 규칙: 세 필드를 모두 보내 내용을 통째로 교체해요. ID·항목 수·next_id는 그대로예요.
+
+🔧 @app.put · enumerate — 수정 (전체 교체) 명령어 사전에서 자세히 →
+
+```
+@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
+def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Body 둘 다
+```
+
+[그림: id 1, 3, 4 세 항목 아래에 index 0, 1, 2를 적고, entries[4]는 IndexError, entries[1]은 id 3 항목이라는 설명을 붙인 그림] 무엇을 보나: ID 2를 지운 뒤 목록이에요. 칸 안 숫자는 id(이름표), 아래 주황 숫자는 index(지금 줄 선 순서)예요. entries[4]로 id 4를 찾으면 위치는 0~2뿐이라 오류, entries[1]로 id 1을 찾으면 엉뚱하게 id 3이 나와요. 🤔 왜? 처음엔 우연히 id 1이 index 0, id 2가 index 1…처럼 하나씩 밀려 맞아 보이지만, 삭제가 한 번 일어나면 바로 어긋나요. 그래서 data["entries"][knowledge_id]로 찾지 않고, 하나씩 돌며 entry["id"] == knowledge_id로 비교해요.
+
+## ⑦ 삭제 (DELETE) · 상태 코드
+
+지우는 건 knowledge.json 파일 전체가 아니라, 그 안에서 ID가 일치하는 항목 하나예요. 나머지 항목과 next_id는 그대로예요.
+
+🔧 @app.delete · Response(status_code=204) — 삭제 명령어 사전에서 자세히 →
+
+```
+@app.delete("/api/knowledge/{knowledge_id}", status_code=204)
+    return Response(status_code=204)       # 본문 없는 성공
+```
+
+### 이 API의 상태 코드
+
+| 코드 | 우리 API의 상황 | 다음에 확인할 것 |
+|---|---|---|
+| 200 OK | 목록·상세 조회 / 정상 수정 | 응답 데이터 = 저장된 값? |
+| 201 Created | 새 항목 생성 | 새 ID가 실제 파일에도? |
+| 204 No Content | 삭제 성공 | 본문 없음 + 재조회 404 |
+| 404 Not Found | 없는 경로 / 없는 지식 | Path 오타인지 ID가 없는 건지 |
+| 405 Method Not Allowed | 경로는 있는데 그 Method는 없음 | GET·POST·PUT·DELETE 중 맞는지 |
+| 422 Unprocessable | 자료형·필수값·길이 규칙 위반 | detail의 loc·msg |
+| 500 Server Error | 서버 코드·파일 접근 오류 | 서버 터미널 로그와 저장 파일 |
+
+🤔 왜 숫자가 2xx·4xx·5xx로 나뉘어? — 첫 자리만 봐도 누구 탓인지 알 수 있어요. 2xx 성공, 4xx 요청한 쪽이 뭔가 잘못 보냄(주소·입력), 5xx 서버가 처리하다 실패. 그래서 404·422를 200으로 숨기면 안 돼요 — 받는 프로그램이 실패를 알아챌 방법이 사라져요.
+
+⚠️ 실패한 요청은 파일을 바꾸면 안 돼요. 422는 함수 실행 전에 막히니 저장 코드가 안 돌고, 404는 저장 전에 raise 하고, 쓰기 실패 땐 성공 응답을 만들지 않아요. 확인할 때는 실패 요청 전후로 항목 수와 next_id가 같은지 봐요.
+
+## 🧪 직접 요청 보내 보기
+
+브라우저 안에서 지식 관리 API를 흉내 냈어요(실제 서버는 아니고, 위 코드와 같은 규칙으로 움직여요). Method와 ID, Body를 바꿔 보내기를 누르면 상태 코드·응답·파일 내용이 바뀌어요. 아래 칸은 knowledge.json이에요.
+
+💡 해 볼 것: ① id에 foo 넣고 GET → 422 ② POST 두 번 → id 4, 5 ③ id 2 DELETE 후 len+1 방식을 켜고 POST → 번호 충돌 ④ PUT으로 없는 id 9999 → 404이고 파일은 그대로 ⑤ 서버 재시작 후에도 파일이 남는지.
+
+## ⑧ 끝까지 추적 · 재시작 확인
+
+지식 하나를 만들고 → 고치고 → 서버를 껐다 켜고 → 지우고 → 다시 껐다 켜며, 각 단계에서 파일 상태가 예상대로인지 봐요.
+
+[그림: 6단계 동안 저장된 항목 수(3,4,4,4,3,3)와 next_id(4,5,5,5,5,5)를 계단 그래프로 그리고 각 단계의 상태 코드를 적은 그림] 무엇을 보나: 위 코드를 실제로 돌리며 기록한 값이에요. 보라 실선은 저장된 항목 수, 주황 점선은 next_id예요. POST에서 둘 다 1씩 오르고, PUT과 재시작에서는 그대로, DELETE에서는 항목 수만 줄고 next_id는 5로 남아요. 아래 글씨는 각 단계의 응답이에요. 🤔 왜 재시작까지 봐? 응답은 "방금 메모리에서 만든 값"일 뿐이에요. 서버를 껐다 켜도 같은 값이 나와야 파일에 진짜 저장된 거예요. 응답만 바뀌고 파일이 그대로면 미완성이에요.
+
+| 순서 | 요청·조작 | 예상 데이터 상태 |
+|---|---|---|
+| 1 | 처음 파일 확인 | 항목 3개 · next_id 4 |
+| 2 | "실습 환경 안내" POST → 받은 ID 기록 | 항목 4개 · id 4 · next_id 5 |
+| 3 | 같은 ID 본문 PUT | 개수·ID 그대로, 본문만 변경 |
+| 4 | 서버 종료(Ctrl+C) → 같은 폴더·같은 명령으로 재실행 | 수정한 본문이 그대로 조회됨 |
+| 5 | 같은 ID DELETE → 재조회 | 상세 404 · 목록에서 사라짐 |
+| 6 | 다시 재실행 → 재조회 | 삭제 상태 유지 · next_id 5 |
+
+⚠️ 서버 시작 ≠ 데이터 초기화. 서버를 켤 때마다 seed(처음 데이터)를 복사하는 코드가 있으면 재시작할 때마다 수정·삭제가 되돌아가요. 초기화는 서버를 끄고 따로, 일부러 하는 작업이에요. 재실행했더니 값이 달라졌다면 자동 초기화나 다른 폴더의 파일을 읽고 있지 않은지 의심해요.
+
+## ⑨ 역할별로 파일 나누기
+
+기능이 늘면 main.py 하나가 너무 길어져요. 바뀌는 이유가 다른 코드를 다른 파일로 나눠요.
+
+```
+fastapi_knowledge/
+├─ app/
+│  ├─ __init__.py
+│  ├─ main.py                 ← 앱 만들고 Router 등록만
+│  ├─ schemas.py              ← 입력·응답 모양 (KnowledgeWrite, Knowledge)
+│  ├─ routers/
+│  │  ├─ __init__.py
+│  │  └─ knowledge.py         ← HTTP: Method·Path·상태 코드
+│  └─ repositories/
+│     ├─ __init__.py
+│     └─ json_knowledge.py    ← 저장: 읽기·변경·저장·LOCK
+├─ data/
+│  ├─ knowledge.json          ← 실제 데이터
+│  └─ knowledge.seed.json     ← 처음 데이터 (초기화용)
+├─ README.md
+└─ requirements.txt
+```
+
+[그림: main.py에서 routers, repositories, data/knowledge.json으로 이어지고 아래 schemas.py가 router에 연결된 구조도] 무엇을 보나: 요청은 왼쪽에서 오른쪽으로 흘러요. main은 조립만, Router는 HTTP 약속(어떤 주소·어떤 상태 코드), Repository는 파일 읽기·저장, 맨 오른쪽이 실제 데이터예요. 아래 schemas는 Router가 입력 검사와 응답 모양에 써요. 🤔 왜 나눠? 데이터가 같아도 HTTP 규칙과 저장 방식은 바뀌는 이유가 달라요. JSON 파일을 PostgreSQL로 바꿀 때(FastAPI–PostgreSQL 연동) Repository만 고치면 되고, URL·상태 코드는 그대로 둘 수 있어요.
+
+🔧 app/main.py — 조립 명령어 사전에서 자세히 →
+
+```
+app.include_router(router)                 # Router에 모아 둔 경로들을 앱에 연결
+python -m uvicorn app.main:app --reload
+```
+
+🔧 APIRouter — 관련 경로 묶기 명령어 사전에서 자세히 →
+
+```
+router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+@router.post("", status_code=201, response_model=Knowledge)
+```
+
+🔧 Path(__file__).resolve().parents[n] — 깊은 폴더에서 프로젝트 루트 찾기 명령어 사전에서 자세히 →
+
+```
+BASE = Path(__file__).resolve().parents[2]       # 프로젝트 루트 (repositories → app → 루트)
+def create(fields: dict) -> dict:
+```
+
+🔧 Jinja2Templates · TemplateResponse — 같은 데이터를 HTML 화면으로 명령어 사전에서 자세히 →
+
+```
+templates = Jinja2Templates(directory=BASE / "templates")
+@app.get("/web/knowledge", response_class=HTMLResponse)
+```
+
+🔧 TestClient · monkeypatch · tmp_path — 실제 지식 파일은 건드리지 않는 테스트 명령어 사전에서 자세히 →
+
+```
+monkeypatch.setattr(repo, "DATA", test_file)       # 저장 경로만 임시 파일로 바꿔치기
+with TestClient(app) as client:
+```
+
+## ⑩ 파일 저장소의 한계 · Agent와의 연결
+
+### 왜 파일로 되는데 DB를 쓰나?
+
+| JSON 파일 저장소 | DB(PostgreSQL)가 답하는 질문 |
+|---|---|
+| 정상 저장 후 재시작해도 남아요 | 동시에 여러 요청이 바꾸면? |
+| 작은 파일 전체를 읽고 전체를 다시 저장해요 | 데이터가 10만 건이면? 필요한 줄만 읽을 수 없나? |
+| Lock은 서버 프로세스 하나 안에서만 | 서버가 여러 대면? |
+| 표 하나(entries) | 작성자·분류 같은 여러 표의 관계를 어떻게 지키지? |
+| — | 여러 변경을 "모두 성공 아니면 모두 취소"로 하려면? → 트랜잭션 |
+
+이 질문들은 PostgreSQL 입문 · 지식 관리 DB에서 표 · 관계 · 트랜잭션으로 다루고, 같은 API를 DB 위로 옮기는 건 FastAPI–PostgreSQL 연동에서 다뤄요.
+
+🤔 왜 URL·Method는 그대로 두라고 해? — 이 API를 부르는 쪽(화면, 다른 서버, 나중의 Agent)은 주소와 응답 모양만 알아요. 저장소가 파일에서 DB로 바뀌어도 약속이 같으면 부르는 쪽은 아무것도 고칠 필요가 없어요. 그래서 바꾸는 건 저장 구현(Repository)뿐이에요.
+
+### Agent와 API가 만나는 두 방향
+
+| 방향 | 흐름 | 뜻 |
+|---|---|---|
+| 사용자가 Agent를 부름 | 사용자 → FastAPI → Agent 처리 | API가 Agent의 서비스 입구. 작업 요청을 검증하고 결과·상태를 전달 |
+| Agent가 API를 씀 | Agent → 도구 함수 → 지식 API | "지식 조회"를 도구로 연결. 도구의 설명·입력·실행 코드는 따로 만들어요 |
+
+| 단계 | 누가 | 예 |
+|---|---|---|
+| 판단 | Agent(LLM) | "지식 조회가 필요하다" |
+| 도구 호출 제안 | Agent(LLM) | get_knowledge(2) |
+| 검증·실행 | 애플리케이션 | 권한 확인 → GET /api/knowledge/2 |
+| 결과 반환 | 애플리케이션 | 원문 + 상태 기록 |
+
+⚠️ FastAPI 경로를 만들었다고 Agent 도구가 되지는 않아요. 모델은 "이걸 부르자"고 제안만 하고, 실제 호출·권한 확인·기록은 우리 애플리케이션 책임이에요. 처음 연결할 땐 조회(GET)부터 — 수정·삭제를 Agent에게 맡기려면 별도 권한·승인 규칙이 먼저예요.
+
+🤔 왜 Agent에게 삭제부터 안 줘? — LLM은 그럴듯하게 틀릴 수 있어요(VLM이 이미지에 없는 내용을 지어내듯). 조회는 틀려도 답이 이상할 뿐이지만, 삭제는 원본이 사라져요. 되돌릴 수 없는 일일수록 사람의 승인을 거치게 해요.
+
+## ⑪ 🩺 문제가 생기면 — 가장 가까운 원인부터
+
+| 증상 | 먼저 볼 것 | 구분할 점 |
+|---|---|---|
+| 서버 접속이 안 됨 | 터미널(서버가 떠 있나) · 포트 · 실행 명령 | HTTP 오류 응답과는 다름 — 응답 자체가 없음 |
+| 404 / 405 | /docs의 Path · Method · ID | 없는 자원(404) vs 그 Method가 없음(405) |
+| 422 | detail의 loc · msg | Path · Query · Body 중 어디인가 |
+| 파일 없음 / JSON 오류 | 파일 경로 · 괄호 · 큰따옴표 · 끝 쉼표 | 빈 데이터로 덮어쓰지 않기 |
+| 재실행하면 값이 달라짐 | 자동 초기화 코드 · 다른 폴더의 파일 | 서버 재시작과 seed 복사는 다른 일 |
+| 코드를 고쳤는데 그대로 | 서버가 두 개 떠 있지 않은지 · --reload | 같은 Route 중복 등록 |
+
+⚠️ 없는 ID를 시험할 땐 Body는 정상값으로 보내요. 없는 ID + 빠진 필드를 한꺼번에 보내면 422가 먼저 나와서 404를 확인할 수 없어요. 오류 조건은 한 번에 하나씩.
+
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| Uvicorn | 요청 수신 · 서버 프로세스 | 데이터 준비 (/health 200 ≠ 파일 정상) |
+| Route + 함수 (@app.get 등) | Method · Path → 함수 연결 | 같은 Route 중복 등록 막기 |
+| Pydantic 입력 모델 (KnowledgeWrite) | 형식 검사 · 실패 시 함수 실행 전 422 | 내용의 사실 · 권한 |
+| response_model (Knowledge) | 응답 모양 정리 · next_id 같은 내부 값 차단 | 응답 = 파일에 저장된 값 |
+| HTTPException · 상태 코드 | 실패를 숫자(4xx · 5xx)로 드러냄 | — |
+| next_id | 재사용 없는 ID | 빈 번호 없는 연속 번호 (삭제하면 빔) |
+| with LOCK: | 한 프로세스 안에서 읽기~저장을 한 번에 하나씩 | 여러 프로세스 · 서버, 편집기로 직접 고치기 |
+| 임시 파일 + replace() | 쓰다 실패해도 원본 보존 | 여러 변경을 한 묶음으로 확정 (→ 트랜잭션) |
+| 재시작 후 재조회 | 파일에 저장됐다는 증거 | — |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+지식 관리 API(JSON 파일 버전)의 약속을 한곳에 모았어요. 저장소를 PostgreSQL로 바꿔도(FastAPI–PostgreSQL 연동) 1·2·4번(바깥 약속)은 그대로예요.
 
 ### 1. 엔드포인트
 
@@ -10248,340 +11299,57 @@ Agent 도구Agent가 "지식 조회"를 부를 때 실제로 찾는 곳
 | 실패한 요청 | 파일·next_id를 바꾸지 않음 |
 | 재시작 | 파일에서 다시 읽으니 수정·삭제 결과가 그대로 |
 
-## ① 첫 서버 띄우기
+## 📦 패키지 · 명령어
 
-API(Application Programming Interface)는 프로그램끼리 주고받는 약속된 창구예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.
-
-🔧 main.py — 첫 JSON 응답 명령어 사전에서 자세히 →
-
-```
-app = FastAPI(title="Knowledge API")       # 앱 객체 만들기
-@app.get("/health")                        # GET /health 요청이 오면
-```
-
-🔧 서버 실행 명령어 사전에서 자세히 →
-
-```
-python -m uvicorn main:app --reload
-http://127.0.0.1:8000/health      → {"status":"ok"}
-```
-
-🔧 /docs — 자동 문서에서 요청 보내기 명령어 사전에서 자세히 →
-
-## ② HTTP 요청과 응답
-
-HTTP는 브라우저·프로그램이 서버와 대화하는 규칙이에요. 대화는 항상 요청 1개 ↔ 응답 1개가 한 쌍이에요.
-
-[그림: http://127.0.0.1:8000/api/knowledge/2?category=api 를 통신 방식, 내 컴퓨터, 포트, 자원 경로, Path 값, Query로 나눠 색칠한 그림] 무엇을 보나: URL 하나를 색깔별로 잘랐어요. 127.0.0.1:8000까지가 "어느 서버", /api/knowledge가 "무슨 자원", /2가 "그중 어느 것(Path 값)", ?category=api가 "어떤 조건으로(Query)"예요. 🤔 왜 둘을 나눠? Path는 대상을 콕 집을 때(2번 지식), Query는 목록을 걸러낼 때(분류가 api인 것만) 써요. 빠지면 안 되는 건 Path, 있어도 없어도 되는 건 Query가 자연스러워요.
-
-| 이름 | 예시 | 역할 |
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
 |---|---|---|
-| Method | GET · POST · PUT · DELETE | 무엇을 하려는지 (요청의 의도) |
-| Path | /api/knowledge/4 | 어떤 자원의 어느 것인지 |
-| Query | ?category=api | 목록을 거를 선택 조건 |
-| Header | Content-Type: application/json | 본문 형식 같은 부가 정보 |
-| Body | {"title": "실습 환경 안내", ...} | 새로 만들거나 고칠 데이터 (GET엔 보통 없음) |
-| Status | 200 · 201 · 204 · 404 · 422 | 처리 결과를 숫자로 |
-| Response body | 지식 JSON / 오류 detail / 없음 | 클라이언트가 받는 내용 |
+| fastapi | 주소(Route)와 함수를 연결하고, 입력 검증·자동 문서(/docs)를 만들어 줌 | from fastapi import FastAPI, HTTPException, Response |
+| uvicorn | 실제로 네트워크 요청을 받아 FastAPI 앱에 넘겨주는 서버 프로그램 | 직접 import 안 함 — python -m uvicorn main:app으로 실행 |
+| pydantic | 입력·응답 데이터의 모양 검사 (fastapi를 깔면 같이 설치됨) | from pydantic import BaseModel, Field |
+| json, pathlib, threading | 파일 읽기/쓰기, 파일 경로, 잠금 — 파이썬 기본 내장이라 설치 안 함 | import json, from pathlib import Path, from threading import Lock |
+| jinja2 (선택) | JSON 대신 HTML 화면을 만들 때 쓰는 템플릿 엔진 | from fastapi.templating import Jinja2Templates |
+| pytest, httpx (선택) | 자동 테스트. TestClient가 내부에서 httpx를 씀 | from fastapi.testclient import TestClient |
+
+### 🔧 설치 · 확인 (PowerShell)
 
 ```
-# 요청                                   # 응답
-GET /api/knowledge/2                     Status: 200
-Host: 127.0.0.1:8000                     Content-Type: application/json
-(Body 없음)                              {"id": 2, "title": "서버 실행",
-                                          "category": "api",
-                                          "content": "uvicorn으로 개발 서버를 켠다."}
+python --version                                   # 3.10 이상인지
+python -m venv .venv                               # 프로젝트 전용 가상환경 만들기
+.\.venv\Scripts\Activate.ps1                       # 가상환경 켜기
+python -m pip install fastapi uvicorn
+python -c "import sys; print(sys.executable)"      # 지금 쓰는 python이 .venv 안의 것인지
+python -m pip show fastapi pydantic uvicorn        # 설치된 버전 확인
 ```
 
-[그림: 클라이언트, Uvicorn, Route, 타입 검증, 처리 함수, storage.py 여섯 칸을 지나 200, 404, 422로 갈라지는 흐름도] 무엇을 보나: GET /api/knowledge/2 한 건이 ①→⑥을 차례로 지나요. 같은 경로라도 어디서 멈추느냐에 따라 결과가 갈라져요 — foo는 ④ 타입 검증에서 정수로 못 바꿔 422(함수는 아예 실행 안 됨), 9999는 ⑤ 함수가 끝까지 못 찾아 404, 2는 ⑥에서 찾아 200. 🤔 왜 알아야 해? 상태 코드만 보고 "어느 단계에서 막혔는지"를 바로 알 수 있어서, 오류가 나면 고칠 곳을 좁힐 수 있어요.
-
-🤔 왜 URL을 직접 쪼개서 해석하지 않아? — FastAPI가 Route(Method+Path 대조) → 타입 검증 → 함수 → 응답을 순서대로 연결해 줘요. 우리는 "knowledge_id: int"라고 약속만 적으면, 문자열 "2"를 정수 2로 바꾸고 안 되면 422를 돌려주는 일까지 자동이에요.
-
-## ③ JSON 파일 저장소
-
-오늘의 저장소는 데이터베이스가 아니라 JSON 파일 하나예요. 서버를 껐다 켜도 지식이 남아 있게 하려면 메모리(변수)가 아니라 파일에 써야 해요.
+💡 활성화(Activate.ps1)가 보안 정책 때문에 막힐 때는 정책을 억지로 바꾸지 말고, 가상환경의 python을 경로로 직접 부르면 돼요. 활성화는 "python이라고만 쳐도 .venv 것을 쓰게 해 주는" 편의 기능일 뿐이에요.
 
 ```
-// data/knowledge.json
-{
-  "next_id": 4,
-  "entries": [
-    {"id": 1, "title": "가상환경", "category": "setup", "content": "프로젝트별 패키지를 분리한다."},
-    {"id": 2, "title": "서버 실행", "category": "api",   "content": "uvicorn으로 개발 서버를 켠다."},
-    {"id": 3, "title": "입력 오류", "category": "api",   "content": "422이면 입력값을 확인한다."}
-  ]
-}
+.\.venv\Scripts\python.exe -m pip install fastapi uvicorn
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
+Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요청 확인
 ```
 
-| 키 | 뜻 |
+🤔 왜 pip 대신 python -m pip? — PC에 파이썬이 여러 개 있으면 pip가 엉뚱한 파이썬에 설치할 수 있어요. python -m pip은 "지금 이 python에 설치해"라는 뜻이라 설치한 곳과 실행하는 곳이 어긋나지 않아요. python -m uvicorn도 같은 이유예요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 같은 코드를 TestClient와 임시 폴더로 실제로 실행해서 얻은 값이에요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
 |---|---|
-| entries | 지식 항목 목록. 항목 1건 = id + 제목 + 본문 + 분류 |
-| id | 서버가 발급하는 번호. 사용자가 정하지 않아요 |
-| next_id | 다음에 줄 번호. 파일 안에만 두고, API 응답에는 내보내지 않아요 |
-
-⚠️ JSON 문자열은 큰따옴표만 돼요('가상환경' ❌). 마지막 항목 뒤 쉼표도 안 돼요. 파일 문법이 깨지면 서버가 읽다가 실패해요.
-
-🔧 storage.py — 읽기·쓰기 보조 함수 명령어 사전에서 자세히 →
-
-```
-json.dump(data, f, ensure_ascii=False, indent=2)
-temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기
-```
-
-[그림: 왼쪽은 원본에 바로 쓰다 중간에 끊겨 반쯤 쓰인 파일, 오른쪽은 임시 파일에 다 쓴 뒤 원본과 바꿔치기하는 그림] 무엇을 보나: 왼쪽은 knowledge.json을 바로 "w"로 열어 쓰다가 도중에 멈춘 경우예요. "w"로 여는 순간 원본 내용이 지워지니, 반쯤 쓰인 깨진 JSON만 남아요. 오른쪽은 .tmp에 먼저 끝까지 쓰고, 성공했을 때만 replace()로 바꿔치기해요. 🤔 왜? 쓰다 실패해도 망가지는 건 임시 파일뿐이라 원본이 살아남아요. 그래서 "저장 실패 = 예전 데이터 그대로"가 보장돼요.
-
-🔧 with LOCK: — 읽기부터 저장까지 한 번에 잠그기 명령어 사전에서 자세히 →
-
-```
-with LOCK:                       # 이 블록은 한 번에 한 요청만
-    data = read_data()           # 1. 읽고
-```
-
-[그림: 동시에 20건을 등록했을 때 Lock 없이는 1건, with LOCK은 20건이 저장된 가로 막대그래프] 무엇을 보나: 스레드 20개가 동시에 "파일 읽기 → 항목 추가 → 저장"을 했을 때 파일에 남은 항목 수예요(이 PC에서 직접 5번 돌린 결과, 읽기와 저장 사이에 0.01초 틈을 일부러 넣어 차이를 크게 보이게 했어요). Lock이 없으면 20건을 보냈는데 1건만 남았어요. 🤔 왜? 20개가 모두 "빈 파일"을 거의 동시에 읽고, 각자 1건을 더해 저장했어요. 나중에 저장한 쪽이 앞선 저장을 덮어써서 결국 하나만 남아요. with LOCK:으로 읽기~저장을 묶으면 앞 요청이 끝날 때까지 다음 요청이 기다리니 20건이 다 남아요.
-
-## ④ 조회 (GET) — 목록·상세·조건
-
-🔧 목록 조회 명령어 사전에서 자세히 →
-
-```
-@app.get("/api/knowledge")
-    return data["entries"]          # list를 돌려주면 JSON 배열
-```
-
-🔧 상세 조회 + 404 명령어 사전에서 자세히 →
-
-```
-@app.get("/api/knowledge/{knowledge_id}")
-    raise HTTPException(404, "Knowledge not found")   # 끝까지 없으면 404
-```
-
-🔧 Query로 목록 거르기 명령어 사전에서 자세히 →
-
-```
-@app.get("/api/knowledge")
-def list_knowledge(category: str | None = None):     # 기본값이 있으면 → Query, 생략 가능
-```
-
-## ⑤ 등록 (POST) · 입력 검증
-
-새 지식은 URL이 아니라 Body에 담아 보내요. ID는 보내지 않아요 — 서버가 정해요.
-
-```
-POST /api/knowledge
-Content-Type: application/json
-
-{
-  "title": "실습 환경 안내",
-  "content": "Python 3.10 이상을 사용한다.",
-  "category": "setup"
-}
-```
-
-🔧 Pydantic으로 입력 모양 정하기 명령어 사전에서 자세히 →
-
-```
-class KnowledgeWrite(BaseModel):                          # POST·PUT 입력
-    title: str = Field(min_length=1, max_length=80)
-```
-
-🔧 등록 함수 명령어 사전에서 자세히 →
-
-```
-@app.post("/api/knowledge", status_code=201, response_model=Knowledge)
-def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite로 검사
-```
-
-[그림: 위는 len+1 방식으로 ID 2 삭제 후 새 항목이 3을 받아 충돌, 아래는 next_id 방식으로 4를 받는 그림] 무엇을 보나: 위 줄은 "목록 길이 + 1"로 번호를 매긴 경우예요. ID 2를 지우면 길이가 2가 되고, 새 항목이 3을 받아 이미 있는 3번과 겹쳐요(빨강). 아래 줄은 next_id를 파일에 따로 적어 두는 강의 방식 — 삭제해도 4는 그대로라 새 항목은 4를 받아요. 🤔 왜? ID는 "이 지식의 이름표"라 한 번 쓴 번호는 다시 쓰면 안 돼요. 지워진 2번을 기억하던 다른 프로그램이 새 항목을 옛 지식으로 착각할 수 있어요. 그래서 next_id는 줄이지 않고, entries와 같은 파일에 저장해 재시작해도 이어져요.
-
-🔧 422 — 잘못된 입력은 저장 전에 막힘 명령어 사전에서 자세히 →
-
-## ⑥ 수정 (PUT)
-
-```
-PUT /api/knowledge/4
-Content-Type: application/json
-
-{"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}
-```
-
-이 API의 PUT 규칙: 세 필드를 모두 보내 내용을 통째로 교체해요. ID·항목 수·next_id는 그대로예요.
-
-🔧 수정 함수 명령어 사전에서 자세히 →
-
-```
-@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
-def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Body 둘 다
-```
-
-[그림: id 1, 3, 4 세 항목 아래에 index 0, 1, 2를 적고, entries[4]는 IndexError, entries[1]은 id 3 항목이라는 설명을 붙인 그림] 무엇을 보나: ID 2를 지운 뒤 목록이에요. 칸 안 숫자는 id(이름표), 아래 주황 숫자는 index(지금 줄 선 순서)예요. entries[4]로 id 4를 찾으면 위치는 0~2뿐이라 오류, entries[1]로 id 1을 찾으면 엉뚱하게 id 3이 나와요. 🤔 왜? 처음엔 우연히 id 1이 index 0, id 2가 index 1…처럼 하나씩 밀려 맞아 보이지만, 삭제가 한 번 일어나면 바로 어긋나요. 그래서 data["entries"][knowledge_id]로 찾지 않고, 하나씩 돌며 entry["id"] == knowledge_id로 비교해요.
-
-## ⑦ 삭제 (DELETE) · 상태 코드
-
-지우는 건 knowledge.json 파일 전체가 아니라, 그 안에서 ID가 일치하는 항목 하나예요. 나머지 항목과 next_id는 그대로예요.
-
-🔧 삭제 함수 명령어 사전에서 자세히 →
-
-```
-@app.delete("/api/knowledge/{knowledge_id}", status_code=204)
-    return Response(status_code=204)       # 본문 없는 성공
-```
-
-### 지금까지 쓴 상태 코드
-
-| 코드 | 우리 API의 상황 | 다음에 확인할 것 |
-|---|---|---|
-| 200 OK | 목록·상세 조회 / 정상 수정 | 응답 데이터 = 저장된 값? |
-| 201 Created | 새 항목 생성 | 새 ID가 실제 파일에도? |
-| 204 No Content | 삭제 성공 | 본문 없음 + 재조회 404 |
-| 404 Not Found | 없는 경로 / 없는 지식 | Path 오타인지 ID가 없는 건지 |
-| 405 Method Not Allowed | 경로는 있는데 그 Method는 없음 | GET·POST·PUT·DELETE 중 맞는지 |
-| 422 Unprocessable | 자료형·필수값·길이 규칙 위반 | detail의 loc·msg |
-| 500 Server Error | 서버 코드·파일 접근 오류 | 서버 터미널 로그와 저장 파일 |
-
-🤔 왜 숫자가 2xx·4xx·5xx로 나뉘어? — 첫 자리만 봐도 누구 탓인지 알 수 있어요. 2xx 성공, 4xx 요청한 쪽이 뭔가 잘못 보냄(주소·입력), 5xx 서버가 처리하다 실패. 그래서 404·422를 200으로 숨기면 안 돼요 — 받는 프로그램이 실패를 알아챌 방법이 사라져요.
-
-⚠️ 실패한 요청은 파일을 바꾸면 안 돼요. 422는 함수 실행 전에 막히니 저장 코드가 안 돌고, 404는 저장 전에 raise 하고, 쓰기 실패 땐 성공 응답을 만들지 않아요. 확인할 때는 실패 요청 전후로 항목 수와 next_id가 같은지 봐요.
-
-## 🧪 직접 요청 보내 보기
-
-브라우저 안에서 오늘 만든 API를 흉내 냈어요(실제 서버는 아니고, 강의 코드와 같은 규칙으로 움직여요). Method와 ID, Body를 바꿔 보내기를 누르면 상태 코드·응답·파일 내용이 바뀌어요. 아래 칸은 knowledge.json이에요.
-
-💡 해 볼 것: ① id에 foo 넣고 GET → 422 ② POST 두 번 → id 4, 5 ③ id 2 DELETE 후 len+1 방식을 켜고 POST → 번호 충돌 ④ PUT으로 없는 id 9999 → 404이고 파일은 그대로 ⑤ 서버 재시작 후에도 파일이 남는지.
-
-## ⑧ 끝까지 추적 · 재시작 확인
-
-지식 하나를 만들고 → 고치고 → 서버를 껐다 켜고 → 지우고 → 다시 껐다 켜며, 각 단계에서 파일 상태가 예상대로인지 봐요.
-
-[그림: 6단계 동안 저장된 항목 수(3,4,4,4,3,3)와 next_id(4,5,5,5,5,5)를 계단 그래프로 그리고 각 단계의 상태 코드를 적은 그림] 무엇을 보나: 강의 코드를 실제로 돌리며 기록한 값이에요. 보라 실선은 저장된 항목 수, 주황 점선은 next_id예요. POST에서 둘 다 1씩 오르고, PUT과 재시작에서는 그대로, DELETE에서는 항목 수만 줄고 next_id는 5로 남아요. 아래 글씨는 각 단계의 응답이에요. 🤔 왜 재시작까지 봐? 응답은 "방금 메모리에서 만든 값"일 뿐이에요. 서버를 껐다 켜도 같은 값이 나와야 파일에 진짜 저장된 거예요. 응답만 바뀌고 파일이 그대로면 미완성이에요.
-
-| 순서 | 요청·조작 | 예상 데이터 상태 |
-|---|---|---|
-| 1 | 처음 파일 확인 | 항목 3개 · next_id 4 |
-| 2 | "실습 환경 안내" POST → 받은 ID 기록 | 항목 4개 · id 4 · next_id 5 |
-| 3 | 같은 ID 본문 PUT | 개수·ID 그대로, 본문만 변경 |
-| 4 | 서버 종료(Ctrl+C) → 같은 폴더·같은 명령으로 재실행 | 수정한 본문이 그대로 조회됨 |
-| 5 | 같은 ID DELETE → 재조회 | 상세 404 · 목록에서 사라짐 |
-| 6 | 다시 재실행 → 재조회 | 삭제 상태 유지 · next_id 5 |
-
-⚠️ 서버 시작 ≠ 데이터 초기화. 서버를 켤 때마다 seed(처음 데이터)를 복사하는 코드가 있으면 재시작할 때마다 수정·삭제가 되돌아가요. 초기화는 서버를 끄고 따로, 일부러 하는 작업이에요. 재실행했더니 값이 달라졌다면 자동 초기화나 다른 폴더의 파일을 읽고 있지 않은지 의심해요.
-
-## ⑨ 역할별로 파일 나누기
-
-기능이 늘면 main.py 하나가 너무 길어져요. 바뀌는 이유가 다른 코드를 다른 파일로 나눠요.
-
-```
-fastapi_knowledge/
-├─ app/
-│  ├─ __init__.py
-│  ├─ main.py                 ← 앱 만들고 Router 등록만
-│  ├─ schemas.py              ← 입력·응답 모양 (KnowledgeWrite, Knowledge)
-│  ├─ routers/
-│  │  ├─ __init__.py
-│  │  └─ knowledge.py         ← HTTP: Method·Path·상태 코드
-│  └─ repositories/
-│     ├─ __init__.py
-│     └─ json_knowledge.py    ← 저장: 읽기·변경·저장·LOCK
-├─ data/
-│  ├─ knowledge.json          ← 실제 데이터
-│  └─ knowledge.seed.json     ← 처음 데이터 (초기화용)
-├─ README.md
-└─ requirements.txt
-```
-
-[그림: main.py에서 routers, repositories, data/knowledge.json으로 이어지고 아래 schemas.py가 router에 연결된 구조도] 무엇을 보나: 요청은 왼쪽에서 오른쪽으로 흘러요. main은 조립만, Router는 HTTP 약속(어떤 주소·어떤 상태 코드), Repository는 파일 읽기·저장, 맨 오른쪽이 실제 데이터예요. 아래 schemas는 Router가 입력 검사와 응답 모양에 써요. 🤔 왜 나눠? 데이터가 같아도 HTTP 규칙과 저장 방식은 바뀌는 이유가 달라요. 다음 수업에서 JSON 파일을 PostgreSQL로 바꿀 때 Repository만 고치면 되고, URL·상태 코드는 그대로 둘 수 있어요.
-
-🔧 app/main.py — 조립 명령어 사전에서 자세히 →
-
-```
-app.include_router(router)                 # Router에 모아 둔 경로들을 앱에 연결
-python -m uvicorn app.main:app --reload
-```
-
-🔧 APIRouter — 관련 경로 묶기 명령어 사전에서 자세히 →
-
-```
-router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
-@router.post("", status_code=201, response_model=Knowledge)
-```
-
-🔧 Repository — 저장 로직 그대로 옮기기 명령어 사전에서 자세히 →
-
-```
-BASE = Path(__file__).resolve().parents[2]       # 프로젝트 루트 (repositories → app → 루트)
-def create(fields: dict) -> dict:
-```
-
-🔧 같은 데이터를 HTML 화면으로 (Template) 명령어 사전에서 자세히 →
-
-```
-templates = Jinja2Templates(directory=BASE / "templates")
-@app.get("/web/knowledge", response_class=HTMLResponse)
-```
-
-🔧 자동 테스트 — 실제 지식 파일은 건드리지 않게 명령어 사전에서 자세히 →
-
-```
-monkeypatch.setattr(repo, "DATA", test_file)       # 저장 경로만 임시 파일로 바꿔치기
-with TestClient(app) as client:
-```
-
-## ⑩ 다음 단계와 연결
-
-### 왜 파일로 되는데 DB를 배워?
-
-| 오늘의 JSON 파일 | PostgreSQL에서 풀 질문 |
-|---|---|
-| 정상 저장 후 재시작해도 남아요 | 동시에 여러 요청이 바꾸면? |
-| 작은 파일 전체를 읽고 전체를 다시 저장해요 | 데이터가 10만 건이면? 필요한 줄만 읽을 수 없나? |
-| Lock은 서버 프로세스 하나 안에서만 | 서버가 여러 대면? |
-| 표 하나(entries) | 작성자·분류 같은 여러 표의 관계를 어떻게 지키지? |
-| — | 여러 변경을 "모두 성공 아니면 모두 취소"로 하려면? → 트랜잭션 |
-
-| 날짜 | 핵심 질문 | 결과 |
-|---|---|---|
-| 11/10 (오늘) | HTTP로 지식을 어떻게 CRUD 하나? | JSON 파일 기반 FastAPI CRUD |
-| 11/11 | 표·관계·SQL로 데이터를 어떻게 다루나? | SQL CRUD · JOIN · ERD · 트랜잭션 |
-| 11/12 | 오늘 API를 PostgreSQL에 어떻게 연결하나? | ORM · 연동 CRUD · 설정 · 통합 테스트 |
-| 11/13 ~ 11/20 | LLM · Prompt · LLM API · Embedding · Vector DB · Chunking | Retriever–Prompt–Generator, 즉 RAG를 API로 제공 |
-
-🤔 왜 URL·Method는 그대로 두라고 해? — 이 API를 부르는 쪽(화면, 다른 서버, 나중의 Agent)은 주소와 응답 모양만 알아요. 저장소가 파일에서 DB로 바뀌어도 약속이 같으면 부르는 쪽은 아무것도 고칠 필요가 없어요. 그래서 바꾸는 건 저장 구현(Repository)뿐이에요.
-
-### Agent와 API가 만나는 두 방향
-
-| 방향 | 흐름 | 뜻 |
-|---|---|---|
-| 사용자가 Agent를 부름 | 사용자 → FastAPI → Agent 처리 | API가 Agent의 서비스 입구. 작업 요청을 검증하고 결과·상태를 전달 |
-| Agent가 API를 씀 | Agent → 도구 함수 → 지식 API | "지식 조회"를 도구로 연결. 도구의 설명·입력·실행 코드는 따로 만들어요 |
-
-| 단계 | 누가 | 예 |
-|---|---|---|
-| 판단 | Agent(LLM) | "지식 조회가 필요하다" |
-| 도구 호출 제안 | Agent(LLM) | get_knowledge(2) |
-| 검증·실행 | 애플리케이션 | 권한 확인 → GET /api/knowledge/2 |
-| 결과 반환 | 애플리케이션 | 원문 + 상태 기록 |
-
-⚠️ FastAPI 경로를 만들었다고 Agent 도구가 되지는 않아요. 모델은 "이걸 부르자"고 제안만 하고, 실제 호출·권한 확인·기록은 우리 애플리케이션 책임이에요. 처음 연결할 땐 조회(GET)부터 — 수정·삭제를 Agent에게 맡기려면 별도 권한·승인 규칙이 먼저예요.
-
-🤔 왜 Agent에게 삭제부터 안 줘? — LLM은 그럴듯하게 틀릴 수 있어요(Day16의 VLM이 없는 걸 지어낸 것처럼). 조회는 틀려도 답이 이상할 뿐이지만, 삭제는 원본이 사라져요. 되돌릴 수 없는 일일수록 사람의 승인을 거치게 해요.
-
-## 🩺 문제가 생기면 — 가장 가까운 원인부터
-
-| 증상 | 먼저 볼 것 | 구분할 점 |
-|---|---|---|
-| 서버 접속이 안 됨 | 터미널(서버가 떠 있나) · 포트 · 실행 명령 | HTTP 오류 응답과는 다름 — 응답 자체가 없음 |
-| 404 / 405 | /docs의 Path · Method · ID | 없는 자원(404) vs 그 Method가 없음(405) |
-| 422 | detail의 loc · msg | Path · Query · Body 중 어디인가 |
-| 파일 없음 / JSON 오류 | 파일 경로 · 괄호 · 큰따옴표 · 끝 쉼표 | 빈 데이터로 덮어쓰지 않기 |
-| 재실행하면 값이 달라짐 | 자동 초기화 코드 · 다른 폴더의 파일 | 서버 재시작과 seed 복사는 다른 일 |
-| 코드를 고쳤는데 그대로 | 서버가 두 개 떠 있지 않은지 · --reload | 같은 Route 중복 등록 |
-
-⚠️ 없는 ID를 시험할 땐 Body는 정상값으로 보내요. 없는 ID + 빠진 필드를 한꺼번에 보내면 422가 먼저 나와서 404를 확인할 수 없어요. 오류 조건은 한 번에 하나씩.
+| PostgreSQL 입문 · 지식 관리 DB | 파일 저장소로 부족한 관계 · 제약 · 트랜잭션을 표와 SQL로 |
+| FastAPI–PostgreSQL 연동 | 같은 URL · 상태 코드를 두고 저장소만 DB로 바꾸기 (ORM · 설정 · 통합 테스트) |
+| Prompt · Context Engineering · LLM API 클라이언트 | 이 API가 관리하는 원본을 LLM 입력 · 출처로 쓰기 |
+| Embedding · Vector Search | ?q= 글자 포함 검색이 아니라 뜻으로 찾기 |
+| RAG · Agent | 검색한 원문을 근거로 답하기 · "지식 조회"를 도구로 연결 |
 
 ## 원본 자료
 
-- 강의: 20261110.pdf (FastAPI 입문 · 지식 관리 API, 94쪽) — 플랫폼 속 위치 p2–11 · 첫 서버 p12–20 · JSON 조회 p22–28 · POST·검증 p30–36 · PUT p38–41 · DELETE·상태 코드 p43–47 · 역할별 구조·Template p49–55 · 플랫폼 연결 p57–65 · 부록(저장·Lock·용어·PATCH·검색·Template·테스트·Windows 실행) p79–91
+- 원본: 20261110.pdf (FastAPI 입문 · 지식 관리 API, 94쪽) — 플랫폼 속 위치 p2–11 · 첫 서버 p12–20 · JSON 조회 p22–28 · POST·검증 p30–36 · PUT p38–41 · DELETE·상태 코드 p43–47 · 역할별 구조·Template p49–55 · 플랫폼 연결 p57–65 · 부록(저장·Lock·용어·PATCH·검색·Template·테스트·Windows 실행) p79–91
 
-- 노트의 실제 응답·Lock 실험 값: 강의 코드를 FastAPI 0.162.2 · Pydantic 2.14.3에서 직접 실행해 확인 (그림 스크립트 tools/visuals/make_day17.py)
+- 실제 응답·Lock 실험 값: 원본 코드를 FastAPI 0.162.2 · Pydantic 2.14.3에서 직접 실행해 확인 (그림 스크립트 tools/visuals/make_day17.py)
 
 - 공식 문서: FastAPI First Steps · Path Parameters · Query Parameters · Request Body
 
@@ -10594,19 +11362,18 @@ with TestClient(app) as client:
 ## 🔧 Day17 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day17)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | python -m pip install fastapi uvicorn |
-| 📋 명세 | 엔드포인트 · 요청/응답 스키마 · 저장 파일 · 오류 응답 · 동작 보장 |
-| ① 첫 서버 띄우기 | FastAPI(), @app.get(), python -m uvicorn main:app --reload |
-| ② HTTP 요청과 응답 | Method · Path · Query · Body · Status, /docs의 Try it out |
-| ③ JSON 파일 저장소 | json.load(), json.dump(), with LOCK:, temp.replace() |
-| ④ 조회 (GET) | @app.get("/api/knowledge/{knowledge_id}"), raise HTTPException(404) |
-| ⑤ 등록 (POST) · 입력 검증 | class KnowledgeWrite(BaseModel), Field(min_length=, max_length=), status_code=201 |
+| ① API와 FastAPI — 서비스의 입구 | FastAPI(), @app.get(), python -m uvicorn main:app --reload, /docs |
+| ② HTTP 요청과 응답 | Method · Path · Query · Body · Status, /openapi.json |
+| ③ JSON 파일 저장소 | json.load(), json.dump(ensure_ascii=False), Path.replace(), threading.Lock |
+| ④ 조회 (GET) | @app.get("/api/knowledge/{knowledge_id}"), raise HTTPException(404), Query(max_length=) |
+| ⑤ 등록 (POST) · 입력 검증 | class KnowledgeWrite(BaseModel), Field(min_length=, max_length=), status_code=201, response_model= |
 | ⑥ 수정 (PUT) | @app.put(), enumerate(), data["entries"][i] = updated |
 | ⑦ 삭제 (DELETE) · 상태 코드 | @app.delete(status_code=204), Response(status_code=204) |
 | 🧪 직접 요청 보내 보기 | (브라우저 안에서 CRUD 흉내) |
 | ⑧ 끝까지 추적 · 재시작 | Ctrl+C → 같은 명령으로 재실행 → GET |
-| ⑨ 역할별로 파일 나누기 | APIRouter(prefix=, tags=), app.include_router(), uvicorn app.main:app |
-| ⑩ 다음 단계와 연결 | PostgreSQL · RAG · Agent (오늘은 구현 안 함) |
+| ⑨ 역할별로 파일 나누기 | APIRouter(prefix=, tags=), app.include_router(), Path(__file__).resolve().parents[2], Jinja2Templates, TestClient |
+| 📋 명세 | 엔드포인트 · 요청/응답 스키마 · 저장 파일 · 오류 응답 · 동작 보장 |
+| 📦 패키지 · 명령어 | python -m pip install fastapi uvicorn |
 
 ### main.py — 첫 JSON 응답
 
@@ -10620,7 +11387,7 @@ def health():                              # 이 함수를 실행해서
     return {"status": "ok"}                # 이 값을 JSON으로 돌려줌
 ```
 
-▶ 실제로 돌려 보면 강의 main.py를 TestClient로 호출
+▶ 실제로 돌려 보면 main.py를 TestClient로 호출
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -10697,43 +11464,43 @@ http://127.0.0.1:8000/docs        → 자동 API 문서
 
 ⚠️ 아래쪽 Responses 칸은 "이런 응답이 나올 수 있다"는 문서상 예시예요. 진짜 결과는 Server response의 Code·Body로 확인해요.
 
-### storage.py — 읽기·쓰기 보조 함수
+### json.load · json.dump · Path.replace — JSON 파일 읽기 · 안전하게 쓰기
 
 ```
 import json
 from pathlib import Path
 from threading import Lock
 
-BASE = Path(__file__).resolve().parent         # 이 파일(storage.py)이 있는 폴더
+BASE = Path(__file__).resolve().parent         # 이 코드 파일이 있는 폴더
 DATA = BASE / "data" / "knowledge.json"
 LOCK = Lock()
 
-def read_data():                                 # 파일 → dict
-    with DATA.open("r", encoding="utf-8") as f:
-        return json.load(f)
+# 읽기: 파일 → dict
+with DATA.open("r", encoding="utf-8") as f:
+    data = json.load(f)
 
-def write_data(data):                            # dict → 파일
-    temp = DATA.with_suffix(".tmp")
-    try:
-        with temp.open("w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기
-    finally:
-        temp.unlink(missing_ok=True)             # 남은 임시 파일 정리
+# 쓰기: 임시 파일에 끝까지 쓴 뒤 원본과 바꿔치기
+temp = DATA.with_suffix(".tmp")
+try:
+    with temp.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기
+finally:
+    temp.unlink(missing_ok=True)             # 남은 임시 파일 정리
 ```
 
-▶ 실제로 돌려 보면 임시 폴더의 storage.py + data/knowledge.json (처음 3건)
+▶ 실제로 돌려 보면 임시 폴더의 data/knowledge.json (처음 3건)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| storage.BASE.name, storage.DATA.relative_to(BASE) | 'single', 'data/knowledge.json' | storage.py가 있는 폴더 기준 경로 |
-| data = read_data(); type(data), list(data) | dict, ['next_id', 'entries'] | JSON 글자 → 파이썬 dict |
+| BASE.name, DATA.relative_to(BASE) | 'single', 'data/knowledge.json' | 코드 파일이 있는 폴더 기준 경로 |
+| data = json.load(f); type(data), list(data) | dict, ['next_id', 'entries'] | JSON 글자 → 파이썬 dict |
 | data["entries"][0]["title"] | '가상환경' | utf-8로 읽어 한글 그대로 |
-| write_data(data) 후 파일 2~3번째 줄 | "next_id": 4, \| "entries": [ | indent=2 줄바꿈 |
+| json.dump → replace 후 파일 2~3번째 줄 | "next_id": 4, \| "entries": [ | indent=2 줄바꿈 |
 | "가상환경" in 파일 내용 | True | ensure_ascii=False → 한글 그대로 저장 |
 | json.dumps("가상환경") (ensure_ascii 기본값) | "\uac00\uc0c1\ud658\uacbd" | 기본값이면 \uXXXX 코드로 바뀜 |
 | DATA.with_suffix(".tmp").exists() | False | 성공 후 임시 파일은 안 남음 |
-| write_data({… set 값 …}) (저장 실패) | TypeError: Object of type set is not JSON serializable | json.dump가 중간에 실패 |
+| json.dump({… set 값 …}) 로 저장 시도 (실패) | TypeError: Object of type set is not JSON serializable | json.dump가 중간에 실패 |
 | 실패 후 원본 bytes == 실패 전 | True | 임시 파일에서 실패해서 원본은 그대로 |
 | 실패 후 DATA.with_suffix(".tmp").exists() | False | finally에서 반쯤 쓴 임시 파일 정리 |
 
@@ -10745,8 +11512,12 @@ def write_data(data):                            # dict → 파일
 | ensure_ascii=False | 한글을 가 같은 코드 대신 그대로 저장 |
 | indent=2 | 사람이 읽기 좋게 줄바꿈·들여쓰기 |
 | with_suffix(".tmp") | 같은 폴더에 knowledge.tmp 경로 만들기 |
+| temp.replace(DATA) | 임시 파일을 원본 이름으로 바꿔치기 (os.replace와 같은 동작) |
+| unlink(missing_ok=True) | 파일이 있으면 지우고, 없어도 오류 내지 않음 |
 
-### with LOCK: — 읽기부터 저장까지 한 번에 잠그기
+💡 보통 이 읽기 · 쓰기 두 덩어리를 read_data() · write_data(data) 같은 작은 함수로 묶어 두고, 아래 엔드포인트 코드에서 불러 써요.
+
+### threading.Lock — 읽기부터 저장까지 한 번에 잠그기
 
 ```
 from storage import LOCK, read_data, write_data
@@ -10768,11 +11539,11 @@ with LOCK:                       # 이 블록은 한 번에 한 요청만
 
 🤔 왜 쓰기 한 줄만 잠그면 안 돼? — 문제는 "예전 내용을 읽은 채로 저장하는 것"이에요. 쓰기만 잠그면 두 요청이 같은 옛날 내용을 읽은 뒤 차례로 저장해서 결국 덮어써요. 그래서 읽기 → 변경 → 저장을 하나의 with LOCK 안에 둬요. FastAPI는 def 함수도 여러 요청을 동시에 처리할 수 있어서 이게 필요해요.
 
-⚠️ 이 Lock은 서버 프로세스 하나 안에서만 지켜 줘요. 서버를 여러 개 띄우거나, 실행 중에 편집기로 파일을 직접 고치거나, 여러 표를 한꺼번에 바꾸는 경우는 못 막아요. 그건 데이터베이스의 트랜잭션이 하는 일이에요(다음 수업).
+⚠️ 이 Lock은 서버 프로세스 하나 안에서만 지켜 줘요. 서버를 여러 개 띄우거나, 실행 중에 편집기로 파일을 직접 고치거나, 여러 표를 한꺼번에 바꾸는 경우는 못 막아요. 그건 데이터베이스의 트랜잭션이 하는 일이에요(PostgreSQL 트랜잭션).
 
 ⚠️ 파일 읽기에 실패하면 "빈 목록이겠지" 하고 빈 데이터로 덮어쓰면 안 돼요. 그 순간 지식이 전부 사라져요. 원인(경로·JSON 문법)을 먼저 확인해요.
 
-### 목록 조회
+### @app.get — 목록 조회
 
 ```
 @app.get("/api/knowledge")
@@ -10798,7 +11569,7 @@ def list_knowledge():
 
 🤔 왜 요청마다 파일을 다시 읽어? — 한 번 읽어 변수에 들고 있으면, 다른 요청이 파일을 바꿔도 옛날 값을 보여 줘요. 매번 읽으면 항상 파일이 진짜 기준이 돼요. GET은 읽기만 하고 파일을 절대 바꾸지 않아요.
 
-### 상세 조회 + 404
+### Path 매개변수 · HTTPException — 상세 조회 + 404
 
 ```
 from fastapi import HTTPException
@@ -10829,7 +11600,7 @@ def get_knowledge(knowledge_id: int):            # {knowledge_id} 자리 값을 
 | knowledge_id: int | Parameter — 어떤 값을 받나 (이름이 중괄호 안 이름과 같아야 해요) |
 | entry["id"] | Field — 어떤 자료와 비교하나 |
 
-강의 코드를 그대로 돌려 받은 실제 응답이에요 (FastAPI 0.162 · Pydantic 2.14):
+실제 응답:
 
 ```
 GET /api/knowledge/2     → 200 {"id":2,"title":"서버 실행","category":"api","content":"uvicorn으로 개발 서버를 켠다."}
@@ -10843,7 +11614,7 @@ GET /nope                → 404 {"detail":"Not Found"}      ← 경로 자체�
 
 💡 404가 두 종류예요. {"detail":"Not Found"}는 그런 주소(Route)가 아예 없음(오타), {"detail":"Knowledge not found"}는 주소는 맞는데 그 ID의 지식이 없음. detail 문구로 구분해요.
 
-### Query로 목록 거르기
+### Query 매개변수 · Query(max_length=) — 목록 거르기
 
 ```
 @app.get("/api/knowledge")
@@ -10890,9 +11661,9 @@ def list_knowledge(q: str = Query("", max_length=80)):
             result.append(entry)
 ```
 
-⚠️ ?q=서버는 글자가 그대로 들어 있는지만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 의미 기반 검색(RAG·벡터 검색)은 따로 배워요.
+⚠️ ?q=서버는 글자가 그대로 들어 있는지만 봐요(대소문자 구분). "개발 서버 켜는 법"을 물어도 "uvicorn 실행"을 못 찾아요. 뜻이 비슷한 걸 찾는 의미 기반 검색은 Embedding · Vector Search의 일이에요.
 
-### Pydantic으로 입력 모양 정하기
+### BaseModel · Field — 입력 모양 정하기
 
 ```
 from pydantic import BaseModel, Field
@@ -10929,7 +11700,7 @@ class Knowledge(KnowledgeWrite):                          # 응답 = 입력 + id
 
 🤔 왜 입력 모델과 응답 모델을 나눠? — 입력할 땐 id가 없어야 하고(서버가 정하니까), 응답할 땐 있어야 해요. 하나로 쓰면 사용자가 "id": 1을 보내 남의 번호를 흉내 낼 수 있어요. 그리고 이 모델은 DB 테이블이 아니에요 — 모양 검사만 하고, 저장은 다른 코드가 해요.
 
-### 등록 함수
+### @app.post(status_code=201, response_model=) — 등록
 
 ```
 @app.post("/api/knowledge", status_code=201, response_model=Knowledge)
@@ -10998,13 +11769,13 @@ def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite�
 
 | 검사 종류 | 질문 | 누가 막나 |
 |---|---|---|
-| 형식 | 세 필드가 있나? 길이가 맞나? | Pydantic → 자동 422 (오늘) |
+| 형식 | 세 필드가 있나? 길이가 맞나? | Pydantic → 자동 422 |
 | 내용 | 안내 내용이 맞나? 오래된 절차 아닌가? | 사람의 검토 — 코드가 못 막아요 |
-| 권한 | 아무나 고치고 지워도 되나? | 인증·권한 설계 (오늘은 로컬 학습용이라 없음) |
+| 권한 | 아무나 고치고 지워도 되나? | 인증·권한 설계 (이 예시 API에는 없음) |
 
 ⚠️ 형식 통과 ≠ 사실 · 권한 보장. "content": "Python 2.7을 쓴다"도 1~2,000자라 통과해요. response_model도 응답 모양만 검사해요. 잘못된 입력(형식)과 부정확한 원문(내용)을 구분해야 나중에 Agent가 믿을 수 있는 자료를 써요.
 
-### 수정 함수
+### @app.put · enumerate — 수정 (전체 교체)
 
 ```
 @app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
@@ -11047,9 +11818,9 @@ def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Bod
 
 🤔 왜 없는 ID로 PUT 하면 새로 만들지 않고 404? — "수정하라"고 했는데 몰래 만들어 버리면, ID를 잘못 적은 실수가 조용히 새 지식으로 쌓여요. 만드는 건 POST, 고치는 건 PUT으로 역할을 나눠야 실수가 드러나요.
 
-💡 PUT vs PATCH — PUT은 전체 교체(세 필드 다), PATCH는 바꿀 필드만 보내는 부분 수정이에요. PATCH는 payload.model_dump(exclude_unset=True)로 "보낸 필드만" 꺼낼 수 있지만, "안 보냄"과 "null로 보냄"을 구분하는 규칙을 따로 정해야 해서 오늘은 PUT만 써요. 이 API에 PATCH를 보내면 405 Method Not Allowed가 나와요.
+💡 PUT vs PATCH — PUT은 전체 교체(세 필드 다), PATCH는 바꿀 필드만 보내는 부분 수정이에요. PATCH는 payload.model_dump(exclude_unset=True)로 "보낸 필드만" 꺼낼 수 있지만, "안 보냄"과 "null로 보냄"을 구분하는 규칙을 따로 정해야 해서 이 API는 PUT만 둬요. 이 API에 PATCH를 보내면 405 Method Not Allowed가 나와요.
 
-### 삭제 함수
+### @app.delete · Response(status_code=204) — 삭제
 
 ```
 from fastapi import Response
@@ -11158,7 +11929,7 @@ def create_knowledge(payload: KnowledgeWrite):
 
 ⚠️ 옮긴 뒤에는 main.py에 남아 있던 같은 @app.post("/api/knowledge")를 지워야 해요. 같은 Route가 두 번 등록되면 먼저 등록된 쪽이 받아서, 고친 코드가 안 도는 것처럼 보여요.
 
-### Repository — 저장 로직 그대로 옮기기
+### Path(__file__).resolve().parents[n] — 깊은 폴더에서 프로젝트 루트 찾기
 
 ```
 # app/repositories/json_knowledge.py (일부)
@@ -11190,9 +11961,9 @@ def create(fields: dict) -> dict:
 
 🤔 왜 parent가 parents[2]로 바뀌어? — 코드가 놓인 파일이 app/repositories/ 안으로 두 단계 깊어졌으니까요. parents[0]=repositories, [1]=app, [2]=프로젝트 루트. 바뀐 건 파일 위치뿐이고 ID 발급·추가·저장 순서는 똑같아요.
 
-💡 나중에 RAG를 붙이면 "질의 Router → RAG 처리 함수 → 검색 + LLM" 길이 따로 생겨요. Repository에는 DB·파일 접근만 남겨요. 오늘은 Service 계층을 새로 만들지 않아요 — 책임이 다른 기능이 실제로 생길 때 나눠요.
+💡 나중에 RAG를 붙이면 "질의 Router → RAG 처리 함수 → 검색 + LLM" 길이 따로 생겨요. Repository에는 DB·파일 접근만 남겨요. Service 계층은 미리 만들지 않고, 책임이 다른 기능이 실제로 생길 때 나눠요.
 
-### 같은 데이터를 HTML 화면으로 (Template)
+### Jinja2Templates · TemplateResponse — 같은 데이터를 HTML 화면으로
 
 ```
 from fastapi import Request
@@ -11232,9 +12003,9 @@ def knowledge_page(request: Request):
 | Content-Type | application/json | text/html |
 | 누가 쓰나 | 프로그램 (다른 서버·Agent·관리 화면) | 사람 (브라우저 화면) |
 
-🤔 왜 둘 다 있어? — 둘은 같은 파일을 읽어요. 다만 프로그램은 값을 꺼내 쓰기 쉬운 JSON이 필요하고, 사람은 보기 좋은 화면이 필요해요. 오늘 만드는 건 JSON API이고, Template은 비교용이에요.
+🤔 왜 둘 다 있어? — 둘은 같은 파일을 읽어요. 다만 프로그램은 값을 꺼내 쓰기 쉬운 JSON이 필요하고, 사람은 보기 좋은 화면이 필요해요. 지식 관리 API의 중심은 JSON API이고, Template은 비교용이에요.
 
-### 자동 테스트 — 실제 지식 파일은 건드리지 않게
+### TestClient · monkeypatch · tmp_path — 실제 지식 파일은 건드리지 않는 테스트
 
 ```
 # tests/test_knowledge.py      (pip install pytest httpx)
@@ -11321,43 +12092,43 @@ _2026-11-11(수) · PostgreSQL · SQL · PK/FK · JOIN · 집계 · 제약조건
 
 📌 딱 3줄 요약
 
-- 어제 JSON 파일 하나에 넣던 지식을 PostgreSQL의 표 두 개(categories 분류 · knowledge 지식)로 나누고, PK·FK로 관계를 묶어요.
+- JSON 파일 하나에 넣던 지식을 PostgreSQL의 표 두 개(categories 분류 · knowledge 지식)로 나누고, PK·FK로 관계를 묶어요.
 
 - SQL로 읽고(SELECT·WHERE·JOIN·GROUP BY) 바꿔요(INSERT·UPDATE·DELETE + RETURNING).
 
 - 잘못된 값은 제약조건이 거부하고, 여러 변경은 트랜잭션(BEGIN → COMMIT 또는 ROLLBACK)으로 묶어 확정하거나 없던 일로 해요.
 
-🔧 Day18 명령어 한눈에 — 이론 구역별 SQL·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — 서비스에서 값 하나까지
 
-본문에는 핵심 SQL 한두 줄만 남겼어요. 명령어 사전의 결과값은 같은 S0 데이터를 실제로 실행해 얻은 거예요.
+[그림: AI Agent 서비스, FastAPI, PostgreSQL 서버, knowledge_lab·public, categories·knowledge 두 테이블, 한 행의 category_id 값까지 왼쪽에서 오른쪽으로 확대해 가는 그림. 가운데 세 칸(DB 안쪽)이 초록 점선 안에 있다] 무엇을 보나: 왼쪽 서비스에서 오른쪽 값 하나까지 점점 확대했어요. 초록 점선 안(서버 → DB·스키마 → 테이블)이 SQL로 직접 만지는 곳이에요. 아래 회색 점선의 검색·RAG·Agent는 이 원본을 읽어 가는 별도 계층이에요. 🤔 왜 이렇게 나눠 봐? 문제가 생겼을 때 "서버에 못 붙은 건지, 다른 DB에 붙은 건지, 표가 없는 건지, 값이 틀린 건지"를 층별로 좁힐 수 있어요.
 
-## 📦 필요한 프로그램
+관계형 DB를 다루는 일은 아래 아홉 단계로 나눠 볼 수 있어요. 이 페이지의 ①~⑨가 이 순서예요.
 
-오늘은 pip install이 없어요. 파이썬이 아니라 DB 서버 프로그램을 설치하고, 그 서버에 SQL을 보내는 접속 도구를 써요.
-
-| 프로그램 | 뭐 하는 애? | 어디서 써? |
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| PostgreSQL 18 (Server) | 데이터를 실제로 저장하고 SQL·규칙을 처리하는 DBMS. 이 노트는 18 기준 | 설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요 |
-| pgAdmin 4 | 창(GUI)으로 서버에 접속해 SQL을 보내고 결과를 보는 클라이언트 | Query Tool에서 SQL 실행 → Data Output·Messages 확인 |
-| psql (Command Line Tools) | 터미널에서 쓰는 클라이언트 | PowerShell에서 psql -U postgres -d knowledge_lab |
-| psycopg 등 (내일) | 파이썬(FastAPI)에서 PostgreSQL에 접속하는 드라이버 | 오늘은 안 씀 — 11/12 연동 때 |
-
-### 🔧 설치 · 확인 (PowerShell)
+| ① 접속 | 서버 · DB · 스키마 · 클라이언트 | 지금 어느 서버의 어느 DB에 붙어 있나? |
+| ② 조회 | SELECT · WHERE · ORDER BY · NULL | 어느 표의 어떤 행 · 열을 어떤 순서로? |
+| ③ 설계 | PK · FK · ERD · DDL | 무엇을 어느 표에 두고 어떻게 잇나? |
+| ④ 변경 | INSERT · UPDATE · DELETE · RETURNING | 어느 행이 어떻게 바뀌었나? |
+| ⑤ 연결해서 읽기 | JOIN · LEFT JOIN · GROUP BY | 지금 결과 한 행은 무엇 하나인가? |
+| ⑥ 제약 | NOT NULL · UNIQUE · CHECK · FK | 잘못된 값을 DB가 거부하나? |
+| ⑦ 트랜잭션 | BEGIN · COMMIT · ROLLBACK | 여러 변경을 확정할까, 없던 일로 할까? |
+| ⑧ 인덱스 | INDEX · EXPLAIN | 필요한 행을 어떻게 빨리 찾나? |
+| ⑨ API와 이어 붙이기 | 파일 → DB로 옮길 때 따로 챙길 것 | DB로 바꾸면 무엇이 저절로 해결되고, 무엇이 안 되나? |
 
 ```
-# 공식 Windows 안내 → EDB 설치 프로그램 (Server · pgAdmin · Command Line Tools 선택)
-psql --version                         # 클라이언트(psql) 버전
-Get-Service postgresql*                # 서버가 서비스로 Running 인지
-psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → postgres=# 프롬프트
+PostgreSQL 서버 (localhost:5432)          ← 접속 도구: pgAdmin Query Tool · psql
+  └ Database: knowledge_lab
+       └ Schema: public
+            ├ categories (id PK · name UNIQUE)
+            └ knowledge  (id PK · title · content · category_id FK → categories.id)
 ```
 
-⚠️ 서버 비밀번호는 비밀이에요. 소스 코드·Git·제출물·스크린샷에 실제 값을 남기지 않아요. 그리고 pgAdmin 창을 닫는 것 ≠ PostgreSQL 서버를 끄는 것 — 서버는 서비스로 계속 돌아요.
+## ① DB · DBMS · 접속 도구
 
-🤔 왜 psql --version과 SELECT version()이 따로 있어? — 앞의 것은 내 컴퓨터의 접속 도구 버전, 뒤의 것은 접속한 서버의 버전이에요. 다른 컴퓨터의 서버에 붙으면 둘이 다를 수 있어요.
+### 어디에 쓰나 — AI 서비스의 원본 지식
 
-## 이거 어디에 써?
-
-신입이 "개발환경 설정 절차 알려 주세요"라고 물으면 나중엔 AI Agent가 지식 조회 도구로 안내문을 찾아 답해요. 그런데 안내문이 바뀌었는데 예전 내용을 읽어 가면 안 되죠. 그래서 검색·생성 이전에, 사람이 관리하는 원본 지식이 정확하고 추적 가능해야 해요. 오늘은 그 원본을 표와 규칙으로 관리해요.
+신입이 "개발환경 설정 절차 알려 주세요"라고 물으면 나중엔 AI Agent가 지식 조회 도구로 안내문을 찾아 답해요. 그런데 안내문이 바뀌었는데 예전 내용을 읽어 가면 안 되죠. 그래서 검색·생성 이전에, 사람이 관리하는 원본 지식이 정확하고 추적 가능해야 해요. 관계형 DB는 그 원본을 표와 규칙으로 관리해요.
 
 🗂️
 
@@ -11375,79 +12146,9 @@ psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → post
 
 추적Agent가 어떤 ID의 안내를 참고했는지 남길 근거
 
-[그림: AI Agent 서비스, FastAPI, PostgreSQL 서버, knowledge_lab·public, categories·knowledge 두 테이블, 한 행의 category_id 값까지 왼쪽에서 오른쪽으로 확대해 가는 그림. 가운데 세 칸이 오늘 다루는 곳으로 초록 점선 안에 있다] 무엇을 보나: 왼쪽 서비스에서 오른쪽 값 하나까지 점점 확대했어요. 초록 점선 안(서버 → DB·스키마 → 테이블)이 오늘 SQL로 직접 만지는 곳이에요. 아래 회색 점선의 검색·RAG·Agent는 이 원본을 읽어 가는 별도 계층이고 이후 수업이에요. 🤔 왜 이렇게 나눠 봐? 문제가 생겼을 때 "서버에 못 붙은 건지, 다른 DB에 붙은 건지, 표가 없는 건지, 값이 틀린 건지"를 층별로 좁힐 수 있어요.
+### DB · DBMS · Client · SQL
 
-|  | 오늘 · PostgreSQL SQL / Index | 이후 · Embedding / Vector Search |
-|---|---|---|
-| 찾는 방법 | WHERE category_id = 1처럼 조건이 정확히 맞는 행 | 질문과 뜻이 가까운 문서 조각 |
-| 인덱스 | B-tree 인덱스 — 조건에 맞는 행을 빨리 찾는 길 | 벡터 인덱스 — 가까운 벡터를 빨리 찾는 길 |
-| 책임 | 원본의 저장 규칙·관계·변경 확정 | 근거 후보를 골라 LLM에 전달 |
-
-⚠️ B-tree 인덱스를 만들었다고 의미 검색이 되는 건 아니에요. LIKE '%실행%'도 글자 포함 검색일 뿐이라 "구동"은 못 찾아요. 그리고 원본을 고치거나 지워도 나중의 벡터 인덱스는 자동으로 안 바뀌어요.
-
-## 📋 명세 — 지식 관리 DB
-
-오늘 만든 DB의 구조와 규칙을 한곳에 모았어요. Day19의 API가 이 구조 위에서 그대로 동작해요.
-
-### 1. 위치
-
-| 항목 | 값 |
-|---|---|
-| DBMS | PostgreSQL 18 |
-| Database · Schema | knowledge_lab · public |
-| 접속 | Host · Port(기본 5432) · User · Password — 비밀번호는 결과물에 남기지 않음 |
-
-### 2. 테이블
-
-| 표.열 | 타입 | 제약 (이름) |
-|---|---|---|
-| categories.id | BIGINT · IDENTITY (ALWAYS) | PK |
-| categories.name | VARCHAR(30) | NOT NULL · UNIQUE · CHECK 1~30자 (categories_name_length) |
-| knowledge.id | BIGINT · IDENTITY (ALWAYS) | PK |
-| knowledge.title | VARCHAR(80) | NOT NULL · CHECK 1~80자 (knowledge_title_length) · 중복 허용 |
-| knowledge.content | TEXT | NOT NULL · CHECK 1~2,000자 (knowledge_content_length) |
-| knowledge.category_id | BIGINT | NOT NULL · FK → categories.id (knowledge_category_fk) |
-
-### 3. 관계 · 삭제 정책 · 인덱스
-
-| 항목 | 규칙 |
-|---|---|
-| 관계 | 분류 1 : 지식 0..N — 지식은 분류 하나를 반드시 가리킴 |
-| 분류 삭제 | ON DELETE RESTRICT — 가리키는 지식이 있으면 거부 |
-| 지식 삭제 | 그 행만 삭제 · 분류는 남음 |
-| 인덱스 | PK·UNIQUE는 자동 · idx_knowledge_category_id ON knowledge (category_id)는 직접 생성 |
-
-### 4. 시작 데이터 (S0)
-
-| categories | knowledge |
-|---|---|
-| 1 learning · 2 environment · 3 reference | 1 실습 파일 보관 → 1 · 2 서버 실행 → 2 · 3 질문 작성 → 1 |
-
-ID는 DB가 발급한 실제 값으로 확인해요. 빈 DB에 한 번만 넣어요.
-
-### 5. 결과 · 오류 읽는 법
-
-| 상황 | 결과 | SQLSTATE |
-|---|---|---|
-| 조건에 맞는 행 없음 (SELECT · UPDATE · DELETE) | 0행 — 오류 아님 | — |
-| 필수 값에 NULL | 오류 · 저장 안 됨 | 23502 |
-| 없는 분류 참조 · 참조 중인 분류 삭제 | 오류 · 변경 안 됨 | 23503 |
-| 분류 이름 중복 | 오류 · 저장 안 됨 | 23505 |
-| 빈 문자열·길이 초과 | 오류 · 저장 안 됨 | 23514 |
-| 트랜잭션 안에서 오류 뒤 다음 SQL | 거부 → ROLLBACK부터 | 25P02 |
-
-### 6. 변경 규칙
-
-| 항목 | 약속 |
-|---|---|
-| 순서 | 같은 조건으로 SELECT → BEGIN → 변경 + RETURNING → COMMIT 또는 ROLLBACK → 다시 SELECT |
-| 새 id | 예상하지 말고 RETURNING id로 읽기 · 빈 번호가 생겨도 정상 |
-| 여러 변경 | 한 트랜잭션으로 — 전부 확정 또는 전부 취소 |
-| 확정 확인 | COMMIT 뒤 새 연결에서 다시 조회 |
-
-## ① DB · DBMS · 접속 도구
-
-| 용어 | 오늘의 예 | 역할 |
+| 용어 | 예 | 역할 |
 |---|---|---|
 | Database | knowledge_lab | 지식·분류의 구조와 데이터를 담는 업무 공간 |
 | DBMS / RDBMS | PostgreSQL | 표 형태의 데이터를 관리하고 SQL·규칙을 처리하는 프로그램 |
@@ -11460,7 +12161,7 @@ ID는 DB가 발급한 실제 값으로 확인해요. 빈 DB에 한 번만 넣어
 |---|---|---|
 | Host | localhost | 지금 이 컴퓨터의 서버 |
 | Port | 5432 | 설치할 때 정한 서버 포트 (기본값) |
-| Database | knowledge_lab | 오늘의 개인 학습 DB |
+| Database | knowledge_lab | 개인 학습 DB (예시) |
 | User | postgres | 설치 확인용 관리자 계정. 실제 앱은 따로 만든 계정을 써요 |
 | Password | (본인이 정한 값) | 서버 인증 · 결과물에는 숨겨요 |
 
@@ -11493,13 +12194,13 @@ psql -U postgres -h localhost -p 5432 -d knowledge_lab
 | ① | 실행할 SQL만 선택해서 실행 (한 문장씩) |
 | ② | Data Output에서 값과 행 수 확인 |
 | ③ | Messages에서 오류·변경된 행 수(UPDATE 1 등) 확인 |
-| 설정 | 변경 실습 때 Auto commit 켬 · Auto rollback on error 끔. BEGIN부터 끝까지 같은 Query Tool 창에서 |
+| 설정 | 변경 SQL을 연습할 때 Auto commit 켬 · Auto rollback on error 끔. BEGIN부터 끝까지 같은 Query Tool 창에서 |
 
 🤔 결과가 0행이면 실패야? — 아니에요. "조건에 맞는 행이 없다"는 정상 결과예요. 오류는 Messages에 빨간 메시지로 따로 나와요. 그리고 DB를 직접 실행할 때는 HTTP 상태 코드가 없어요 — 200·404는 FastAPI의 일이에요.
 
 ## ② 지식 조회 — SELECT · WHERE · ORDER BY
 
-오늘 새 DB에 미리 넣어 둔 가상 초기 데이터를 S0라고 불러요. (어제 JSON 파일이 자동으로 옮겨진 게 아니에요.)
+아래 예시는 새 DB에 미리 넣어 둔 가상 초기 데이터를 써요. 이 시작 상태를 S0라고 불러요. (JSON 파일 저장소의 데이터가 자동으로 옮겨진 게 아니에요.)
 
 | categories · 분류 3건 |  |
 |---|---|
@@ -11568,7 +12269,7 @@ SELECT NULL IS NULL, '' IS NULL, char_length('');   -- true, false, 0
 
 ## ③ 두 테이블 설계 — PK · FK · ERD · DDL
 
-[그림: 왼쪽에 어제의 JSON 한 건, 가운데 categories 표(1 learning, 2 environment, 3 reference), 오른쪽 knowledge 표의 category_id 값에서 categories의 해당 행으로 화살표가 이어진 ERD] 무엇을 보나: 어제 JSON은 지식마다 "category": "environment" 같은 분류 이름을 반복해서 들고 있었어요. 오늘은 분류 이름을 부모 표(categories)에 한 번만 두고, 지식은 category_id 번호로 가리켜요(초록 화살표). 분류 하나에 지식이 0개 이상(1 : 0..N) — reference처럼 0개여도 돼요. 🤔 왜 나눠? 분류 이름을 고칠 때 한 곳만 바꾸면 되고, 오타 난 분류("enviroment")가 몰래 생기는 걸 FK가 막아 줘요. 대신 볼 때는 JOIN으로 다시 붙여요(⑤).
+[그림: 왼쪽에 JSON 파일 저장소의 한 건, 가운데 categories 표(1 learning, 2 environment, 3 reference), 오른쪽 knowledge 표의 category_id 값에서 categories의 해당 행으로 화살표가 이어진 ERD] 무엇을 보나: JSON 파일 저장소는 지식마다 "category": "environment" 같은 분류 이름을 반복해서 들고 있었어요. 관계형 설계에서는 분류 이름을 부모 표(categories)에 한 번만 두고, 지식은 category_id 번호로 가리켜요(초록 화살표). 분류 하나에 지식이 0개 이상(1 : 0..N) — reference처럼 0개여도 돼요. 🤔 왜 나눠? 분류 이름을 고칠 때 한 곳만 바꾸면 되고, 오타 난 분류("enviroment")가 몰래 생기는 걸 FK가 막아 줘요. 대신 볼 때는 JOIN으로 다시 붙여요(⑤).
 
 | 개념 | 하는 일 | 이번 예시 |
 |---|---|---|
@@ -11589,7 +12290,7 @@ SELECT NULL IS NULL, '' IS NULL, char_length('');   -- true, false, 0
 | categories.name | VARCHAR(30) + NOT NULL + UNIQUE | 1~30자 · 분류 이름 중복 금지 |
 | category_id | BIGINT + NOT NULL + FK | 등록된 분류만 참조 |
 
-🤔 왜 제목엔 UNIQUE를 안 걸어? — 어제 API도 같은 제목을 막지 않았어요. 규칙을 DB로 옮기면서 몰래 바꾸면, 어제는 되던 요청이 오늘은 실패해요. 그래서 "제목은 ID 대신 쓸 수 없다 — 찾을 땐 ID로"가 원칙이에요. 반대로 분류 이름은 하나여야 이름으로 ID를 찾을 수 있어서 UNIQUE예요.
+🤔 왜 제목엔 UNIQUE를 안 걸어? — 지식 관리 API도 같은 제목을 막지 않았어요. 규칙을 DB로 옮기면서 몰래 바꾸면, 전에는 되던 요청이 갑자기 실패해요. 그래서 "제목은 ID 대신 쓸 수 없다 — 찾을 땐 ID로"가 원칙이에요. 반대로 분류 이름은 하나여야 이름으로 ID를 찾을 수 있어서 UNIQUE예요.
 
 💡 DDL(Data Definition Language)은 CREATE TABLE처럼 구조를 만드는 SQL, DML은 INSERT·UPDATE처럼 데이터를 바꾸는 SQL이에요. 부모(categories)를 먼저 만들어야 자식의 FK가 가리킬 곳이 생겨요.
 
@@ -11620,7 +12321,7 @@ INSERT INTO knowledge (title, content, category_id) SELECT '실습 파일 보관
 BEGIN; CREATE TABLE categories_try (...); CREATE TABLE knowledge_try (...); ... ROLLBACK;
 ```
 
-💡 나중에 태그가 여러 개 필요해지면? 지식 하나에 태그 여러 개, 태그 하나에 지식 여러 개 = N:M 관계예요. 이건 FK 한 칸으로 못 담아서 가운데에 knowledge_tags(knowledge_id FK, tag_id FK) 연결 표를 두고, 두 열의 조합을 PK로 해 같은 짝이 두 번 들어가는 걸 막아요. 오늘 필수는 아니고 설계 예시예요.
+💡 나중에 태그가 여러 개 필요해지면? 지식 하나에 태그 여러 개, 태그 하나에 지식 여러 개 = N:M 관계예요. 이건 FK 한 칸으로 못 담아서 가운데에 knowledge_tags(knowledge_id FK, tag_id FK) 연결 표를 두고, 두 열의 조합을 PK로 해 같은 짝이 두 번 들어가는 걸 막아요. 기본 설계에 꼭 필요한 건 아니고 확장 예시예요.
 
 ## ④ 바꾸기 — INSERT · UPDATE · DELETE · RETURNING
 
@@ -11659,7 +12360,7 @@ DELETE FROM knowledge WHERE id = 3 RETURNING id, title;
 
 ### 0행 · 오류 · HTTP 응답은 다른 층이에요
 
-| 상황 | 오늘 SQL 결과 | 내일 API가 정할 것 |
+| 상황 | SQL 결과 | API가 정할 것 |
 |---|---|---|
 | 없는 ID를 SELECT | 0행 · SQL은 정상 | 상세면 404, 목록이면 빈 배열 등 |
 | 없는 ID를 UPDATE | UPDATE 0 / RETURNING 0행 | "성공"이라고 할지 404로 할지 |
@@ -11717,12 +12418,12 @@ GROUP BY c.id, c.name HAVING COUNT(k.id) >= 2
 
 ## ⑥ 제약조건 — DB가 거부하게 하기
 
-오늘의 SQL은 FastAPI를 거치지 않고 DB로 바로 가요. 그래서 API의 입력 검증(Pydantic)과 별개로 DB에도 규칙이 있어야 해요.
+pgAdmin · psql로 보낸 SQL은 FastAPI를 거치지 않고 DB로 바로 가요. 그래서 API의 입력 검증(Pydantic)과 별개로 DB에도 규칙이 있어야 해요.
 
 |  | 흐름 |
 |---|---|
-| 오늘 | pgAdmin / psql → DB 제약(필수·길이·참조) → 저장 / 오류 |
-| 내일 | 사용자 JSON → FastAPI 입력 검증 → DB 제약 → 저장 / 오류 |
+| SQL 직접 실행 | pgAdmin / psql → DB 제약(필수·길이·참조) → 저장 / 오류 |
+| API를 거칠 때 | 사용자 JSON → FastAPI 입력 검증 → DB 제약 → 저장 / 오류 |
 
 | 규칙 | 보장하는 것 | 이번 예 | 위반 시 SQLSTATE |
 |---|---|---|---|
@@ -11812,9 +12513,9 @@ ROLLBACK;
 
 | 상황 | 지식 행 | 다음 ID |
 |---|---|---|
-| 어제: API 검증에서 422 | 저장 함수에 도달 안 함 | 파일의 next_id도 그대로 |
-| 오늘: INSERT 뒤 ROLLBACK | 새 행 안 남음 | 발급된 번호는 재사용 안 될 수 있음 |
-| 오늘: 제약 위반으로 INSERT 실패 | 실패 행 저장 안 됨 | 이미 발급됐으면 빈 번호 |
+| JSON 파일 API: 검증에서 422 | 저장 함수에 도달 안 함 | 파일의 next_id도 그대로 |
+| DB: INSERT 뒤 ROLLBACK | 새 행 안 남음 | 발급된 번호는 재사용 안 될 수 있음 |
+| DB: 제약 위반으로 INSERT 실패 | 실패 행 저장 안 됨 | 이미 발급됐으면 빈 번호 |
 
 ## 🧪 트랜잭션 직접 해 보기
 
@@ -11854,19 +12555,19 @@ EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;
 
 🤔 인덱스를 만들었는데 Seq Scan이 나와. 실패야? — 아니에요. 행이 3개뿐이면 표 전체를 읽는 게 인덱스를 거쳐 가는 것보다 싸다고 판단할 수 있어요. 실행계획은 데이터 양·통계에 따라 바뀌어서, 계획 이름을 정답으로 외우지 않아요. 인덱스는 결과 행을 바꾸지 않고 찾아가는 길만 바꿔요.
 
-## ⑨ 다음 단계와 연결
+### B-tree 인덱스 ≠ 의미 검색
 
-| 날짜 | 핵심 결과 | 오늘과의 연결 |
+|  | PostgreSQL SQL / B-tree Index | Embedding / Vector Search |
 |---|---|---|
-| 11/10 | JSON 파일 지식 CRUD API | title · content · category / 실제 ID |
-| 11/11 (오늘) | 관계형 지식 DB · SQL · ERD | categories · knowledge / 제약 · 트랜잭션 |
-| 11/12 | FastAPI–PostgreSQL 연동 | 접속 설정 · ORM · Migration · 통합 검증 |
-| 11/18~19 | 검색용 인덱스 · 문서·메타데이터 처리 | 원본 → 청크·벡터 |
-| 11/20 | Basic RAG | 검색한 원문을 LLM에 제공 |
+| 찾는 방법 | WHERE category_id = 1처럼 조건이 정확히 맞는 행 | 질문과 뜻이 가까운 문서 조각 |
+| 인덱스 | B-tree 인덱스 — 조건에 맞는 행을 빨리 찾는 길 | 벡터 인덱스 — 가까운 벡터를 빨리 찾는 길 |
+| 책임 | 원본의 저장 규칙·관계·변경 확정 | 근거 후보를 골라 LLM에 전달 |
 
-### DB로 바꿔도 자동으로 해결되지 않는 것
+⚠️ B-tree 인덱스를 만들었다고 의미 검색이 되는 건 아니에요. LIKE '%실행%'도 글자 포함 검색일 뿐이라 "구동"은 못 찾아요. 그리고 원본을 고치거나 지워도 벡터 인덱스는 자동으로 안 바뀌어요.
 
-| 항목 | 구분할 것 | 이후 확인 |
+## ⑨ API와 이어 붙이기 — DB로 바꿔도 따로 챙길 것
+
+| 항목 | 구분할 것 | API와 이을 때 확인 |
 |---|---|---|
 | 스키마 | Pydantic 모델 ≠ DB 테이블 정의 | 입력·저장·응답 규칙이 서로 맞는지 |
 | 데이터 이관 | JSON이 DB로 저절로 옮겨지지 않음 | 기존 ID·분류 매핑·중복 정책 |
@@ -11876,13 +12577,124 @@ EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;
 
 🤔 DB로 바꾸면 API 모양도 바꿔야 해? — 아니에요. 바깥 약속("category": "environment" 문자열)은 그대로 두고, 안쪽에서 이름 ↔ ID를 바꿔 주면 돼요. 부르는 쪽(화면·Agent)은 저장소가 바뀐 걸 몰라도 돼요. 단, 분류 이름 자체를 바꾸면 그 분류를 가리키는 모든 지식의 조회 결과가 같이 바뀌어요.
 
-💡 파일 → DB로 옮기는 이유는 "파일은 사라져서"가 아니에요. 어제 JSON도 재시작 후 남았어요. 옮기는 이유는 관계(분류–지식), 공유 규칙(누가 넣어도 같은 제약), 조회(필요한 행만·연결·집계), 트랜잭션(여러 변경을 한 묶음으로)을 다루기 위해서예요.
+💡 파일 → DB로 옮기는 이유는 "파일은 사라져서"가 아니에요. JSON 파일 저장소도 재시작 후 남아요. 옮기는 이유는 관계(분류–지식), 공유 규칙(누가 넣어도 같은 제약), 조회(필요한 행만·연결·집계), 트랜잭션(여러 변경을 한 묶음으로)을 다루기 위해서예요.
+
+## 🧩 설계 정리 — 각 장치가 보장하는 것과 보장하지 않는 것
+
+| 장치 | 보장하는 것 | 보장하지 않는 것 |
+|---|---|---|
+| PRIMARY KEY + IDENTITY | 행마다 유일한 ID · DB가 발급 | 빈 번호 없는 연속 번호 · 행 수 |
+| FOREIGN KEY | 참조하는 분류가 실제로 있음 | JOIN 자동 연결 |
+| NOT NULL + 길이 CHECK | NULL · 빈 문자열 · 길이 초과 거부 | 내용의 사실 · 고칠 권한 |
+| UNIQUE (categories.name) | 분류 이름 중복 금지 | — |
+| ON DELETE RESTRICT | 참조 중인 분류 삭제 거부 | — |
+| RETURNING | 바뀐 행 · 실제 ID를 그 자리에서 확인 | — |
+| 트랜잭션 | 묶음 전체 확정 또는 전체 취소 | 이미 COMMIT한 값 되돌리기 |
+| INDEX | 조건에 맞는 행을 찾아가는 길 | 결과 행 변화 · 의미 검색 |
+| 0행 결과 | "맞는 행이 없다"는 사실 | 404인지 빈 배열인지 (API의 약속) |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+지식 관리 DB의 구조와 규칙을 한곳에 모았어요. FastAPI–PostgreSQL 연동의 API도 이 구조 위에서 그대로 동작해요.
+
+### 1. 위치
+
+| 항목 | 값 |
+|---|---|
+| DBMS | PostgreSQL 18 |
+| Database · Schema | knowledge_lab · public |
+| 접속 | Host · Port(기본 5432) · User · Password — 비밀번호는 결과물에 남기지 않음 |
+
+### 2. 테이블
+
+| 표.열 | 타입 | 제약 (이름) |
+|---|---|---|
+| categories.id | BIGINT · IDENTITY (ALWAYS) | PK |
+| categories.name | VARCHAR(30) | NOT NULL · UNIQUE · CHECK 1~30자 (categories_name_length) |
+| knowledge.id | BIGINT · IDENTITY (ALWAYS) | PK |
+| knowledge.title | VARCHAR(80) | NOT NULL · CHECK 1~80자 (knowledge_title_length) · 중복 허용 |
+| knowledge.content | TEXT | NOT NULL · CHECK 1~2,000자 (knowledge_content_length) |
+| knowledge.category_id | BIGINT | NOT NULL · FK → categories.id (knowledge_category_fk) |
+
+### 3. 관계 · 삭제 정책 · 인덱스
+
+| 항목 | 규칙 |
+|---|---|
+| 관계 | 분류 1 : 지식 0..N — 지식은 분류 하나를 반드시 가리킴 |
+| 분류 삭제 | ON DELETE RESTRICT — 가리키는 지식이 있으면 거부 |
+| 지식 삭제 | 그 행만 삭제 · 분류는 남음 |
+| 인덱스 | PK·UNIQUE는 자동 · idx_knowledge_category_id ON knowledge (category_id)는 직접 생성 |
+
+### 4. 시작 데이터 (S0)
+
+| categories | knowledge |
+|---|---|
+| 1 learning · 2 environment · 3 reference | 1 실습 파일 보관 → 1 · 2 서버 실행 → 2 · 3 질문 작성 → 1 |
+
+ID는 DB가 발급한 실제 값으로 확인해요. 빈 DB에 한 번만 넣어요.
+
+### 5. 결과 · 오류 읽는 법
+
+| 상황 | 결과 | SQLSTATE |
+|---|---|---|
+| 조건에 맞는 행 없음 (SELECT · UPDATE · DELETE) | 0행 — 오류 아님 | — |
+| 필수 값에 NULL | 오류 · 저장 안 됨 | 23502 |
+| 없는 분류 참조 · 참조 중인 분류 삭제 | 오류 · 변경 안 됨 | 23503 |
+| 분류 이름 중복 | 오류 · 저장 안 됨 | 23505 |
+| 빈 문자열·길이 초과 | 오류 · 저장 안 됨 | 23514 |
+| 트랜잭션 안에서 오류 뒤 다음 SQL | 거부 → ROLLBACK부터 | 25P02 |
+
+### 6. 변경 규칙
+
+| 항목 | 약속 |
+|---|---|
+| 순서 | 같은 조건으로 SELECT → BEGIN → 변경 + RETURNING → COMMIT 또는 ROLLBACK → 다시 SELECT |
+| 새 id | 예상하지 말고 RETURNING id로 읽기 · 빈 번호가 생겨도 정상 |
+| 여러 변경 | 한 트랜잭션으로 — 전부 확정 또는 전부 취소 |
+| 확정 확인 | COMMIT 뒤 새 연결에서 다시 조회 |
+
+## 📦 프로그램 · 명령어
+
+SQL만 다룰 때는 pip install이 없어요. 파이썬이 아니라 DB 서버 프로그램을 설치하고, 그 서버에 SQL을 보내는 접속 도구를 써요.
+
+| 프로그램 | 뭐 하는 애? | 어디서 써? |
+|---|---|---|
+| PostgreSQL 18 (Server) | 데이터를 실제로 저장하고 SQL·규칙을 처리하는 DBMS. 여기서는 18 기준 | 설치하면 Windows 서비스로 뒤에서 계속 켜져 있어요 |
+| pgAdmin 4 | 창(GUI)으로 서버에 접속해 SQL을 보내고 결과를 보는 클라이언트 | Query Tool에서 SQL 실행 → Data Output·Messages 확인 |
+| psql (Command Line Tools) | 터미널에서 쓰는 클라이언트 | PowerShell에서 psql -U postgres -d knowledge_lab |
+| psycopg 등 | 파이썬(FastAPI)에서 PostgreSQL에 접속하는 드라이버 | SQL만 쓸 땐 필요 없음 — FastAPI–PostgreSQL 연동 때 |
+
+### 🔧 설치 · 확인 (PowerShell)
+
+```
+# 공식 Windows 안내 → EDB 설치 프로그램 (Server · pgAdmin · Command Line Tools 선택)
+psql --version                         # 클라이언트(psql) 버전
+Get-Service postgresql*                # 서버가 서비스로 Running 인지
+psql -U postgres -h localhost -p 5432  # 접속 → 비밀번호 입력 → postgres=# 프롬프트
+```
+
+⚠️ 서버 비밀번호는 비밀이에요. 소스 코드·Git·제출물·스크린샷에 실제 값을 남기지 않아요. 그리고 pgAdmin 창을 닫는 것 ≠ PostgreSQL 서버를 끄는 것 — 서버는 서비스로 계속 돌아요.
+
+🤔 왜 psql --version과 SELECT version()이 따로 있어? — 앞의 것은 내 컴퓨터의 접속 도구 버전, 뒤의 것은 접속한 서버의 버전이에요. 다른 컴퓨터의 서버에 붙으면 둘이 다를 수 있어요.
+
+🔧 이 주제의 명령어 전체 — SQL · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 SQL 한두 줄만 남겼어요. 명령어 사전의 결과값은 같은 S0 데이터를 실제로 실행해 얻은 거예요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| FastAPI 지식 관리 API | 같은 title · content · category를 JSON 파일에 저장하던 CRUD API |
+| FastAPI–PostgreSQL 연동 | 이 DB 위에 API 올리기 — 접속 설정 · ORM · Migration · 통합 검증 |
+| Embedding · Vector Search | 원본 → 청크 · 벡터, pgvector로 뜻이 가까운 근거 찾기 |
+| RAG | 검색한 원문을 LLM에 근거로 제공 |
 
 ## 원본 자료
 
-- 강의: 20261111.pdf (PostgreSQL 입문 · 지식 관리 DB, 94쪽) — 플랫폼 속 위치 p2–11 · 접속·첫 SQL p17–22 · SELECT·WHERE·NULL p24–29 · 두 테이블·ERD·DDL p31–37 · INSERT·UPDATE·DELETE p39–43 · JOIN·집계 p45–50 · 제약·실패 p52–56 · 트랜잭션·IDENTITY·INDEX·EXPLAIN p58–63 · 다음 수업 연결 p65–66 · 부록(DB 준비·Seed·연습 표·HAVING·DEFAULT·원자성·N:M·Windows·psql·연동 체크포인트) p78–91
+- 원본: 20261111.pdf (PostgreSQL 입문 · 지식 관리 DB, 94쪽) — 플랫폼 속 위치 p2–11 · 접속·첫 SQL p17–22 · SELECT·WHERE·NULL p24–29 · 두 테이블·ERD·DDL p31–37 · INSERT·UPDATE·DELETE p39–43 · JOIN·집계 p45–50 · 제약·실패 p52–56 · 트랜잭션·IDENTITY·INDEX·EXPLAIN p58–63 · 다음 수업 연결 p65–66 · 부록(DB 준비·Seed·연습 표·HAVING·DEFAULT·원자성·N:M·Windows·psql·연동 체크포인트) p78–91
 
-- 노트·명령어 사전의 결과 값: 이 PC에 PostgreSQL이 없어서, 같은 S0 데이터와 강의 SQL을 파이썬 내장 SQLite 3.50으로 실제 실행해 확인 (tools/io_day18.py, 그림 tools/visuals/make_day18.py). PostgreSQL 전용 값(SQLSTATE·current_database()·EXPLAIN 표기·psql)은 강의자료·공식 문서 기준이라고 따로 표시했어요.
+- 노트·명령어 사전의 결과 값: 이 PC에 PostgreSQL이 없어서, 같은 S0 데이터와 원본 SQL을 파이썬 내장 SQLite 3.50으로 실제 실행해 확인 (tools/io_day18.py, 그림 tools/visuals/make_day18.py). PostgreSQL 전용 값(SQLSTATE·current_database()·EXPLAIN 표기·psql)은 원본 자료·공식 문서 기준이라고 따로 표시했어요.
 
 - 공식 문서: Querying a Table · Schemas · Constraints · CREATE TABLE · Identity Columns
 
@@ -11893,8 +12705,6 @@ EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;
 ## 🔧 Day18 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day18)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 프로그램 | psql --version, Get-Service postgresql* |
-| 📋 명세 | 테이블 · 제약 이름 · 관계 · S0 · 결과/오류 · 변경 규칙 |
 | ① DB · DBMS · 접속 도구 | SELECT current_database(), CREATE DATABASE, psql -U -h -p -d, \dt · \d |
 | ② 지식 조회 | SELECT ... FROM ... WHERE ... ORDER BY ... LIMIT, LIKE, IS NULL |
 | ③ 두 테이블 설계 | CREATE TABLE, GENERATED ALWAYS AS IDENTITY, PRIMARY KEY, FOREIGN KEY ... REFERENCES, CHECK |
@@ -11904,7 +12714,8 @@ EXPLAIN SELECT id, title FROM knowledge WHERE category_id = 1;
 | ⑦ 트랜잭션 | BEGIN, COMMIT, ROLLBACK |
 | 🧪 트랜잭션 직접 해 보기 | (브라우저 안에서 연결 A · B 흉내) |
 | ⑧ 인덱스와 실행계획 | pg_indexes, CREATE INDEX, EXPLAIN (ANALYZE, BUFFERS) |
-| ⑨ 다음 단계와 연결 | FastAPI–PostgreSQL 연동 (11/12) · 검색 인덱스 · RAG |
+| 📋 명세 | 테이블 · 제약 이름 · 관계 · S0 · 결과/오류 · 변경 규칙 |
+| 📦 프로그램 · 명령어 | psql --version, Get-Service postgresql* |
 
 ### 첫 SQL — current_database() · version() · SELECT 1
 
@@ -11915,7 +12726,7 @@ SELECT version();                      -- 서버 버전
 SELECT 1 AS connection_ok;             -- SQL을 보내고 결과를 받을 수 있나
 ```
 
-▶ 실제로 돌려 보면 PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — 강의자료 p21의 기대값
+▶ 실제로 돌려 보면 PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — PostgreSQL 기준 기대값
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -11942,7 +12753,7 @@ CREATE DATABASE knowledge_lab;
 SELECT current_database();      -- 기대: knowledge_lab
 ```
 
-▶ 실제로 돌려 보면 PostgreSQL 전용이라 SQLite로는 못 돌려요 — 강의자료 p68(A01)의 기대값
+▶ 실제로 돌려 보면 PostgreSQL 전용이라 SQLite로는 못 돌려요 — PostgreSQL 기준 기대값
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -11954,7 +12765,7 @@ SELECT current_database();      -- 기대: knowledge_lab
 |---|---|
 | Auto commit이 켜진 상태에서, BEGIN 안이 아닌 곳에서 | CREATE DATABASE는 트랜잭션 묶음 안에서 실행할 수 없어요 |
 | 만든 뒤 새 Query Tool을 그 DB에서 열기 | Query Tool은 열 때 정한 DB에 붙어 있어요. 만들기만 하면 여전히 postgres DB예요 |
-| 같은 이름이 있으면 내용부터 확인 | 임의로 DROP하면 남의(또는 어제의) 데이터를 지울 수 있어요 |
+| 같은 이름이 있으면 내용부터 확인 | 임의로 DROP하면 남의(또는 예전에 만든) 데이터를 지울 수 있어요 |
 
 💡 준비 순서: A01 DB 만들기 → A02 categories → A03 knowledge → A04·A05 Seed. 빈 개인 DB에 한 번만 해요.
 
@@ -12052,7 +12863,7 @@ ORDER BY id;
 | 'learning' | 문자열은 작은따옴표. 큰따옴표 "..."는 열·표 이름을 뜻해요 |
 | IN (2, 3) | 목록 중 하나 |
 
-🤔 결과 0행은 조회 실패야? — 아니에요. 조건에 맞는 행이 없다는 정상 결과예요. 오류와 0행을 구분해야 내일 API에서 404 / 빈 배열을 정할 수 있어요.
+🤔 결과 0행은 조회 실패야? — 아니에요. 조건에 맞는 행이 없다는 정상 결과예요. 오류와 0행을 구분해야 API에서 404 / 빈 배열을 정할 수 있어요.
 
 ### AND · LIKE · DESC · LIMIT
 
@@ -12130,7 +12941,7 @@ CREATE TABLE categories (
 | 부분 | 뜻 | 🤔 왜? |
 |---|---|---|
 | BIGINT | 큰 정수 (약 ±9.2×10¹⁸) | ID가 모자랄 일이 없게 |
-| GENERATED ALWAYS AS IDENTITY | DB가 번호를 발급. ALWAYS면 사용자가 직접 넣는 걸 막음 | 번호 매기기를 사람이 하지 않게 — 어제의 next_id 역할 |
+| GENERATED ALWAYS AS IDENTITY | DB가 번호를 발급. ALWAYS면 사용자가 직접 넣는 걸 막음 | 번호 매기기를 사람이 하지 않게 — JSON 파일 저장소의 next_id 역할 |
 | PRIMARY KEY | 유일 + NULL 불가 (인덱스도 자동 생성) | 행 하나를 콕 집는 열쇠 |
 | VARCHAR(30) | 최대 30자 문자열 | 분류 이름은 짧아야 해서 |
 | UNIQUE | 같은 값 두 번 금지 | 이름으로 ID를 찾으려면 이름이 하나여야 |
@@ -12174,7 +12985,7 @@ CREATE TABLE knowledge (
 | FOREIGN KEY (category_id) REFERENCES categories(id) | 넣을 때 그 번호의 분류가 실제로 있는지 검사 |
 | ON DELETE RESTRICT | 이 분류를 가리키는 지식이 있으면 분류 삭제를 거부 |
 
-🤔 FK 타입을 왜 BIGINT로 맞춰? — 가리키는 쪽(category_id)과 가리켜지는 쪽(categories.id)의 타입이 같아야 비교·연결이 자연스러워요. 그리고 title에는 UNIQUE가 없어요 — 같은 제목도 허용(어제 API와 같은 규칙).
+🤔 FK 타입을 왜 BIGINT로 맞춰? — 가리키는 쪽(category_id)과 가리켜지는 쪽(categories.id)의 타입이 같아야 비교·연결이 자연스러워요. 그리고 title에는 UNIQUE가 없어요 — 같은 제목도 허용(지식 관리 API와 같은 규칙).
 
 ### Seed — 분류 3건 · 지식 3건 넣기 (S0)
 
@@ -12344,7 +13155,7 @@ SELECT id, title FROM knowledge WHERE id = 3;   -- 다시 1행
 |---|---|
 | DELETE FROM 표 WHERE ... | 조건에 맞는 행. 표 구조는 남음 |
 | DELETE FROM 표 (WHERE 없음) | 모든 행 ⚠️ |
-| DROP TABLE 표 | 표 자체 (구조 + 데이터) — 오늘 본 데이터엔 안 씀 |
+| DROP TABLE 표 | 표 자체 (구조 + 데이터) — 본 데이터엔 안 씀 |
 
 ### JOIN ... ON — 지식 목록에 분류명 붙이기
 
@@ -12374,7 +13185,7 @@ WHERE k.id = 2;
 | knowledge AS k | 표 별칭 k (AS는 생략 가능) |
 | JOIN | = INNER JOIN — 양쪽에 짝이 있는 행만 |
 | ON c.id = k.category_id | 어떤 값끼리 짝을 맞출지 |
-| c.name AS category | 결과 열 이름 — 어제 API의 category와 같은 이름 |
+| c.name AS category | 결과 열 이름 — 지식 관리 API의 category와 같은 이름 |
 
 ⚠️ ON을 빼거나 잘못 쓰면 모든 행 × 모든 행 조합(3 × 3 = 9행)이 나올 수 있어요. JOIN 뒤에는 행 수가 예상과 같은지 먼저 봐요.
 
@@ -12447,7 +13258,7 @@ FROM knowledge;
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| SELECT COUNT(*), SUM(char_length(content)), MIN(...), MAX(...) FROM knowledge; | knowledge_count \| total_chars \| min_chars \| max_chars 3 \| 64 \| 20 \| 24 | 강의자료의 3건 · 64자 · 20 · 24와 같아요 |
+| SELECT COUNT(*), SUM(char_length(content)), MIN(...), MAX(...) FROM knowledge; | knowledge_count \| total_chars \| min_chars \| max_chars 3 \| 64 \| 20 \| 24 | PostgreSQL 기대값(3건 · 64자 · 20 · 24)과 같아요 |
 | SELECT id, char_length(content) FROM knowledge ORDER BY id; | id \| chars 1 \| 20 2 \| 20 3 \| 24 | 글자 수(공백 포함) — 내용이 맞는지는 알려 주지 않아요 |
 
 | 함수 | 뜻 |
@@ -12703,7 +13514,7 @@ WHERE category_id = 1;
 |---|---|---|
 | 인덱스 전: WHERE category_id = 1 | SCAN knowledge | 표 전체를 훑음 (PG의 Seq Scan에 해당) |
 | 인덱스 후: 같은 SQL | SEARCH knowledge USING INDEX idx_knowledge_category_id (category_id=?) | 인덱스로 바로 찾아감 |
-| PG에서 3행짜리 표라면? | PG = Seq Scan이 나와도 정상 (강의자료 p53) | 행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기 |
+| PG에서 3행짜리 표라면? | PG = Seq Scan이 나와도 정상 (PostgreSQL 기준) | 행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기 |
 
 | 출력에서 | 읽는 법 |
 |---|---|
@@ -12753,124 +13564,41 @@ _2026-11-12(목) · SQLAlchemy ORM · Session · 트랜잭션 · 오류 처리 �
 
 📌 딱 3줄 요약
 
-- Day17의 지식 API(JSON 파일)와 Day18의 PostgreSQL 표를 하나로 연결해요. FastAPI → SQLAlchemy ORM · Session → PostgreSQL.
+- FastAPI 지식 API와 PostgreSQL 표를 하나로 연결해요. FastAPI → SQLAlchemy ORM · Session → PostgreSQL.
 
 - API 바깥 약속(category 문자열, 상태 코드)은 그대로 두고, 안쪽에서 분류 이름 ↔ category_id를 바꾸며, 분류와 지식을 한 트랜잭션으로 확정해요. 201은 COMMIT 성공 뒤에만.
 
 - DB 구조 변경은 Alembic Migration으로 별도 DB에서 한 단계씩. 완료의 증거는 "API 응답 id = SQL로 찾은 id = 다시 GET한 id"예요.
 
-🔧 Day19 명령어 한눈에 — 이론 구역별 코드·인자 설명 명령어 사전에서 보기 →
+## 🗺️ 큰 그림 — API 요청 한 건이 DB 행이 되기까지
 
-본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 강의 코드를 이 PC의 PostgreSQL 18(노트 전용 DB)에서 실제로 돌린 거예요.
+[그림: HTTP 요청, Pydantic 검증, get_db, 트랜잭션, COMMIT, 201 응답 여섯 칸과, Pydantic에서 422로, 트랜잭션에서 ROLLBACK 후 409·500으로, 응답에서 pgAdmin 확인으로 갈라지는 흐름도] 무엇을 보나: POST /api/knowledge 한 건이 지나가는 순서예요. ① 길이·필수가 틀리면 함수가 실행되기도 전에 422(DB엔 가지도 않아요). ③ 안에서 DB 제약이 터지면 ROLLBACK 후 예외 → 오류 처리기가 409/500으로 바꿔요. 모두 통과해 ④ COMMIT이 성공해야 비로소 ⑤ 201이에요. 🤔 왜 201을 COMMIT 뒤에? 201을 먼저 보내고 COMMIT이 실패하면, 사용자는 "저장됐다"고 믿는데 DB엔 없어요. 응답은 사실이 확정된 뒤에.
 
-## 📦 필요한 패키지
+AI 도우미가 "가상환경 정책이 바뀌었어요. 무엇을 기준으로 답해야 하죠?" 같은 질문에 답할 근거는 최신 원본 지식이에요. 담당자가 /docs(나중엔 관리 화면)에서 안내를 등록·수정하면 그게 PostgreSQL에 실제로 반영되는 원본 관리 서비스가 그 출발점이에요. AI 도우미의 검색(RAG)·도구(Agent)는 그 원본을 읽어 가는 이후 단계예요.
 
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| sqlalchemy (2.x) | ORM — 파이썬 클래스·객체로 표·행을 다루고 SQL을 만들어 보냄. Engine·Session도 여기 | from sqlalchemy import select, create_engine, URL |
-| psycopg[binary] (3.x) | 드라이버 — 실제로 PostgreSQL과 통신. [binary]는 미리 빌드된 C 확장 포함 | 직접 import 거의 안 함 — URL의 postgresql+psycopg |
-| pydantic-settings | .env·환경변수를 읽어 타입 있는 설정 객체로 | from pydantic_settings import BaseSettings |
-| alembic | DB 구조 변경(Migration)을 Revision 파일로 기록·적용 | python -m alembic upgrade head |
-| fastapi · uvicorn · pydantic | Day17과 같음 |  |
-| httpx · pytest (선택) | 자동 테스트 (TestClient) | from fastapi.testclient import TestClient |
-
-🔧 설치 · 확인 · 실행 명령어 사전에서 자세히 →
-
-```
-python -m pip install "sqlalchemy>=2.0,<2.1" "psycopg[binary]>=3,<4" pydantic-settings alembic
-python -m uvicorn main:app --port 8001 --reload       # API 서버 (포트는 자유)
-```
-
-💡 API 포트(예: 8001)와 DB 포트(5432)는 다른 것이에요. uvicorn의 --port는 내 API가 요청을 받을 문, 5432는 PostgreSQL 서버의 문이에요. 같은 포트에 서버 두 개를 띄우면 충돌해요.
-
-## 이거 어디에 써?
-
-"가상환경 정책이 바뀌었어요. AI 도우미는 무엇을 기준으로 답해야 하죠?" — 답의 근거는 최신 원본 지식이에요. 오늘은 담당자가 /docs(나중엔 관리 화면)에서 안내를 등록·수정하면 그게 PostgreSQL에 실제로 반영되는 원본 관리 서비스를 완성해요. AI 도우미의 검색(RAG)·도구(Agent)는 그 원본을 읽어 가는 이후 단계예요.
-
-|  | Day17 · Day18 (따로) | Day19 (하나로) |
+|  | API와 DB가 따로 | API와 DB를 연동 |
 |---|---|---|
 | 흐름 | FastAPI → JSON 파일 pgAdmin → PostgreSQL | POST → FastAPI 입력 검증 → ORM·Session → PostgreSQL → 201 |
 | 관계 | API를 불러도 DB는 안 바뀜 (별개) | API의 새 지식 = DB의 새 행 |
 | 증거 | — | API 응답 id = SQL로 찾은 knowledge.id = 다시 GET한 id |
 
-⚠️ API가 있다고 Agent 도구가 되는 건 아니에요. 도구로 쓰려면 Method·Path·입력 스키마·권한을 따로 계약해야 해요. 그리고 원본을 고쳐도 검색 인덱스는 별도 동기화가 필요해요. ?category=learning 필터도 의미 검색이 아니라 문자열 일치예요.
+연동은 아래 일곱 단계로 나눠 볼 수 있어요. 이 페이지의 ①~⑦이 이 순서예요.
 
-## 📋 명세 — 지식 관리 API
-
-오늘 만든 서비스의 약속을 한곳에 모았어요. 바깥(API)에서 보는 모양과 안쪽(DB)에 저장되는 모양을 나눠 적었어요.
-
-### 1. 엔드포인트
-
-| Method · Path | 입력 | 성공 | 실패 |
-|---|---|---|---|
-| GET /api/knowledge | Query category (선택, 문자열) | 200 · Knowledge[] (id 오름차순, 없으면 []) | — |
-| GET /api/knowledge/{knowledge_id} | Path knowledge_id (정수) | 200 · Knowledge | 422 정수 아님 · 404 없음 |
-| POST /api/knowledge | Body KnowledgeWrite | 201 · Knowledge (DB가 발급한 id) | 422 입력 · 409 충돌 · 500 |
-| PUT /api/knowledge/{knowledge_id} | Path + Body KnowledgeWrite (세 필드 모두) | 200 · Knowledge (같은 id) | 422 · 404 · 409 · 500 |
-| DELETE /api/knowledge/{knowledge_id} | Path | 204 · 본문 없음 | 422 · 404 |
-| GET /health | — | 200 · {"status": "ok"} | — |
-
-### 2. 요청 · 응답 스키마
-
-| 필드 | 타입 | KnowledgeWrite (요청) | Knowledge (응답) | 규칙 |
-|---|---|---|---|---|
-| id | integer | — (보내지 않음) | ✅ | DB가 발급 · 바뀌지 않음 |
-| title | string | 필수 | ✅ | 1~80자 · 중복 허용 |
-| content | string | 필수 | ✅ | 1~2,000자 |
-| category | string | 필수 | ✅ | 1~30자 · 처음 보는 이름이면 분류를 새로 만듦 |
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 연결 대상 | .env · Settings · URL.create · Engine | 어느 DB에, 어떤 비밀로 붙나? |
+| ② ORM · Session | Model ⇄ 표, 요청마다 Session | 표와 행을 파이썬으로 어떻게 다루나? |
+| ③ CRUD | 다섯 경로 → select · get · add · delete | API 하나가 어떤 SQL이 되나? |
+| ④ 트랜잭션 | flush · commit · rollback | 언제 확정하고, 언제 취소하나? |
+| ⑤ 오류 처리 | SQLSTATE · 제약 이름 → 409 · 500 · 503 | 실패를 어떤 상태 코드로 알리나? |
+| ⑥ Migration | Alembic Revision · upgrade · downgrade | DB 구조는 어떻게 바꾸나? |
+| ⑦ 통합 검증 | HTTP 응답 + DB 조회 + 재시작 | 정말 같은 DB에 저장됐나? |
 
 ```
-// 요청 (POST · PUT)                        // 응답 (200 · 201)
-{                                          {
-  "title": "실습 환경 안내",                  "id": 5,
-  "content": "실행 전에 가상환경을 확인합니다.",  "title": "실습 환경 안내",
-  "category": "learning"                     "content": "실행 전에 가상환경을 확인합니다.",
-}                                            "category": "learning"
-                                           }
+FastAPI (main.py): 경로 · 입력 검증(Pydantic) · 상태 코드 · 오류 처리기
+  └ SQLAlchemy ORM · Session: 객체 ⇄ 행 · 트랜잭션
+       └ Engine / Pool → psycopg (Driver) → PostgreSQL: 표 · 제약 · IDENTITY
 ```
-
-모르는 필드(예: author)는 오류 없이 무시돼요. 응답에는 category_id 같은 DB 내부 열이 나가지 않아요.
-
-### 3. DB 스키마
-
-| 표.열 | 타입 | 제약 (이름) |
-|---|---|---|
-| categories.id | BIGINT IDENTITY | PK |
-| categories.name | VARCHAR(30) | NOT NULL · UNIQUE (categories_name_key) · CHECK 1~30자 (categories_name_length) |
-| knowledge.id | BIGINT IDENTITY | PK |
-| knowledge.title | VARCHAR(80) | NOT NULL · CHECK 1~80자 (knowledge_title_length) |
-| knowledge.content | TEXT | NOT NULL · CHECK 1~2,000자 (knowledge_content_length) |
-| knowledge.category_id | BIGINT | NOT NULL · FK → categories.id ON DELETE RESTRICT (knowledge_category_fk) |
-
-### 4. API ↔ DB 대응
-
-| API 필드 | DB | 바꾸는 곳 |
-|---|---|---|
-| id | knowledge.id | 그대로 |
-| title · content | knowledge.title · knowledge.content | 그대로 |
-| category (이름) | knowledge.category_id → categories.name | 들어올 때 get_or_create_category · 나갈 때 to_read |
-
-### 5. 오류 응답
-
-| 상태 | 본문 | 언제 | DB 상태 |
-|---|---|---|---|
-| 422 | {"detail": [ {type, loc, msg, input}, ... ]} | 필수 누락 · 길이 위반 · Path가 정수 아님 | 아무것도 시도 안 함 |
-| 404 | {"detail": "Knowledge not found"} | 없는 지식 id | 변화 없음 (새 분류도 안 생김) |
-| 409 | {"detail": "Data conflict"} | 분류명 UNIQUE 충돌 · FK 충돌 | ROLLBACK |
-| 503 | {"detail": "Database unavailable"} | DB 연결 계열 오류 (SQLSTATE 08…) · 연결 끊김 | 성공으로 보고하지 않음 |
-| 500 | {"detail": "Database operation failed"} | 그 밖의 DB 오류 (예: 예상 못 한 CHECK 위반) | ROLLBACK |
-
-오류 본문에는 SQL·파라미터·DB 진단 메시지를 넣지 않아요.
-
-### 6. 동작 보장
-
-| 항목 | 약속 |
-|---|---|
-| 성공 응답 시점 | 201·200·204는 COMMIT 성공 뒤에만 |
-| 원자성 | 새 분류 + 지식은 함께 저장되거나 함께 취소 |
-| PUT | id·전체 개수 유지 · 없는 id를 새로 만들지 않음 |
-| DELETE | 그 지식만 삭제 · 부모 분류는 남음 |
-| id | 연속이 아닐 수 있음 (실패·취소한 번호는 다시 안 씀) |
 
 ## ① 연결 대상 고정 · 설정 분리
 
@@ -12883,6 +13611,8 @@ python -m uvicorn main:app --port 8001 --reload       # API 서버 (포트는 �
 | 테스트 DB | 자동 테스트 | 테스트가 만든 행만 정리 |
 
 ⚠️ API 시작할 때 create_all()이나 Seed를 자동 실행하게 넣지 않아요. 이미 데이터가 있는 DB에 표를 다시 만들거나 같은 데이터를 또 넣을 수 있어요.
+
+💡 API 포트(예: 8001)와 DB 포트(5432)는 다른 것이에요. uvicorn의 --port는 내 API가 요청을 받을 문, 5432는 PostgreSQL 서버의 문이에요. 같은 포트에 서버 두 개를 띄우면 충돌해요.
 
 ### 비밀은 코드 밖으로 — .env
 
@@ -12906,7 +13636,7 @@ engine = create_engine(url, pool_pre_ping=True, hide_parameters=True)
 
 🤔 왜 접속 주소를 f-string으로 이어 붙이면 안 돼? — 비밀번호에 @나 %가 있으면 주소의 구분 기호와 섞여요. 실제로 p@ss%w0rd를 이어 붙였더니 호스트가 'ss%w0rd@localhost', 비밀번호가 'p'로 잘못 읽혔어요. URL.create는 칸별로 따로 받아서 이런 일이 없어요.
 
-🔧 check_database.py — 같은 DB를 보고 있나 명령어 사전에서 자세히 →
+🔧 engine.connect() · text() — 같은 DB를 보고 있나 명령어 사전에서 자세히 →
 
 ```
 conn.execute(text("SELECT current_database(), current_user")).one()
@@ -12925,7 +13655,7 @@ conn.execute(text("SELECT current_database(), current_user")).one()
 
 🤔 Session을 전역 하나로 같이 쓰면 안 돼? — 요청 A가 실패해서 rollback 대기 상태인데 요청 B가 같은 Session을 쓰면 B까지 막혀요. 서로의 미확정 변경이 섞이기도 하고요. 그래서 Engine(연결 창고)은 공유, Session(작업대)은 요청마다 하나예요.
 
-🔧 sessionmaker · get_db() (yield 의존성) 명령어 사전에서 자세히 →
+🔧 sessionmaker · Depends (yield 의존성) 명령어 사전에서 자세히 →
 
 ```
 def get_db():
@@ -12935,11 +13665,11 @@ def get_db():
 
 ⚠️ close()는 저장이 아니에요. 요청이 끝나 Session이 닫혀도 commit하지 않은 변경은 확정되지 않아요. 쓰기 확정은 오직 commit().
 
-[그림: 왼쪽 API Pydantic의 category 문자열, 가운데 ORM Knowledge 클래스의 category_id 번호, 오른쪽 PostgreSQL의 categories와 knowledge 표, 사이를 get_or_create_category와 to_read 화살표가 잇는 그림] 무엇을 보나: 같은 지식이 세 층에서 모양이 달라요. API는 "category": "learning" 문자열, ORM은 category_id = 1 번호, DB는 두 표와 FK. 들어올 땐 get_or_create_category가 이름 → 번호, 나갈 땐 to_read가 번호 → 이름으로 바꿔요. 🤔 왜 바깥을 안 바꿔? 어제 API를 쓰던 쪽(화면·나중의 Agent)이 아무것도 고치지 않아도 되게요. 안쪽 저장 방식은 바깥의 약속과 따로 바뀔 수 있어야 해요.
+[그림: 왼쪽 API Pydantic의 category 문자열, 가운데 ORM Knowledge 클래스의 category_id 번호, 오른쪽 PostgreSQL의 categories와 knowledge 표, 사이를 분류명 조회·생성과 응답 변환 화살표가 잇는 그림] 무엇을 보나: 같은 지식이 세 층에서 모양이 달라요. API는 "category": "learning" 문자열, ORM은 category_id = 1 번호, DB는 두 표와 FK. 들어올 땐 분류명을 조회하고 없으면 만들어(select → add · flush) 번호로, 나갈 땐 번호를 분류명으로 바꿔 응답(KnowledgeRead)을 만들어요. 🤔 왜 바깥을 안 바꿔? 기존 API를 쓰던 쪽(화면·나중의 Agent)이 아무것도 고치지 않아도 되게요. 안쪽 저장 방식은 바깥의 약속과 따로 바뀔 수 있어야 해요.
 
-### ORM Model ↔ 어제의 DDL
+### ORM Model ↔ DDL
 
-| ORM (models.py) | DDL (Day18) |
+| ORM (models.py) | DDL (PostgreSQL 테이블 설계) |
 |---|---|
 | BigInteger, Identity(always=True), primary_key=True | BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY |
 | String(30), nullable=False, unique=True | VARCHAR(30) NOT NULL UNIQUE |
@@ -12947,7 +13677,7 @@ def get_db():
 | ForeignKey("public.categories.id", name=..., ondelete="RESTRICT") | CONSTRAINT ... FOREIGN KEY ... ON DELETE RESTRICT |
 | CheckConstraint("char_length(...) BETWEEN 1 AND 80", name=...) | CONSTRAINT ... CHECK (...) |
 
-⚠️ 클래스를 선언했다 ≠ CREATE TABLE을 실행했다. Model은 "DB가 이렇게 생겼을 거야"라는 설명이에요. 기존 표에 열을 추가해도 DB는 안 바뀌어요(⑥ Migration). 그래서 Model과 실제 DDL이 같은지 대조해요. 명령어 사전에 Model이 낼 DDL을 실제로 뽑아 어제 DDL과 비교해 뒀어요.
+⚠️ 클래스를 선언했다 ≠ CREATE TABLE을 실행했다. Model은 "DB가 이렇게 생겼을 거야"라는 설명이에요. 기존 표에 열을 추가해도 DB는 안 바뀌어요(⑥ Migration). 그래서 Model과 실제 DDL이 같은지 대조해요. 명령어 사전에 Model이 낼 DDL을 실제로 뽑아 SQL로 직접 쓴 DDL과 비교해 뒀어요.
 
 🔧 class Category(Base) 명령어 사전에서 자세히 →
 
@@ -12971,7 +13701,7 @@ category_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("public.categori
 | 분류 | category_id 번호 | category 문자열 |
 | 맞춰야 할 대상 | DB의 실제 구조 | API 계약 (입력 3필드, 응답 4필드) |
 
-🔧 KnowledgeWrite · KnowledgeRead · to_read() 명령어 사전에서 자세히 →
+🔧 BaseModel · Field(min_length, max_length) — 요청 · 응답 스키마 명령어 사전에서 자세히 →
 
 ```
 class KnowledgeWrite(BaseModel):
@@ -12980,9 +13710,7 @@ class KnowledgeWrite(BaseModel):
 
 ## ③ 다섯 API를 DB CRUD로
 
-[그림: HTTP 요청, Pydantic 검증, get_db, transaction, COMMIT, 201 응답 여섯 칸과, Pydantic에서 422로, transaction에서 ROLLBACK 후 409·500으로, 응답에서 pgAdmin 확인으로 갈라지는 흐름도] 무엇을 보나: POST /api/knowledge 한 건이 지나가는 순서예요. ① 길이·필수가 틀리면 함수가 실행되기도 전에 422(DB엔 가지도 않아요). ③ 안에서 DB 제약이 터지면 ROLLBACK 후 예외 → 오류 처리기가 409/500으로 바꿔요. 모두 통과해 ④ COMMIT이 성공해야 비로소 ⑤ 201이에요. 🤔 왜 201을 COMMIT 뒤에? 201을 먼저 보내고 COMMIT이 실패하면, 사용자는 "저장됐다"고 믿는데 DB엔 없어요. 응답은 사실이 확정된 뒤에.
-
-다섯 경로의 입력·응답·상태 코드는 📋 명세에 모아 뒀어요. 아래는 각 경로가 DB와 어떻게 이어지는지예요.
+다섯 경로의 입력·응답·상태 코드는 📋 명세에 모아 뒀어요. 아래는 각 경로가 DB와 어떻게 이어지는지예요. 쓰기 경로는 모두 큰 그림의 흐름(검증 → Session → 트랜잭션 → COMMIT → 응답)을 따라요.
 
 🔧 목록 GET — select(Knowledge, Category.name).join(...) 명령어 사전에서 자세히 →
 
@@ -12991,22 +13719,22 @@ stmt = select(Knowledge, Category.name).join(Category, Knowledge.category_id == 
 rows = db.execute(stmt).all()
 ```
 
-🤔 SQL 문자열을 직접 쓰지 않고 select()로? — 어제 SQL과 1:1로 대응해요(select=SELECT, join=JOIN ON, order_by=ORDER BY). 대신 ?category= 같은 사용자 입력이 SQL 문자열에 그대로 끼어들지 않고 값으로 따로 전달(바인딩)돼서, 입력으로 SQL을 조작하는 공격(SQL Injection)을 막아요.
+🤔 SQL 문자열을 직접 쓰지 않고 select()로? — SQL JOIN과 1:1로 대응해요(select=SELECT, join=JOIN ON, order_by=ORDER BY). 대신 ?category= 같은 사용자 입력이 SQL 문자열에 그대로 끼어들지 않고 값으로 따로 전달(바인딩)돼서, 입력으로 SQL을 조작하는 공격(SQL Injection)을 막아요.
 
-🔧 get_or_create_category() — 분류 찾고 없으면 만들기 명령어 사전에서 자세히 →
+🔧 분류 조회, 없으면 생성 — db.scalar(select(...)) · db.add · db.flush 명령어 사전에서 자세히 →
 
 ```
 category = db.scalar(select(Category).where(Category.name == name))
-if category is None: db.add(Category(name=name)); db.flush()   # id 확보, 아직 미확정
+if category is None: category = Category(name=name); db.add(category); db.flush()   # id 확보, 아직 미확정
 ```
 
 💡 있는 분류는 그 ID를 재사용하고, 없는 분류는 같은 트랜잭션 안에서 새로 만들어요. 여기서 commit하지 않는 게 핵심 — 분류와 지식을 함께 확정해야 반쪽 저장이 없어요. ("조회 후 생성"이 동시 요청 충돌까지 해결하지는 않아요 → 그땐 UNIQUE 위반 409.)
 
-🔧 POST — 저장 후 201 명령어 사전에서 자세히 →
+🔧 POST — @app.post(status_code=201), 저장 후 201 명령어 사전에서 자세히 →
 
 ```
-with transaction(db):
-    category = get_or_create_category(db, payload.category); db.add(row); db.flush()
+db.add(row); db.flush()             # DB가 발급한 id 확보
+result = KnowledgeRead(id=row.id, ...); db.commit(); return result
 ```
 
 🔧 상세 GET — db.get() · 없으면 404 명령어 사전에서 자세히 →
@@ -13019,7 +13747,7 @@ if row is None: raise HTTPException(404, "Knowledge not found")
 🔧 PUT — 같은 id, 세 필드 교체 명령어 사전에서 자세히 →
 
 ```
-row = knowledge_or_404(db, knowledge_id)        # 먼저 존재 확인
+row = db.get(Knowledge, knowledge_id)           # 먼저 존재 확인 (없으면 404)
 row.title = payload.title; row.content = payload.content; row.category_id = category.id
 ```
 
@@ -13043,7 +13771,7 @@ return Response(status_code=204)
 | rollback() | 미확정 변경 취소 · 실패 상태 정리 | 발급된 ID 번호까지 되돌리지 않음 |
 | close() | 연결·상태 정리 | 저장을 자동 확정하지 않음 |
 
-[그림: add 뒤 id None, flush 뒤 id 7이지만 다른 연결에서 0행, rollback 뒤 0행, 다시 add·flush하면 id 8, commit 뒤 다른 연결에서 1행, close는 저장 명령 아님을 보여 주는 여섯 칸] 무엇을 보나: 실제 PostgreSQL에서 한 칸씩 실행한 결과예요. add만 하면 id가 None(SQL을 아직 안 보냄). flush하면 DB가 7번을 발급하지만 다른 연결에선 0행 — 미확정이니까요. rollback하면 사라지고, 다시 넣으면 8번(7번은 다시 안 써요, Day18의 시퀀스). commit 뒤에야 다른 연결에서 1행. 🤔 그럼 flush는 왜 해? POST 응답에 넣을 id를 commit 전에 알아야 해서요. 응답 객체를 만든 다음 commit하고 돌려줘요.
+[그림: add 뒤 id None, flush 뒤 id 7이지만 다른 연결에서 0행, rollback 뒤 0행, 다시 add·flush하면 id 8, commit 뒤 다른 연결에서 1행, close는 저장 명령 아님을 보여 주는 여섯 칸] 무엇을 보나: 실제 PostgreSQL에서 한 칸씩 실행한 결과예요. add만 하면 id가 None(SQL을 아직 안 보냄). flush하면 DB가 7번을 발급하지만 다른 연결에선 0행 — 미확정이니까요. rollback하면 사라지고, 다시 넣으면 8번(7번은 다시 안 써요 — 시퀀스는 되감기지 않아요). commit 뒤에야 다른 연결에서 1행. 🤔 그럼 flush는 왜 해? POST 응답에 넣을 id를 commit 전에 알아야 해서요. 응답 객체를 만든 다음 commit하고 돌려줘요.
 
 🔧 Session 메서드 실제 비교 — add · flush · rollback · commit · refresh 명령어 사전에서 자세히 →
 
@@ -13051,14 +13779,14 @@ return Response(status_code=204)
 db.add(row); db.flush(); print(row.id); db.commit()
 ```
 
-🔧 transaction(db) 도우미 — 쓰기 경계 하나 명령어 사전에서 자세히 →
+🔧 쓰기 경계 하나 — commit() / rollback() (try · except) 명령어 사전에서 자세히 →
 
 ```
-try: yield; db.commit()
+try: ...; db.commit()                        # 조회·변경·flush 뒤 한 번 확정
 except Exception: db.rollback(); raise
 ```
 
-⚠️ 잘못 나누면 반쪽 저장. 새 분류를 먼저 commit하고 지식 저장이 실패하면, 지식은 없고 새 분류만 남아요(명령어 사전에 실제로 남은 걸 보여 줬어요). 그래서 한 요청의 쓰기 전체를 with transaction(db): 하나로 감싸고, 도우미 안에서 추가 commit·중첩 transaction을 하지 않아요.
+⚠️ 잘못 나누면 반쪽 저장. 새 분류를 먼저 commit하고 지식 저장이 실패하면, 지식은 없고 새 분류만 남아요(명령어 사전에 실제로 남은 걸 보여 줬어요). 그래서 한 요청의 쓰기 전체를 하나의 쓰기 경계(try 안에서 마지막에 commit 한 번, 실패하면 rollback)로 감싸고, 그 안에서 추가 commit·중첩 경계를 만들지 않아요.
 
 🔧 같은 Session에서 실패 → rollback → 계속 쓰기 명령어 사전에서 자세히 →
 
@@ -13099,13 +13827,13 @@ unavailable = isinstance(exc, OperationalError) and (str(code or "").startswith(
 
 ## 🧪 이 요청은 어디서 멈출까?
 
-요청을 고르면 어느 단계에서 멈추는지, 응답과 DB가 어떻게 되는지 보여 줘요. 결과는 모두 이 코드를 실제 PostgreSQL에서 돌려 확인한 것이에요.
+요청을 고르면 어느 단계에서 멈추는지, 응답과 DB가 어떻게 되는지 보여 줘요. 결과는 모두 같은 코드를 실제 PostgreSQL에서 돌려 확인한 것이에요.
 
 ## ⑥ Migration — Alembic
 
 ORM Model에 source_label 열을 적었다고 DB에 열이 생기지 않아요. DB 구조 변경은 Revision(변경 기록 파일)으로 남기고, 사람이 읽고, 대상 DB에 upgrade하고, 실제 열과 기존 행을 확인해요.
 
-[그림: 빈 연습 DB에서 001_initial로 두 테이블 생성, 가상 지식 1건 COMMIT, 002_source로 source_label 열 추가, 열 목록과 기존 행 검증까지 다섯 단계. 아래에 downgrade 하면 열 값이 사라진다는 빨간 상자] 무엇을 보나: 노트 전용 연습 DB에서 실제로 한 순서예요. 001_initial(두 표) → 데이터 1건 → 002_source(NULL 허용 열 추가) → 열 목록·기존 행 확인. 기존 행은 그대로이고 새 열은 NULL이었어요. 빨간 상자: downgrade로 되돌렸다가 다시 올렸더니 열은 돌아왔지만 넣어 둔 값은 NULL — drop_column은 데이터를 지워요. 🤔 왜 별도 DB에서? 연습하다 되돌림까지 해 보면 데이터가 날아갈 수 있어서, 주 프로젝트 DB는 절대 건드리지 않아요.
+[그림: 빈 연습 DB에서 001_initial로 두 테이블 생성, 가상 지식 1건 COMMIT, 002_source로 source_label 열 추가, 열 목록과 기존 행 검증까지 다섯 단계. 아래에 downgrade 하면 열 값이 사라진다는 빨간 상자] 무엇을 보나: 별도 연습 DB에서 실제로 한 순서예요. 001_initial(두 표) → 데이터 1건 → 002_source(NULL 허용 열 추가) → 열 목록·기존 행 확인. 기존 행은 그대로이고 새 열은 NULL이었어요. 빨간 상자: downgrade로 되돌렸다가 다시 올렸더니 열은 돌아왔지만 넣어 둔 값은 NULL — drop_column은 데이터를 지워요. 🤔 왜 별도 DB에서? 연습하다 되돌림까지 해 보면 데이터가 날아갈 수 있어서, 주 프로젝트 DB는 절대 건드리지 않아요.
 
 | 용어 | 뜻 |
 |---|---|
@@ -13210,18 +13938,22 @@ app.dependency_overrides[get_db] = override_get_db
 python -m uvicorn main:app --port 8001     # Ctrl+C → 다시 실행 → GET /api/knowledge/{id}
 ```
 
-💡 TestClient ≠ 실서버 재시작, mock(가짜 객체) 통과 ≠ PostgreSQL 통과. 진짜 DB에서 돌려 봐야 제약·트랜잭션이 실제로 어떻게 동작하는지 알 수 있어요. 이 노트의 결과는 실제 PostgreSQL 18에서 실행한 것이에요.
+💡 TestClient ≠ 실서버 재시작, mock(가짜 객체) 통과 ≠ PostgreSQL 통과. 진짜 DB에서 돌려 봐야 제약·트랜잭션이 실제로 어떻게 동작하는지 알 수 있어요.
 
-## ⑧ 다음 단계와 연결
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
 
-| 오늘 완성 | 이후에 연결 |
-|---|---|
-| 지식 원본의 CRUD | 문서·청크·출처 관리 |
-| API 입력·응답 약속 | 검색 결과와 LLM 생성 |
-| 관계·제약·트랜잭션 | Agent가 쓰는 읽기 도구 |
-| 오류와 DB 반영 검증 | 권한·승인·인덱스 갱신 정책 |
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| .env · BaseSettings · SecretStr | 타입 있는 연결 설정 · 출력 시 가린 비밀번호 | 암호화 · 접속 성공 |
+| create_engine (Pool) | 연결을 빌려 줄 준비 | Host·비밀번호가 맞다는 것 (SQL을 보내 봐야 앎) |
+| ORM Model | 클래스 ⇄ 표 매핑 · 쿼리 작성 | 실제 DB 구조 변경 |
+| Pydantic 스키마 | 입력 3필드 검증(422) · 응답 4필드 | DB 제약 통과 |
+| Session · flush | SQL 전송 · DB가 발급한 id | 확정 (다른 연결엔 아직 0행) |
+| commit / rollback | 한 요청의 쓰기를 함께 확정 / 함께 취소 | 동시 요청 경쟁 해결 · 발급 번호 회수 |
+| 오류 처리기 | SQLSTATE · 제약 이름 → 409 · 500 · 503 | 모든 장애 유형의 정확한 분류 (실제로 일으켜 확인) |
+| Alembic | 구조 변경 기록 · 적용 위치 | 데이터 이력 · 되돌릴 때 값 복구 |
 
-다음: 11/13 LLM 기초 → 임베딩·문서 처리 → 11/20 Basic RAG. 오늘 만든 건 AI 플랫폼의 기반이고, Agent 자체를 완성한 건 아니에요. 로컬 학습용이라 인증·권한·운영 장애·검색 인덱스는 별도예요.
+⚠️ API가 있다고 Agent 도구가 되는 건 아니에요. 도구로 쓰려면 Method·Path·입력 스키마·권한을 따로 계약해야 해요. 그리고 원본을 고쳐도 검색 인덱스는 별도 동기화가 필요해요. ?category=learning 필터도 의미 검색이 아니라 문자열 일치예요.
 
 ### 세 질문으로 정리
 
@@ -13231,11 +13963,128 @@ python -m uvicorn main:app --port 8001     # Ctrl+C → 다시 실행 → GET /a
 | Pydantic의 category 문자열을 DB에 그대로 넣어? | 아니요 — 분류명을 조회·생성해 category_id로 저장 |
 | ORM Model을 바꾸면 기존 DB 열도 바뀌어? | 아니요 — Revision을 검토하고 대상 DB에 Migration 적용 |
 
+## 📋 명세 — 한눈에 보는 참조표
+
+지식 관리 API의 약속을 한곳에 모은 참조표예요. 바깥(API)에서 보는 모양과 안쪽(DB)에 저장되는 모양을 나눠 적었어요.
+
+### 1. 엔드포인트
+
+| Method · Path | 입력 | 성공 | 실패 |
+|---|---|---|---|
+| GET /api/knowledge | Query category (선택, 문자열) | 200 · Knowledge[] (id 오름차순, 없으면 []) | — |
+| GET /api/knowledge/{knowledge_id} | Path knowledge_id (정수) | 200 · Knowledge | 422 정수 아님 · 404 없음 |
+| POST /api/knowledge | Body KnowledgeWrite | 201 · Knowledge (DB가 발급한 id) | 422 입력 · 409 충돌 · 500 |
+| PUT /api/knowledge/{knowledge_id} | Path + Body KnowledgeWrite (세 필드 모두) | 200 · Knowledge (같은 id) | 422 · 404 · 409 · 500 |
+| DELETE /api/knowledge/{knowledge_id} | Path | 204 · 본문 없음 | 422 · 404 |
+| GET /health | — | 200 · {"status": "ok"} | — |
+
+### 2. 요청 · 응답 스키마
+
+| 필드 | 타입 | KnowledgeWrite (요청) | Knowledge (응답) | 규칙 |
+|---|---|---|---|---|
+| id | integer | — (보내지 않음) | ✅ | DB가 발급 · 바뀌지 않음 |
+| title | string | 필수 | ✅ | 1~80자 · 중복 허용 |
+| content | string | 필수 | ✅ | 1~2,000자 |
+| category | string | 필수 | ✅ | 1~30자 · 처음 보는 이름이면 분류를 새로 만듦 |
+
+```
+// 요청 (POST · PUT)                        // 응답 (200 · 201)
+{                                          {
+  "title": "실습 환경 안내",                  "id": 5,
+  "content": "실행 전에 가상환경을 확인합니다.",  "title": "실습 환경 안내",
+  "category": "learning"                     "content": "실행 전에 가상환경을 확인합니다.",
+}                                            "category": "learning"
+                                           }
+```
+
+모르는 필드(예: author)는 오류 없이 무시돼요. 응답에는 category_id 같은 DB 내부 열이 나가지 않아요.
+
+### 3. DB 스키마
+
+| 표.열 | 타입 | 제약 (이름) |
+|---|---|---|
+| categories.id | BIGINT IDENTITY | PK |
+| categories.name | VARCHAR(30) | NOT NULL · UNIQUE (categories_name_key) · CHECK 1~30자 (categories_name_length) |
+| knowledge.id | BIGINT IDENTITY | PK |
+| knowledge.title | VARCHAR(80) | NOT NULL · CHECK 1~80자 (knowledge_title_length) |
+| knowledge.content | TEXT | NOT NULL · CHECK 1~2,000자 (knowledge_content_length) |
+| knowledge.category_id | BIGINT | NOT NULL · FK → categories.id ON DELETE RESTRICT (knowledge_category_fk) |
+
+### 4. API ↔ DB 대응
+
+| API 필드 | DB | 바꾸는 곳 |
+|---|---|---|
+| id | knowledge.id | 그대로 |
+| title · content | knowledge.title · knowledge.content | 그대로 |
+| category (이름) | knowledge.category_id → categories.name | 들어올 때 분류명 조회·생성 → 번호 · 나갈 때 번호 → 분류명 (KnowledgeRead) |
+
+### 5. 오류 응답
+
+| 상태 | 본문 | 언제 | DB 상태 |
+|---|---|---|---|
+| 422 | {"detail": [ {type, loc, msg, input}, ... ]} | 필수 누락 · 길이 위반 · Path가 정수 아님 | 아무것도 시도 안 함 |
+| 404 | {"detail": "Knowledge not found"} | 없는 지식 id | 변화 없음 (새 분류도 안 생김) |
+| 409 | {"detail": "Data conflict"} | 분류명 UNIQUE 충돌 · FK 충돌 | ROLLBACK |
+| 503 | {"detail": "Database unavailable"} | DB 연결 계열 오류 (SQLSTATE 08…) · 연결 끊김 | 성공으로 보고하지 않음 |
+| 500 | {"detail": "Database operation failed"} | 그 밖의 DB 오류 (예: 예상 못 한 CHECK 위반) | ROLLBACK |
+
+오류 본문에는 SQL·파라미터·DB 진단 메시지를 넣지 않아요.
+
+### 6. 동작 보장
+
+| 항목 | 약속 |
+|---|---|
+| 성공 응답 시점 | 201·200·204는 COMMIT 성공 뒤에만 |
+| 원자성 | 새 분류 + 지식은 함께 저장되거나 함께 취소 |
+| PUT | id·전체 개수 유지 · 없는 id를 새로 만들지 않음 |
+| DELETE | 그 지식만 삭제 · 부모 분류는 남음 |
+| id | 연속이 아닐 수 있음 (실패·취소한 번호는 다시 안 씀) |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| sqlalchemy (2.x) | ORM — 파이썬 클래스·객체로 표·행을 다루고 SQL을 만들어 보냄. Engine·Session도 여기 | from sqlalchemy import select, create_engine, URL |
+| psycopg[binary] (3.x) | 드라이버 — 실제로 PostgreSQL과 통신. [binary]는 미리 빌드된 C 확장 포함 | 직접 import 거의 안 함 — URL의 postgresql+psycopg |
+| pydantic-settings | .env·환경변수를 읽어 타입 있는 설정 객체로 | from pydantic_settings import BaseSettings |
+| alembic | DB 구조 변경(Migration)을 Revision 파일로 기록·적용 | python -m alembic upgrade head |
+| fastapi · uvicorn · pydantic | API 서버 · 입력 검증 (FastAPI 지식 관리 API와 같음) |  |
+| httpx · pytest (선택) | 자동 테스트 (TestClient) | from fastapi.testclient import TestClient |
+
+🔧 설치 · 확인 · 실행 명령어 사전에서 자세히 →
+
+```
+python -m pip install "sqlalchemy>=2.0,<2.1" "psycopg[binary]>=3,<4" pydantic-settings alembic
+python -m uvicorn main:app --port 8001 --reload       # API 서버 (포트는 자유)
+```
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 같은 코드를 실제 PostgreSQL 18(연습용 DB)에서 돌려 얻은 값이에요.
+
+## 이어서 볼 주제
+
+| 여기서 만든 것 | 이후에 연결 |
+|---|---|
+| 지식 원본의 CRUD | 문서·청크·출처 관리 |
+| API 입력·응답 약속 | 검색 결과와 LLM 생성 |
+| 관계·제약·트랜잭션 | Agent가 쓰는 읽기 도구 |
+| 오류와 DB 반영 검증 | 권한·승인·인덱스 갱신 정책 |
+
+| 주제 | 연결 |
+|---|---|
+| LLM 원리 — Token · Embedding · Attention | 이 원본 지식 위에서 동작할 언어 모델의 안쪽 |
+| Prompt · Context Engineering · LLM API 클라이언트 | 저장한 지식을 골라 LLM 입력에 넣고 호출 · 검증 |
+| Embedding · Vector Search | 같은 PostgreSQL에 벡터를 더해 의미로 검색 |
+| Chunking → Basic RAG | 검색 근거 + 생성 — 원본을 고치면 인덱스도 동기화 |
+
+여기서 만든 건 AI 플랫폼의 기반이고, Agent 자체는 아니에요. 로컬 학습용 구성이라 인증·권한·운영 장애·검색 인덱스는 별도로 설계해요.
+
 ## 원본 자료
 
-- 강의: Day19_20261112.pdf (FastAPI–PostgreSQL 연동 · 지식 관리 API 완성, 82쪽) — 플랫폼 속 위치 p2–13 · 연결 대상·설정·Engine·Session p16–25 · Model·Schema·CRUD p27–35 · 트랜잭션·오류 정책 p37–44 · Migration·통합 검증 p46–53 · 다음 연결 p55·p62–63 · 부록(구조·settings·db·models·필터·경계 사례·오류 처리기·같은 Session·Alembic env·Revision·테스트·Windows 실행) p64–79
+- 원본: Day19_20261112.pdf (FastAPI–PostgreSQL 연동 · 지식 관리 API 완성, 82쪽) — 플랫폼 속 위치 p2–13 · 연결 대상·설정·Engine·Session p16–25 · Model·Schema·CRUD p27–35 · 트랜잭션·오류 정책 p37–44 · Migration·통합 검증 p46–53 · 다음 연결 p55·p62–63 · 부록(구조·settings·db·models·필터·경계 사례·오류 처리기·같은 Session·Alembic env·Revision·테스트·Windows 실행) p64–79
 
-- 노트·명령어 사전의 결과 값: 강의 코드(settings.py · db.py · models.py · main.py · 002_source)를 그대로 옮겨 이 PC의 PostgreSQL 18에서 실행 — 노트 전용 DB 두 개를 새로 만들어 쓰고 끝난 뒤 삭제 (SQLAlchemy 2.1.8 · psycopg 3.3.8 · Alembic 1.20.1 · FastAPI 0.162.2). 스크립트 tools/io_day19.py, 그림 tools/visuals/make_day19.py
+- 노트·명령어 사전의 결과 값: 원본 코드(settings.py · db.py · models.py · main.py · 002_source)를 그대로 옮겨 이 PC의 PostgreSQL 18에서 실행 — 노트 전용 DB 두 개를 새로 만들어 쓰고 끝난 뒤 삭제 (SQLAlchemy 2.1.8 · psycopg 3.3.8 · Alembic 1.20.1 · FastAPI 0.162.2). 원본 코드의 도우미 함수(transaction · get_or_create_category · knowledge_or_404 · to_read)는 본문·명령어 사전에서 같은 동작의 실제 호출(commit/rollback · select/add/flush · db.get/HTTPException · KnowledgeRead(...))로 풀어 썼어요. 스크립트 tools/io_day19.py, 그림 tools/visuals/make_day19.py
 
 - 공식 문서: SQLAlchemy ORM Quick Start · Session Basics · Engine Configuration (URL.create) · Core Exceptions
 
@@ -13246,17 +14095,17 @@ python -m uvicorn main:app --port 8001     # Ctrl+C → 다시 실행 → GET /a
 ## 🔧 Day19 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day19)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | python -m pip install sqlalchemy "psycopg[binary]" pydantic-settings alembic, uvicorn main:app --port 8001 |
-| ① 연결 대상 · 설정 | .env, BaseSettings · SecretStr, URL.create(), create_engine(), check_database.py |
-| ② ORM · Engine · Session | sessionmaker, get_db() + Depends, class ...(Base) · mapped_column, KnowledgeWrite |
-| ③ 다섯 API | select().join(), db.get(), get_or_create_category(), db.add · db.flush · db.delete |
-| ④ 트랜잭션 · Session 메서드 | with transaction(db):, commit() · rollback() · refresh() · close() |
-| 📋 명세 | 엔드포인트 · 요청/응답 스키마 · DB 스키마 · 오류 응답 |
+| 🗺️ 큰 그림 | 요청 한 건의 흐름 — 검증 → Session → 트랜잭션 → COMMIT → 응답 |
+| ① 연결 대상 · 설정 | .env, BaseSettings · SecretStr, URL.create(), create_engine(), engine.connect() · text() |
+| ② ORM · Engine · Session | sessionmaker, Depends (yield 의존성), class ...(Base) · mapped_column, BaseModel · Field |
+| ③ 다섯 API | select().join(), db.scalar(), db.get(), db.add · db.flush · db.delete, HTTPException |
+| ④ 트랜잭션 · Session 메서드 | commit() · rollback() (try / except) · refresh() · close() |
 | ⑤ 오류 처리 | @app.exception_handler(IntegrityError), exc.orig.sqlstate · diag.constraint_name, 409 · 503 · 500 |
 | 🧪 이 요청은 어디서 멈출까? | (요청별 멈추는 단계 · 응답) |
 | ⑥ Migration | alembic current · history · upgrade · downgrade, op.add_column, --autogenerate |
 | ⑦ 통합 검증 | app.dependency_overrides, TestClient, 재시작 후 GET |
-| ⑧ 다음 단계 | LLM 기초 (11/13) → 임베딩 → Basic RAG (11/20) |
+| 📋 명세 | 엔드포인트 · 요청/응답 스키마 · DB 스키마 · 오류 응답 |
+| 📦 패키지 · 명령어 | python -m pip install sqlalchemy "psycopg[binary]" pydantic-settings alembic, uvicorn main:app --port 8001 |
 
 ### 설치 · 확인 · 서버 실행
 
@@ -13272,11 +14121,11 @@ python -m pip show sqlalchemy psycopg alembic
 python -m uvicorn main:app --port 8001 --reload       # http://127.0.0.1:8001/docs
 ```
 
-▶ 실제로 돌려 보면 이 노트를 만든 가상환경에서 실제로 확인
+▶ 실제로 돌려 보면 실행에 쓴 가상환경에서 실제로 확인
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| python -m pip show sqlalchemy psycopg alembic | sqlalchemy 2.1.8 · psycopg 3.3.8 · alembic 1.20.1 | 강의 예시는 sqlalchemy 2.0 계열 — 이 PC는 2.1이라 노트 결과도 2.1 기준 |
+| python -m pip show sqlalchemy psycopg alembic | sqlalchemy 2.1.8 · psycopg 3.3.8 · alembic 1.20.1 | 설치 범위 예시는 sqlalchemy 2.0 계열 — 아래 결과는 설치된 2.1 기준 |
 | pydantic-settings · fastapi | 2.16.2 · 0.162.2 |  |
 | import psycopg; psycopg.pq.__impl__ | binary | [binary]로 깔면 C 확장(binary)으로 PostgreSQL과 통신 — 따로 libpq를 설치할 필요가 없어요 |
 
@@ -13307,7 +14156,7 @@ DB_PASSWORD='내_비밀번호'
 __pycache__/
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13384,10 +14233,10 @@ engine = create_engine(
 
 ⚠️ Engine은 앱에서 한 번 만들어 재사용해요. 요청마다 create_engine을 부르면 Pool이 계속 새로 생겨 연결이 쌓여요.
 
-### check_database.py — 연결 대상 확인
+### engine.connect() · text() — 연결 대상 확인
 
 ```
-# check_database.py · 로컬 터미널에서만 확인
+# check_database.py · 로컬 터미널에서 확인
 from sqlalchemy import text
 from db import engine
 with engine.connect() as conn:
@@ -13401,7 +14250,7 @@ print("DB:", info[0], "USER:", info[1])
 print("knowledge count:", count)
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13417,7 +14266,7 @@ print("knowledge count:", count)
 
 💡 순서: DB·사용자 확인 → public.knowledge 읽기 → pgAdmin 결과와 대조. 접속 성공 ≠ 구조 일치라서 실제 표까지 읽어 봐요.
 
-### sessionmaker · get_db() — 요청마다 Session
+### sessionmaker · Depends (yield 의존성) — 요청마다 Session
 
 ```
 # db.py · Engine은 앞 코드에서 생성
@@ -13439,7 +14288,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 def list_knowledge(db: DbSession): ...
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13491,7 +14340,7 @@ class Category(Base):
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| CreateTable(Category.__table__) | CREATE TABLE public.categories ( id BIGINT GENERATED ALWAYS AS IDENTITY, name VARCHAR(30) NOT NULL, PRIMARY KEY (id), CONSTRAINT categories_name_length CHECK (char_length(name) BETWEEN 1 AND 30), UNIQUE (name) ) | 어제 손으로 쓴 DDL과 같은 구조 |
+| CreateTable(Category.__table__) | CREATE TABLE public.categories ( id BIGINT GENERATED ALWAYS AS IDENTITY, name VARCHAR(30) NOT NULL, PRIMARY KEY (id), CONSTRAINT categories_name_length CHECK (char_length(name) BETWEEN 1 AND 30), UNIQUE (name) ) | SQL로 직접 쓴 DDL과 같은 구조 |
 | Category.__table__.fullname | public.categories | {"schema": "public"} |
 
 | 부분 | 뜻 |
@@ -13537,7 +14386,7 @@ class Knowledge(Base):
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| CreateTable(Knowledge.__table__) | CREATE TABLE public.knowledge ( id BIGINT GENERATED ALWAYS AS IDENTITY, title VARCHAR(80) NOT NULL, content TEXT NOT NULL, category_id BIGINT NOT NULL, PRIMARY KEY (id), CONSTRAINT knowledge_title_length CHECK (char_length(title) BETWEEN 1 AND 80), CONSTRAINT knowledge_content_length CHECK (char_length(content) BETWEEN 1 AND 2000), CONSTRAINT knowledge_category_fk FOREIGN KEY(category_id) REFERENCES public.categories (id) ON DELETE RESTRICT ) | CHECK 2개 + FK(RESTRICT) 이름까지 어제와 같아요 |
+| CreateTable(Knowledge.__table__) | CREATE TABLE public.knowledge ( id BIGINT GENERATED ALWAYS AS IDENTITY, title VARCHAR(80) NOT NULL, content TEXT NOT NULL, category_id BIGINT NOT NULL, PRIMARY KEY (id), CONSTRAINT knowledge_title_length CHECK (char_length(title) BETWEEN 1 AND 80), CONSTRAINT knowledge_content_length CHECK (char_length(content) BETWEEN 1 AND 2000), CONSTRAINT knowledge_category_fk FOREIGN KEY(category_id) REFERENCES public.categories (id) ON DELETE RESTRICT ) | CHECK 2개 + FK(RESTRICT) 이름까지 직접 쓴 DDL과 같아요 |
 | [c.name for c in Knowledge.__table__.columns] | ['id', 'title', 'content', 'category_id'] | DB 쪽 열 이름 — API의 category 문자열은 없음 |
 
 | 부분 | 뜻 |
@@ -13548,9 +14397,11 @@ class Knowledge(Base):
 
 💡 제목 UNIQUE는 추가하지 않아요(중복 허용). 공백만 있는 제목은 길이 규칙상 허용돼요 — trim 같은 업무 정책은 따로 합의할 일이에요.
 
-### KnowledgeWrite · KnowledgeRead · to_read()
+### Pydantic BaseModel · Field(min_length, max_length) — 요청 · 응답 스키마
 
 ```
+from pydantic import BaseModel, Field
+
 class KnowledgeWrite(BaseModel):
     title: str = Field(min_length=1, max_length=80)
     content: str = Field(min_length=1, max_length=2000)
@@ -13559,14 +14410,14 @@ class KnowledgeWrite(BaseModel):
 class KnowledgeRead(KnowledgeWrite):
     id: int
 
-def to_read(row: Knowledge, category: str):
-    return KnowledgeRead(
-        id=row.id, title=row.title,
-        content=row.content, category=category,
-    )
+# ORM 행(category_id) + 분류명 → 응답 모양
+result = KnowledgeRead(
+    id=row.id, title=row.title,
+    content=row.content, category=category.name,
+)
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13578,9 +14429,10 @@ def to_read(row: Knowledge, category: str):
 |---|---|
 | KnowledgeWrite | POST·PUT 입력 3필드 — 셋 다 필수 |
 | KnowledgeRead(KnowledgeWrite) | 상속 + id → 응답 4필드 |
-| to_read(row, category) | ORM 객체(category_id) + 분류명 → 응답 모양 |
+| Field(min_length=1, max_length=80) | 길이 규칙 — 어기면 함수 실행 전에 422 |
+| KnowledgeRead(id=..., category=category.name) | ORM 객체(category_id) + 분류명 → 응답 모양 |
 
-⚠️ from_attributes=True 하나로 category_id가 category 문자열로 자동 변환되지 않아요. 이름이 다르고 값의 뜻도 달라서, to_read처럼 직접 바꿔 줘야 해요.
+⚠️ from_attributes=True 하나로 category_id가 category 문자열로 자동 변환되지 않아요. 이름이 다르고 값의 뜻도 달라서, 분류명을 넣어 KnowledgeRead(...)를 직접 만들어 줘야 해요.
 
 ### 목록 GET — select(Knowledge, Category.name).join(...)
 
@@ -13594,19 +14446,20 @@ def list_knowledge(db: DbSession,
     if category is not None:
         stmt = stmt.where(Category.name == category)
     stmt = stmt.order_by(Knowledge.id)
-    return [to_read(row, name)
+    return [KnowledgeRead(id=row.id, title=row.title,
+                          content=row.content, category=name)
             for row, name in db.execute(stmt).all()]
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| GET /api/knowledge | 200 [{"title":"실습 파일 보관","content":"실습 파일은 개인 폴더에 보관합니다.","category":"learning","id":1},{"title":"서버 실행","content":"프로젝트 폴더에서 서버를 실행합니다.","category":"environment","id":2},{"title":"질문 작성","content":"오류 메시지와 시도한 작업을 함께 적습니다.","category":"learning","id":3}] | SQL로 넣은 S0 3건이 API로 보임 — id 오름차순 |
-| GET /api/knowledge?category=learning | 200 [{"title":"실습 파일 보관","content":"실습 파일은 개인 폴더에 보관합니다.","category":"learning","id":1},{"title":"질문 작성","content":"오류 메시지와 시도한 작업을 함께 적습니다.","category":"learning","id":3}] | 분류 이름으로 거르기 (부록 A07) |
+| GET /api/knowledge | 200 [{"title":"실습 파일 보관","content":"실습 파일은 개인 폴더에 보관합니다.","category":"learning","id":1},{"title":"서버 실행","content":"프로젝트 폴더에서 서버를 실행합니다.","category":"environment","id":2},{"title":"질문 작성","content":"오류 메시지와 시도한 작업을 함께 적습니다.","category":"learning","id":3}] | SQL로 미리 넣은 3건이 API로 보임 — id 오름차순 |
+| GET /api/knowledge?category=learning | 200 [{"title":"실습 파일 보관","content":"실습 파일은 개인 폴더에 보관합니다.","category":"learning","id":1},{"title":"질문 작성","content":"오류 메시지와 시도한 작업을 함께 적습니다.","category":"learning","id":3}] | 분류 이름으로 거르기 |
 | GET /api/knowledge?category=reference | 200 [] | 맞는 지식이 없으면 200 + [] |
 
-| ORM | SQL (Day18) |
+| ORM | SQL |
 |---|---|
 | select(Knowledge, Category.name) | SELECT k.*, c.name |
 | .join(Category, Knowledge.category_id == Category.id) | JOIN categories c ON c.id = k.category_id |
@@ -13614,22 +14467,20 @@ def list_knowledge(db: DbSession,
 | .order_by(Knowledge.id) | ORDER BY k.id |
 | db.execute(stmt).all() | 실제 실행 → (Knowledge 객체, 분류명) 튜플 목록 |
 
-### get_or_create_category() — 분류명 → 분류 객체
+### db.scalar(select(...).where(...)) → 없으면 db.add · db.flush — 분류명 → 분류 객체
 
 ```
-# main.py · transaction 안에서만 호출
-def get_or_create_category(db, name):
-    category = db.scalar(
-        select(Category).where(Category.name == name)
-    )
-    if category is None:
-        category = Category(name=name)
-        db.add(category)
-        db.flush()  # category.id 확보, 아직 미확정
-    return category
+# POST · PUT의 쓰기 경계(try) 안에서
+category = db.scalar(
+    select(Category).where(Category.name == payload.category)
+)
+if category is None:
+    category = Category(name=payload.category)
+    db.add(category)
+    db.flush()  # category.id 확보, 아직 미확정
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13644,26 +14495,35 @@ def get_or_create_category(db, name):
 
 ⚠️ 여기서 commit하지 않아요. 분류와 지식을 같은 트랜잭션에서 함께 확정해야 해요.
 
-### POST — 분류와 지식을 저장한 뒤 201
+### POST — @app.post(status_code=201), 분류와 지식을 저장한 뒤 201
 
 ```
 @app.post("/api/knowledge", status_code=201,
           response_model=KnowledgeRead)
 def create_knowledge(payload: KnowledgeWrite,
                      db: DbSession):
-    with transaction(db):
-        category = get_or_create_category(
-            db, payload.category)
+    try:
+        category = db.scalar(select(Category).where(
+            Category.name == payload.category))
+        if category is None:                # 없는 분류면 같은 트랜잭션에서 생성
+            category = Category(name=payload.category)
+            db.add(category)
+            db.flush()
         row = Knowledge(
             title=payload.title, content=payload.content,
             category_id=category.id)
         db.add(row)
         db.flush()                          # DB가 발급한 id 확인
-        result = to_read(row, category.name)
-    return result                           # with를 빠져나오며 commit 성공한 뒤
+        result = KnowledgeRead(id=row.id, title=row.title,
+                               content=row.content, category=category.name)
+        db.commit()                         # 분류 + 지식 함께 확정
+    except Exception:
+        db.rollback()
+        raise
+    return result                           # commit 성공한 뒤
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13677,39 +14537,38 @@ def create_knowledge(payload: KnowledgeWrite,
 | 1 | Pydantic 입력 검증 (실패 → 422, 함수 실행 안 함) |
 | 2 | 분류 ID 결정 (있으면 재사용, 없으면 생성·flush) |
 | 3 | 지식 객체 등록 → flush로 id 받기 |
-| 4 | 응답 객체 준비 → with 끝에서 commit → return |
+| 4 | 응답 객체 준비 → commit → return (실패하면 rollback 후 예외) |
 
-💡 next_id를 직접 관리하지 않아요(Day17과 차이). 번호는 DB의 IDENTITY가 발급하고, 201 응답의 id = DB 행의 id예요.
+💡 next_id를 직접 관리하지 않아요(JSON 파일 버전 API와 차이). 번호는 DB의 IDENTITY가 발급하고, 201 응답의 id = DB 행의 id예요.
 
 ### 상세 GET — db.get() · 없으면 404
 
 ```
-def knowledge_or_404(db, knowledge_id):
-    row = db.get(Knowledge, knowledge_id)
-    if row is None:
-        raise HTTPException(404, "Knowledge not found")
-    return row
+from fastapi import HTTPException
 
 @app.get("/api/knowledge/{knowledge_id}",
          response_model=KnowledgeRead)
 def read_knowledge(knowledge_id: int, db: DbSession):
-    row = knowledge_or_404(db, knowledge_id)
+    row = db.get(Knowledge, knowledge_id)
+    if row is None:
+        raise HTTPException(404, "Knowledge not found")
     category = db.get(Category, row.category_id)
-    return to_read(row, category.name)
+    return KnowledgeRead(id=row.id, title=row.title,
+                         content=row.content, category=category.name)
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
 | GET /api/knowledge/5 | 200 {"title":"실습 환경 안내","content":"실행 전에 가상환경을 확인합니다.","category":"learning","id":5} | db.get(Knowledge, id)로 찾고 분류명을 붙임 |
-| GET /api/knowledge/99999 | 404 {"detail":"Knowledge not found"} | 없는 정수 ID → 404 (어제와 같은 약속) |
+| GET /api/knowledge/99999 | 404 {"detail":"Knowledge not found"} | 없는 정수 ID → 404 (JSON 파일 버전 API와 같은 약속) |
 | GET /api/knowledge/abc | 422 {"detail":[{"type":"int_parsing","loc":["path","knowledge_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"abc"}]} | 정수가 아님 → 422 (함수 실행 전) |
 
 | 표현 | 뜻 |
 |---|---|
 | db.get(Knowledge, 5) | PK로 객체 하나 — 없으면 None (이미 Session에 있으면 SQL 없이 꺼냄) |
-| knowledge_or_404 | 상세·PUT·DELETE가 같이 쓰는 도우미 — 404 약속을 한 곳에 |
+| raise HTTPException(404, "Knowledge not found") | FastAPI가 {"detail": ...} 본문의 404로 바꿔 줌 — 상세·PUT·DELETE가 같은 약속 |
 
 ### PUT — 같은 id, 세 필드 교체
 
@@ -13719,19 +14578,30 @@ def read_knowledge(knowledge_id: int, db: DbSession):
 def update_knowledge(knowledge_id: int,
                      payload: KnowledgeWrite,
                      db: DbSession):
-    with transaction(db):
-        row = knowledge_or_404(db, knowledge_id)     # 먼저 존재 확인
-        category = get_or_create_category(
-            db, payload.category)
+    try:
+        row = db.get(Knowledge, knowledge_id)        # 먼저 존재 확인
+        if row is None:
+            raise HTTPException(404, "Knowledge not found")
+        category = db.scalar(select(Category).where(
+            Category.name == payload.category))
+        if category is None:
+            category = Category(name=payload.category)
+            db.add(category)
+            db.flush()
         row.title = payload.title                    # 속성만 바꾸면
         row.content = payload.content
         row.category_id = category.id
         db.flush()                                   # flush 때 UPDATE
-        result = to_read(row, category.name)
+        result = KnowledgeRead(id=row.id, title=row.title,
+                               content=row.content, category=category.name)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return result
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13750,13 +14620,19 @@ def update_knowledge(knowledge_id: int,
             status_code=204)
 def delete_knowledge(knowledge_id: int,
                      db: DbSession):
-    with transaction(db):
-        row = knowledge_or_404(db, knowledge_id)
+    try:
+        row = db.get(Knowledge, knowledge_id)
+        if row is None:
+            raise HTTPException(404, "Knowledge not found")
         db.delete(row)                 # 삭제 대상으로 표시
+        db.commit()                    # 이때 실제 DELETE
+    except Exception:
+        db.rollback()
+        raise
     return Response(status_code=204)   # commit 성공 뒤
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13783,7 +14659,7 @@ with SessionLocal() as db:
     db.refresh(row2)                   # DB 값을 다시 읽기
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13798,34 +14674,31 @@ with SessionLocal() as db:
 
 💡 순서: flush → 응답 객체 준비 → commit → return. refresh는 DB가 값을 바꾸는 경우(기본값·트리거)처럼 필요할 때만 써요.
 
-### transaction(db) 도우미 — 쓰기 경계 하나
+### Session.commit() / rollback() — 쓰기 경계 하나 (try · except)
 
 ```
-# db.py · 요청의 쓰기 경계를 하나로 정한다.
-from contextlib import contextmanager
-@contextmanager
-def transaction(db):
-    try:
-        yield             # with 안의 조회·변경·flush
-        db.commit()       # 정상일 때 한 번 확정
-    except Exception:
-        db.rollback()     # 오류가 나면 미확정 작업 취소
-        raise             # 성공 응답으로 숨기지 않는다.
+# 요청 하나의 쓰기 경계
+try:
+    ...                   # 조회·변경·flush (분류 생성 + 지식 저장)
+    db.commit()           # 정상일 때 한 번 확정
+except Exception:
+    db.rollback()         # 오류가 나면 미확정 작업 취소
+    raise                 # 성공 응답으로 숨기지 않는다.
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| with transaction(db): 새 분류 'atomic-test' flush | category.id = 5 | id는 받았지만 미확정 |
-| 같은 with 안에서 content='' 지식 flush | IntegrityError · sqlstate 23514 · knowledge_content_length | CHECK 위반 → 도우미가 rollback 후 예외를 다시 던짐 |
+| try 블록 안: 새 분류 'atomic-test' flush | category.id = 5 | id는 받았지만 미확정 |
+| 같은 try 안에서 content='' 지식 flush | IntegrityError · sqlstate 23514 · knowledge_content_length | CHECK 위반 → except에서 rollback 후 예외를 다시 던짐 |
 | SELECT ... WHERE name = 'atomic-test' | id \| name (0행) | 분류도 같이 취소 — 반쪽 저장 없음 |
 | ❌ 분류를 먼저 commit하고 지식은 따로 | id \| name 6 \| split-commit | 지식은 실패했는데 새 분류만 남았어요 |
 
 | 규칙 | 🤔 왜? |
 |---|---|
 | 한 요청의 쓰기 전체에 한 번 | 분류·지식이 함께 성공하거나 함께 취소 |
-| 도우미 안에서 추가 commit 금지 · 중첩 금지 | 중간 확정이 생기면 반쪽 저장이 가능해져요 |
+| 경계 안에서 추가 commit 금지 · 중첩 금지 | 중간 확정이 생기면 반쪽 저장이 가능해져요 |
 | raise로 예외를 다시 전달 | 삼키면 실패했는데 201·200을 보내게 돼요 |
 | HTTP 오류 변환은 따로 (예외 처리기) | 트랜잭션 정리와 응답 결정은 다른 책임 |
 
@@ -13850,7 +14723,7 @@ with TestSessionLocal() as db:
     print("category count:", count)
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13881,7 +14754,7 @@ async def integrity_error(request: Request, exc):
                         content={"detail": detail})
 ```
 
-▶ 실제로 돌려 보면 강의 코드를 실제 PostgreSQL 18(노트 전용 DB)에서 실행 · 실제 예외의 진단값
+▶ 실제로 돌려 보면 실제 PostgreSQL 18(연습용 DB)에서 실행 · 실제 예외의 진단값
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13897,7 +14770,7 @@ async def integrity_error(request: Request, exc):
 | .diag.constraint_name | 실패한 제약 이름 — 그래서 Model·DDL에 이름을 붙여 둬요 |
 | categories_name_key | UNIQUE에 이름을 안 붙였을 때 PostgreSQL이 자동으로 붙인 이름 |
 
-💡 흐름: transaction 도우미가 rollback → 예외 재전달 → 이 처리기가 HTTP로 변환. 원문 SQL·파라미터·진단 문자열은 응답에 넣지 않아요.
+💡 흐름: 쓰기 경계의 except가 rollback → 예외 재전달 → 이 처리기가 HTTP로 변환. 원문 SQL·파라미터·진단 문자열은 응답에 넣지 않아요.
 
 ### @app.exception_handler(DBAPIError) — 접속 오류 503
 
@@ -13924,7 +14797,7 @@ async def other_db_error(request: Request, exc):
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
 | create_engine(...port=1).connect() | OperationalError · sqlstate None · connection_invalidated False | 서버가 없으면 DB에 닿지도 못해서 SQLSTATE가 없어요 |
-| 강의 처리기 규칙으로 판정 | 500 (Database operation failed) | 규칙이 08* 코드나 연결 무효화만 503으로 봐서, '서버 꺼짐'은 이 규칙으론 500이 돼요 — 환경별 검증이 필요한 이유 |
+| 위 처리기 규칙으로 판정 | 500 (Database operation failed) | 규칙이 08* 코드나 연결 무효화만 503으로 봐서, '서버 꺼짐'은 이 규칙으론 500이 돼요 — 환경별 검증이 필요한 이유 |
 
 ⚠️ 인증 실패·잘못된 SQL·예상 밖 오류를 모두 503으로 묶지 않아요. 이 판정 규칙은 단순한 기준이라, 실제로 오류를 일으켜 확인해야 해요 (아래 결과 참고).
 
@@ -13940,7 +14813,7 @@ python -m alembic upgrade head
 python -m alembic current
 ```
 
-▶ 실제로 돌려 보면 강의 002_source를 노트 전용 연습 DB(sesac_notes_migration)에 실제 적용
+▶ 실제로 돌려 보면 002_source를 연습 DB(sesac_notes_migration)에 실제 적용
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -13989,7 +14862,7 @@ def downgrade():
                    schema="public")
 ```
 
-▶ 실제로 돌려 보면 노트 전용 연습 DB(sesac_notes_migration)에서 되돌림까지 실제 실행
+▶ 실제로 돌려 보면 연습 DB(sesac_notes_migration)에서 되돌림까지 실제 실행
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14067,7 +14940,7 @@ finally:
     app.dependency_overrides.pop(get_db, None)
 ```
 
-▶ 실제로 돌려 보면 dependency_overrides로 get_db를 교체해 실제 실행 (노트에선 같은 노트 전용 DB 사용)
+▶ 실제로 돌려 보면 dependency_overrides로 get_db를 교체해 실제 실행 (여기선 같은 연습용 DB 사용)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14094,7 +14967,7 @@ python -m uvicorn main:app --port 8001     # 실행
 # GET /api/knowledge/{id}  → 재시작 전과 같은 값인지
 ```
 
-▶ 실제로 돌려 보면 임시 폴더의 강의 코드를 빈 포트(60577)로 띄워 실행 (평소엔 8001 등)
+▶ 실제로 돌려 보면 임시 폴더의 예제 코드를 빈 포트(60577)로 띄워 실행 (평소엔 8001 등)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14145,81 +15018,27 @@ _2026-11-13(금) · LLM 생태계 · Tokenizer · Context Window · Embedding ·
 
 - 학습은 가중치를 바꾸고 추론은 다음 Token을 고를 뿐. LLM은 답을 제안하는 부품이고, 근거 찾기(RAG)·실행 권한(Agent·Backend)·사실 검증은 따로 설계해요.
 
-🔧 Day20 명령어 한눈에 — 이론 구역별 코드·인자 설명 명령어 사전에서 보기 →
-
-본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 강의 코드를 이 PC의 CPU에서 실제로 돌린 거예요 (Tokenizer·문장 모델은 Hugging Face에서 내려받아 실행).
-
-## 📦 필요한 패키지
-
-| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
-|---|---|---|
-| torch | Tensor 계산 · nn.Embedding · nn.TransformerEncoderLayer · Softmax | import torch · import torch.nn.functional as F |
-| transformers | Hugging Face — 모델 이름으로 Tokenizer·모델을 내려받아 씀 | from transformers import AutoTokenizer |
-| sentence-transformers (선택) | 문장 하나 → 벡터 하나 (문장 Embedding) | from sentence_transformers import SentenceTransformer |
-
-🔧 설치 · 버전 확인 명령어 사전에서 자세히 →
-
-```
-python -m pip install torch transformers sentence-transformers
-```
-
-💡 오늘 코드는 모두 작은 Tensor라 CPU로 충분해요. Tokenizer·문장 모델은 처음 한 번 인터넷에서 내려받아요. 숫자 자체보다 shape · Mask · 입력과 출력의 의미를 보는 날이에요.
-
-## 이거 어디에 써?
-
-"FastAPI에서 PostgreSQL 연결이 안 됩니다." — 이런 문의에 AI 도우미가 증상 설명 · 근거 문서 · 확인 절차를 답하려면, 지난 3일에 만든 API·DB 위에 "문장을 읽고 만드는" 부품이 하나 더 필요해요. 그게 LLM이에요. 오늘은 그 부품의 안쪽을 열어 봐요.
-
-[그림: 사용자 → FastAPI → Agent 처리 → LLM → 응답. LLM 위에 RAG 검색 근거가 Context로 들어가고, Agent 아래 Tool 실행은 Backend가 권한을 확인] 무엇을 보나: AI 도우미 서비스 한 건의 흐름이에요. LLM(보라)은 문맥을 읽고 다음 Token을 만드는 부분이에요. 근거 문서는 RAG(초록)가 찾아 LLM 입력(Context)에 넣어 주고, 실제 시스템을 바꾸는 Tool(분홍) 실행은 Backend가 권한을 확인해요. 🤔 왜 나눠? LLM은 그럴듯한 문장을 만들 뿐, 문서를 찾거나 DB를 고칠 권한을 스스로 판단하지 못하니까요.
-
-| 날짜 | 만든 것 | 역할 |
-|---|---|---|
-| 11/10 Day17 | FastAPI /api/knowledge | 서비스 입구 |
-| 11/11 Day18 | PostgreSQL 지식·분류 표 | 원본 지식 저장 |
-| 11/12 Day19 | API ↔ DB 연동 | API 요청이 실제 행으로 |
-| 11/13 오늘 | LLM 원리 | 그 위에서 동작할 언어 모델 이해 |
-| 이후 | 11/16 Prompt → 11/17 LLM API → 11/18 Embedding·Vector DB → 11/19 Chunking → 11/20 Basic RAG | 검색·생성·도구 |
-
-[그림: AI Agent 서비스 안에 LLM 호출, 그 안에 Transformer 층 반복, Block, Self-Attention, Q/K/V 계산이 차례로 들어 있는 확대 지도] 무엇을 보나: 오늘의 확대 지도예요. 바깥(서비스)에서 안쪽(Attention 계산 한 줄)으로 6단계 들어가요. 노트도 이 순서를 거꾸로 — 바깥 생태계(①)부터 안쪽 계산(⑤)까지 — 따라가요. ⚠️ Tokenizer는 이 상자들 밖이에요. 모델 입력을 준비하는 별도 단계라서요.
-
-## 📋 명세 — 문장 하나가 다음 Token이 되기까지
-
-오늘 다룬 단계들의 입력과 출력 약속을 한곳에 모았어요. shape는 명령어 사전에서 실제로 돌린 예(배치 B=2, Token T=5, feature D=8, 어휘 V=100)예요.
+## 🗺️ 큰 그림 — 문장 하나가 다음 Token이 되기까지
 
 [그림: 문자열, Tokenizer, Token ID, Embedding, Transformer, LM Head, Decode 일곱 단계. Tokenizer와 Token ID 칸에 실제 실행 결과, 마지막에서 처음으로 돌아가는 반복 화살표] 무엇을 보나: "실습 파일은 개인 폴더에 보관합니다."(공백 포함 20글자)를 실제 Tokenizer에 넣었더니 Token 17개(앞뒤 구분용 2개 포함)가 됐어요. 그 뒤로는 ID → 벡터 → 문맥 표현 → 어휘 전체 점수 → 하나 선택 → 문맥 끝에 붙여 다시(초록 점선). 🤔 왜 한 번에 문장 전체를 안 만들어? LLM은 "다음 Token 하나"의 점수만 계산하는 기계라서, 문장은 그걸 반복해서 만들어져요.
 
-### 1. 단계별 입력 · 출력
+"FastAPI에서 PostgreSQL 연결이 안 됩니다." 같은 문의에 AI 도우미가 증상 설명 · 근거 문서 · 확인 절차를 답하려면, 지식 관리 API · DB 위에 "문장을 읽고 만드는" 부품이 하나 더 필요해요. 그게 LLM이에요. 이 페이지는 그 부품의 안쪽을 열어 봐요.
 
-| 단계 | 입력 | 출력 | 자료형 · shape 예 | 하지 않는 일 |
-|---|---|---|---|---|
-| Tokenizer | 문자열 | Token 조각 · input_ids · attention_mask | 정수 리스트 / (B, T) | 의미 계산 (규칙대로 자르고 번호 찾기만) |
-| Embedding | input_ids | Token 벡터 | 실수 (B, T, D) = (2, 5, 8) | 문맥 반영 (같은 ID면 같은 벡터) |
-| Transformer Block × N | Token 벡터 + 위치 정보 | 문맥 표현 (Hidden State) | (B, T, D) 그대로 | shape 변경 |
-| LM Head | Hidden State | Logit (어휘 전체 점수) | (B, T, V) = (2, 5, 100) | 확률 만들기 (음수도 됨) |
-| Softmax | 마지막 위치 Logit / temperature | 확률 분포 | (B, V) · 합 1 | Token 고르기 |
-| Decode | 확률 분포 | 다음 Token 하나 | 정수 ID | 사실 확인 |
-
-### 2. Mask 네 가지 — True·1의 뜻이 다르다
-
-| 어디서 | 값 | 뜻 | 막는 것 |
-|---|---|---|---|
-| Tokenizer attention_mask | 1 / 0 | 1 = 본다 (실제 Token) | PAD |
-| PyTorch src_key_padding_mask | True / False | True = 안 본다 | PAD |
-| 직접 masked_fill(mask, -inf) | True / False | True = 가린다 | 미래 (Causal) |
-| F.scaled_dot_product_attention(attn_mask=) | True / False | True = 본다 | 미래 또는 PAD |
-
-아래 두 줄은 실제로 돌려 확인했어요: Tokenizer의 attention_mask를 == 0으로 뒤집어 src_key_padding_mask에 줘야 PAD 값이 결과에 안 섞이고, SDPA에는 masked_fill용 Mask를 ~로 뒤집어 줘야 is_causal=True와 같아요.
-
-### 3. 숫자 읽는 규칙
-
-| 숫자 | 맞는 해석 | 틀린 해석 |
+| 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
-| Token ID (예: 119081) | Vocabulary 안의 번호 | 클수록 중요한 단어 |
-| Token 수 | Context·요금·속도의 단위 | 글자 수 · 단어 수와 같음 |
-| Logit | 후보별 점수 (음수 가능) | 확률 % |
-| Attention Weight 행 | 그 Query가 각 Key를 참고한 비율 · 행 합 1 | 모델 판단의 유일한 이유 |
-| Cosine 유사도 | 두 벡터의 방향이 얼마나 같은가 | 답이 맞을 확률 |
+| ① 생태계 · 역할 | 모델 · Runtime · 서비스 · 데이터 · 운영 계층 | LLM은 서비스에서 어떤 부품이고, 무엇을 못 하나? |
+| ② Tokenizer | 문자열 → Token → Token ID · Mask · Context Window | 모델은 글자를 어떤 단위로 받나? |
+| ③ Embedding | ID → 벡터 · 위치 정보 · 유사도 | 번호를 어떻게 계산 가능한 값으로 바꾸나? |
+| ④ Transformer Block | Attention · FFN · Residual · Norm × N층 | 벡터가 어떻게 문맥 표현이 되나? |
+| ⑤ Self-Attention | Q·Kᵀ/√d → Mask → Softmax → V 가중합 | 누구의 정보를 얼마나 섞나? |
+| ⑥ 학습 · 추론 · 디코딩 | Logit → Softmax · Temperature → Token 선택 반복 | 다음 Token은 어떻게 고르고, 가중치는 언제 바뀌나? |
+| ⑦ 한계 · 검증 | 틀릴 수 있는 위치 · RAG/Agent 경계 | 이 출력을 믿어도 되나, 무엇을 붙여야 하나? |
+
+[그림: AI Agent 서비스 안에 LLM 호출, 그 안에 Transformer 층 반복, Block, Self-Attention, Q/K/V 계산이 차례로 들어 있는 확대 지도] 무엇을 보나: LLM의 확대 지도예요. 바깥(서비스)에서 안쪽(Attention 계산 한 줄)으로 6단계 들어가요. 이 페이지의 ①~⑤도 바깥 생태계부터 안쪽 계산까지 이 순서로 들어가요. ⚠️ Tokenizer는 이 상자들 밖이에요. 모델 입력을 준비하는 별도 단계라서요.
 
 ## ① LLM 생태계 · 서비스 속 역할
+
+[그림: 사용자 → FastAPI → Agent 처리 → LLM → 응답. LLM 위에 RAG 검색 근거가 Context로 들어가고, Agent 아래 Tool 실행은 Backend가 권한을 확인] 무엇을 보나: AI 도우미 서비스 한 건의 흐름이에요. LLM(보라)은 문맥을 읽고 다음 Token을 만드는 부분이에요. 근거 문서는 RAG(초록)가 찾아 LLM 입력(Context)에 넣어 주고, 실제 시스템을 바꾸는 Tool(분홍) 실행은 Backend가 권한을 확인해요. 🤔 왜 나눠? LLM은 그럴듯한 문장을 만들 뿐, 문서를 찾거나 DB를 고칠 권한을 스스로 판단하지 못하니까요.
 
 | 용어 | 뜻 |
 |---|---|
@@ -14240,7 +15059,7 @@ LLM이 하는 일은 결국 하나예요: 지금까지의 Token을 보고 다음
 | 데이터 | PostgreSQL · 문서 · Metadata | 어떤 지식과 출처를 보관하나? |
 | 운영 | 권한 · 평가 · 로그 · 비용 | 어디까지 신뢰하고 통제하나? |
 
-🤔 모델만 설치하면 서비스가 되는 거 아냐? — 아니에요. 모델은 첫 줄 하나예요. 인증·근거·정확성은 아래 계층들이 따로 보장해야 해요. Day17~19에서 만든 API·DB가 바로 그 아래 계층이에요.
+🤔 모델만 설치하면 서비스가 되는 거 아냐? — 아니에요. 모델은 첫 줄 하나예요. 인증·근거·정확성은 아래 계층들이 따로 보장해야 해요. FastAPI–PostgreSQL 연동으로 만든 지식 API·DB가 바로 그 아래 계층이에요.
 
 ### 잘 맞는 일 vs 검증 없이는 위험한 일
 
@@ -14262,7 +15081,7 @@ LLM이 하는 일은 결국 하나예요: 지금까지의 Token을 보고 다음
 | Context · 비용 | 입력 길이 · 요금 · 응답 시간 · 장비 자원의 제약이 있어요 |
 | 보안 · 권한 | 프롬프트만으로 권한 판단과 개인정보 보호가 완성되지 않아요 |
 
-🤔 그럼 Day18~19에 만든 지식 DB는 왜 필요해? — "지식 시점" 한계 때문이에요. LLM이 모르는 최신·사내 지식을 검색해서 입력에 붙여 주면(Retriever → LLM) 그걸 근거로 답할 수 있어요. 이게 RAG예요. 단, DB가 있다고 자동으로 RAG가 되진 않아요 — 검색·입력 구성·출처 확인을 따로 만들어야 해요(11/20). 그리고 검색해서 붙이는 건 학습이 아니에요. 모델 가중치는 그대로예요.
+🤔 그럼 따로 만든 지식 DB는 왜 필요해? — "지식 시점" 한계 때문이에요. LLM이 모르는 최신·사내 지식을 검색해서 입력에 붙여 주면(Retriever → LLM) 그걸 근거로 답할 수 있어요. 이게 RAG예요. 단, DB가 있다고 자동으로 RAG가 되진 않아요 — 검색·입력 구성·출처 확인을 따로 만들어야 해요. 그리고 검색해서 붙이는 건 학습이 아니에요. 모델 가중치는 그대로예요.
 
 ## ② Tokenizer — 문자열이 정수 ID가 되기까지
 
@@ -14338,7 +15157,7 @@ batch["input_ids"].shape          # → torch.Size([2, 9])
 
 Context Window에는 시스템 지시 · 질문 · 대화 이력 · 검색 근거 · 출력까지 전부 들어가요. 출력도 같은 예산을 나눠 써요.
 
-[그림: System 300, 이전 대화 1200, 검색 근거 2000, User 질문 150, 출력 예약 850 Token을 이어 붙인 막대, 합계 4500] 무엇을 보나: 강의의 산술 예시(합계 4,500 Token)를 그린 거예요. 실제 모델의 한도나 요금이 아니에요. 검색 근거가 가장 큰 덩어리고, 답변을 쓸 자리(850)도 미리 남겨 둬야 해요. 🤔 그럼 많이 넣을수록 좋아? 아니에요. 너무 긴 문맥은 잡음이 되고, 잘리거나 중요한 근거를 놓치기도 해요. 그리고 Context Window는 영구 기억(Memory)이 아니에요 — 요청이 끝나면 사라져요.
+[그림: System 300, 이전 대화 1200, 검색 근거 2000, User 질문 150, 출력 예약 850 Token을 이어 붙인 막대, 합계 4500] 무엇을 보나: 산술 예시(합계 4,500 Token)를 그린 거예요. 실제 모델의 한도나 요금이 아니에요. 검색 근거가 가장 큰 덩어리고, 답변을 쓸 자리(850)도 미리 남겨 둬야 해요. 🤔 그럼 많이 넣을수록 좋아? 아니에요. 너무 긴 문맥은 잡음이 되고, 잘리거나 중요한 근거를 놓치기도 해요. 그리고 Context Window는 영구 기억(Memory)이 아니에요 — 요청이 끝나면 사라져요.
 
 | Token 수를 세야 하는 이유 | 내용 |
 |---|---|
@@ -14381,12 +15200,12 @@ emb(torch.tensor([7, 3, 99, 3, 0])).shape        # → torch.Size([5, 4])
 |  | Token Embedding | Sentence Embedding |
 |---|---|---|
 | 단위 | Token 하나 → 벡터 하나 | 문장·문서 전체 → 벡터 하나 |
-| 쓰임 | 모델 입력 — 뒤의 Attention을 거치며 문맥에 따른 Hidden State가 됨 | 의미가 가까운 문장 찾기 · 검색 (11/18 Vector DB) |
+| 쓰임 | 모델 입력 — 뒤의 Attention을 거치며 문맥에 따른 Hidden State가 됨 | 의미가 가까운 문장 찾기 · 검색 (Vector Search) |
 | 주의 | 위치 정보는 따로 반영 | Pooling·학습 목적에 따라 표현이 달라짐 — Token 벡터를 그냥 평균한다고 좋은 문장 벡터가 되진 않음 |
 
 ### Cosine Similarity — 방향이 얼마나 같은가
 
-[그림: 원점에서 뻗은 화살표 a [1,0], b [0.8,0.2], c [-1,0], d [3,0]과 a와의 cosine 값 0.9701, -1, 1] 무엇을 보나: 강의 코드 값으로 그린 그림이에요. a와 b는 거의 같은 방향이라 0.9701, c는 정반대라 -1. 점선 d [3, 0]은 a보다 3배 길지만 방향이 같아서 1이에요. 🤔 왜 길이를 무시해? 문장이 길어 벡터가 커지는 것보다 "어느 쪽을 가리키나(뜻)"를 비교하고 싶어서예요.
+[그림: 원점에서 뻗은 화살표 a [1,0], b [0.8,0.2], c [-1,0], d [3,0]과 a와의 cosine 값 0.9701, -1, 1] 무엇을 보나: 예제 벡터 값으로 그린 그림이에요. a와 b는 거의 같은 방향이라 0.9701, c는 정반대라 -1. 점선 d [3, 0]은 a보다 3배 길지만 방향이 같아서 1이에요. 🤔 왜 길이를 무시해? 문장이 길어 벡터가 커지는 것보다 "어느 쪽을 가리키나(뜻)"를 비교하고 싶어서예요.
 
 🔧 F.cosine_similarity 명령어 사전에서 자세히 →
 
@@ -14420,13 +15239,13 @@ model.similarity(vectors, vectors)
 | Residual | x + f(x) — 원래 표현을 더함 | 층이 깊어도 정보·기울기가 끊기지 않게 (Attention이 아니라 우회로) |
 | LayerNorm | 표현의 크기(스케일)를 맞춤 | 수십 층을 안정적으로 학습시키려고 |
 
-🤔 Self-Attention만 구현하면 Transformer야? — 아니에요. Attention은 "누구 정보를 섞을지"만 정해요. FFN·Residual·Norm이 같이 있어야 Block이 되고, Block을 여러 층 쌓아야 모델이 돼요. Day12에서 처음 본 Attention이 오늘은 Block 안의 한 칸이에요.
+🤔 Self-Attention만 구현하면 Transformer야? — 아니에요. Attention은 "누구 정보를 섞을지"만 정해요. FFN·Residual·Norm이 같이 있어야 Block이 되고, Block을 여러 층 쌓아야 모델이 돼요. 순서 모델의 Attention은 여기서 Block 안의 한 칸이에요.
 
 ### Encoder · Decoder · Encoder–Decoder
 
 | 유형 | 자주 하는 일 | Attention 방향 | 예 |
 |---|---|---|---|
-| Encoder | 문장 표현 · 분류 · 검색 입력 | 대체로 양방향 (앞뒤 다 봄) | BERT · 오늘의 Tokenizer 모델 |
+| Encoder | 문장 표현 · 분류 · 검색 입력 | 대체로 양방향 (앞뒤 다 봄) | BERT · 위에서 쓴 Tokenizer 모델 |
 | Decoder-only | 다음 Token 생성 · 대화 | 대체로 Causal (앞만 봄) | GPT 계열 대부분의 LLM |
 | Encoder–Decoder | 번역 · 요약 등 조건부 생성 | Encoder 양방향 + Decoder Causal | T5 계열 |
 
@@ -14481,7 +15300,7 @@ scores = q @ k.T / math.sqrt(2)
 weights = torch.softmax(scores.masked_fill(mask, float("-inf")), dim=-1)
 ```
 
-[그림: 세 개의 3x3 히트맵: Softmax 전 scores, Causal Mask 적용 후 weights, Mask 없는 weights와 각각의 출력 벡터] 무엇을 보나: 강의 코드를 실제로 계산한 세 단계예요. ① 점수는 아직 확률이 아니에요(1.41처럼 1보다 큼). ② Causal Mask를 씌우면 대각선 위가 0이 되고 각 행 합이 1 — t1은 자기만, t3는 [0.25, 0.25, 0.50]. 출력 t3 = 0.25·[1,0] + 0.25·[0,1] + 0.5·[1,1] = [0.75, 0.75]. ③ Mask가 없으면 t1이 미래 t3에 0.40을 줘요. 🤔 t3 행은 왜 ②와 ③이 같아? 마지막 위치는 원래 볼 미래가 없어서 Mask가 가릴 게 없거든요.
+[그림: 세 개의 3x3 히트맵: Softmax 전 scores, Causal Mask 적용 후 weights, Mask 없는 weights와 각각의 출력 벡터] 무엇을 보나: 작은 예제 Q/K/V를 실제로 계산한 세 단계예요. ① 점수는 아직 확률이 아니에요(1.41처럼 1보다 큼). ② Causal Mask를 씌우면 대각선 위가 0이 되고 각 행 합이 1 — t1은 자기만, t3는 [0.25, 0.25, 0.50]. 출력 t3 = 0.25·[1,0] + 0.25·[0,1] + 0.5·[1,1] = [0.75, 0.75]. ③ Mask가 없으면 t1이 미래 t3에 0.40을 줘요. 🤔 t3 행은 왜 ②와 ③이 같아? 마지막 위치는 원래 볼 미래가 없어서 Mask가 가릴 게 없거든요.
 
 ### Padding Mask와 Causal Mask는 막는 게 다르다
 
@@ -14534,7 +15353,7 @@ F.scaled_dot_product_attention(q, k, v, is_causal=True)   # 직접 계산한 wei
 
 ## 🧪 Attention 계산기
 
-Token 세 개의 벡터(Q = K = V로 둠)를 바꾸고 Causal Mask를 켜고 꺼 보세요. 처음 값은 강의 코드와 같아서 명령어 사전의 실제 실행 결과와 같은 숫자가 나와요.
+Token 세 개의 벡터(Q = K = V로 둠)를 바꾸고 Causal Mask를 켜고 꺼 보세요. 처음 값은 명령어 사전의 예제와 같아서 실제 실행 결과와 같은 숫자가 나와요.
 
 ## ⑥ 학습 · 추론 · 디코딩
 
@@ -14560,7 +15379,7 @@ loss.backward(); optimizer.step()                    # 학습 — weight 변경
 
 | 방법 | 가중치 | 무엇을 바꾸나 |
 |---|---|---|
-| Prompting | 그대로 | 입력 지시·예시 (11/16) |
+| Prompting | 그대로 | 입력 지시·예시 (Prompt) |
 | Instruction Tuning | 추가 학습 | "지시 → 응답" 예시로 지시를 따르게 |
 | Preference Alignment | 추가 학습 | 사람이 더 좋다고 고른 응답 쪽으로 행동 조정 |
 
@@ -14624,7 +15443,7 @@ sp, si = p.sort(descending=True); n = int((sp.cumsum(0) < 0.9).sum()) + 1   # To
 | 재현성 | 같은 모델·설정에서 동작을 설명할 수 있나? | 버전 · Seed · 로그 |
 | 안전성 | 비밀 · 권한 · 오염된 근거에 대응하나? | 거부 · 승인 규칙 |
 
-⚠️ Pydantic 응답 검증으로 환각을 없앨 수 있을까? 아니에요. Day17에서 쓴 Pydantic은 형식을 검사해요. 형식이 맞는 틀린 답은 그대로 통과해요. 그리고 근거가 있다고 그 근거가 최신·정확하다는 뜻도 아니에요.
+⚠️ Pydantic 응답 검증으로 환각을 없앨 수 있을까? 아니에요. API 입력·응답 검증에 쓰는 Pydantic은 형식을 검사해요. 형식이 맞는 틀린 답은 그대로 통과해요. 그리고 근거가 있다고 그 근거가 최신·정확하다는 뜻도 아니에요.
 
 ### 무엇에 무엇을 붙이나
 
@@ -14652,29 +15471,86 @@ RAG를 넣었다고 Agent가 되진 않고, Fine-tuning이 사실성까지 보�
 
 ### 지식 관리 API에 LLM을 붙이면 새로 생기는 것
 
-| 이미 있음 (Day17~19) | 이후 추가해야 함 |
+| 이미 있음 (지식 관리 API) | 이후 추가해야 함 |
 |---|---|
 | /api/knowledge CRUD | 질문 처리용 LLM 호출 |
 | PostgreSQL 원본 지식 · 분류 | 관련 지식 검색 · Chunking · Vector DB |
 | HTTP 오류와 DB 트랜잭션 | 근거 · 사실성 평가와 출처 관리 |
 | 서버 재시작 후 저장 유지 | 필요하면 Agent 도구 · 권한 · 상태 |
 
-💡 원본 지식을 수정·삭제하면 검색 인덱스에도 반영되도록 설계해야 해요. Day19에서 말한 "원본을 고쳐도 인덱스는 별도 동기화"가 바로 이 얘기예요.
+💡 원본 지식을 수정·삭제하면 검색 인덱스에도 반영되도록 설계해야 해요. FastAPI–PostgreSQL 연동의 "원본을 고쳐도 인덱스는 별도 동기화"가 바로 이 얘기예요.
 
-## ⑧ 다음 단계
+## 📋 명세 — 한눈에 보는 참조표
 
-| 날짜 | 주제 | 오늘과의 연결 |
+단계별 입력과 출력 약속을 한곳에 모은 참조표예요. shape는 명령어 사전에서 실제로 돌린 예(배치 B=2, Token T=5, feature D=8, 어휘 V=100)예요. 전체 흐름은 🗺️ 큰 그림의 그림을 보세요.
+
+### 1. 단계별 입력 · 출력
+
+| 단계 | 입력 | 출력 | 자료형 · shape 예 | 하지 않는 일 |
+|---|---|---|---|---|
+| Tokenizer | 문자열 | Token 조각 · input_ids · attention_mask | 정수 리스트 / (B, T) | 의미 계산 (규칙대로 자르고 번호 찾기만) |
+| Embedding | input_ids | Token 벡터 | 실수 (B, T, D) = (2, 5, 8) | 문맥 반영 (같은 ID면 같은 벡터) |
+| Transformer Block × N | Token 벡터 + 위치 정보 | 문맥 표현 (Hidden State) | (B, T, D) 그대로 | shape 변경 |
+| LM Head | Hidden State | Logit (어휘 전체 점수) | (B, T, V) = (2, 5, 100) | 확률 만들기 (음수도 됨) |
+| Softmax | 마지막 위치 Logit / temperature | 확률 분포 | (B, V) · 합 1 | Token 고르기 |
+| Decode | 확률 분포 | 다음 Token 하나 | 정수 ID | 사실 확인 |
+
+### 2. Mask 네 가지 — True·1의 뜻이 다르다
+
+| 어디서 | 값 | 뜻 | 막는 것 |
+|---|---|---|---|
+| Tokenizer attention_mask | 1 / 0 | 1 = 본다 (실제 Token) | PAD |
+| PyTorch src_key_padding_mask | True / False | True = 안 본다 | PAD |
+| 직접 masked_fill(mask, -inf) | True / False | True = 가린다 | 미래 (Causal) |
+| F.scaled_dot_product_attention(attn_mask=) | True / False | True = 본다 | 미래 또는 PAD |
+
+아래 두 줄은 실제로 돌려 확인했어요: Tokenizer의 attention_mask를 == 0으로 뒤집어 src_key_padding_mask에 줘야 PAD 값이 결과에 안 섞이고, SDPA에는 masked_fill용 Mask를 ~로 뒤집어 줘야 is_causal=True와 같아요.
+
+### 3. 숫자 읽는 규칙
+
+| 숫자 | 맞는 해석 | 틀린 해석 |
 |---|---|---|
-| 11/16 | Prompt 구조 · Zero/Few-shot · Context Engineering · JSON Schema · 재시도 | 같은 모델에 더 좋은 입력(Context Window 안을 어떻게 채울지) |
-| 11/17 | LLM API | 오늘 본 추론을 서비스에서 호출 |
-| 11/18 | Embedding · Vector DB | 오늘의 Sentence Embedding · Cosine으로 검색 |
-| 11/19 → 11/20 | Chunking → Basic RAG | Retriever → Prompt + Context → LLM Answer + Source — 검색 근거도 Token 예산에 들어가요 |
+| Token ID (예: 119081) | Vocabulary 안의 번호 | 클수록 중요한 단어 |
+| Token 수 | Context·요금·속도의 단위 | 글자 수 · 단어 수와 같음 |
+| Logit | 후보별 점수 (음수 가능) | 확률 % |
+| Attention Weight 행 | 그 Query가 각 Key를 참고한 비율 · 행 합 1 | 모델 판단의 유일한 이유 |
+| Cosine 유사도 | 두 벡터의 방향이 얼마나 같은가 | 답이 맞을 확률 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| torch | Tensor 계산 · nn.Embedding · nn.TransformerEncoderLayer · Softmax | import torch · import torch.nn.functional as F |
+| transformers | Hugging Face — 모델 이름으로 Tokenizer·모델을 내려받아 씀 | from transformers import AutoTokenizer |
+| sentence-transformers (선택) | 문장 하나 → 벡터 하나 (문장 Embedding) | from sentence_transformers import SentenceTransformer |
+
+🔧 설치 · 버전 확인 명령어 사전에서 자세히 →
+
+```
+python -m pip install torch transformers sentence-transformers
+```
+
+💡 예제 코드는 모두 작은 Tensor라 CPU로 충분해요. Tokenizer·문장 모델은 처음 한 번 인터넷에서 내려받아요. 숫자 자체보다 shape · Mask · 입력과 출력의 의미를 보는 게 핵심이에요.
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+본문에는 핵심 코드 한두 줄만 남겼어요. 명령어 사전의 결과값은 CPU에서 실제로 돌려 얻은 값이에요 (Tokenizer·문장 모델은 Hugging Face에서 내려받아 실행).
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| FastAPI · PostgreSQL · FastAPI–PostgreSQL 연동 | LLM 아래 계층 — 서비스 입구 · 원본 지식 저장 · API 요청이 실제 행으로 |
+| Prompt · Context Engineering | 같은 모델에 더 좋은 입력 — Context Window 안을 어떻게 채울지 · 출력 형식 · 재시도 |
+| LLM API 클라이언트 | 여기서 본 추론을 서비스에서 호출 · 검증 · 기록 |
+| Embedding · Vector Search | Sentence Embedding · Cosine으로 근거 후보 검색 |
+| Chunking → Basic RAG | Retriever → Prompt + Context → LLM Answer + Source — 검색 근거도 Token 예산에 들어가요 |
 
 ## 원본 자료
 
-- 강의: Day20_20261113.pdf (생성형 AI·LLM 및 RAG 엔지니어링 · LLM 생태계 → Token·Context → Transformer·Attention → 학습·추론, 100쪽) — 서비스 속 위치·확대 지도 p2–11 · 생태계·한계 p19–24 · Tokenizer·Context p27–35 · Embedding·Cosine p38–45 · Transformer Block p48–56 · Self-Attention p59–67 · 학습·추론·디코딩 p70–77 · 한계·평가·RAG/Agent p80–85 · 다음 수업 p96
+- 원본: Day20_20261113.pdf (생성형 AI·LLM 및 RAG 엔지니어링 · LLM 생태계 → Token·Context → Transformer·Attention → 학습·추론, 100쪽) — 서비스 속 위치·확대 지도 p2–11 · 생태계·한계 p19–24 · Tokenizer·Context p27–35 · Embedding·Cosine p38–45 · Transformer Block p48–56 · Self-Attention p59–67 · 학습·추론·디코딩 p70–77 · 한계·평가·RAG/Agent p80–85 · 다음 수업 p96
 
-- 노트·명령어 사전의 결과 값: 강의 코드를 이 PC의 CPU에서 실제로 실행 (torch 2.14.0 · transformers 5.22.2 · sentence-transformers 6.3.0 — 강의 기준 5.17 · 6.1보다 조금 새 버전). Tokenizer bert-base-multilingual-cased, 문장 모델 all-MiniLM-L6-v2는 Hugging Face Hub에서 내려받음. 스크립트 tools/io_day20.py, 그림 tools/visuals/make_day20.py
+- 노트·명령어 사전의 결과 값: 원본 코드를 이 PC의 CPU에서 실제로 실행 (torch 2.14.0 · transformers 5.22.2 · sentence-transformers 6.3.0 — 강의 기준 5.17 · 6.1보다 조금 새 버전). Tokenizer bert-base-multilingual-cased, 문장 모델 all-MiniLM-L6-v2는 Hugging Face Hub에서 내려받음. 스크립트 tools/io_day20.py, 그림 tools/visuals/make_day20.py
 
 - 공식 자료: Attention Is All You Need (원 논문) · Hugging Face Transformers · Tokenizer · Causal LM · Generation
 
@@ -14683,8 +15559,7 @@ RAG를 넣었다고 Agent가 되진 않고, Fine-tuning이 사실성까지 보�
 ## 🔧 Day20 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day20)
 | 이론 | 대응 명령어 |
 |---|---|
-| 📦 필요한 패키지 | python -m pip install torch transformers sentence-transformers |
-| 📋 명세 | 단계별 입력 · 출력 · 자료형 · shape |
+| 🗺️ 큰 그림 | 문자열 → Token ID → Embedding → Transformer → Logit → 다음 Token |
 | ① LLM 생태계 · 서비스 역할 | (개념 — 코드 없음) |
 | ② Tokenizer · Context Window | AutoTokenizer.from_pretrained(), convert_ids_to_tokens, decode, padding · truncation · max_length, attention_mask |
 | ③ Embedding · 유사도 | nn.Embedding, F.cosine_similarity, SentenceTransformer.encode · similarity |
@@ -14692,26 +15567,28 @@ RAG를 넣었다고 Agent가 되진 않고, Fine-tuning이 사실성까지 보�
 | ⑤ Self-Attention · Mask | q @ k.T / math.sqrt(d), torch.triu · masked_fill, softmax, F.scaled_dot_product_attention, src_key_padding_mask |
 | ⑥ 학습 · 추론 · 디코딩 | torch.softmax(logits / temp), Greedy · Top-k · Top-p, backward() · optimizer.step() vs torch.no_grad() |
 | ⑦ 한계 · 검증 · RAG/Agent 경계 | (개념 — 평가 관점표) |
+| 📋 명세 | 단계별 입력 · 출력 · 자료형 · shape |
+| 📦 패키지 · 명령어 | python -m pip install torch transformers sentence-transformers |
 
 ### 설치 · 버전 확인
 
 ```
-python -m pip install torch                    # 대부분 이미 있음 (Day09~)
+python -m pip install torch                    # 대부분 이미 있음
 python -m pip install transformers             # Tokenizer · 사전학습 모델
 python -m pip install sentence-transformers    # 문장 Embedding (선택)
 python -c "import torch, transformers; print(torch.__version__, transformers.__version__)"
 ```
 
-▶ 실제로 돌려 보면 이 노트를 만든 가상환경에서 실제로 확인
+▶ 실제로 돌려 보면 실행에 쓴 가상환경에서 실제로 확인
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
-| import torch, transformers, sentence_transformers | torch 2.14.0+cu130 · transformers 5.22.2 · sentence-transformers 6.3.0 | 강의 기준(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준 |
+| import torch, transformers, sentence_transformers | torch 2.14.0+cu130 · transformers 5.22.2 · sentence-transformers 6.3.0 | 기준 버전(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준 |
 
 | 부분 | 뜻 |
 |---|---|
 | transformers | Hugging Face 라이브러리 — AutoTokenizer·AutoModel로 모델 이름만 주면 내려받아 씀 |
-| sentence-transformers | 문장 하나 → 벡터 하나를 만드는 모델 모음 (11/18 검색에서 다시 씀) |
+| sentence-transformers | 문장 하나 → 벡터 하나를 만드는 모델 모음 (Vector Search에서 다시 씀) |
 | 첫 실행 | 모델·Tokenizer 파일을 인터넷에서 내려받아 캐시(~/.cache/huggingface)에 둠 — 두 번째부터는 캐시 사용 |
 
 ### AutoTokenizer — 문자열 → Token → ID
@@ -14727,7 +15604,7 @@ print("ids:", ids)
 print("n_tokens:", len(ids))
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로 · bert-base-multilingual-cased
+▶ 실제로 돌려 보면 예제 코드 그대로 · bert-base-multilingual-cased
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14788,7 +15665,7 @@ for t in ["실습 파일은 개인 폴더에 보관합니다.",
 | "실습 파일은 개인 폴더에 보관합니다." | 17개 · [CLS] 실 ##습 파 ##일 ##은 개 ##인 폴 ##더 ##에 보 ##관 ##합 ##니다 . [SEP] | 한국어 · 글자 단위로 많이 쪼개짐 |
 | "Keep practice files in your personal folder." | 12개 · [CLS] Keep practice files in your personal f ##old ##er . [SEP] | 영어 · 단어 대부분이 한 Token, folder만 f ##old ##er |
 | "def get_db(): yield db" | 11개 · [CLS] def get _ db ( ) : yield db [SEP] | 코드 · 기호 하나하나가 Token |
-| "학습 파일" | 6개 · [CLS] 학 ##습 파 ##일 [SEP] | 강의 예시 — '학습 파일'도 4조각 |
+| "학습 파일" | 6개 · [CLS] 학 ##습 파 ##일 [SEP] | 비슷한 예시 — '학습 파일'도 4조각 |
 | "FastAPI와 PostgreSQL" | 9개 · [CLS] Fast ##AP ##I ##와 Post ##gre ##SQL [SEP] | 고유명사는 잘게 · 조사 '와'는 ##와로 붙음 |
 
 💡 같은 뜻이어도 언어·Tokenizer에 따라 Token 수가 달라요. API 요금·Context 한도는 글자 수가 아니라 Token 수로 계산돼요.
@@ -14808,7 +15685,7 @@ print(batch["input_ids"].shape)
 print(batch["attention_mask"])
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로 + max_length·padding 바꿔 보기
+▶ 실제로 돌려 보면 예제 코드 + max_length·padding 바꿔 보기
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14869,7 +15746,7 @@ print(F.cosine_similarity(a, b, dim=0))
 print(F.cosine_similarity(a, c, dim=0))
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로 + 두 줄 더
+▶ 실제로 돌려 보면 예제 코드 + 두 줄 더
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14885,7 +15762,7 @@ print(F.cosine_similarity(a, c, dim=0))
 | -1 | 방향이 반대 |
 | dim=0 | 어느 축을 따라 비교할지 — 1차원 벡터 둘이면 0 |
 
-💡 식은 (a·b) / (|a| |b|) — 길이로 나눠서 방향만 남겨요. torch.set_num_threads(1)은 실행마다 같은 숫자가 나오게 CPU 스레드를 하나로 고정하는 것(강의 코드 공통).
+💡 식은 (a·b) / (|a| |b|) — 길이로 나눠서 방향만 남겨요. torch.set_num_threads(1)은 실행마다 같은 숫자가 나오게 CPU 스레드를 하나로 고정하는 것(예제 코드 공통).
 
 ### SentenceTransformer — 문장 Embedding (선택)
 
@@ -14903,7 +15780,7 @@ print(vectors.shape)
 print(model.similarity(vectors, vectors))
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)
+▶ 실제로 돌려 보면 예제 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14935,7 +15812,7 @@ y = layer(x)
 print(x.shape, y.shape)
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로 + 제약 확인
+▶ 실제로 돌려 보면 예제 코드 + 제약 확인
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -14969,7 +15846,7 @@ logits = lm_head(h)
 next_probs = logits[:, -1, :].softmax(dim=-1)   # 마지막 위치 → 다음 Token 분포
 ```
 
-▶ 실제로 돌려 보면 강의 shape 표를 작은 층으로 실제 실행 · seed 0
+▶ 실제로 돌려 보면 shape 표를 작은 층으로 실제 실행 · seed 0
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -15004,7 +15881,7 @@ weights = torch.softmax(
 print(weights.round(decimals=2))
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로 + 중간값 출력
+▶ 실제로 돌려 보면 예제 코드 + 중간값 출력
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|
@@ -15092,7 +15969,7 @@ for temp in [0.5, 1.0, 2.0]:
     print(temp, probs.round(decimals=3))
 ```
 
-▶ 실제로 돌려 보면 강의 코드 그대로
+▶ 실제로 돌려 보면 예제 코드 그대로
 
 | 📥 입력 | 📤 출력 | 뜻 |
 |---|---|---|

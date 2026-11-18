@@ -69,7 +69,7 @@ train = ImageFolder(str(DATA / "train"))
 valid = ImageFolder(str(DATA / "valid"))
 test = ImageFolder(str(DATA / "test"))
 assert train.class_to_idx == valid.class_to_idx == test.class_to_idx
-IO["d14-imagefolder"] = ("강의 데이터 data/train · valid · test", [
+IO["d14-imagefolder"] = ("예제 데이터 data/train · valid · test", [
     ("train.class_to_idx", repr(train.class_to_idx), "폴더 이름 알파벳 순서"),
     ("train.class_to_idx == valid.class_to_idx == test.class_to_idx", "True", "분할마다 번호가 같아야 비교가 됨"),
     *[(f"Counter({n}.targets)", repr(dict(sorted(Counter(ds.targets).items()))), note)
@@ -113,7 +113,7 @@ for p in wrong.parameters():
     p.requires_grad = False
 with torch.no_grad():
     out = model.eval()(t.unsqueeze(0))
-IO["d14-사전학습-모델-불러오기-head-교체"] = ("ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 train circle 한 장(40×40)", [
+IO["d14-사전학습-모델-불러오기-head-교체"] = ("ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 예제 train circle 한 장(40×40)", [
     ("weights", f"{weights}", "DEFAULT가 가리키는 실제 이름"),
     ("model.fc  (교체 전)", fc_before, "ImageNet 1000클래스 Head"),
     ("model.fc.in_features", str(in_features), ""),
@@ -232,7 +232,7 @@ with torch.no_grad():
     last_loss = crit(tmp_m(X_valid), y_valid).item()
 n_tr = sum(p.numel() for p in model6.parameters() if p.requires_grad)
 rec6 = recall_score(y_valid, pred6, average=None, labels=[0, 1, 2], zero_division=0)
-IO["d14-학습-루프-best-복원"] = (f"강의 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · {EPOCHS} epoch",
+IO["d14-학습-루프-best-복원"] = (f"예제 train 180장(40×40) 통째로 한 batch · 작은 CNN Backbone(seed 0 무작위, 얼림) + Linear Head · lr 0.01 · {EPOCHS} epoch",
     [("학습 파라미터 수 (Head만)", str(n_tr), "32 × 3 + 3")]
     + [(f"epoch {e}: valid loss", f"{v:.4f}", "") for e, v in enumerate(hist) ]
     + [
@@ -255,7 +255,7 @@ per = nn.CrossEntropyLoss(reduction="none")(torch.tensor([[2.0, 0, 0], [2.0, 0, 
 w_mean = loss_w(torch.tensor([[2.0, 0, 0], [2.0, 0, 0], [2.0, 0, 0]]), y3)
 model_w, _, _, _, pred_w, _ = train_head(loss_w, epochs=EPOCHS, lr=0.01)
 rec_w = recall_score(y_valid, pred_w, average=None, labels=[0, 1, 2], zero_division=0)
-IO["d14-nn-crossentropyloss-weight"] = (f"강의 train 개수 [120, 40, 20] · 'best 복원' 항목과 같은 모델·seed·{EPOCHS} epoch에 weight만 추가", [
+IO["d14-nn-crossentropyloss-weight"] = (f"예제 train 개수 [120, 40, 20] · 'best 복원' 항목과 같은 모델·seed·{EPOCHS} epoch에 weight만 추가", [
     ("torch.bincount(train targets)", repr(counts.int().tolist()), ""),
     ("class_weight", fmt(class_weight.tolist(), 2), "역빈도를 평균 1로 — 적은 클래스일수록 큼"),
     ("(counts * class_weight).tolist()", fmt((counts * class_weight).tolist(), 0), "클래스마다 '개수 × 무게'가 같아짐"),
@@ -303,7 +303,7 @@ except ValueError as e:
 gen.manual_seed(0)
 _, _, _, _, pred_s, _ = train_head(nn.CrossEntropyLoss(), epochs=EPOCHS, lr=0.01, loader=loader)
 rec_s = recall_score(y_valid, pred_s, average=None, labels=[0, 1, 2], zero_division=0)
-IO["d14-weightedrandomsampler"] = ("강의 train 180장 (120 · 40 · 20), generator seed 0", [
+IO["d14-weightedrandomsampler"] = ("예제 train 180장 (120 · 40 · 20), generator seed 0", [
     ("sample_weight[:2], sample_weight[-2:]", f"{fmt(sample_weight[:2].tolist(), 4)}, {fmt(sample_weight[-2:].tolist(), 4)}", "circle 1/120 · triangle 1/20"),
     ("한 epoch(180번) 뽑은 클래스 수", repr(dict(sorted(drawn_cls.items()))), "거의 1/3씩 (정확히 같지는 않음)"),
     ("triangle 뽑힌 횟수 / 서로 다른 triangle 장수", f"{len(tri_idx)} / {len(set(tri_idx))}",
@@ -337,7 +337,7 @@ rows9 = cm_rows(pred6.numpy(), "Head-only") + cm_rows(pred_w.numpy(), "class wei
     ("confusion_matrix(y_true[:30], 전부 0)  ← labels 없이 (circle만 있는 부분)", repr(confusion_matrix(y_true[:30], all_circle[:30]).tolist()), "1×1 표 — 없는 클래스가 표에서 사라짐"),
     ("같은 입력에 labels=[0, 1, 2]", "\n".join(" ".join(f"{v:3d}" for v in r) for r in confusion_matrix(y_true[:30], all_circle[:30], labels=labels)), "3×3으로 고정"),
 ]
-IO["d14-confusion-matrix"] = ("강의 valid 90장 (30 · 30 · 30) — 'best 복원'(Head-only)·'Class weight' 항목에서 학습한 두 모델의 예측", rows9)
+IO["d14-confusion-matrix"] = ("예제 valid 90장 (30 · 30 · 30) — 'best 복원'(Head-only)·'Class weight' 항목에서 학습한 두 모델의 예측", rows9)
 
 # 10. 오답 모으기
 model_w.eval()
@@ -355,7 +355,7 @@ rows10 = [
 for k, i in enumerate(wrong_i[conf[wrong_i].argsort(descending=True)][:3].tolist()):
     rows10.append((f"paths[{i}], T, P, conf", f"{paths[i]}  T={class_names[y_valid[i]]}  P={class_names[pred[i]]}  {conf[i]:.2f}",
                    "가장 자신 있게 틀린 오답부터 — 이 사진을 직접 열어 봐야 '왜'가 보여요" if k == 0 else ""))
-IO["d14-오답-이미지를-확률과-함께-모으기"] = ("강의 valid 90장 — 'Class weight' 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)", rows10)
+IO["d14-오답-이미지를-확률과-함께-모으기"] = ("예제 valid 90장 — 'Class weight' 항목에서 학습한 모델(Head-only는 전부 circle이라 오답 분석이 단조로워서)", rows10)
 
 # 11. Hook (ResNet18 구조, 가중치 없이)
 seed(0)
@@ -398,7 +398,7 @@ with torch.no_grad():
         nograd = "RuntimeError: " + str(e)[:45] + "…"
     finally:
         h2.remove()
-IO["d14-hook으로-activation-gradient-기록"] = ("ResNet18 구조(weights=None, 3클래스 Head) · 강의 circle 한 장을 preprocess → [1, 3, 224, 224]", [
+IO["d14-hook으로-activation-gradient-기록"] = ("ResNet18 구조(weights=None, 3클래스 Head) · 예제 circle 한 장을 preprocess → [1, 3, 224, 224]", [
     ("activation['value'].shape", sh(activation["value"]), "layer4[-1] 출력: 512채널 · 7×7 지도"),
     ("gradient['value'].shape", sh(gradient["value"]), "같은 모양의 gradient"),
     ("forward hook · tensor hook 호출 횟수", f"{calls_snap['fwd']} · {calls_snap['grad']}", "Forward 1번, backward 1번"),

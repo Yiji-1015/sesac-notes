@@ -2,8 +2,8 @@
 <section class="cmd-overview" data-day="9">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day09.html#packages">📦 필요한 패키지</a></td><td><code>pip install torch</code> (공식 선택기 명령)</td></tr>
-        <tr><td><a href="notes/day09.html#gpu">① GPU·CUDA 환경</a></td><td><code>nvidia-smi</code>, <code>torch.cuda.is_available()</code>, <code>torch.device()</code></td></tr>
+        <tr><td><a href="notes/day09.html#packages">📦 패키지 · 명령어</a></td><td><code>pip install torch</code> (공식 선택기 명령)</td></tr>
+        <tr><td><a href="notes/day09.html#gpu">① GPU · CUDA</a></td><td><code>nvidia-smi</code>, <code>torch.cuda.is_available()</code>, <code>torch.device()</code></td></tr>
         <tr><td><a href="notes/day09.html#tensor">② Tensor</a></td><td><code>torch.tensor()</code>, <code>torch.randn()</code>, <code>reshape</code> / <code>view</code> / <code>unsqueeze</code>, <code>.to(device)</code></td></tr>
         <tr><td><a href="notes/day09.html#autograd">③ Autograd · 경사하강</a></td><td><code>requires_grad=True</code>, <code>loss.backward()</code>, <code>.grad.zero_()</code>, <code>torch.no_grad()</code>, <code>detach()</code></td></tr>
         <tr><td><a href="notes/day09.html#ann">④ ANN (인공신경망)</a></td><td><code>nn.Linear</code>, <code>nn.ReLU</code>, <code>nn.Sequential</code>, <code>nn.Module</code></td></tr>
@@ -95,7 +95,7 @@ y = torch.tensor([0, 1], dtype=torch.long)
 print(x.shape, x.dtype, x.device)   # torch.Size([2, 2]) torch.float32 cpu
 print(y.shape, y.dtype)             # torch.Size([2]) torch.int64</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>노트 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>위 코드 그대로</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>x.shape, x.dtype, x.device</code></td><td><code>(2, 2), torch.float32, cpu</code></td><td>2×2 실수, CPU에 만들어짐</td></tr>
@@ -209,12 +209,12 @@ print(y.item(), x.grad.item())    # 16.0 8.0</code></pre>
         <tr><td><code>inputs</code></td><td>특정 입력에 대해서만 기울기 계산</td><td>나머지 <code>.grad</code>는 건드리지 않음</td></tr>
       </table>
       <div class="callout warn">⚠️ <strong>기울기는 누적돼요.</strong> 새로 순전파한 뒤 <code>backward()</code>를 또 부르면 이전 기울기에 더해져요(2 → 4). 그래서 일반 학습 루프에선 매 step마다 기울기를 비워요(<code>zero_grad</code>).</div>
-      <p>backward를 여러 번 눌러 기울기가 쌓이는 모습은 <a href="notes/day09.html#autograd">Day9 ③ Autograd의 누적 체험</a>에서 직접 해 볼 수 있어요.</p>
+      <p>backward를 여러 번 눌러 기울기가 쌓이는 모습은 <a href="notes/day09.html#autograd">③ Autograd의 누적 체험</a>에서 직접 해 볼 수 있어요.</p>
       <div class="callout">🤔 <strong>왜 PyTorch는 기울기를 덮어쓰지 않고 더해?</strong> — 일부러 여러 번 backward해서 기울기를 모은 뒤 한 번에 갱신하고 싶은 경우(예: GPU 메모리가 부족해서 작은 batch 여러 개를 합칠 때)가 있어서예요. 하지만 일반 학습에선 <b>지금 batch의 기울기</b>만 써야 하니, 안 비우면 지난 batch 기울기까지 섞여 갱신이 엉뚱하게 커져요.</div>
 </section>
 
 <section class="cmd" id="d9-손으로-5번-갱신하기" data-topic="PyTorch" data-sub="Autograd · 경사하강" data-day="9" data-theory="notes/day09.html#autograd">
-  <h3>손으로 5번 갱신하기</h3>
+  <h3>수동 갱신 <code>w.grad</code> · <code>w.grad.zero_()</code> — 5번 갱신</h3>
 <pre><code>w = torch.tensor(0.0, requires_grad=True)
 target = torch.tensor(4.0)
 lr = 0.1
@@ -394,7 +394,7 @@ print(xb.shape, yb.shape)          # torch.Size([32, 2]) torch.Size([32])</code>
       <table>
         <tr><th>인자</th><th>뜻</th><th>바꾸면?</th></tr>
         <tr><td><code>dataset</code> <small>(필수)</small></td><td>꺼낼 데이터 묶음 (<code>TensorDataset(X, y)</code>는 X와 y를 같은 번호로 묶고, len = 샘플 수)</td><td></td></tr>
-        <tr><td><code>batch_size</code></td><td>한 번에 꺼낼 샘플 수 (기본 1)</td><td>키우면 step 수↓·메모리↑·기울기 안정, 줄이면 그 반대 (<a href="notes/day10.html#batch">Day10 ③ Batch</a>)</td></tr>
+        <tr><td><code>batch_size</code></td><td>한 번에 꺼낼 샘플 수 (기본 1)</td><td>키우면 step 수↓·메모리↑·기울기 안정, 줄이면 그 반대 (<a href="notes/day10.html#batch">Batch · Iteration · Epoch</a>)</td></tr>
         <tr><td><code>shuffle</code></td><td>epoch마다 순서 섞기 (기본 False)</td><td>train은 True — 매번 같은 순서로 보면 그 순서 패턴까지 배울 수 있어서 섞어 줘요</td></tr>
         <tr><td><code>num_workers</code></td><td>데이터 읽는 보조 프로세스 수 (기본 0)</td><td>늘리면 로딩이 빨라질 수 있지만, Windows에선 실행 진입점(<code>if __name__ == "__main__":</code>) 구조에 주의 → 처음엔 0</td></tr>
         <tr><td><code>pin_memory</code></td><td>GPU 전송용 고정 메모리</td><td>True면 CPU→GPU 복사가 빨라질 수 있음</td></tr>
@@ -403,7 +403,7 @@ print(xb.shape, yb.shape)          # torch.Size([32, 2]) torch.Size([32])</code>
 </section>
 
 <section class="cmd" id="d9-준비-batch-반복" data-topic="PyTorch" data-sub="학습 루프" data-day="9" data-theory="notes/day09.html#loop">
-  <h3>준비 + batch 반복</h3>
+  <h3><code>torch.optim.SGD</code> · <code>zero_grad()</code> · <code>step()</code> — batch 반복</h3>
 <pre><code>import torch
 from torch import nn
 from torch.utils.data import TensorDataset, DataLoader
@@ -432,7 +432,7 @@ with torch.no_grad():                           # 평가: 기록 끄기
     pred = model(X.to(device)).argmax(dim=1)
     acc = (pred.cpu() == y).float().mean().item()</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>노트 코드 그대로 (seed 42, 직선 경계 데이터 200개, device=cuda)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>위 코드 그대로 (seed 42, 직선 경계 데이터 200개, device=cuda)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>학습 전 정확도</code></td><td><code>0.515</code></td><td>무작위 가중치라 찍기 수준</td></tr>
@@ -447,35 +447,34 @@ with torch.no_grad():                           # 평가: 기록 끄기
       <table>
         <tr><th>명령 / 인자</th><th>뜻</th><th>바꾸면?</th></tr>
         <tr><td><code>params</code> <small>(필수)</small></td><td>갱신할 Parameter, 보통 <code>model.parameters()</code></td><td>여기 안 넘긴 파라미터는 학습해도 안 바뀜</td></tr>
-        <tr><td><code>lr</code></td><td>학습률 (기본 0.001, 그래도 <b>명시 권장</b>)</td><td>너무 크면 발산, 너무 작으면 느림 (<a href="notes/day09.html#autograd">③ 경사하강 lr 체험</a> 참고). 강의 예시는 0.1</td></tr>
-        <tr><td><code>momentum</code>, <code>weight_decay</code>, <code>nesterov</code></td><td>이전 방향 누적, 큰 가중치 억제 (기본 0)</td><td><a href="notes/day10.html#optim">Day10 ① Optimizer</a>에서 본격 비교</td></tr>
+        <tr><td><code>lr</code></td><td>학습률 (기본 0.001, 그래도 <b>명시 권장</b>)</td><td>너무 크면 발산, 너무 작으면 느림 (<a href="notes/day09.html#autograd">③ 경사하강 lr 체험</a> 참고). 예시 설정은 0.1</td></tr>
+        <tr><td><code>momentum</code>, <code>weight_decay</code>, <code>nesterov</code></td><td>이전 방향 누적, 큰 가중치 억제 (기본 0)</td><td><a href="notes/day10.html#optim">Optimizer 비교</a>에서 자세히</td></tr>
         <tr><td><code>optimizer.zero_grad(set_to_none=True)</code></td><td>지난 기울기 비우기</td><td>기본은 <code>.grad</code>를 None으로, False면 0으로 채움</td></tr>
         <tr><td><code>optimizer.step(closure=None)</code></td><td>현재 <code>.grad</code>로 한 번 갱신 (반환 None)</td><td>closure는 대부분 생략</td></tr>
       </table>
 </section>
 
 <section class="cmd" id="d9-epoch-평균-loss를-제대로-내기" data-topic="PyTorch" data-sub="학습 루프" data-day="9" data-theory="notes/day09.html#loop">
-  <h3>epoch 평균 loss를 제대로 내기</h3>
-<pre><code>def train_one_epoch(model, loader, loss_fn, optimizer, device):
-    model.train()
-    total_loss = 0.0
-    for xb, yb in loader:
-        xb, yb = xb.to(device), yb.to(device)
-        optimizer.zero_grad()
-        loss = loss_fn(model(xb), yb)
-        loss.backward()
-        optimizer.step()
-        total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
-    return total_loss / len(loader.dataset)        # 샘플 수로 가중한 평균 loss</code></pre>
+  <h3><code>loss.item()</code> × batch 크기 — epoch 평균 loss</h3>
+<pre><code>model.train()
+total_loss = 0.0
+for xb, yb in loader:
+    xb, yb = xb.to(device), yb.to(device)
+    optimizer.zero_grad()
+    loss = loss_fn(model(xb), yb)
+    loss.backward()
+    optimizer.step()
+    total_loss += loss.item() * len(xb)       # batch 평균 × batch 크기
+epoch_loss = total_loss / len(loader.dataset)  # 샘플 수로 가중한 평균 loss</code></pre>
 <div class="io">
   <div class="io-title">▶ 실제로 돌려 보면 <small>같은 데이터 200개, batch 32 (마지막 batch 8개)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>epoch 1 batch 크기</code></td><td><code>[32, 32, 32, 32, 32, 32, 8]</code></td><td></td></tr>
     <tr><td><code>epoch 1 마지막 batch loss</code></td><td><code>0.4449</code></td><td>8개짜리 batch의 평균</td></tr>
-    <tr><td><code>train_one_epoch(...)  (샘플 가중 평균)</code></td><td><code>0.5334</code></td><td>샘플 하나하나의 평균</td></tr>
+    <tr><td><code>total_loss / len(loader.dataset)  (샘플 가중 평균)</code></td><td><code>0.5334</code></td><td>샘플 하나하나의 평균</td></tr>
     <tr><td><code>batch loss들을 그냥 평균</code></td><td><code>0.5239</code></td><td>8개 batch가 32개와 같은 무게라 살짝 다름</td></tr>
-    <tr><td><code>epoch 2 train_one_epoch(...)</code></td><td><code>0.4788</code></td><td>다음 epoch엔 더 내려감</td></tr>
+    <tr><td><code>epoch 2 total_loss / len(loader.dataset)</code></td><td><code>0.4788</code></td><td>다음 epoch엔 더 내려감</td></tr>
   </table>
 </div>
       <div class="callout">🤔 <strong>왜 <code>× len(xb)</code>를 해?</strong> — <code>loss</code>는 batch 안의 <b>평균</b>이에요(reduction="mean"). 마지막 batch는 8개처럼 작을 수 있어서, batch 평균들을 그냥 평균 내면 8개짜리 batch가 32개짜리와 같은 무게를 갖게 돼요. 샘플 수를 곱해 합친 뒤 전체 샘플 수로 나누면 "샘플 하나하나의 평균"이 정확히 나와요. 함수 하나가 "epoch 1회 학습"이라는 한 가지 역할만 하게 나누면 읽기도 쉬워요.</div>
@@ -499,5 +498,5 @@ with torch.no_grad():                           # 평가: 기록 끄기
   </table>
 </div>
       <div class="callout">💡 평가할 땐 <code>model.eval()</code> + <code>torch.no_grad()</code>를 <b>세트로</b> 쓰는 습관을 들여요. GPU 결과를 NumPy로 쓰려면 <code>probs.detach().cpu()</code>처럼 CPU로 옮겨요.</div>
-      <div class="callout">🤔 <strong>왜 둘 다 필요해?</strong> — 둘은 다른 스위치예요. <code>eval()</code>은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 <b>예측이 매번 같고 공정</b>하게 만들어요. <code>no_grad()</code>는 평가 땐 backward를 안 하니 <b>그래프를 안 만들어 메모리·시간을 아껴요</b>. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 오늘 모델엔 Dropout·BatchNorm이 없지만, 습관을 지금 들이면 다음 수업에서 바로 효과를 봐요.</div>
+      <div class="callout">🤔 <strong>왜 둘 다 필요해?</strong> — 둘은 다른 스위치예요. <code>eval()</code>은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 <b>예측이 매번 같고 공정</b>하게 만들어요. <code>no_grad()</code>는 평가 땐 backward를 안 하니 <b>그래프를 안 만들어 메모리·시간을 아껴요</b>. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 이 예시 모델엔 Dropout·BatchNorm이 없지만, 습관을 들여 두면 그런 층이 든 모델(<a href="notes/day10.html#dropout">Dropout · BatchNorm</a>)에서 바로 효과를 봐요.</div>
 </section>

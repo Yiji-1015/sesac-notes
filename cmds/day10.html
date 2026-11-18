@@ -2,17 +2,17 @@
 <section class="cmd-overview" data-day="10">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day10.html#packages">📦 필요한 패키지</a></td><td><code>torch</code> (Day9 환경 유지) · 기록·그래프용 <code>pandas</code>, <code>matplotlib</code></td></tr>
+        <tr><td><a href="notes/day10.html#packages">📦 패키지 · 명령어</a></td><td><code>torch</code> (기존 환경 유지) · 기록·그래프용 <code>pandas</code>, <code>matplotlib</code></td></tr>
         <tr><td><a href="notes/day10.html#optim">① Optimizer</a></td><td><code>torch.optim.SGD(momentum=)</code>, <code>torch.optim.AdamW()</code></td></tr>
         <tr><td><a href="notes/day10.html#lr">② 학습률 · Scheduler</a></td><td><code>lr=</code>, <code>ReduceLROnPlateau</code>, <code>scheduler.step(valid_loss)</code></td></tr>
         <tr><td><a href="notes/day10.html#batch">③ Batch · Iteration · Epoch</a></td><td><code>DataLoader(batch_size=, shuffle=, drop_last=)</code>, <code>optimizer.zero_grad()</code> / <code>step()</code></td></tr>
-        <tr><td><a href="notes/day10.html#overfit">④ 과적합 · 학습 곡선</a></td><td><code>history</code> 기록, <code>torch.manual_seed()</code></td></tr>
+        <tr><td><a href="notes/day10.html#overfit">④ 과적합 · 학습 곡선</a></td><td><code>list.append</code> 기록 · <code>pd.DataFrame(history).to_csv()</code> · <code>plt.plot()</code>, <code>torch.manual_seed()</code></td></tr>
         <tr><td><a href="notes/day10.html#dropout">⑤ Dropout · BatchNorm</a></td><td><code>nn.Dropout(p)</code>, <code>nn.BatchNorm1d()</code>, <code>model.train()</code> / <code>model.eval()</code></td></tr>
         <tr><td><a href="notes/day10.html#early">⑥ Weight Decay · Early Stopping</a></td><td><code>weight_decay=</code>, <code>copy.deepcopy(model.state_dict())</code>, <code>load_state_dict()</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d10-optimizer만-바꿔-끼우기" data-topic="PyTorch" data-sub="Optimizer · 규제" data-day="10" data-theory="notes/day10.html#optim">
-  <h3>Optimizer만 바꿔 끼우기</h3>
+  <h3><code>torch.optim.SGD</code> · <code>AdamW</code> — Optimizer만 바꿔 끼우기</h3>
 <pre><code>model = Net()
 loss_fn = nn.CrossEntropyLoss()
 
@@ -36,7 +36,7 @@ for xb, yb in train_loader:          # 학습 루프는 그대로!
     <tr><td><code>sorted(optimizer.state[첫 weight].keys())  (AdamW)</code></td><td><code>[&#x27;exp_avg&#x27;, &#x27;exp_avg_sq&#x27;, &#x27;step&#x27;]</code></td><td>step마다 쌓은 이동평균 — state_dict()에 같이 저장돼요</td></tr>
   </table>
 </div>
-      <p>교재 설명 예시(같은 split · 40 epochs): SGD valid acc ≈ 0.913, AdamW ≈ 0.925. 초반 수렴 속도와 후반 변동이 달랐지만, 이 그래프 하나로 "항상 AdamW가 우수하다"고 결론 내리지 않아요.</p>
+      <p>설명용 예시(같은 split · 40 epochs): SGD valid acc ≈ 0.913, AdamW ≈ 0.925. 초반 수렴 속도와 후반 변동이 달랐지만, 이 그래프 하나로 "항상 AdamW가 우수하다"고 결론 내리지 않아요.</p>
       <p><code>torch.optim.SGD(params, lr=0.001, momentum=0, dampening=0, weight_decay=0, nesterov=False, ...)</code><br>
       <code>torch.optim.AdamW(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.01, amsgrad=False, ...)</code></p>
       <table>
@@ -55,12 +55,15 @@ for xb, yb in train_loader:          # 학습 루프는 그대로!
 </section>
 
 <section class="cmd" id="d10-학습률-후보-비교" data-topic="PyTorch" data-sub="학습률" data-day="10" data-theory="notes/day10.html#lr">
-  <h3>학습률 후보 비교</h3>
+  <h3><code>AdamW(lr=…)</code> — 학습률 후보 비교</h3>
 <pre><code>for lr in [0.0001, 0.01, 0.5]:
     torch.manual_seed(7)                       # 고정: seed
     model = Net()                              # 고정: 모델
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
-    history = train(model, optimizer, train_loader, valid_data, epochs=40)
+    history = {"valid_loss": []}
+    for epoch in range(40):
+        ...                                    # 같은 학습 루프 1 epoch
+        history["valid_loss"].append(valid_loss)   # eval + no_grad로 잰 valid loss
     print(lr, min(history["valid_loss"]))      # 바꾼 건 lr 하나뿐</code></pre>
 <div class="io">
   <div class="io-title">▶ 실제로 돌려 보면 <small>points.csv (train 240 · valid 80) · AdamW, 후보마다 seed 7로 새 모델, 40 epoch</small></div>
@@ -82,8 +85,8 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=4, min_lr=1e-4)
 
 for epoch in range(epochs):
-    train_one_epoch(model, train_loader, optimizer)
-    valid_loss = evaluate_loss(model, valid_loader)
+    ...                                            # 학습 루프 1 epoch
+    valid_loss = ...                               # eval + no_grad로 잰 valid loss
     scheduler.step(valid_loss)                     # valid 후, 감시할 값을 넣어서!
     current_lr = optimizer.param_groups[0]["lr"]   # 지금 lr 확인</code></pre>
 <div class="io">
@@ -107,7 +110,7 @@ for epoch in range(epochs):
         <tr><td><code>cooldown</code>, <code>min_lr</code>, <code>eps</code></td><td>깎은 뒤 쉬는 epoch / lr 하한 / 이보다 작은 lr 변화는 적용 안 함</td><td>min_lr 아래로는 안 내려가요</td></tr>
       </table>
       <table>
-        <tr><th>교재 예시 구간</th><th>validation 상황</th><th>learning rate</th><th>해석</th></tr>
+        <tr><th>설명용 예시 구간</th><th>validation 상황</th><th>learning rate</th><th>해석</th></tr>
         <tr><td>1~18 epoch</td><td>개선 또는 patience 이내</td><td>0.0100</td><td>기본 학습률 유지</td></tr>
         <tr><td>19~23 epoch</td><td>의미 있는 개선 없음</td><td>0.0050</td><td>factor=0.5 적용</td></tr>
         <tr><td>24~25 epoch</td><td>다시 정체</td><td>0.0025</td><td>두 번째 감소</td></tr>
@@ -170,11 +173,11 @@ optimizer.step(closure=None)             # 현재 .grad와 optimizer 상태로 �
 </section>
 
 <section class="cmd" id="d10-epoch별-기록-남기기" data-topic="PyTorch" data-sub="학습 루프" data-day="10" data-theory="notes/day10.html#overfit">
-  <h3>epoch별 기록 남기기</h3>
+  <h3><code>pd.DataFrame(history)</code> · <code>plt.plot()</code> — epoch별 기록</h3>
 <pre><code>history = {"train_loss": [], "valid_loss": [], "train_acc": [], "valid_acc": []}
 for epoch in range(epochs):
-    train_loss, train_acc = train_one_epoch(...)
-    valid_loss, valid_acc = evaluate(...)          # 같은 eval 조건으로
+    ...                                            # 학습 루프 1 epoch → train_loss, train_acc
+    ...                                            # 같은 eval 조건으로 → valid_loss, valid_acc
     history["train_loss"].append(train_loss)
     history["valid_loss"].append(valid_loss)
     history["train_acc"].append(train_acc)
@@ -345,13 +348,13 @@ print(len(optimizer.param_groups))      # 2</code></pre>
 </section>
 
 <section class="cmd" id="d10-early-stopping-직접-짜기" data-topic="PyTorch" data-sub="Optimizer · 규제" data-day="10" data-theory="notes/day10.html#early">
-  <h3>Early Stopping 직접 짜기</h3>
+  <h3><code>copy.deepcopy(model.state_dict())</code> · <code>load_state_dict()</code> — Early Stopping</h3>
 <pre><code>import copy
 best_loss = reference = float("inf")
 wait = 0
 for epoch in range(max_epochs):
-    train_one_epoch(...)
-    valid_loss = evaluate_loss(...)
+    ...                                             # 학습 루프 1 epoch
+    valid_loss = ...                                # eval + no_grad로 잰 valid loss
     if valid_loss &lt; best_loss:                      # 조금이라도 좋아지면 best 저장
         best_loss = valid_loss
         best_state = copy.deepcopy(model.state_dict())
@@ -363,7 +366,7 @@ for epoch in range(max_epochs):
             break
 model.load_state_dict(best_state)                   # 멈춘 시점이 아니라 best로!</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>교재 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>설명용 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>valid loss 1.00, .80, .79, .78, .70 / min_delta=.05, patience=2</code></td><td><code>멈춘 epoch 4, best epoch 4 (loss 0.78)</code></td><td>.79·.78은 충분한 개선이 아니라 대기 1·2 → 4에서 멈춤, best는 .78 (.70은 보지도 못함)</td></tr>
@@ -381,8 +384,8 @@ model.load_state_dict(best_state)                   # 멈춘 시점이 아니라
         <tr><td><code>patience</code></td><td>개선 없이 기다려 줄 epoch 수</td><td>작으면 잠깐 흔들려도 일찍 멈춤(덜 학습 위험), 크면 오래 더 돌아 시간 낭비</td></tr>
         <tr><td><code>min_delta</code></td><td>개선으로 인정할 최소 변화량</td><td>키우면 아주 작은 개선은 "개선 아님"으로 쳐서 더 빨리 멈춤</td></tr>
       </table>
-      <div class="callout">🤔 <strong>왜 <code>best_loss</code>와 <code>reference</code>를 따로 둬?</strong> — 역할이 달라서예요. <code>best_loss</code>는 "가장 좋았던 모델"을 저장하려고 <b>작은 개선도</b> 다 기록하고, <code>reference</code>는 "기다림을 리셋할 만큼 충분히 좋아졌나"를 min_delta 기준으로 판단해요. 교재 예: loss 1.00 → .80 → .79 → .78, min_delta=.05, patience=2 → .79와 .78은 .80보다 0.05 이상 좋아진 게 아니라 대기 1·2회 → 4번째에 중단. 하지만 best는 <b>.78</b>로 저장돼 있어요.<br>
+      <div class="callout">🤔 <strong>왜 <code>best_loss</code>와 <code>reference</code>를 따로 둬?</strong> — 역할이 달라서예요. <code>best_loss</code>는 "가장 좋았던 모델"을 저장하려고 <b>작은 개선도</b> 다 기록하고, <code>reference</code>는 "기다림을 리셋할 만큼 충분히 좋아졌나"를 min_delta 기준으로 판단해요. 설명용 예: loss 1.00 → .80 → .79 → .78, min_delta=.05, patience=2 → .79와 .78은 .80보다 0.05 이상 좋아진 게 아니라 대기 1·2회 → 4번째에 중단. 하지만 best는 <b>.78</b>로 저장돼 있어요.<br>
       🤔 <strong>왜 <code>copy.deepcopy</code>?</strong> — <code>state_dict()</code>는 지금 학습 중인 가중치를 <b>가리키는</b> 묶음이라, 그냥 담아 두면 다음 epoch 학습 때 같이 바뀌어 버려요. 그 순간 값을 통째로 복사해야 best가 보존돼요.</div>
-      <div class="callout">💡 Scheduler와 같이 쓸 땐 순서가 <code>train → valid loss → scheduler.step(valid_loss) → best 저장·patience 확인</code>. 보통 <b>Early Stopping의 patience를 Scheduler보다 길게</b> 둬서, lr을 낮춘 뒤 다시 좋아질 기회를 줘요. (교재 예시: best epoch 13, stop epoch 25 → 최종 모델은 13 epoch 상태)</div>
+      <div class="callout">💡 Scheduler와 같이 쓸 땐 순서가 <code>train → valid loss → scheduler.step(valid_loss) → best 저장·patience 확인</code>. 보통 <b>Early Stopping의 patience를 Scheduler보다 길게</b> 둬서, lr을 낮춘 뒤 다시 좋아질 기회를 줘요. (설명용 예시: best epoch 13, stop epoch 25 → 최종 모델은 13 epoch 상태)</div>
       <div class="callout">🤔 <strong>왜 Early Stopping patience가 더 길어야 해?</strong> — 둘 다 "정체"를 보고 반응해요. Early Stopping이 먼저 끝나 버리면 Scheduler가 lr을 낮춰 볼 기회가 없어요. Scheduler가 먼저 lr을 줄이고, 그래도 안 좋아질 때 Early Stopping이 멈추게 하려면 기다리는 시간이 더 길어야 해요.</div>
 </section>

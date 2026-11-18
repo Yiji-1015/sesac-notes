@@ -2,10 +2,10 @@
 <section class="cmd-overview" data-day="15">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day15.html#packages">📦 필요한 패키지</a></td><td><code>pip install ultralytics lap opencv-python</code></td></tr>
-        <tr><td><a href="notes/day15.html#box">① 박스 좌표</a></td><td><code>cv2.rectangle()</code>, <code>cv2.putText()</code></td></tr>
-        <tr><td><a href="notes/day15.html#metrics">② IoU · 평가 지표</a></td><td><code>model.val()</code> → <code>metrics.box.map50</code></td></tr>
-        <tr><td><a href="notes/day15.html#yolo">③ YOLO 모델 · 학습</a></td><td><code>YOLO()</code>, <code>model.train()</code></td></tr>
+        <tr><td><a href="notes/day15.html#packages">📦 패키지 · 명령어</a></td><td><code>pip install ultralytics lap opencv-python</code>, CLI <code>yolo detect train / val / predict / track</code></td></tr>
+        <tr><td><a href="notes/day15.html#box">① 박스 좌표</a></td><td><code>cv2.rectangle()</code>, <code>cv2.putText()</code>, <code>box_convert()</code></td></tr>
+        <tr><td><a href="notes/day15.html#metrics">② IoU · 평가 지표</a></td><td><code>box_iou()</code>, <code>model.val()</code> → <code>metrics.box.map50</code></td></tr>
+        <tr><td><a href="notes/day15.html#yolo">③ YOLO · 학습</a></td><td><code>YOLO()</code>, <code>model.train()</code></td></tr>
         <tr><td><a href="notes/day15.html#nms">④ confidence · NMS · 추론</a></td><td><code>model.predict(conf=, iou=)</code>, <code>result.boxes</code></td></tr>
         <tr><td><a href="notes/day15.html#track">⑤ 추적</a></td><td><code>model.track(persist=, tracker=)</code></td></tr>
       </table>
@@ -235,7 +235,7 @@ for result in model.track(source="traffic.mp4", persist=True,
       <div class="callout">🤔 <strong>왜 추적기만 바꿔서는 안 좋아져?</strong> — 추적은 탐지 결과를 <b>이어 붙이는</b> 단계라서, 탐지가 물체를 놓치면 이을 박스 자체가 없어요. 탐지 성능이 추적 품질의 천장이에요.</div>
       <div class="callout warn">⚠️ 속도를 잴 땐 범위를 같이 적어요. "모델 추론 5ms"를 보고 200 FPS라고 하면 안 돼요. 영상 읽기·전처리·후처리·추적·저장 시간까지 더해야 실제 처리 속도예요.</div>
 </section>
-<section class="cmd" id="d15-yolo-detect" data-topic="YOLO" data-sub="CLI" data-day="15" data-theory="notes/day15.html#track">
+<section class="cmd" id="d15-yolo-detect" data-topic="YOLO" data-sub="CLI" data-day="15" data-theory="notes/day15.html#cli">
   <h3>같은 걸 터미널(CLI)로 <code>yolo detect ...</code></h3>
 <pre><code>yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
 yolo detect val     model=best.pt data=dataset.yaml

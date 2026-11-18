@@ -213,7 +213,7 @@
   "term": "n_jobs",
   "aliases": [],
   "full": "n_jobs (병렬 작업 수)",
-  "short": "계산에 쓸 CPU 작업 수. -1이면 전부. 수업에선 재현성을 위해 1로 고정해요.",
+  "short": "계산에 쓸 CPU 작업 수. -1이면 전부. 비교 실험에선 재현성을 위해 1로 고정해요.",
   "analogy": "",
   "day": 7,
   "key": false
@@ -400,7 +400,7 @@
   "term": "GPU",
   "aliases": [],
   "full": "Graphics Processing Unit (그래픽 처리 장치)",
-  "short": "대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 이번 수업은 CPU만으로 충분해요.",
+  "short": "대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 트리 · XGBoost 예시는 CPU만으로 충분해요.",
   "analogy": "",
   "day": 7,
   "key": false

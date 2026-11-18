@@ -2,8 +2,7 @@
 <section class="cmd-overview" data-day="20">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day20.html#packages">📦 필요한 패키지</a></td><td><code>python -m pip install torch transformers sentence-transformers</code></td></tr>
-        <tr><td><a href="notes/day20.html#spec">📋 명세</a></td><td>단계별 입력 · 출력 · 자료형 · shape</td></tr>
+        <tr><td><a href="notes/day20.html#map">🗺️ 큰 그림</a></td><td>문자열 → Token ID → Embedding → Transformer → Logit → 다음 Token</td></tr>
         <tr><td><a href="notes/day20.html#eco">① LLM 생태계 · 서비스 역할</a></td><td>(개념 — 코드 없음)</td></tr>
         <tr><td><a href="notes/day20.html#token">② Tokenizer · Context Window</a></td><td><code>AutoTokenizer.from_pretrained()</code>, <code>convert_ids_to_tokens</code>, <code>decode</code>, <code>padding</code> · <code>truncation</code> · <code>max_length</code>, <code>attention_mask</code></td></tr>
         <tr><td><a href="notes/day20.html#embedding">③ Embedding · 유사도</a></td><td><code>nn.Embedding</code>, <code>F.cosine_similarity</code>, <code>SentenceTransformer.encode</code> · <code>similarity</code></td></tr>
@@ -11,25 +10,27 @@
         <tr><td><a href="notes/day20.html#attention">⑤ Self-Attention · Mask</a></td><td><code>q @ k.T / math.sqrt(d)</code>, <code>torch.triu</code> · <code>masked_fill</code>, <code>softmax</code>, <code>F.scaled_dot_product_attention</code>, <code>src_key_padding_mask</code></td></tr>
         <tr><td><a href="notes/day20.html#infer">⑥ 학습 · 추론 · 디코딩</a></td><td><code>torch.softmax(logits / temp)</code>, Greedy · Top-k · Top-p, <code>backward()</code> · <code>optimizer.step()</code> vs <code>torch.no_grad()</code></td></tr>
         <tr><td><a href="notes/day20.html#limits">⑦ 한계 · 검증 · RAG/Agent 경계</a></td><td>(개념 — 평가 관점표)</td></tr>
+        <tr><td><a href="notes/day20.html#spec">📋 명세</a></td><td>단계별 입력 · 출력 · 자료형 · shape</td></tr>
+        <tr><td><a href="notes/day20.html#packages">📦 패키지 · 명령어</a></td><td><code>python -m pip install torch transformers sentence-transformers</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d20-pip-install" data-topic="LLM · Transformer 원리" data-sub="설치" data-day="20" data-theory="notes/day20.html#packages">
   <h3>설치 · 버전 확인</h3>
-<pre><code>python -m pip install torch                    # 대부분 이미 있음 (Day09~)
+<pre><code>python -m pip install torch                    # 대부분 이미 있음
 python -m pip install transformers             # Tokenizer · 사전학습 모델
 python -m pip install sentence-transformers    # 문장 Embedding (선택)
 python -c "import torch, transformers; print(torch.__version__, transformers.__version__)"</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>이 노트를 만든 가상환경에서 실제로 확인</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실행에 쓴 가상환경에서 실제로 확인</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
-    <tr><td><code>import torch, transformers, sentence_transformers</code></td><td><code>torch 2.14.0+cu130 · transformers 5.22.2 · sentence-transformers 6.3.0</code></td><td>강의 기준(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준</td></tr>
+    <tr><td><code>import torch, transformers, sentence_transformers</code></td><td><code>torch 2.14.0+cu130 · transformers 5.22.2 · sentence-transformers 6.3.0</code></td><td>기준 버전(PyTorch 2.14 · Transformers 5.17 · sentence-transformers 6.1)보다 조금 새 버전 — 아래 결과는 이 버전 기준</td></tr>
   </table>
 </div>
       <table>
         <tr><th>부분</th><th>뜻</th></tr>
         <tr><td><code>transformers</code></td><td>Hugging Face 라이브러리 — <code>AutoTokenizer</code>·<code>AutoModel</code>로 모델 이름만 주면 내려받아 씀</td></tr>
-        <tr><td><code>sentence-transformers</code></td><td>문장 하나 → 벡터 하나를 만드는 모델 모음 (11/18 검색에서 다시 씀)</td></tr>
+        <tr><td><code>sentence-transformers</code></td><td>문장 하나 → 벡터 하나를 만드는 모델 모음 (Vector Search에서 다시 씀)</td></tr>
         <tr><td>첫 실행</td><td>모델·Tokenizer 파일을 인터넷에서 내려받아 캐시(<code>~/.cache/huggingface</code>)에 둠 — 두 번째부터는 캐시 사용</td></tr>
       </table>
 </section>
@@ -44,7 +45,7 @@ print(tok.convert_ids_to_tokens(ids))
 print("ids:", ids)
 print("n_tokens:", len(ids))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 · bert-base-multilingual-cased</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 그대로 · bert-base-multilingual-cased</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(tok.convert_ids_to_tokens(ids))</code></td><td><code>[&#x27;[CLS]&#x27;, &#x27;실&#x27;, &#x27;##습&#x27;, &#x27;파&#x27;, &#x27;##일&#x27;, &#x27;##은&#x27;, &#x27;개&#x27;, &#x27;##인&#x27;, &#x27;폴&#x27;, &#x27;##더&#x27;, &#x27;##에&#x27;, &#x27;보&#x27;, &#x27;##관&#x27;, &#x27;##합&#x27;, &#x27;##니다&#x27;, &#x27;.&#x27;, &#x27;[SEP]&#x27;]</code></td><td>앞뒤 [CLS]·[SEP]는 Special Token · ##은 &#x27;앞 조각에 붙어 있음&#x27; 표시(WordPiece)</td></tr>
@@ -101,7 +102,7 @@ print(tok.decode(ids, skip_special_tokens=True))</code></pre>
     <tr><td><code>&quot;실습 파일은 개인 폴더에 보관합니다.&quot;</code></td><td><code>17개 · [CLS] 실 ##습 파 ##일 ##은 개 ##인 폴 ##더 ##에 보 ##관 ##합 ##니다 . [SEP]</code></td><td>한국어 · 글자 단위로 많이 쪼개짐</td></tr>
     <tr><td><code>&quot;Keep practice files in your personal folder.&quot;</code></td><td><code>12개 · [CLS] Keep practice files in your personal f ##old ##er . [SEP]</code></td><td>영어 · 단어 대부분이 한 Token, folder만 f ##old ##er</td></tr>
     <tr><td><code>&quot;def get_db(): yield db&quot;</code></td><td><code>11개 · [CLS] def get _ db ( ) : yield db [SEP]</code></td><td>코드 · 기호 하나하나가 Token</td></tr>
-    <tr><td><code>&quot;학습 파일&quot;</code></td><td><code>6개 · [CLS] 학 ##습 파 ##일 [SEP]</code></td><td>강의 예시 — &#x27;학습 파일&#x27;도 4조각</td></tr>
+    <tr><td><code>&quot;학습 파일&quot;</code></td><td><code>6개 · [CLS] 학 ##습 파 ##일 [SEP]</code></td><td>비슷한 예시 — &#x27;학습 파일&#x27;도 4조각</td></tr>
     <tr><td><code>&quot;FastAPI와 PostgreSQL&quot;</code></td><td><code>9개 · [CLS] Fast ##AP ##I ##와 Post ##gre ##SQL [SEP]</code></td><td>고유명사는 잘게 · 조사 &#x27;와&#x27;는 ##와로 붙음</td></tr>
   </table>
 </div>
@@ -120,7 +121,7 @@ batch = tok(
 print(batch["input_ids"].shape)
 print(batch["attention_mask"])</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 + max_length·padding 바꿔 보기</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 + max_length·padding 바꿔 보기</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(batch[&quot;input_ids&quot;].shape)</code></td><td><code>torch.Size([2, 9])</code></td><td>2문장 × 9 Token — 긴 문장(9개)에 맞춰짐, 12까지 채우지 않음</td></tr>
@@ -179,7 +180,7 @@ c = torch.tensor([-1.0, 0.0])
 print(F.cosine_similarity(a, b, dim=0))
 print(F.cosine_similarity(a, c, dim=0))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 + 두 줄 더</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 + 두 줄 더</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>F.cosine_similarity(a, b, dim=0)</code></td><td><code>0.9701</code></td><td>방향이 거의 같음 (각도 약 14°)</td></tr>
@@ -195,7 +196,7 @@ print(F.cosine_similarity(a, c, dim=0))</code></pre>
         <tr><td><code>-1</code></td><td>방향이 반대</td></tr>
         <tr><td><code>dim=0</code></td><td>어느 축을 따라 비교할지 — 1차원 벡터 둘이면 0</td></tr>
       </table>
-      <div class="callout">💡 식은 <code>(a·b) / (|a| |b|)</code> — 길이로 나눠서 <b>방향만</b> 남겨요. <code>torch.set_num_threads(1)</code>은 실행마다 같은 숫자가 나오게 CPU 스레드를 하나로 고정하는 것(강의 코드 공통).</div>
+      <div class="callout">💡 식은 <code>(a·b) / (|a| |b|)</code> — 길이로 나눠서 <b>방향만</b> 남겨요. <code>torch.set_num_threads(1)</code>은 실행마다 같은 숫자가 나오게 CPU 스레드를 하나로 고정하는 것(예제 코드 공통).</div>
 </section>
 <section class="cmd" id="d20-sentence-transformer" data-topic="LLM · Transformer 원리" data-sub="Embedding" data-day="20" data-theory="notes/day20.html#cosine">
   <h3><code>SentenceTransformer</code> — 문장 Embedding (선택)</h3>
@@ -211,7 +212,7 @@ vectors = model.encode(texts)
 print(vectors.shape)
 print(model.similarity(vectors, vectors))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 그대로 · all-MiniLM-L6-v2 (첫 실행 때 내려받음)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(vectors.shape)</code></td><td><code>(3, 384)</code></td><td>문장 3개 × 384차원 — 문장 하나가 벡터 하나</td></tr>
@@ -242,7 +243,7 @@ x = torch.randn(2, 5, 8)
 y = layer(x)
 print(x.shape, y.shape)</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 + 제약 확인</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 + 제약 확인</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(x.shape, y.shape)</code></td><td><code>torch.Size([2, 5, 8]) torch.Size([2, 5, 8])</code></td><td>입력과 출력 shape가 같아요 — 그래서 Block을 여러 층 쌓을 수 있어요</td></tr>
@@ -274,7 +275,7 @@ h = block(embed(token_ids))
 logits = lm_head(h)
 next_probs = logits[:, -1, :].softmax(dim=-1)   # 마지막 위치 → 다음 Token 분포</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 shape 표를 작은 층으로 실제 실행 · seed 0</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>shape 표를 작은 층으로 실제 실행 · seed 0</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>token_ids.shape</code></td><td><code>torch.Size([2, 5])</code></td><td>2문장 · 문장당 5 Token</td></tr>
@@ -308,7 +309,7 @@ weights = torch.softmax(
     dim=-1)
 print(weights.round(decimals=2))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 + 중간값 출력</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 + 중간값 출력</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(scores.round(decimals=2))</code></td><td><code>[[0.7100, 0.0000, 0.7100], [0.0000, 0.7100, 0.7100], [0.7100, 0.7100, 1.4100]]</code></td><td>(3,3) 관계 점수 · 행=Query, 열=Key · 아직 확률 아님</td></tr>
@@ -391,7 +392,7 @@ for temp in [0.5, 1.0, 2.0]:
     probs = torch.softmax(logits / temp, dim=0)
     print(temp, probs.round(decimals=3))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 코드 그대로</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>temp = 0.5</code></td><td><code>[0.8670, 0.1170, 0.0160]</code></td><td>1등 후보에 몰림(0.867)</td></tr>

@@ -1,6 +1,6 @@
 """Day8 명령어 사전의 '입력 → 출력' 상자를 실제 실행 결과로 만든다.
 
-강의 데이터(C:/practice_assignment/20261028/02_응용/data)는 임시 폴더에 복사해서 읽기만 한다.
+원본 데이터(C:/practice_assignment/20261028/02_응용/data)는 임시 폴더에 복사해서 읽기만 한다.
 결과는 cmds/day08.html 각 항목의 첫 코드 블록 바로 뒤에 <div class="io"> 로 넣는다(다시 돌리면 교체).
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/io_day08.py
 """
@@ -47,9 +47,9 @@ train, valid, test = raw.loc[ids["train"]], raw.loc[ids["valid"]], raw.loc[ids["
 X_train, X_valid, X_test = train[FEATURES], valid[FEATURES], test[FEATURES]
 y_train, y_valid, y_test = train["failed"], valid["failed"], test["failed"]
 yr_train = train["elapsed_ms"]
-DATA = "강의 requests.csv · train 60 / valid 20"
+DATA = "예시 requests.csv · train 60 / valid 20"
 
-# joblib 복원이 되도록 add_features를 '이름 있는 모듈' 함수로 둔다 (강의의 features.py와 같은 역할)
+# joblib 복원이 되도록 add_features를 '이름 있는 모듈' 함수로 둔다 (모듈 파일 features.py와 같은 역할)
 feature_ops = types.ModuleType("feature_ops")
 exec("import numpy as np\n"
      "def add_features(X):\n"
@@ -148,7 +148,7 @@ def one_class_auc(yy, ss):
 
 one = one_class_auc([0, 0, 0], [0.1, 0.2, 0.3])
 rows.append(("roc_auc_score([0, 0, 0], [.1, .2, .3])", one, "한 클래스뿐이면 정의 불가 — sklearn 1.8은 에러 대신 nan + 경고를 돌려줘요. 조용히 넘어가지 않게 직접 검사해 None으로 기록"))
-IO["d8-roc-curve"] = ("노트의 4건 (실제 [0, 0, 1, 1])", rows)
+IO["d8-roc-curve"] = ("본문의 4건 (실제 [0, 0, 1, 1])", rows)
 
 # 3. cross_validate
 pipe = build(LogisticRegression(C=1, max_iter=1000))
@@ -198,7 +198,7 @@ IO["d8-np-log1p"] = (DATA, [
     ("pipe[:-1].transform(X_valid).shape · NaN/inf 개수", f"{Zva.shape} · {int((~np.isfinite(Zva)).sum())}", "valid도 같은 10열, 모두 유한값"),
     ("add_features(X) 뒤 원본 X 열 수", repr(Xc.shape[1]), "X.copy() 덕분에 원본은 4열 그대로"),
     ("Logistic: CV F1 · std · valid F1", " · ".join(f"{v:.3f}" for v in cmp["Logistic"]), "기존"),
-    ("Logistic_FE: CV F1 · std · valid F1", " · ".join(f"{v:.3f}" for v in cmp["Logistic_FE"]), "CV는 조금 오르고 valid는 떨어짐 — 노트 표와 같음"),
+    ("Logistic_FE: CV F1 · std · valid F1", " · ".join(f"{v:.3f}" for v in cmp["Logistic_FE"]), "CV는 조금 오르고 valid는 떨어짐 — 본문 표와 같음"),
     ("fold별 글자수 중앙값 · 검사 통과", f"{lst(med, 0)} · {ok}", "fold마다 자기 학습 48건에서 계산"),
 ])
 
@@ -219,7 +219,7 @@ before = cluster_pipe["cluster"].cluster_centers_.copy()
 pn = cluster_pipe.predict(new)
 centers_raw = cluster_pipe["scaler"].inverse_transform(cluster_pipe["cluster"].cluster_centers_)
 raw_sil = silhouette_score(cluster_pipe["imputer"].transform(X_train[NUM]), cluster_pipe["cluster"].labels_)
-IO["d8-kmeans"] = ("노트의 6점 + " + DATA + "의 수치 2열", [
+IO["d8-kmeans"] = ("본문의 6점 + " + DATA + "의 수치 2열", [
     ("km.fit_predict(X)", repr(labels.tolist()), "y 없이 가까운 것끼리"),
     ("km.cluster_centers_ · km.inertia_", f"{np.round(km.cluster_centers_, 3).tolist()} · {km.inertia_:.3f}", "각 묶음의 평균점 · 중심까지 제곱거리 합"),
     ('np.bincount(cluster_pipe["cluster"].labels_)', repr(np.bincount(cluster_pipe["cluster"].labels_).tolist()), "train 60건이 24·19·17로"),
@@ -253,7 +253,7 @@ with tempfile.TemporaryDirectory() as folder:
     restored = joblib.load(path)
     same = np.allclose(final.predict_proba(X_test), restored.predict_proba(X_test))
 med80 = final["pre"].named_transformers_["num"]["imputer"].statistics_[0]
-IO["d8-clone"] = ("강의 requests.csv · 개발 80(train+valid) → test 20 · 선택 모델 Logistic_FE", [
+IO["d8-clone"] = ("예시 requests.csv · 개발 80(train+valid) → test 20 · 선택 모델 Logistic_FE", [
     ('json.dumps({"rule": "점수 > 임계값"})', json.dumps({"rule": "점수 > 임계값"}), "ensure_ascii 기본 True → 한글이 \\uXXXX"),
     ('json.dumps(..., ensure_ascii=False)', json.dumps({"rule": "점수 > 임계값"}, ensure_ascii=False), "사람이 읽을 수 있게"),
     ("clone(학습된 Pipeline).predict(X)", nf, "clone은 설정만 복사 — 학습 상태는 버림"),
@@ -285,9 +285,9 @@ au = f"{au_raw} → 기록 {auc_record}, 실제 양성 {int(y1.sum())}"
 IO["d8-새-입력-검사-새-범주-vs-필수-열-누락"] = ("valid 앞 2행 · 1행 글자수를 결측으로, task_type을 처음 보는 'translation'으로", [
     ("fitted[:-1].transform(checked).shape", repr(Zn.shape), "결측·새 범주가 있어도 10열"),
     ("np.isfinite(Z).all()", repr(bool(np.isfinite(Zn).all())), "NaN/inf 없음 — 결측은 학습 중앙값으로"),
-    ("failure_scores(fitted, checked)", lst(ps), "확률 2개, 유한값"),
+    ("fitted.predict_proba(checked)[:, pos]", lst(ps), "확률 2개, 유한값"),
     ('np.array_equal(before, num["imputer"].statistics_)', repr(np.array_equal(before, num["imputer"].statistics_)), "예측해도 통계 불변"),
-    ('check_input(new_requests.drop(columns="priority"))', miss, "필수 열 누락 → 예측 전에 멈춤 (실패해야 정상)"),
+    ('필수 열 확인 (new_requests.drop(columns="priority"))', miss, "필수 열 누락 → 예측 전에 멈춤 (실패해야 정상)"),
     ("roc_auc_score(실패 0건인 y, 점수)", au, "nan을 그대로 평균에 섞지 않고, 클래스 수를 먼저 확인해 None + 양성 수로 기록"),
 ])
 

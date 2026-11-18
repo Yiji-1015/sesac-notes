@@ -94,13 +94,13 @@ IO = {}
 TITLE = "S0 데이터로 SQLite에서 실제 실행 (이 PC엔 PostgreSQL 미설치 · 결과 행은 PostgreSQL과 같음)"
 
 # ---------------------------------------------------------------- ① 접속 (PostgreSQL 전용 → 강의자료 값)
-IO["d18-current-database"] = ("PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — 강의자료 p21의 기대값", [
+IO["d18-current-database"] = ("PostgreSQL 전용 함수라 SQLite로는 못 돌려요 — PostgreSQL 기준 기대값", [
     ("SELECT current_database() AS db_name, current_user AS user_name;", "PG = db_name: knowledge_lab (user: 접속한 계정)", "지금 연결된 DB 이름부터 확인"),
     ("SELECT 1 AS connection_ok;", "PG = connection_ok: 1", "SQL을 보내고 결과를 받는 길이 열렸다"),
     ("SELECT version();", "PG = 서버 버전 문자열 (18.x)", "psql --version은 클라이언트 버전 — 서로 다를 수 있어요"),
 ])
 
-IO["d18-create-database"] = ("PostgreSQL 전용이라 SQLite로는 못 돌려요 — 강의자료 p68(A01)의 기대값", [
+IO["d18-create-database"] = ("PostgreSQL 전용이라 SQLite로는 못 돌려요 — PostgreSQL 기준 기대값", [
     ("CREATE DATABASE knowledge_lab;  (postgres DB에서)", "PG = CREATE DATABASE", "새 DB가 생김 — 아직 이 창은 postgres DB"),
     ("knowledge_lab에서 새 Query Tool → SELECT current_database();", "PG = knowledge_lab", "이제부터 표를 만들 곳"),
     ("BEGIN; CREATE DATABASE ...", "PG = ERROR: CREATE DATABASE cannot run inside a transaction block", "그래서 Auto commit 상태에서 단독 실행"),
@@ -251,7 +251,7 @@ IO["d18-group-by"] = (TITLE, [
 ])
 IO["d18-aggregate"] = (TITLE, [
     ("SELECT COUNT(*), SUM(char_length(content)), MIN(...), MAX(...) FROM knowledge;",
-     run(con, "SELECT COUNT(*) AS knowledge_count, SUM(char_length(content)) AS total_chars, MIN(char_length(content)) AS min_chars, MAX(char_length(content)) AS max_chars FROM knowledge"), "강의자료의 3건 · 64자 · 20 · 24와 같아요"),
+     run(con, "SELECT COUNT(*) AS knowledge_count, SUM(char_length(content)) AS total_chars, MIN(char_length(content)) AS min_chars, MAX(char_length(content)) AS max_chars FROM knowledge"), "PostgreSQL 기대값(3건 · 64자 · 20 · 24)과 같아요"),
     ("SELECT id, char_length(content) FROM knowledge ORDER BY id;", run(con, "SELECT id, char_length(content) AS chars FROM knowledge ORDER BY id"), "글자 수(공백 포함) — 내용이 맞는지는 알려 주지 않아요"),
 ])
 IO["d18-having"] = (TITLE, [
@@ -371,7 +371,7 @@ IO["d18-create-index"] = (TITLE + " · PG는 pg_indexes, SQLite는 sqlite_master
 IO["d18-explain"] = ("SQLite의 EXPLAIN QUERY PLAN 실제 출력 (PG의 EXPLAIN 표기와 다름)", [
     ("인덱스 전: WHERE category_id = 1", plan0, "표 전체를 훑음 (PG의 Seq Scan에 해당)"),
     ("인덱스 후: 같은 SQL", plan1, "인덱스로 바로 찾아감"),
-    ("PG에서 3행짜리 표라면?", "PG = Seq Scan이 나와도 정상 (강의자료 p53)", "행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기"),
+    ("PG에서 3행짜리 표라면?", "PG = Seq Scan이 나와도 정상 (PostgreSQL 기준)", "행이 적으면 전체를 읽는 게 더 싸다고 판단할 수 있어요 — 계획 이름을 정답으로 외우지 않기"),
 ])
 con.close()
 

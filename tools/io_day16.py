@@ -59,7 +59,7 @@ IO = {}
 # 1. imread / cvtColor
 image = rd("doc03.png")
 gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-IO["d16-cv2-imread"] = ("수업 청구서 data/doc03.png", [
+IO["d16-cv2-imread"] = ("예제 청구서 data/doc03.png", [
     ('image = cv2.imread("doc03.png", cv2.IMREAD_COLOR)', f"image.shape → {image.shape}", "(H, W, 3) — 세로 700 · 가로 1000 · BGR"),
     ("cv2.cvtColor(image, cv2.COLOR_BGR2GRAY).shape", repr(gray.shape), "채널 축이 사라짐"),
     ('cv2.imread("doc03.png", cv2.IMREAD_GRAYSCALE).shape', repr(rd("doc03.png", cv2.IMREAD_GRAYSCALE).shape), "처음부터 1채널로 읽기"),
@@ -152,7 +152,7 @@ review = words[words.conf.lt(50)]
 first = words.iloc[0]
 d3 = pd.DataFrame([{"text": t["text"], "conf": t["conf"]} for t in DOC3["ocr"]["tokens"]])
 IO["d16-pytesseract-image-to-data"] = (
-    "이 PC엔 Tesseract가 없어서, 수업 lesson.json에 기록된 실제 Tesseract 5.5.0(eng, psm 6) 결과로 표를 만들고 거르기만 실행 — lowres_raw.png(작은 사진) 기준", [
+    "이 PC엔 Tesseract가 없어서, 예제 lesson.json에 기록된 실제 Tesseract 5.5.0(eng, psm 6) 결과로 표를 만들고 거르기만 실행 — lowres_raw.png(작은 사진) 기준", [
         ("pytesseract.image_to_data(gray, ...)  (이 PC)", call, "엔진 프로그램이 따로 설치돼 있어야 해요"),
         ("len(words)", repr(len(words)), "단어(level 5) 행 수"),
         ("words.iloc[0][['text', 'conf', 'left', 'top', 'width', 'height']]",
@@ -207,7 +207,7 @@ truth = " ".join(psm3["reference"].split("\n"))
 read = " ".join(psm3["text"].split())
 lr = var["lowres_raw"]
 t_lr, r_lr = " ".join(lr["reference_text"].split("\n")), " ".join(lr["ocr"]["text"].split())
-IO["d16-jiwer-cer"] = ("jiwer가 이 PC에 없어 같은 정의(편집 거리 ÷ 정답 글자 수)인 CER 계산 함수의 cer()로 계산 — doc01 psm 3 기록 · lowres_raw 기록", [
+IO["d16-jiwer-cer"] = ("jiwer가 이 PC에 없어 같은 정의(편집 거리 ÷ 정답 글자 수)로 직접 cer()를 계산 — doc01 psm 3 기록 · lowres_raw 기록", [
     ("import jiwer", err(lambda: __import__("jiwer")), "pip install jiwer 필요"),
     ("cer(정답 원문, psm 3 OCR 원문)  — 정리 없이", f"{cer(psm3['reference'], psm3['text']):.4f}", "OCR이 넣은 빈 줄(\\n) 하나도 오류로 셈"),
     ('cer(" ".join(lines), " ".join(text.split()))', f"{cer(truth, read):.4f}", "양쪽을 같은 규칙으로 정리 → 진짜 글자 오류만 남음"),
@@ -236,7 +236,7 @@ def parse(t):
 
 dm = re.search(date_pat, text)
 amounts = re.findall(r"^[A-Z]+ \d+ \d+ (\d+)$", OCR3, re.MULTILINE)
-IO["d16-re-search"] = ("사전 코드의 text 문자열 + 수업 doc03의 실제 Tesseract 기록 문자열", [
+IO["d16-re-search"] = ("사전 코드의 text 문자열 + 예제 doc03의 실제 Tesseract 기록 문자열", [
     ("re.search(date_pat, text).groups()", repr(dm.groups()), "괄호 세 개 = 그룹 세 개 (아직 글자)"),
     ("print(issued_at, total)", " ".join(map(str, parse(text))), "날짜 검사 통과 · 쉼표 뗀 정수"),
     ('같은 코드에 "발행일 2026-13-45 합계 5000원"', repr(parse("발행일 2026-13-45 합계 5000원")), "모양은 날짜라 패턴엔 걸리지만 date()가 거부 → None"),
@@ -390,15 +390,18 @@ def run_ocr(image) -> OCRResult:
 w = OCRWord(text=tok["text"], confidence=round(tok["conf"], 1), bbox=tuple(tok["bbox"]))
 res = OCRResult(full_text=OCR3, words=[OCRWord(t["text"], round(t["conf"], 1), tuple(t["bbox"])) for t in DOC3["ocr"]["tokens"]],
                 engine="tesseract 5.5.0 (기록)")
-IO["d16-dataclass"] = ("수업 doc03의 기록된 Tesseract 단어로 결과 상자 만들기", [
+IO["d16-dataclass"] = ("예제 doc03의 기록된 Tesseract 단어로 결과 상자 만들기", [
     ("OCRWord(text, confidence, bbox)  — TOTAL: 단어", repr(w), "출력(__repr__)을 자동으로 만들어 줌"),
     ("len(res.words), res.words[-3].text", f"{len(res.words)}, {res.words[-3].text!r}", "엔진이 달라도 같은 모양으로 주고받기"),
     ("OCRWord('a', 1.0, (0, 0, 1, 1)) == OCRWord('a', 1.0, (0, 0, 1, 1))", repr(OCRWord("a", 1.0, (0, 0, 1, 1)) == OCRWord("a", 1.0, (0, 0, 1, 1))), "값이 같으면 같다(__eq__ 자동)"),
     ('OCRWord(text="a", conf=1.0, bbox=(0, 0, 1, 1))  (이름 오타)', err(lambda: OCRWord(text="a", conf=1.0, bbox=(0, 0, 1, 1))), "dict와 달리 오타를 바로 알려 줌"),
     ('VLMResult(answer=None, evidence=None, raw_text="0.", model_id="SmolVLM-256M")',
      repr(VLMResult(answer=None, evidence=None, raw_text="0.", model_id="SmolVLM-256M")), "근거 없으면 None + 원문은 따로"),
-    ("run_ocr(image)", err(lambda: run_ocr(image)), "아직 어댑터가 없다는 걸 분명히"),
 ])
+
+
+for _cid in ["d16-cer-계산-함수", "d16-validate-invoice", "d16-가장-단순한-결합-규칙"]:
+    IO.pop(_cid, None)  # 명령어 사전에서 뺀 항목 (직접 만든 함수 · 비교식)
 
 
 # ---------------------------------------------------------------- HTML 넣기

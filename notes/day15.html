@@ -27,32 +27,9 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day15 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day15">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
-      <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>ultralytics</code></td><td>YOLO 학습·검증·추론·추적을 한 번에</td><td><code>from ultralytics import YOLO</code></td></tr>
-        <tr><td><code>opencv-python</code></td><td>이미지·영상 읽기/쓰기, 박스 그리기</td><td><code>import cv2</code></td></tr>
-        <tr><td><code>lap</code></td><td>추적할 때 프레임 사이 박스 짝짓기 계산</td><td>직접 import 안 함 (<code>track()</code>이 내부에서 씀)</td></tr>
-        <tr><td><code>PyYAML</code></td><td><code>dataset.yaml</code> 읽고 쓰기</td><td><code>import yaml</code></td></tr>
-        <tr><td><code>numpy</code>, <code>pandas</code></td><td>좌표 배열 계산, 결과를 표(CSV)로 저장</td><td><code>import numpy as np</code>, <code>import pandas as pd</code></td></tr>
-        <tr><td><code>torch</code>, <code>torchvision</code></td><td>YOLO가 내부에서 쓰는 딥러닝 엔진 + 박스 계산 도구(<code>box_convert</code>, <code>box_iou</code>) (Day9부터 설치됨)</td><td><code>import torch</code>, <code>from torchvision.ops import box_iou</code></td></tr>
-      </table>
-      <h3>🔧 설치 · 확인</h3>
-<pre><code>python -m pip install ultralytics lap opencv-python PyYAML pandas
-python -c "import ultralytics, cv2, torch; print(ultralytics.__version__, cv2.__version__, torch.__version__)"
-python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능</code></pre>
-      <div class="callout warn">⚠️ <code>torch</code>는 다시 깔지 말 것. 이미 맞춰 둔 CUDA 버전이 꼬일 수 있어요. 수업 기준 버전은 <code>requirements.txt</code>(ultralytics 8.4.21, lap 0.5.12)를 따르세요.</div>
-      <div class="callout">💡 pip 이름과 import 이름이 다른 경우가 있어요: <code>opencv-python</code> → <code>cv2</code>, <code>PyYAML</code> → <code>yaml</code>, <code>scikit-learn</code> → <code>sklearn</code>, <code>Pillow</code> → <code>PIL</code>.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
-      <p>Day14까지는 <b>"이 사진은 고양이다"</b>처럼 사진 전체에 이름표 하나를 붙였어요(분류). 객체탐지는 <b>"고양이는 여기, 강아지는 저기"</b>처럼 물체마다 위치까지 찾아요.</p>
+      <h2 id="map">🗺️ 큰 그림 — 사진 한 장이 박스 목록이 되기까지</h2>
+      <p><a href="day14.html">이미지 분류</a>는 <b>"이 사진은 고양이다"</b>처럼 사진 전체에 이름표 하나를 붙여요. 객체탐지는 <b>"고양이는 여기, 강아지는 저기"</b>처럼 물체마다 위치까지 찾아요.</p>
       <div class="usecases">
         <div class="usecase"><div class="emoji">🅿️</div><strong>주차장 CCTV</strong><span>차 박스를 세서 빈자리 안내</span></div>
         <div class="usecase"><div class="emoji">⛑️</div><strong>공사 현장</strong><span>안전모 안 쓴 사람 찾기</span></div>
@@ -67,6 +44,19 @@ python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사�
         <tr><td><b>추적</b></td><td>탐지 + 프레임 간 같은 ID</td><td>"아까 걔가 지금 어디 갔어?"</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 분류로는 안 돼?</strong> — 사진 한 장에 물체가 <b>여러 개</b> 있고, 같은 사람이라도 위치·크기가 제각각이에요. 분류는 사진 전체에 답 하나만 내니까 "안전모 안 쓴 사람이 <b>어디</b> 있는지", "차가 <b>몇 대</b>인지"를 말할 수 없어요.</div>
+      <p>객체탐지는 아래 다섯 부분으로 나눠 보면 쉬워요. 이 페이지의 ①~⑤가 이 순서예요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#box">① 박스 좌표</a></td><td>xyxy · xywh · 정규화 · YOLO 라벨 txt</td><td>지금 이 숫자 4개는 어떤 형식인가?</td></tr>
+        <tr><td><a href="#metrics">② IoU · 평가 지표</a></td><td>IoU · TP/FP/FN · Precision · Recall · mAP</td><td>"맞았다"를 어떻게 채점하나?</td></tr>
+        <tr><td><a href="#yolo">③ YOLO · 학습</a></td><td>격자 후보 · Backbone/Neck/Head · <code>.pt</code> · <code>dataset.yaml</code></td><td>모델은 후보를 어떻게 내고, 무엇으로 배우나?</td></tr>
+        <tr><td><a href="#nms">④ conf · NMS · 추론</a></td><td>점수 필터 · 중복 제거 · <code>predict</code></td><td>수백 개 후보가 어떻게 몇 개로 줄어드나?</td></tr>
+        <tr><td><a href="#track">⑤ 추적</a></td><td>Track ID · ID switch</td><td>프레임 사이 같은 물체를 어떻게 잇나?</td></tr>
+      </table>
+<pre><code>추론: 사진 → Backbone → Neck → Head → 후보 (160×128 예: 420개)
+        → conf 필터 → NMS → 최종 박스 (class · xyxy · conf)
+        → (영상이면) 추적기 → + track_id
+평가: 예측 ↔ 정답 IoU → TP · FP · FN → Precision · Recall → AP → mAP50 · mAP50-95</code></pre>
 
       <!-- ============================================================ -->
       <h2 id="box">① 박스 좌표 — 같은 박스, 세 가지 표현</h2>
@@ -105,7 +95,8 @@ labels = cxcywh / torch.tensor([160, 128, 160, 128])                # x는 W, y�
       </div>
 
       <!-- ============================================================ -->
-      <h2 id="metrics">② IoU와 평가 지표</h2>
+      <h2 id="metrics">② IoU와 평가 지표 — "맞았다"를 채점하는 법</h2>
+      <h3 id="iou-def">IoU — 겹친 넓이 ÷ 합친 넓이</h3>
       <p><b>IoU</b> = 겹친 넓이 ÷ 두 박스를 합친 넓이. 0이면 안 겹침, 1이면 완전히 같음. 파란 박스를 끌어 보세요(오른쪽 아래 모서리는 크기 조절).</p>
       <div class="lab">
         <canvas id="iou" width="480" height="300"></canvas>
@@ -136,7 +127,7 @@ IoU = 겹친 넓이 / 합친 넓이</code></pre>
 <pre><code>iou = box_iou(pred_boxes, gt_boxes)   # [예측 수, 정답 수] 겹침 표 (xyxy 형식)</code></pre>
       </div>
 
-      <h3>TP · FP · FN</h3>
+      <h3 id="tpfpfn">TP · FP · FN</h3>
       <table>
         <tr><th></th><th>뜻</th><th>예</th></tr>
         <tr><td><b>TP</b> 맞춤</td><td>같은 클래스 정답과 IoU 기준 이상으로 1:1 짝지어진 예측</td><td>사람을 사람으로, 위치도 맞게</td></tr>
@@ -147,7 +138,7 @@ IoU = 겹친 넓이 / 합친 넓이</code></pre>
       <figure id="fig-tp-fp-fn"><img class="smooth" src="img/day15/tp_fp_fn.png" alt="도형 세 개 사진 위에 정답 점선과 예측 박스를 그리고 TP, FP, FN을 색으로 구분한 두 장면"><figcaption><b>무엇을 보나:</b> 같은 사진, 같은 예측(연습용으로 손으로 정한 값)을 두 번 채점했어요. 왼쪽은 사각형에 박스가 2개(0.95, 0.85) → 하나만 TP, 0.85는 <b>"중복" FP</b>. 위쪽 빈 곳의 triangle 0.40은 <b>"엉뚱한 곳" FP</b>, 진짜 삼각형은 아무도 못 짚어서 <b>FN</b>(빨간 점선). 오른쪽은 중복을 정리한 뒤라 FP가 1개로 줄어 Precision이 0.50 → 0.67로 올라요. <b>🤔 왜?</b> 정답 하나엔 예측 하나만 짝지어 주니까 중복은 무조건 FP가 되고, Recall(놓친 삼각형)은 중복 정리와 상관없이 그대로예요.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 하나만 인정해?</strong> — 중복 박스를 다 맞았다고 쳐 주면, 한 물체에 박스를 잔뜩 그리는 모델이 점수를 거저 먹어요. 그래서 <b>점수 높은 예측부터</b> 정답 하나에 하나씩만 짝지어요.</div>
 
-      <h3>Precision · Recall · mAP</h3>
+      <h3 id="pr">Precision · Recall · mAP</h3>
       <table>
         <tr><th>지표</th><th>공식</th><th>질문</th></tr>
         <tr><td><b>Precision</b></td><td>TP / (TP+FP)</td><td>찾은 것 중 몇 %가 진짜?</td></tr>
@@ -163,7 +154,7 @@ IoU = 겹친 넓이 / 합친 넓이</code></pre>
       <div class="callout">🤔 <strong>왜 mAP50-95가 항상 더 낮아?</strong> — 0.95처럼 엄격한 기준에서는 박스가 거의 완벽하게 겹쳐야 TP예요. 같은 예측이라도 기준이 빡빡해질수록 TP가 FP로 바뀌니 평균이 내려가요. 그래서 mAP50은 높은데 mAP50-95가 낮으면 "찾긴 하는데 박스가 엉성하다"는 뜻이에요.</div>
       <figure id="fig-map-thr"><img class="smooth" src="img/day15/map50_vs_map50_95.png" alt="예측 10개의 IoU 막대와, 평가 기준 0.50부터 0.95까지 올릴 때 TP 수가 10개에서 0개로 줄어드는 막대그래프"><figcaption><b>무엇을 보나:</b> 왼쪽은 클래스는 다 맞은 예측 10개가 각자 정답과 얼마나 겹쳤는지(예시 숫자). 오른쪽은 <b>그 똑같은 10개</b>를 기준만 0.50, 0.55 … 0.95로 바꿔 채점한 결과예요. 0.50에선 TP 10개(초록), 0.95에선 0개(빨강). 분홍 점선이 10개 기준의 평균이에요. <b>🤔 왜?</b> 왼쪽 막대가 세로 점선 기준을 넘지 못하면 TP가 FP로 바뀌어요. mAP50은 첫 막대 하나만, mAP50-95는 10개 막대 평균이니까 박스가 조금만 엉성해도 크게 깎여요(실제 mAP는 각 기준에서 AP를 계산하지만, 줄어드는 원리는 같아요).</figcaption></figure>
 
-      <h3>지표로 문제 진단하기</h3>
+      <h3 id="diagnose">지표로 문제 진단하기</h3>
       <table>
         <tr><th>이렇게 나오면</th><th>의심할 것</th></tr>
         <tr><td>P 높고 R 낮음</td><td>놓치는 게 많음 → 작은 물체, 라벨 누락, conf가 너무 높음</td></tr>
@@ -179,8 +170,9 @@ print(metrics.box.map50)   # mAP50</code></pre>
       </div>
 
       <!-- ============================================================ -->
-      <h2 id="yolo">③ YOLO 모델과 학습</h2>
+      <h2 id="yolo">③ YOLO — 격자 · 구조 · 학습</h2>
       <p>YOLO(You Only Look Once)는 사진을 <b>한 번</b> 통과시켜 모든 위치·크기의 물체 후보를 동시에 예측해요. 그래서 빠르고, 영상에 많이 써요.</p>
+      <h3 id="grid">격자 — 칸마다 후보 하나</h3>
       <p>구체적으로는 사진을 <b>격자(칸)</b>로 나누고 <b>칸마다</b> 박스 숫자 4개 + 클래스별 점수를 내요. 160×128 사진이면 이렇게 돼요:</p>
       <table>
         <tr><th>격자</th><th>한 칸 크기</th><th>후보 수</th><th>맡는 물체</th></tr>
@@ -191,6 +183,7 @@ print(metrics.box.map50)   # mAP50</code></pre>
       </table>
       <figure id="fig-grid"><img class="smooth" src="img/day15/yolo_grid_scales.png" alt="같은 160x128 사진에 20x16, 10x8, 5x4 격자를 겹치고 칸마다 점수를 보라색 진하기로 칠한 세 장면"><figcaption><b>무엇을 보나:</b> 같은 사진을 세 가지 촘촘함으로 나눈 모습이에요. 흰 선으로 나뉜 <b>칸 하나 = 후보 하나</b>(320 + 80 + 20 = 420). × 는 물체 중심, 노란 칸은 그 중심이 떨어진 칸이에요. 보라색 진하기는 작은 데모 모델이 실제로 낸 점수예요. <b>🤔 왜?</b> 8px 칸은 사각형 하나에 칸이 20개 넘게 들어가 위치를 아주 잘게 짚을 수 있고(작은 물체용), 32px 칸은 칸 하나가 물체 전체를 덮어서 큰 모양을 한 번에 봐요(큰 물체용). 그리고 물체가 없는 칸도 <b>전부</b> 후보를 내기 때문에 나중에 걸러야 해요.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 격자를 세 가지 크기로 써?</strong> — 촘촘한 격자는 위치 정보가 자세해서 <b>작은 물체</b>에 유리하고, 성긴 격자는 넓은 범위를 한 번에 봐서 <b>큰 물체</b>의 전체 모양을 잘 잡아요. Neck이 서로 다른 크기의 특징을 섞어 주는 이유가 이거예요.</div>
+      <h3 id="arch">Backbone · Neck · Head</h3>
       <div class="flow">
         <span class="step">사진</span><span class="arrow">→</span>
         <span class="step"><b>Backbone</b><br><small>특징 뽑기</small></span><span class="arrow">→</span>
@@ -252,13 +245,15 @@ print(metrics.box.map50)   # mAP50</code></pre>
         </svg>
         <figcaption><b>무엇을 보나:</b> 왼쪽에서 오른쪽으로 사진이 흘러가요. <b>Backbone</b>은 사진을 20×16 → 10×8 → 5×4로 점점 작게 줄이면서(네모가 작아지고 색이 진해짐) 더 "뜻"에 가까운 특징을 뽑아요. <b>Neck</b>은 세 줄을 위아래로 오가며 섞고, <b>Head</b>는 세 크기에서 각각 후보를 내 합계 420개가 돼요. <b>🤔 왜?</b> 큰 지도(20×16)는 위치는 자세하지만 "이게 뭔지"는 잘 몰라요. 작은 지도(5×4)는 반대예요. Neck이 둘을 섞어 줘야 "작은 물체도 뭔지 알고, 큰 물체도 어디인지 아는" 예측이 돼요. (그림은 원리를 보여 주는 단순화예요.)</figcaption>
       </figure>
+      <h3 id="weights">설계도 vs 학습된 가중치 — <code>.yaml</code> · <code>.pt</code></h3>
       <table>
         <tr><th></th><th><code>yolo26n.yaml</code></th><th><code>yolo26n.pt</code></th></tr>
         <tr><td>들어 있는 것</td><td>모델 <b>설계도</b>만</td><td>설계도 + <b>학습된 가중치</b></td></tr>
         <tr><td>비유</td><td>빈 뇌</td><td>이미 공부한 뇌</td></tr>
         <tr><td>언제</td><td>처음부터 학습</td><td>보통 이걸로 시작 (전이학습)</td></tr>
       </table>
-      <div class="callout">🤔 <strong>왜 보통 .pt로 시작해?</strong> — <code>.yaml</code>(빈 뇌)은 선·모서리 같은 기초부터 배워야 해서 데이터도 많고 시간도 오래 걸려요. <code>.pt</code>는 이미 수많은 사진으로 기초를 익힌 상태라, 내 데이터로는 "내 물체" 구분만 더 배우면 돼요. Day14 전이학습과 같은 원리예요.</div>
+      <div class="callout">🤔 <strong>왜 보통 .pt로 시작해?</strong> — <code>.yaml</code>(빈 뇌)은 선·모서리 같은 기초부터 배워야 해서 데이터도 많고 시간도 오래 걸려요. <code>.pt</code>는 이미 수많은 사진으로 기초를 익힌 상태라, 내 데이터로는 "내 물체" 구분만 더 배우면 돼요. <a href="day14.html#transfer">전이학습</a>과 같은 원리예요.</div>
+      <h3 id="dataset">학습 데이터 — 폴더 구조 · <code>dataset.yaml</code> · 증강</h3>
       <p>학습 데이터 폴더 구조와 안내서(<code>dataset.yaml</code>):</p>
 <pre><code>dataset/
 ├─ images/train, images/val    ← 사진
@@ -283,10 +278,10 @@ names:
 <pre><code>model = YOLO("yolo26n.pt")       # 학습된 뇌 불러오기 (.yaml이면 빈 뇌)
 model.train(data="dataset.yaml", epochs=30, imgsz=640, batch=16, device=0, workers=0)</code></pre>
       </div>
-      <figure id="fig-train-curves"><img class="smooth" src="img/day15/train_curves.png" alt="epoch별 train/val box loss 곡선과 mAP50, mAP50-95 곡선"><figcaption><b>무엇을 보나:</b> <code>results.csv</code>를 직접 그린 예예요(합성 도형으로 100 epoch 학습한 작은 데모 모델 — 수업 결과가 아니에요). 왼쪽은 loss가 들쭉날쭉하면서도 전체적으로 내려가고, 오른쪽은 한동안 0이다가 50 epoch쯤부터 점수가 생겨요. 초록(mAP50)은 늘 분홍(mAP50-95)보다 위에 있고, 그 <b>간격</b>이 박스가 엉성한 정도예요. 분홍 점은 mAP50-95가 가장 높았던 epoch예요. <b>🤔 왜?</b> 마지막 epoch가 꼭 최고가 아니기 때문에 이렇게 val 점수를 매 epoch 기록해 두고 가장 좋았던 순간을 <code>best.pt</code>로 저장해요(ultralytics 8.4는 val mAP50-95가 가장 높은 epoch를 고르니, 분홍 점이 바로 그 순간이에요).</figcaption></figure>
+      <figure id="fig-train-curves"><img class="smooth" src="img/day15/train_curves.png" alt="epoch별 train/val box loss 곡선과 mAP50, mAP50-95 곡선"><figcaption><b>무엇을 보나:</b> <code>results.csv</code>를 직접 그린 예예요(합성 도형으로 100 epoch 학습한 작은 데모 모델). 왼쪽은 loss가 들쭉날쭉하면서도 전체적으로 내려가고, 오른쪽은 한동안 0이다가 50 epoch쯤부터 점수가 생겨요. 초록(mAP50)은 늘 분홍(mAP50-95)보다 위에 있고, 그 <b>간격</b>이 박스가 엉성한 정도예요. 분홍 점은 mAP50-95가 가장 높았던 epoch예요. <b>🤔 왜?</b> 마지막 epoch가 꼭 최고가 아니기 때문에 이렇게 val 점수를 매 epoch 기록해 두고 가장 좋았던 순간을 <code>best.pt</code>로 저장해요(ultralytics 8.4는 val mAP50-95가 가장 높은 epoch를 고르니, 분홍 점이 바로 그 순간이에요).</figcaption></figure>
 
       <!-- ============================================================ -->
-      <h2 id="nms">④ confidence · NMS · 추론</h2>
+      <h2 id="nms">④ confidence · NMS · 추론 — 후보를 결과로</h2>
       <p>모델은 처음에 후보 박스를 아주 많이 뱉어요. 이걸 두 단계로 걸러요.</p>
       <div class="flow">
         <span class="step">후보 수백 개</span><span class="arrow">→</span>
@@ -298,9 +293,11 @@ model.train(data="dataset.yaml", epochs=30, imgsz=640, batch=16, device=0, worke
       <figure id="fig-pipeline-sim"><img class="smooth" src="img/day15/candidate_pipeline_sim.png" alt="420개 후보 점, conf 0.25 통과 박스 11개, NMS 후 4개를 TP 3개 FP 1개로 채점한 세 단계 그림"><figcaption><b>무엇을 보나:</b> 위 "실제 예"의 숫자 흐름(420 → 11 → 4, TP 3 · FP 1)을 그대로 그려 본 <b>모의 그림</b>이에요(점수는 손으로 정한 값). ① 보라 점이 사진 전체에 깔려 있고 물체 위에서만 커요. ② 0.25를 넘은 11개는 물체마다 3~4개씩 겹쳐 있어요. ③ NMS 후 4개 — 그런데 원 위의 0.37 박스는 1등 박스와 덜 겹쳐서(IoU &lt; 0.7) 살아남았고, 정답과도 덜 겹쳐(IoU &lt; 0.5) FP가 됐어요. <b>🤔 왜?</b> NMS는 "많이 겹치는 것"만 지워요. 기준(0.7)보다 덜 겹친 중복은 다른 물체일 수도 있으니 남겨 두는데, 그게 진짜 중복이었다면 채점에서 FP로 잡혀요.</figcaption></figure>
       <figure id="fig-pipeline-real"><img class="smooth" src="img/day15/candidate_pipeline.png" alt="작은 데모 모델의 실제 출력 420개 후보, conf 0.02 통과 9개, NMS 후 5개"><figcaption><b>무엇을 보나:</b> 이번엔 <b>진짜 모델 출력</b>이에요(합성 도형으로 짧게 학습한 작은 데모 모델). ①의 점 420개는 정말로 모델이 낸 후보 수이고, 점수가 낮은 모델이라 conf를 0.02까지 낮춰서 ② 9개 → ③ NMS 후 5개가 됐어요. 원은 아예 못 찾았고(FN), 사각형·삼각형 주변엔 덜 겹친 박스가 남았어요. <b>🤔 왜?</b> 모델이 약해도 후보 수(420)는 똑같아요 — 후보 수는 격자 칸 수로 정해지고, 모델 실력은 "그중 누가 높은 점수를 받느냐"에서 드러나요.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 후보가 이렇게 많이 나와?</strong> — 칸마다 무조건 예측을 하니까요. 물체 근처의 여러 칸이 "여기 원 있어!"라고 동시에 외쳐서 <b>한 물체에 박스가 여러 개</b> 겹쳐 나와요. 그래서 걸러내는 단계가 꼭 필요해요.</div>
+      <h3 id="nms-steps">NMS — 겹치는 중복 박스 정리</h3>
       <p><b>NMS 순서</b>: 점수 제일 높은 박스를 남김 → 그 박스와 많이 겹치는(IoU 큰) 같은 클래스 박스를 지움 → 남은 것 중 다음으로 높은 박스로 반복.</p>
       <figure id="fig-nms-steps"><img class="smooth" src="img/day15/nms_steps.png" alt="후보 4개를 점수순으로 세우고, 1등을 남기고 겹치는 같은 클래스 후보를 지우고, 다음 1등을 남기는 NMS 단계 그림"><figcaption><b>무엇을 보나:</b> 0) 후보 4개(연습용 값)를 점수순으로 줄 세워요. 1) 1등 square 0.95를 남기고, 같은 square인 0.85와 IoU를 재면 0.90 ≥ 0.7 → 빨간 X로 삭제. 2) 남은 것 중 1등 circle 0.80을 남겨요 — 같은 circle 후보가 없어 지울 게 없어요. 3) triangle 0.40도 남기고 끝. 4개 → 3개. <b>🤔 왜?</b> 1등과 거의 같은 자리를 가리키는 후보는 "같은 물체를 또 외친 것"이라 버려요. 하지만 NMS는 정답을 모르니까, 엉뚱한 곳의 0.40처럼 <b>틀린 박스도 겹치는 게 없으면 그대로 남아요</b> — 그건 conf나 모델 실력의 몫이에요.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 "같은 클래스"끼리만 지워?</strong> — 사람 위에 안전모 박스가 크게 겹치는 건 정상이에요. 클래스가 다르면 다른 물체니까 지우면 안 돼요.</div>
+      <h3 id="thresholds">임계값 세 가지 — conf · NMS IoU · 평가 IoU</h3>
       <div class="callout warn">⚠️ <strong>"0.5"가 세 군데 나와서 헷갈림 주의</strong>
         <table>
           <tr><th>이름</th><th>무엇끼리 비교?</th><th>어디서?</th></tr>
@@ -329,7 +326,7 @@ cv2.imwrite("out.jpg", result.plot())    # 박스 그린 그림</code></pre>
       </div>
 
       <!-- ============================================================ -->
-      <h2 id="track">⑤ 추적 (Tracking)</h2>
+      <h2 id="track">⑤ 추적 (Tracking) — 프레임 사이를 같은 ID로</h2>
       <p>탐지는 프레임마다 따로 "사람 2명"이라고만 말해요. 추적은 프레임 사이를 연결해서 <b>"7번 사람이 오른쪽으로 이동 중"</b>처럼 같은 물체에 같은 <b>Track ID</b>를 붙여요. 이게 있어야 사람 수 세기, 이동 경로, 머문 시간 같은 걸 할 수 있어요.</p>
       <table>
         <tr><th></th><th>Detect</th><th>Track</th></tr>
@@ -382,15 +379,85 @@ result.boxes.id.int().tolist()   # 프레임별 Track ID (없으면 id가 None)<
       <figure id="fig-speed"><img class="smooth" src="img/day15/speed_breakdown.png" alt="사진 1장 처리 시간을 읽기, 전처리, 모델 추론, 후처리로 나눈 가로 막대와 추론만 본 막대 비교"><figcaption><b>무엇을 보나:</b> 작은 데모 모델로 CPU에서 160px 사진을 처리할 때 걸린 시간을 쪼갠 막대예요(<code>result.speed</code>의 preprocess · inference · postprocess + 직접 잰 imread, 여러 장의 중앙값). 위 막대가 실제 전체, 아래 빗금 막대는 "모델 추론"만 잘라 본 것 — 같은 실행인데 FPS 숫자가 달라져요. <b>🤔 왜?</b> 한 장이 결과가 되려면 읽기 → 전처리 → 추론 → 후처리를 <b>모두</b> 거쳐야 하니까 시간은 더해져요. 여기선 추론이 대부분이라 차이가 작지만, 큰 사진·영상 디코딩·추적·저장이 붙으면 추론 밖의 시간이 훨씬 커져요. 그래서 FPS를 말할 땐 "어디부터 어디까지 쟀는지"를 같이 적어요(숫자는 이 PC 기준이라 장비마다 달라요).</figcaption></figure>
 
       <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 단계마다 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>단계</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td>라벨 txt</td><td>물체마다 <code>클래스 cx cy w h</code> (0~1)</td><td>W · H를 맞게 나눴는지 — 박스를 그려서 확인</td></tr>
+        <tr><td>Head 출력</td><td>칸마다 후보 (예: 420개)</td><td>물체 수 — 한 물체에 후보가 여러 개</td></tr>
+        <tr><td>conf 필터</td><td>점수 기준 이상인 후보</td><td>중복 제거 — NMS가 따로</td></tr>
+        <tr><td>NMS</td><td>같은 클래스 중복을 지운 최종 박스</td><td>정답 여부 — 채점은 정답과 IoU로</td></tr>
+        <tr><td>평가 (<code>val</code>)</td><td>Precision · Recall · mAP50 · mAP50-95</td><td>현장 성능 — train/val 누수가 있으면 부풀려짐</td></tr>
+        <tr><td>추적 (<code>track</code>)</td><td>프레임 사이 같은 <code>track_id</code></td><td>가려짐 · 엇갈림 뒤의 같은 번호 (ID switch)</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-label">라벨 · 데이터 형식</h3>
+      <table>
+        <tr><th>항목</th><th>형식</th></tr>
+        <tr><td>라벨 txt 한 줄</td><td><code>클래스 cx cy w h</code> — 좌표는 0~1 (x는 W, y는 H로 나눔)</td></tr>
+        <tr><td>폴더</td><td><code>images/train</code> · <code>images/val</code> + 같은 이름의 <code>labels/…/*.txt</code></td></tr>
+        <tr><td><code>dataset.yaml</code></td><td><code>path</code> · <code>train</code> · <code>val</code> · <code>names</code> (번호 → 클래스 이름)</td></tr>
+        <tr><td><code>result.boxes</code></td><td><code>.xyxy</code> 픽셀 · <code>.xywh</code> · <code>.xywhn</code> 0~1 · <code>.conf</code> · <code>.cls</code> · (추적 시) <code>.id</code></td></tr>
+      </table>
+      <h3 id="spec-thr">임계값 — 예시 설정</h3>
+      <table>
+        <tr><th>이름</th><th>비교 대상</th><th>예시 값</th></tr>
+        <tr><td><code>conf</code> (predict)</td><td>후보 하나의 점수</td><td>0.25</td></tr>
+        <tr><td><code>iou</code> (predict NMS)</td><td>예측 ↔ 예측</td><td>0.7</td></tr>
+        <tr><td>평가 IoU</td><td>예측 ↔ 정답</td><td>0.5 (mAP50) · 0.50~0.95 (mAP50-95)</td></tr>
+        <tr><td><code>conf</code> (val)</td><td>평가용 — 곡선 전체를 그리려고 낮게</td><td>0.001</td></tr>
+      </table>
+      <h3 id="spec-demo">예시 데이터 · 모델</h3>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>사진</td><td>합성 도형 160×128 · 3클래스 (0 square · 1 circle · 2 triangle)</td></tr>
+        <tr><td>격자 · 후보</td><td>20×16 · 10×8 · 5×4 → 320 + 80 + 20 = 420</td></tr>
+        <tr><td>모델</td><td><code>yolo26n.pt</code>에서 시작한 작은 데모 모델 (100 epoch)</td></tr>
+        <tr><td>추적기</td><td><code>tracker="botsort.yaml"</code> · <code>persist=True</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>ultralytics</code></td><td>YOLO 학습·검증·추론·추적을 한 번에</td><td><code>from ultralytics import YOLO</code></td></tr>
+        <tr><td><code>opencv-python</code></td><td>이미지·영상 읽기/쓰기, 박스 그리기</td><td><code>import cv2</code></td></tr>
+        <tr><td><code>lap</code></td><td>추적할 때 프레임 사이 박스 짝짓기 계산</td><td>직접 import 안 함 (<code>track()</code>이 내부에서 씀)</td></tr>
+        <tr><td><code>PyYAML</code></td><td><code>dataset.yaml</code> 읽고 쓰기</td><td><code>import yaml</code></td></tr>
+        <tr><td><code>numpy</code>, <code>pandas</code></td><td>좌표 배열 계산, 결과를 표(CSV)로 저장</td><td><code>import numpy as np</code>, <code>import pandas as pd</code></td></tr>
+        <tr><td><code>torch</code>, <code>torchvision</code></td><td>YOLO가 내부에서 쓰는 딥러닝 엔진 + 박스 계산 도구(<code>box_convert</code>, <code>box_iou</code>) (이미 설치된 환경 그대로)</td><td><code>import torch</code>, <code>from torchvision.ops import box_iou</code></td></tr>
+      </table>
+      <h3 id="install">🔧 설치 · 확인</h3>
+<pre><code>python -m pip install ultralytics lap opencv-python PyYAML pandas
+python -c "import ultralytics, cv2, torch; print(ultralytics.__version__, cv2.__version__, torch.__version__)"
+python -c "import torch; print(torch.cuda.is_available())"   # True면 GPU 사용 가능</code></pre>
+      <div class="callout warn">⚠️ <code>torch</code>는 다시 깔지 말 것. 이미 맞춰 둔 CUDA 버전이 꼬일 수 있어요. 버전은 프로젝트의 <code>requirements.txt</code>로 고정해요(예: ultralytics 8.4.21, lap 0.5.12).</div>
+      <div class="callout">💡 pip 이름과 import 이름이 다른 경우가 있어요: <code>opencv-python</code> → <code>cv2</code>, <code>PyYAML</code> → <code>yaml</code>, <code>scikit-learn</code> → <code>sklearn</code>, <code>Pillow</code> → <code>PIL</code>.</div>
+      <h3 id="cli">터미널(CLI)로 같은 일</h3>
       <div class="cmdref">
         <div class="cmdref-head">🔧 같은 걸 터미널(CLI)로 <code>yolo detect ...</code> <a href="../commands.html#d15-yolo-detect">명령어 사전에서 자세히 →</a></div>
 <pre><code>yolo detect train   model=yolo26n.pt data=dataset.yaml epochs=30 imgsz=640
 yolo detect predict model=best.pt source=samples/ conf=0.25</code></pre>
       </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day15">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      </div>
 
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day14.html">전이학습과 오류 분석</a></td><td>사전학습 가중치에서 시작하기 · 오류 분석</td></tr>
+        <tr><td><a href="day10.html#overfit">과적합 · 학습 곡선</a></td><td>train은 좋아지는데 val이 정체할 때 읽는 법</td></tr>
+        <tr><td><a href="day16.html">OCR · 문서 구조화 · VLM</a></td><td>탐지한 영역에서 글자 읽기 · 엣지 배포</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
-        <li>강의: <code>Day15_20261106.pdf</code> · 요약: <code>Day15_oneday요약.pdf</code></li>
+        <li>원본: <code>Day15_20261106.pdf</code> · 요약: <code>Day15_oneday요약.pdf</code></li>
+        <li>결과 값 · 그림: 합성 도형 데이터로 직접 학습한 작은 데모 모델(YOLO26n, 100 epoch)로 이 노트를 만든 PC에서 실제 실행 — 원본 자료의 결과가 아님. 스크립트 <code>tools/io_day15.py</code>, 그림 <code>tools/visuals/make_day15.py</code></li>
         <li>공식 문서: <a href="https://docs.ultralytics.com/ko/modes/" target="_blank">Ultralytics Modes (train · val · predict · track)</a></li>
       </ul>
     </article>

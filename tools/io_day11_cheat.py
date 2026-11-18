@@ -86,7 +86,7 @@ IO["d11-cheat-flow"] = ("FashionMNIST와 같은 모양의 합성 데이터 (학�
     ("device", device, "이 PC는 NVIDIA GPU가 있어서 cuda (PC마다 달라요)"),
     ("len(DataLoader(60,000개, batch_size=64))", str(steps_fm), "FashionMNIST 한 epoch = 938번 step"),
     ("len(train_dl)  (1,280장)", str(len(train_dl)), "1,280 ÷ 64 = 20 묶음"),
-    ("학습 전 test(model)", f"{acc0:.3f}", "학습 전이라 찍기 수준 (이번 무작위 시작값에선 기대값 0.1보다도 낮게 나왔어요)"),
+    ("학습 전 정확도 (eval · no_grad)", f"{acc0:.3f}", "학습 전이라 찍기 수준 (이번 무작위 시작값에선 기대값 0.1보다도 낮게 나왔어요)"),
     ("epoch 1·2·3 (학습 손실, 평가 정확도)", str(hist), "손실은 계속 줄고, 정확도는 첫 epoch부터 1.0 — 규칙이 쉬운 합성 데이터라서예요(실제 FashionMNIST는 이렇게 안 돼요)"),
 ])
 
@@ -181,11 +181,11 @@ drop = nn.Sequential(nn.Linear(4, 8), nn.Dropout(0.5), nn.Linear(8, 1)); xi = to
 drop.train(); a1, a2 = drop(xi).item(), drop(xi).item()
 drop.eval(); b1, b2 = drop(xi).item(), drop(xi).item()
 IO["d11-test-save"] = ("위 '전체 흐름'에서 3 epoch 학습한 모델 · 평가 256장", [
-    ("test(model)", f"{acc_eval:.3f}", "eval() + no_grad() 로 잰 정확도"),
+    ("correct / len(test_dl.dataset)", f"{acc_eval:.3f}", "eval() + no_grad() 로 잰 정확도"),
     ("len(test_dl), len(test_dl.dataset)", f"{nb}, {nd}", "배치 수로 나누면 정확도가 64배 커져요"),
     ("list(model.state_dict().keys())", str(list(sd.keys())), "층 번호.weight / .bias"),
     ("state_dict 저장 크기", f"{size_kb:,.0f} KB", "가중치 407,050개 × 4바이트"),
-    ("새 Net()에 load_state_dict → test", f"{res} · 같은 정확도: {same}", "구조는 코드로, 값만 채워 넣기"),
+    ("새 Net()에 load_state_dict → 정확도 다시 재기", f"{res} · 같은 정확도: {same}", "구조는 코드로, 값만 채워 넣기"),
     ("Dropout 모델 train() 두 번 / eval() 두 번", f"{a1:.3f}, {a2:.3f} / {b1:.3f}, {b2:.3f}", "eval()을 빠뜨리면 평가할 때마다 값이 흔들려요"),
 ])
 

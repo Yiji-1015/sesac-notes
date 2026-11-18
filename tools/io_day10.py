@@ -371,7 +371,7 @@ last_v, _ = evaluate(model, X_va, y_va)
 moved = not torch.equal(shallow["0.weight"], shallow_w)
 model.load_state_dict(best_state)
 rest_v, _ = evaluate(model, X_va, y_va)
-IO["d10-early-stopping-직접-짜기"] = ("교재 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001", [
+IO["d10-early-stopping-직접-짜기"] = ("설명용 숫자 예 · train 앞 60건 + valid 80, AdamW lr=0.01, patience 10, min_delta 0.001", [
     ("valid loss 1.00, .80, .79, .78, .70 / min_delta=.05, patience=2", f"멈춘 epoch {s_ep}, best epoch {b_ep} (loss {b_l})",
      ".79·.78은 충분한 개선이 아니라 대기 1·2 → 4에서 멈춤, best는 .78 (.70은 보지도 못함)"),
     ("실제 학습: best epoch → 멈춘 epoch", f"{best_ep} → {stop}", "best 뒤 10 epoch 동안 0.001 넘게 좋아지지 않아 중단"),

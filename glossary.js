@@ -111,7 +111,7 @@ window.GLOSSARY = [
    "classes_"
   ],
   "full": "Class (클래스, 범주 정답)",
-  "short": "분류 문제에서 고를 수 있는 정답의 종류. 이 수업에선 0(성공)과 1(실패) 두 클래스예요. classes_는 모델이 기억한 클래스 순서.",
+  "short": "분류 문제에서 고를 수 있는 정답의 종류. 예시에선 0(성공)과 1(실패) 두 클래스예요. classes_는 모델이 기억한 클래스 순서.",
   "analogy": "",
   "first": 6,
   "days": [
@@ -317,7 +317,7 @@ window.GLOSSARY = [
    "Root Mean Squared Error"
   ],
   "full": "Root Mean Squared Error (평균 제곱근 오차)",
-  "short": "MSE에 제곱근을 씌운 값. 정답과 같은 단위로 돌아오면서 큰 오차에 민감한 성질은 남아요. 이 수업 회귀의 주 지표.",
+  "short": "MSE에 제곱근을 씌운 값. 정답과 같은 단위로 돌아오면서 큰 오차에 민감한 성질은 남아요. 예시 회귀의 주 지표.",
   "analogy": "",
   "first": 6,
   "days": [
@@ -458,7 +458,7 @@ window.GLOSSARY = [
    "Positive"
   ],
   "full": "Positive class (양성 클래스)",
-  "short": "찾고 싶은 쪽으로 정한 클래스. 이 수업에선 실패(1)가 양성이에요. Precision·Recall·F1은 양성을 기준으로 계산돼요.",
+  "short": "찾고 싶은 쪽으로 정한 클래스. 예시에선 실패(1)가 양성이에요. Precision·Recall·F1은 양성을 기준으로 계산돼요.",
   "analogy": "건강검진에서 '양성'이 '찾던 그 병이 있다'는 뜻인 것처럼.",
   "first": 6,
   "days": [
@@ -612,7 +612,7 @@ window.GLOSSARY = [
    "F1-score"
   ],
   "full": "F1 score",
-  "short": "Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 이 수업 분류의 주 지표.",
+  "short": "Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.",
   "analogy": "",
   "first": 6,
   "days": [
@@ -1153,7 +1153,7 @@ window.GLOSSARY = [
    "Synthetic data"
   ],
   "full": "Synthetic data (합성 데이터)",
-  "short": "실제 기록이 아니라 수업용으로 만들어 낸 가짜 데이터. 여기서 나온 점수는 실서비스 성능의 근거가 아니에요.",
+  "short": "실제 기록이 아니라 학습·시연용으로 만들어 낸 가짜 데이터. 여기서 나온 점수는 실서비스 성능의 근거가 아니에요.",
   "analogy": "",
   "first": 6,
   "days": [
@@ -1446,7 +1446,7 @@ window.GLOSSARY = [
   "term": "n_jobs",
   "aliases": [],
   "full": "n_jobs (병렬 작업 수)",
-  "short": "계산에 쓸 CPU 작업 수. -1이면 전부. 수업에선 재현성을 위해 1로 고정해요.",
+  "short": "계산에 쓸 CPU 작업 수. -1이면 전부. 비교 실험에선 재현성을 위해 1로 고정해요.",
   "analogy": "",
   "first": 7,
   "days": [
@@ -1699,7 +1699,7 @@ window.GLOSSARY = [
   "term": "GPU",
   "aliases": [],
   "full": "Graphics Processing Unit (그래픽 처리 장치)",
-  "short": "대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 이번 수업은 CPU만으로 충분해요.",
+  "short": "대량 계산을 병렬로 빠르게 하는 장치. CUDA는 NVIDIA GPU를 쓰기 위한 도구. 트리 · XGBoost 예시는 CPU만으로 충분해요.",
   "analogy": "",
   "first": 7,
   "days": [
@@ -2828,7 +2828,7 @@ window.GLOSSARY = [
    "신경망"
   ],
   "full": "Artificial Neural Network (인공신경망)",
-  "short": "인공 뉴런을 묶은 층을 여러 개 쌓은 모델. 오늘은 입력 2 → 은닉 8 → 출력 2 구조를 만들었어요.",
+  "short": "인공 뉴런을 묶은 층을 여러 개 쌓은 모델. 예: 입력 2 → 은닉 8 → 출력 2 구조.",
   "analogy": "여러 단계의 심사위원이 차례로 판단을 넘겨주는 심사 과정.",
   "first": 9,
   "days": [
@@ -6010,8 +6010,7 @@ window.GLOSSARY = [
   "term": "편집 거리",
   "aliases": [
    "Levenshtein distance",
-   "Levenshtein",
-   "levenshtein"
+   "Levenshtein"
   ],
   "full": "Levenshtein distance (편집 거리)",
   "short": "한 문자열을 다른 문자열로 바꾸는 데 필요한 최소 치환(S)·삭제(D)·삽입(I) 횟수.",

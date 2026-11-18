@@ -27,33 +27,8 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day8 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day8">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
-      <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>scikit-learn</code></td><td>지표·ROC·교차검증·FunctionTransformer·KMeans</td><td><code>from sklearn.metrics import roc_auc_score</code> 등</td></tr>
-        <tr><td><code>numpy</code></td><td><code>log1p</code> 같은 행별 계산, 배열 비교</td><td><code>import numpy as np</code></td></tr>
-        <tr><td><code>pandas</code></td><td>DataFrame에 새 특성 열 추가, 결과 CSV</td><td><code>import pandas as pd</code></td></tr>
-        <tr><td><code>xgboost</code> <small>(Day7에서 설치)</small></td><td>후보 모델 중 하나로 계속 비교</td><td><code>from xgboost import XGBClassifier</code></td></tr>
-        <tr><td><code>matplotlib</code> <small>(선택)</small></td><td>ROC 곡선·군집 그림 그리기</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
-        <tr><td>표준 라이브러리</td><td>설정 파일 저장, 경로</td><td><code>import json</code>, <code>from pathlib import Path</code></td></tr>
-      </table>
-      <h3>🔧 설치 · 확인</h3>
-<pre><code>python --version
-python -m pip show scikit-learn xgboost
-python -m pip show numpy pandas matplotlib
-python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .venv인지 확인</code></pre>
-      <div class="callout warn">⚠️ 전날 환경(.venv) 그대로. 설치가 필요한 경우에만 강사 검증 버전(Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0 · XGBoost 3.1.3 · Matplotlib 3.10.8)에 맞춰요. 오늘은 GPU가 필요 없고, CUDA·PyTorch를 임의로 업데이트하지 않아요. 최종 제출에는 <b>실제 설치 버전</b>을 기록해요.</div>
-      <div class="callout">🤔 <strong>왜 <code>sys.executable</code>을 확인하지?</strong> — 컴퓨터에 파이썬이 여러 개 있으면, 패키지를 깔은 파이썬과 코드를 돌리는 파이썬이 다를 수 있어요. 지금 실행 중인 파이썬의 경로가 프로젝트 <code>.venv</code> 안인지 보면 "설치했는데 import가 안 돼요" 문제를 바로 잡을 수 있어요.</div>
-      <div class="callout">💡 오늘의 평가 계획: <b>train 60</b>은 5-fold로 후보 비교(전처리도 fold 안에서) · <b>valid 20</b>은 개발 중 진단(최종 독립 점수 아님) · 설정 확정 후 새 Pipeline을 <b>개발 80건</b>으로 재학습 · <b>test 20</b>은 고정 버전으로 한 번 평가. 기본 경로는 실패 클래스 F1로 선택, 임계값은 처음부터 0.5로 고정해요.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
+      <h2 id="map">🗺️ 큰 그림 — 무엇으로 채점하고, 무엇을 더하고, 어떻게 마지막으로 확인하나</h2>
       <p>"좋은 모델"의 기준은 업무마다 달라요. 실패를 <b>놓치면</b> 큰일인지, <b>괜한 경고</b>가 비싼지에 따라 볼 지표가 바뀌어요.</p>
       <div class="usecases">
         <div class="usecase"><div class="emoji">🏥</div><strong>놓치면 큰일</strong><span>질병·장애 탐지 → Recall 우선</span></div>
@@ -69,6 +44,21 @@ python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .
         <tr><td>실행 시간(숫자)을 예측한다</td><td>MAE · RMSE</td><td>단위(ms) · 큰 잔차 · 자료 범위</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 지표를 먼저 정하지?</strong> — 실패를 놓치는 것(FN)과 괜한 경고(FP)는 <b>서로 다른 비용</b>이에요. 어떤 실수가 더 아픈지 정하지 않고 결과부터 보면, 점수가 좋게 나온 지표를 골라 "잘했다"고 말하게 돼요. 지표 선택은 정답 하나를 찾는 게 아니라 실패의 비용과 운영 조건을 적는 일이에요.</div>
+      <div class="callout">💡 평가 계획 (예시 설정 · <a href="#spec">📋 명세</a>): <b>train 60</b>은 5-fold로 후보 비교(전처리도 fold 안에서) · <b>valid 20</b>은 개발 중 진단(최종 독립 점수 아님) · 설정 확정 후 새 Pipeline을 <b>개발 80건</b>으로 재학습 · <b>test 20</b>은 고정 버전으로 한 번 평가. 기본 경로는 실패 클래스 F1로 선택, 임계값은 처음부터 0.5로 고정해요.</div>
+      <p>평가 기준을 정하고 최종 점수를 얻기까지는 아래 여섯 단계예요. 이 페이지의 ①~⑥이 이 순서예요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#clsmetrics">① 분류 지표</a></td><td>혼동행렬 · Precision · Recall · F1</td><td>무엇으로 나누느냐에 따라 질문이 어떻게 바뀌나?</td></tr>
+        <tr><td><a href="#roc">② ROC-AUC · 임계값</a></td><td><code>predict_proba</code> · ROC · AUC · PR 곡선 · 임계값</td><td>순위가 좋은 것과 운영 기준이 좋은 것은 같은가?</td></tr>
+        <tr><td><a href="#cvagg">③ RMSE · CV 점수 집계</a></td><td>MAE vs RMSE · fold 평균 vs 전체 합산 · 음수 RMSE</td><td>점수 여러 개를 어떻게 하나로 모으나?</td></tr>
+        <tr><td><a href="#features">④ 특성 설계</a></td><td>log1p · 비율 특성 · <code>FunctionTransformer</code></td><td>새 특성을 누수 없이 Pipeline에 넣었나?</td></tr>
+        <tr><td><a href="#kmeans">⑤ K-Means</a></td><td>할당 · 갱신 · inertia · silhouette</td><td>정답 없이 묶은 군집을 어디까지 해석하나?</td></tr>
+        <tr><td><a href="#final">⑥ 최종 평가 흐름</a></td><td>선택 → 동결 → 재학습 → test 한 번 · 입력 검사 · 진단</td><td>test를 정말 한 번만 썼나?</td></tr>
+      </table>
+<pre><code>채점 기준: 분류 지표(분모) · AUC(순위) · 임계값(운영 규칙) · RMSE(큰 오차)
+  ├ 비교: train 60 · 5-fold CV (전처리 · 파생 특성 · K-Means도 fold 학습 부분으로만 fit)
+  └ 진단: valid 20 (최종 독립 점수 아님)
+→ 설정 동결 → 개발 80으로 새 Pipeline 재학습 → test 20 한 번</code></pre>
 
       <!-- ============================================================ -->
       <h2 id="clsmetrics">① 분류 지표 — 분모가 다르다</h2>
@@ -212,7 +202,7 @@ rmse = -reg["test_score"]                            # 부호 되돌리기 → �
       <div class="callout">🤔 <strong>왜 log를 씌우지?</strong> — 글자수는 수백~수천처럼 범위가 넓고 큰 값 쪽으로 길게 늘어져요. log를 씌우면 99 → 4.605, 999 → 6.908처럼 <b>10배 차이가 약 2.3 차이로 완만해져서</b>, 몇 개의 아주 긴 요청이 계수·거리를 휘두르지 않게 돼요. <code>log1p</code>(= log(1+x))를 쓰는 이유는 글자수 0에서도 log(1)=0으로 안전하기 때문이에요(그냥 log(0)은 −∞).</div>
       <div class="figs">
         <figure><img class="smooth" src="img/day08/log1p_curve.png" alt="log1p 함수 곡선과 0, 9, 99, 999의 변환값"><figcaption><b>무엇을 보나:</b> log1p 곡선 위에 0·9·99·999를 찍었어요. 99에서 999까지 가로로 900을 가도 세로로는 4.61 → 6.91, <b>겨우 2.3</b>만 올라가요. <b>🤔 왜?</b> 로그는 "몇 배인가"를 "몇 칸인가"로 바꿔요. 10배씩 커질 때마다 약 2.3씩 같은 간격으로 올라가니, 큰 값끼리의 차이는 눌리고 작은 값 쪽 차이는 살아나요. x=0에서도 log(1)=0이라 안전하고요.</figcaption></figure>
-        <figure><img class="smooth" src="img/day08/log1p_hist.png" alt="오른쪽 꼬리가 긴 분포가 log1p 후 가운데로 모이는 히스토그램"><figcaption><b>무엇을 보나:</b> 오른쪽 꼬리가 긴 설명용 합성 글자수 400건(왼쪽)이 log1p 후(오른쪽) 가운데로 모인 종 모양에 가까워졌어요. <b>🤔 왜?</b> 아주 긴 몇 개 요청(왼쪽 그림 오른쪽 끝)이 log 눈금에선 다른 값들과 가까워져서, 계수·거리를 혼자 휘두르지 못해요. 참고로 수업 자료의 글자수는 203~2381로 이렇게 심하게 치우치진 않아서 log 효과가 크지 않을 수 있어요 — 그래서 같은 조건 비교로 확인해요.</figcaption></figure>
+        <figure><img class="smooth" src="img/day08/log1p_hist.png" alt="오른쪽 꼬리가 긴 분포가 log1p 후 가운데로 모이는 히스토그램"><figcaption><b>무엇을 보나:</b> 오른쪽 꼬리가 긴 설명용 합성 글자수 400건(왼쪽)이 log1p 후(오른쪽) 가운데로 모인 종 모양에 가까워졌어요. <b>🤔 왜?</b> 아주 긴 몇 개 요청(왼쪽 그림 오른쪽 끝)이 log 눈금에선 다른 값들과 가까워져서, 계수·거리를 혼자 휘두르지 못해요. 참고로 예시 자료의 글자수는 203~2381로 이렇게 심하게 치우치진 않아서 log 효과가 크지 않을 수 있어요 — 그래서 같은 조건 비교로 확인해요.</figcaption></figure>
       </div>
       <div class="callout">🤔 <strong>왜 비율 특성을 만들지? 왜 +1?</strong> — "글자수가 많은데 쓸 수 있는 도구는 적다" 같은 <b>두 입력의 관계</b>는 원본 열 하나씩만 봐서는 선형 모델이 잘 못 잡아요. 비율로 만들어 주면 그 관계를 한 열로 직접 보여 줄 수 있어요. 분모에 1을 더한 건 도구 수가 0일 때 0으로 나누는 오류(무한대)를 막기 위한 <b>명시적 설계 선택</b>이에요. 성능이 좋아질지는 같은 조건 비교로 따로 확인해요.</div>
       <table>
@@ -236,7 +226,7 @@ rmse = -reg["test_score"]                            # 부호 되돌리기 → �
       <!-- ============================================================ -->
       <h2 id="kmeans">⑤ K-Means — 정답 없이 비슷한 것끼리 묶기</h2>
       <table>
-        <tr><th></th><th>KNN (Day6)</th><th>K-Means</th></tr>
+        <tr><th></th><th><a href="day06.html#knn">KNN</a></th><th>K-Means</th></tr>
         <tr><td>종류</td><td>지도학습 (정답 있음)</td><td><b>비지도학습</b> (정답 없음)</td></tr>
         <tr><td>K의 뜻</td><td>참고할 이웃 수</td><td>만들 <b>군집 개수</b></td></tr>
         <tr><td>하는 일</td><td>가까운 학습 사례의 라벨로 예측</td><td>군집 중심을 학습, 새 입력은 가까운 중심에 할당</td></tr>
@@ -264,9 +254,9 @@ rmse = -reg["test_score"]                            # 부호 되돌리기 → �
         <tr><td>4</td><td><b>30.374</b></td><td>0.445</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 inertia만으로 K를 고르면 안 되지?</strong> — 군집을 늘리면 각 점이 더 가까운 중심을 갖게 되니 inertia는 거의 항상 줄어요(K = 점 개수면 0). 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "<b>내 군집과는 가깝고 옆 군집과는 먼가</b>"를 같이 보니, 쓸데없이 쪼갠 군집은 옆 군집과도 가까워져 점수가 떨어져요. 이 자료에선 K=4가 inertia는 작지만 silhouette는 K=3(0.453)이 가장 높아서 K=3으로 설명해요. 이건 이 train 60·이 전처리의 교육용 결과이지, 새 자료에서도 K=3이 최선이라는 뜻은 아니에요.</div>
-      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_k_choice.png" alt="K별 inertia 감소 곡선과 silhouette 점수"><figcaption><b>무엇을 보나:</b> 수업 train 60건(결측 대체 + 표준화)으로 K=2~6을 직접 계산했어요. K=2·3·4 값은 위 표와 같아요. 왼쪽 inertia는 K를 늘릴수록 계속 내려가고, 오른쪽 silhouette는 K=3(0.453)에서 꼭대기를 찍은 뒤 0.44대에 머물러요. <b>🤔 왜?</b> 중심이 많을수록 모든 점이 더 가까운 중심을 가지니 inertia는 당연히 줄어요 — 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "내 군집과 가깝고 옆 군집과 먼가"를 보니, 한 덩어리를 억지로 쪼개면 옆 군집과도 가까워져 더 오르지 않아요.</figcaption></figure></div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_k_choice.png" alt="K별 inertia 감소 곡선과 silhouette 점수"><figcaption><b>무엇을 보나:</b> 예시 train 60건(결측 대체 + 표준화)으로 K=2~6을 직접 계산했어요. K=2·3·4 값은 위 표와 같아요. 왼쪽 inertia는 K를 늘릴수록 계속 내려가고, 오른쪽 silhouette는 K=3(0.453)에서 꼭대기를 찍은 뒤 0.44대에 머물러요. <b>🤔 왜?</b> 중심이 많을수록 모든 점이 더 가까운 중심을 가지니 inertia는 당연히 줄어요 — 그래서 "작을수록 좋다"로 고르면 늘 큰 K가 이겨요. silhouette는 "내 군집과 가깝고 옆 군집과 먼가"를 보니, 한 덩어리를 억지로 쪼개면 옆 군집과도 가까워져 더 오르지 않아요.</figcaption></figure></div>
       <p>K=3 결과: 군집별 개수 24 / 19 / 17, inertia 40.430. 중심(원래 단위로 읽기): 군집0 약 1542자·도구 4.12 / 군집1 약 1430자·도구 1.37 / 군집2 약 445자·도구 2.71. 도구 수가 소수인 건 <b>군집 내부 평균</b>이라서예요. 중심은 결측 대체 후 좌표의 평균이라 "실제 사용한 도구 수"나 "성공률"로 해석하지 않아요.</p>
-      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_real.png" alt="수업 train을 표준화 공간에서 K=3으로 묶은 산점도와 새 요청 두 개의 할당"><figcaption><b>무엇을 보나:</b> 표준화된 글자수(가로)·도구수(세로) 공간의 train 60건이에요. 색은 군집, 큰 X는 중심, 주황 별은 새 요청 2개(200자·도구1, 2200자·도구5)예요. 각각 가장 가까운 중심인 군집 2와 0에 할당돼요. <b>🤔 왜?</b> 도구수는 1~5 정수라 점들이 <b>가로줄</b>로 늘어서요. 군집은 대략 "짧은 글"(초록), "길고 도구 적음"(분홍), "길고 도구 많음"(보라)으로 나뉘었는데, 이건 거리로만 묶은 결과라 성공/실패 의미는 없어요. 새 요청은 <code>predict</code>로 기존 중심에만 붙이고 중심은 그대로예요.</figcaption></figure></div>
+      <div class="figs"><figure><img class="smooth" src="img/day08/kmeans_real.png" alt="예시 train을 표준화 공간에서 K=3으로 묶은 산점도와 새 요청 두 개의 할당"><figcaption><b>무엇을 보나:</b> 표준화된 글자수(가로)·도구수(세로) 공간의 train 60건이에요. 색은 군집, 큰 X는 중심, 주황 별은 새 요청 2개(200자·도구1, 2200자·도구5)예요. 각각 가장 가까운 중심인 군집 2와 0에 할당돼요. <b>🤔 왜?</b> 도구수는 1~5 정수라 점들이 <b>가로줄</b>로 늘어서요. 군집은 대략 "짧은 글"(초록), "길고 도구 적음"(분홍), "길고 도구 많음"(보라)으로 나뉘었는데, 이건 거리로만 묶은 결과라 성공/실패 의미는 없어요. 새 요청은 <code>predict</code>로 기존 중심에만 붙이고 중심은 그대로예요.</figcaption></figure></div>
 
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>KMeans</code> · <code>silhouette_score</code> <a href="../commands.html#d8-kmeans">명령어 사전에서 자세히 →</a></div>
@@ -309,11 +299,11 @@ joblib.dump(final, "final_pipeline.joblib")</code></pre>
       </div>
       <div class="cmdref">
         <div class="cmdref-head">🔧 새 입력 검사 (새 범주 vs 필수 열 누락) <a href="../commands.html#d8-새-입력-검사-새-범주-vs-필수-열-누락">명령어 사전에서 자세히 →</a></div>
-<pre><code>p = failure_scores(fitted, checked)          # 새 범주가 있어도 (2, 10)으로 변환 · 확률은 유한값
-check_input(new_requests.drop(columns="priority"))         # ← ValueError가 나야 정상 (실패 시험)</code></pre>
+<pre><code>Z = fitted[:-1].transform(checked)            # 새 범주가 있어도 (2, 10) · np.isfinite(Z).all()
+missing = [c for c in FEATURES if c not in new_requests.columns]   # 비어 있지 않으면 raise ValueError</code></pre>
       </div>
 
-      <h3>지표로 진단하기</h3>
+      <h3 id="diagnose">지표로 진단하기</h3>
       <table>
         <tr><th>이렇게 나오면</th><th>의심할 것</th></tr>
         <tr><td>Accuracy 높은데 Recall 0</td><td>다수 클래스만 찍는 모델 → 실제 양성 수 확인</td></tr>
@@ -323,10 +313,90 @@ check_input(new_requests.drop(columns="priority"))         # ← ValueError가 �
         <tr><td>새 범주 입력 / 필수 열 누락</td><td>새 범주는 <code>handle_unknown="ignore"</code>로 열 수 유지, 열 누락은 예측 전에 <code>ValueError</code>로 막기</td></tr>
       </table>
 
+      <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>부품</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td>Precision · Recall · F1</td><td>분모별로 나눈 오류 관점</td><td>어떤 오류가 더 비싼지 — 비용은 따로 정함</td></tr>
+        <tr><td>ROC-AUC</td><td>임계값과 무관한 순위 품질</td><td>운영 임계값에서의 Recall · Precision</td></tr>
+        <tr><td>임계값</td><td>확률 → 경고 여부 규칙 (평가 전에 고정)</td><td>공짜 개선 — FN을 줄이면 FP가 늘 수 있음</td></tr>
+        <tr><td>CV 점수 집계</td><td>fold 평균 · 편차 (또는 전체 합산)</td><td>두 방식의 같은 값 · 최종 성능</td></tr>
+        <tr><td>파생 특성 (<code>FunctionTransformer</code>)</td><td>학습 · 추론에 똑같이 붙는 행별 규칙</td><td>성능 향상 — 같은 조건 비교로 확인</td></tr>
+        <tr><td>K-Means</td><td>가까운 점끼리의 군집 · 중심</td><td>군집 번호의 의미 · 성공 / 실패 구분</td></tr>
+        <tr><td>동결 → 재학습 → test 한 번</td><td>정직한 마지막 점수 1개</td><td>소표본 · 합성 데이터 밖의 성능 · 배포 가능성</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-plan">평가 계획 — 예시 설정</h3>
+      <table>
+        <tr><th>자료</th><th>역할</th></tr>
+        <tr><td>train 60</td><td>5-fold CV로 후보 비교 (전처리 · 파생 특성도 fold 안에서)</td></tr>
+        <tr><td>valid 20</td><td>개발 중 진단 — 최종 독립 점수 아님</td></tr>
+        <tr><td>개발 80 (train + valid)</td><td>설정 동결 후 <code>clone</code>한 새 Pipeline 재학습</td></tr>
+        <tr><td>test 20</td><td>고정 버전으로 한 번만 평가</td></tr>
+      </table>
+      <h3 id="spec-rule">선택 · 판단 규칙 — 예시 설정</h3>
+      <table>
+        <tr><th>항목</th><th>예시 값</th></tr>
+        <tr><td>양성</td><td>실패 <code>failed = 1</code></td></tr>
+        <tr><td>선택 지표</td><td>실패 클래스 F1의 CV 평균 최대 (사전 선언 후보 7개)</td></tr>
+        <tr><td>임계값</td><td>0.5 고정 — <code>p &gt; 0.5</code>이면 1, <code>p = 0.5</code>이면 0</td></tr>
+        <tr><td>동결 기록</td><td>모델 · 특성 · 임계값을 test 전에 JSON 파일로</td></tr>
+        <tr><td>AUC 계산 불가 (한 클래스뿐)</td><td>None + 실제 양성 수 기록</td></tr>
+      </table>
+      <h3 id="spec-features">파생 특성 · K-Means</h3>
+      <table>
+        <tr><th>항목</th><th>정의</th></tr>
+        <tr><td><code>log_input_chars</code></td><td><code>np.log1p(input_chars)</code></td></tr>
+        <tr><td><code>chars_per_slot</code></td><td><code>input_chars / (1 + allowed_tools)</code></td></tr>
+        <tr><td>변환 후 열</td><td>수치 4 (원본 2 + 파생 2) + 원핫 6 = 10</td></tr>
+        <tr><td>K-Means 입력</td><td>수치 2열 · 결측 대체 + 표준화 · <code>n_init</code>으로 여러 번 시작</td></tr>
+      </table>
+      <h3 id="spec-env">환경 — 예시</h3>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>검증 버전</td><td>Python 3.13.5 · NumPy 2.3.5 · pandas 2.2.3 · scikit-learn 1.8.0 · XGBoost 3.1.3 · Matplotlib 3.10.8</td></tr>
+        <tr><td>실행</td><td>CPU만 · 기존 <code>.venv</code></td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>scikit-learn</code></td><td>지표·ROC·교차검증·FunctionTransformer·KMeans</td><td><code>from sklearn.metrics import roc_auc_score</code> 등</td></tr>
+        <tr><td><code>numpy</code></td><td><code>log1p</code> 같은 행별 계산, 배열 비교</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>pandas</code></td><td>DataFrame에 새 특성 열 추가, 결과 CSV</td><td><code>import pandas as pd</code></td></tr>
+        <tr><td><code>xgboost</code> <small>(<a href="day07.html#packages">트리 · 앙상블</a>과 같은 환경)</small></td><td>후보 모델 중 하나로 계속 비교</td><td><code>from xgboost import XGBClassifier</code></td></tr>
+        <tr><td><code>matplotlib</code> <small>(선택)</small></td><td>ROC 곡선·군집 그림 그리기</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+        <tr><td>표준 라이브러리</td><td>설정 파일 저장, 경로</td><td><code>import json</code>, <code>from pathlib import Path</code></td></tr>
+      </table>
+      <h3>🔧 설치 · 확인</h3>
+<pre><code>python --version
+python -m pip show scikit-learn xgboost
+python -m pip show numpy pandas matplotlib
+python -c "import sys; print(sys.executable)"     # 지금 쓰는 파이썬이 .venv인지 확인</code></pre>
+      <div class="callout warn">⚠️ 기존 환경(.venv)을 그대로 써요. 설치가 필요한 경우에만 <a href="#spec-env">📋 명세 — 환경</a>의 검증 버전에 맞춰요. GPU가 필요 없고, CUDA·PyTorch를 임의로 업데이트하지 않아요. 최종 보고에는 <b>실제 설치 버전</b>을 기록해요.</div>
+      <div class="callout">🤔 <strong>왜 <code>sys.executable</code>을 확인하지?</strong> — 컴퓨터에 파이썬이 여러 개 있으면, 패키지를 깔은 파이썬과 코드를 돌리는 파이썬이 다를 수 있어요. 지금 실행 중인 파이썬의 경로가 프로젝트 <code>.venv</code> 안인지 보면 "설치했는데 import가 안 돼요" 문제를 바로 잡을 수 있어요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day8">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 실제로 실행해서 얻은 값이에요.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day06.html#logistic">로지스틱회귀 · 혼동행렬</a></td><td>확률 · 임계값 · F1의 바탕</td></tr>
+        <tr><td><a href="day07.html#cv">교차검증</a></td><td>fold 안 전처리 · StratifiedKFold</td></tr>
+        <tr><td><a href="day06.html#knn">KNN</a></td><td>K-Means와 이름이 비슷한 지도학습 모델</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
-        <li>강의: <code>20261028수_머신러닝_평가지표_특성설계_KMeans_최종평가_Day8 (2).pdf</code> — ① 분류 지표 9~19쪽 · ② ROC-AUC·임계값 20~29쪽 · ③ RMSE·CV 집계 30~38쪽 · ④ 특성 설계 39~47쪽 · ⑤ K-Means 48~60쪽 · ⑥ 최종 평가 61~69, 73~77쪽</li>
+        <li>원본: <code>20261028수_머신러닝_평가지표_특성설계_KMeans_최종평가_Day8 (2).pdf</code> — ① 분류 지표 9~19쪽 · ② ROC-AUC·임계값 20~29쪽 · ③ RMSE·CV 집계 30~38쪽 · ④ 특성 설계 39~47쪽 · ⑤ K-Means 48~60쪽 · ⑥ 최종 평가 61~69, 73~77쪽</li>
         <li>공식 문서: <a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank">scikit-learn · Metrics and scoring</a> · <a href="https://scikit-learn.org/stable/modules/classification_threshold.html" target="_blank">Decision threshold</a> · <a href="https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.FunctionTransformer.html" target="_blank">FunctionTransformer</a> · <a href="https://scikit-learn.org/stable/modules/clustering.html#k-means" target="_blank">Clustering · K-Means</a> · <a href="https://scikit-learn.org/stable/model_persistence.html" target="_blank">Model persistence</a></li>
+        <li>결과 값: 명령어 사전의 결과 상자는 <code>tools/io_day08.py</code>, 그림은 <code>tools/visuals/make_day08.py</code>로 실제 실행해 만든 값</li>
       </ul>
     </article>
 

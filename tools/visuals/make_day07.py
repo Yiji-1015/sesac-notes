@@ -3,7 +3,7 @@ plt.rcParams["font.family"] = ["Malgun Gothic", "DejaVu Sans"]   # 없는 기호
 """Day7 그림: 트리 · Gini · 과적합 · Random Forest · 중요도 · 부스팅 · 교차검증.
 
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/visuals/make_day07.py
-수업 데이터(day6_compare, Day7과 같은 계약)는 읽기만 한다.
+예시 데이터(day6_compare, 같은 데이터 계약)는 읽기만 한다.
 """
 import numpy as np
 import pandas as pd
@@ -80,13 +80,13 @@ for pp, lab, xy in [(0, "성공 3 · 실패 0\nGini 0 (깨끗)", (0.08, .03)), (
 ax.set(xlabel="노드 안의 실패 비율", ylabel="Gini 불순도", ylim=(0, .6), xlim=(-.02, 1.02))
 save(fig, DAY, "gini_curve")
 
-# ---------------------------------------------------------------- ① 실제 트리 그림 (수업 기본 트리)
+# ---------------------------------------------------------------- ① 실제 트리 그림 (기본 비교 트리)
 tree_pipe = build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42)).fit(Xtr, ytr)
 names = [n.split("__")[1] for n in tree_pipe["pre"].get_feature_names_out()]
 fig, ax = plt.subplots(figsize=(10, 4.6))
 plot_tree(tree_pipe["model"], feature_names=names, class_names=["성공", "실패"], filled=True, rounded=True,
           impurity=True, proportion=False, fontsize=9, ax=ax)
-ax.set_title("수업 기본 트리 (max_depth=3, min_samples_leaf=3) · train 60건", fontsize=12)
+ax.set_title("기본 비교 트리 (max_depth=3, min_samples_leaf=3) · train 60건", fontsize=12)
 save(fig, DAY, "tree_plot")
 
 # ---------------------------------------------------------------- ① 회귀 트리 = 계단
@@ -280,7 +280,7 @@ cands = {
     "Tree": build(DecisionTreeClassifier(max_depth=3, min_samples_leaf=3, random_state=42)),
     "Forest": build(RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=2, max_features="sqrt",
                                            random_state=42, n_jobs=1)),
-    # XGB는 이 환경의 xgboost 버전에서 fold 점수가 강의 표(0.500)와 조금 달라 그림에서 뺐다
+    # XGB는 이 환경의 xgboost 버전에서 fold 점수가 본문 표(0.500)와 조금 달라 그림에서 뺐다
 }
 fig, ax = plt.subplots(figsize=(7.4, 3.9))
 for i, (n, pipe) in enumerate(cands.items()):

@@ -1,14 +1,14 @@
-<!-- Day8 명령어 — tools/split_commands.py 로 notes/day08.html 에서 옮김. 고칠 땐 이 파일을 고치고 python tools/build_commands.py -->
+<!-- Day8 명령어 — notes/day08.html 의 이론 구역별 코드. 고칠 땐 이 파일을 고치고 python tools/build_commands.py (결과 상자: python tools/io_day08.py) -->
 <section class="cmd-overview" data-day="8">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day08.html#packages">📦 필요한 패키지</a></td><td><code>pip install numpy pandas scikit-learn</code></td></tr>
         <tr><td><a href="notes/day08.html#clsmetrics">① 분류 지표</a></td><td><code>confusion_matrix(labels=)</code>, <code>precision_score</code>, <code>recall_score</code>, <code>f1_score(zero_division=)</code></td></tr>
         <tr><td><a href="notes/day08.html#roc">② ROC-AUC · 임계값</a></td><td><code>predict_proba</code>, <code>roc_curve</code>, <code>roc_auc_score</code>, <code>(p &gt; t).astype(int)</code></td></tr>
-        <tr><td><a href="notes/day08.html#cvagg">③ RMSE · CV 점수 집계</a></td><td><code>root_mean_squared_error</code>, <code>cross_validate(scoring={...})</code></td></tr>
+        <tr><td><a href="notes/day08.html#cvagg">③ RMSE · CV 점수 집계</a></td><td><code>mean_absolute_error</code>, <code>root_mean_squared_error</code>, <code>cross_validate(scoring={...})</code></td></tr>
         <tr><td><a href="notes/day08.html#features">④ 특성 설계</a></td><td><code>np.log1p</code>, <code>FunctionTransformer(validate=False)</code>, <code>pipe[:-1]</code></td></tr>
         <tr><td><a href="notes/day08.html#kmeans">⑤ K-Means</a></td><td><code>KMeans(n_clusters=, n_init=)</code>, <code>inertia_</code>, <code>silhouette_score</code>, <code>predict</code></td></tr>
-        <tr><td><a href="notes/day08.html#final">⑥ 최종 평가 흐름</a></td><td><code>clone()</code>, <code>pd.concat</code>, <code>json.dumps</code>, <code>joblib.dump/load</code>, 입력 검사(<code>ValueError</code>)</td></tr>
+        <tr><td><a href="notes/day08.html#final">⑥ 최종 평가 흐름</a></td><td><code>clone()</code>, <code>pd.concat</code>, <code>json.dumps</code>, <code>joblib.dump/load</code>, <code>np.isfinite</code>, <code>ValueError</code></td></tr>
+        <tr><td><a href="notes/day08.html#packages">📦 패키지</a></td><td><code>pip install numpy pandas scikit-learn</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d8-혼동행렬과-네-지표" data-topic="scikit-learn" data-sub="분류 지표" data-day="8" data-theory="notes/day08.html#clsmetrics">
@@ -29,7 +29,7 @@ pred = np.zeros(20, dtype=int)
 print(accuracy_score(y, pred), recall_score(y, pred, zero_division=0),
       f1_score(y, pred, zero_division=0))       # 0.70 0.0 0.0  → 실패 발견 0/6</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 · Logistic C=1의 valid 예측</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예시 requests.csv · train 60 / valid 20 · Logistic C=1의 valid 예측</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>confusion_matrix(y, pred, labels=[0, 1])</code></td><td><code>[[10, 4], [4, 2]]</code></td><td>행 = 실제, 열 = 예측</td></tr>
@@ -65,7 +65,7 @@ for t in [0.5, 0.3]:
     print(t, fp, fn, fp + 5 * fn)               # t=0.5: FP0 FN1 비용5 (F1 .667) / t=0.3: FP1 FN0 비용1 (F1 .800)
 # 비용 5:1은 설명용 가정이지 실제 업무 근거가 아님 · AUC는 계속 0.75</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 4건 (실제 [0, 0, 1, 1])</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>본문의 4건 (실제 [0, 0, 1, 1])</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>fpr, tpr = roc_curve(y, p)[:2]</code></td><td><code>[0.0, 0.0, 0.5, 0.5, 1.0], [0.0, 0.5, 0.5, 1.0, 1.0]</code></td><td>왼쪽 아래 (0,0)에서 오른쪽 위 (1,1)까지</td></tr>
@@ -109,7 +109,7 @@ reg = cross_validate(build(LinearRegression()), X_train, yr_train, cv=REG_FOLDS,
                      scoring="neg_root_mean_squared_error", n_jobs=1, error_score="raise")
 rmse = -reg["test_score"]                            # 부호 되돌리기 → 평균 639.83 ms (KNN15는 598.85 ms)</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20 · 5-fold (학습 48 / 평가 12)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예시 requests.csv · train 60 / valid 20 · 5-fold (학습 48 / 평가 12)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>sorted(k for k in scores if k.startswith(&quot;test&quot;))</code></td><td><code>[&#x27;test_auc&#x27;, &#x27;test_f1&#x27;]</code></td><td>scoring 딕셔너리 키 → test_키</td></tr>
@@ -165,7 +165,7 @@ for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
     actual = fitted["pre"].named_transformers_["num"]["imputer"].statistics_
     assert np.allclose(expected.to_numpy(), actual)   # 글자수 중앙값 1309 / 1303 / 1315 / 1315 / 1338</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · train 60 / valid 20</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예시 requests.csv · train 60 / valid 20</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>np.log1p(0) · np.log(0)</code></td><td><code>0 · -inf</code></td><td>글자수 0이어도 log1p는 안전</td></tr>
@@ -174,7 +174,7 @@ for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
     <tr><td><code>pipe[:-1].transform(X_valid).shape · NaN/inf 개수</code></td><td><code>(20, 10) · 0</code></td><td>valid도 같은 10열, 모두 유한값</td></tr>
     <tr><td><code>add_features(X) 뒤 원본 X 열 수</code></td><td><code>4</code></td><td>X.copy() 덕분에 원본은 4열 그대로</td></tr>
     <tr><td><code>Logistic: CV F1 · std · valid F1</code></td><td><code>0.522 · 0.209 · 0.333</code></td><td>기존</td></tr>
-    <tr><td><code>Logistic_FE: CV F1 · std · valid F1</code></td><td><code>0.551 · 0.190 · 0.182</code></td><td>CV는 조금 오르고 valid는 떨어짐 — 노트 표와 같음</td></tr>
+    <tr><td><code>Logistic_FE: CV F1 · std · valid F1</code></td><td><code>0.551 · 0.190 · 0.182</code></td><td>CV는 조금 오르고 valid는 떨어짐 — 본문 표와 같음</td></tr>
     <tr><td><code>fold별 글자수 중앙값 · 검사 통과</code></td><td><code>[1309, 1303, 1315, 1315, 1338] · True</code></td><td>fold마다 자기 학습 48건에서 계산</td></tr>
   </table>
 </div>
@@ -185,7 +185,7 @@ for (fit_idx, _), fitted in zip(CLS_FOLDS, cv["estimator"]):
         <tr><td><code>FunctionTransformer(func)</code></td><td>직접 만든 함수를 Pipeline 단계로</td><td>함수는 모듈에 <b>이름 있는 함수</b>로 (저장·복원용)</td></tr>
         <tr><td><code>validate=False</code></td><td>DataFrame 입력을 그대로 유지</td><td>True면 배열로 바뀌어 <code>out["input_chars"]</code> 같은 열 이름 사용 불가</td></tr>
         <tr><td><code>pipe[:-1]</code></td><td>마지막(모델) 전까지만 실행</td><td>변환 결과 shape 확인용</td></tr>
-        <tr><td><code>make_pre(engineered=True)</code></td><td>강의 코드의 사용자 정의 함수 — 수치 4열(원본 2 + 파생 2) 경로</td><td>False면 원본 수치 2열만 → (60, 8)</td></tr>
+        <tr><td><code>ColumnTransformer</code> 수치 경로 (<code>make_pre(engineered=True)</code>)</td><td>수치 4열(원본 2 + 파생 2)에 결측 대체 · 표준화를 거는 <code>ColumnTransformer</code>를 만드는 짧은 함수</td><td>False면 원본 수치 2열만 → (60, 8)</td></tr>
       </table>
       <table>
         <tr><th>Logistic C=1</th><th>기존</th><th>파생 2개 추가</th></tr>
@@ -222,7 +222,7 @@ before = cluster_pipe["cluster"].cluster_centers_.copy()
 print(cluster_pipe.predict(new))         # [2 0]  새 요청 → 기존 중심에 할당 (fit_predict 금지)
 print(np.array_equal(before, cluster_pipe["cluster"].cluster_centers_))   # True  중심 불변</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>노트의 6점 + 강의 requests.csv · train 60 / valid 20의 수치 2열</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>본문의 6점 + 예시 requests.csv · train 60 / valid 20의 수치 2열</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>km.fit_predict(X)</code></td><td><code>[0, 0, 0, 1, 1, 1]</code></td><td>y 없이 가까운 것끼리</td></tr>
@@ -271,7 +271,7 @@ joblib.dump(final, "final_pipeline.joblib")
 restored = joblib.load("final_pipeline.joblib")         # 본인이 만든 파일만
 assert np.allclose(final.predict_proba(X_check), restored.predict_proba(X_check))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 requests.csv · 개발 80(train+valid) → test 20 · 선택 모델 Logistic_FE</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예시 requests.csv · 개발 80(train+valid) → test 20 · 선택 모델 Logistic_FE</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>json.dumps({&quot;rule&quot;: &quot;점수 &gt; 임계값&quot;})</code></td><td><code>{&quot;rule&quot;: &quot;\uc810\uc218 &gt; \uc784\uacc4\uac12&quot;}</code></td><td>ensure_ascii 기본 True → 한글이 \uXXXX</td></tr>
@@ -289,28 +289,34 @@ assert np.allclose(final.predict_proba(X_check), restored.predict_proba(X_check)
         <tr><td><code>clone(estimator)</code></td><td>설정만 같고 학습은 안 된 새 객체</td><td>이미 학습된 객체를 재사용하지 않음</td></tr>
         <tr><td><code>pd.concat([A, B])</code></td><td>train + valid를 고정 순서로 결합</td><td>설정 확정 <b>뒤에만</b></td></tr>
         <tr><td><code>joblib.dump / load</code></td><td>변환 함수 포함 Pipeline 저장·복원</td><td><code>add_features</code>는 모듈(<code>feature_ops.py</code>)에 정의해 import해야 복원됨. 본인이 만든 파일만 load</td></tr>
-        <tr><td><code>failure_scores(model, X)</code></td><td>강의 코드의 사용자 정의 함수 — <code>classes_</code>에서 실패(1) 열을 골라 확률 반환</td><td>열 번호를 1로 박아 두면 클래스 순서가 다를 때 성공 확률을 쓰게 됨</td></tr>
+        <tr><td><code>predict_proba(X)[:, list(classes_).index(1)]</code></td><td><code>classes_</code>에서 실패(1) 열을 골라 확률을 꺼냄</td><td>열 번호를 1로 박아 두면 클래스 순서가 다를 때 성공 확률을 쓰게 됨</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 함수를 모듈에 이름 붙여 둬야 하지?</strong> — joblib은 Pipeline을 저장할 때 <code>add_features</code>의 코드 자체가 아니라 "<b>어느 모듈의 어떤 이름의 함수</b>"라는 주소만 적어 둬요. 노트북 셀이나 lambda로 만든 함수는 새 프로세스에서 그 주소를 찾을 수 없어서 복원이 실패해요. 그래서 <code>feature_ops.py</code>에 정의하고 import해서 쓰고, 코드·버전·임계값도 함께 보관해요.</div>
 </section>
 
 <section class="cmd" id="d8-새-입력-검사-새-범주-vs-필수-열-누락" data-topic="scikit-learn" data-sub="입력 검사 · 저장" data-day="8" data-theory="notes/day08.html#final">
-  <h3>새 입력 검사 (새 범주 vs 필수 열 누락)</h3>
-<pre><code>checked = check_input(new_requests)          # 강의 코드의 사용자 정의 검사 함수
+  <h3>새 입력 검사 (새 범주 vs 필수 열 누락) — <code>transform(…).shape</code> · <code>np.isfinite</code> · <code>ValueError</code></h3>
+<pre><code>missing = [c for c in FEATURES if c not in new_requests.columns]   # 필수 4열이 다 있나?
+if missing:
+    raise ValueError(f"필수 열 누락: {missing}")
+checked = new_requests[FEATURES]
 num = fitted["pre"].named_transformers_["num"]
 before = num["imputer"].statistics_.copy()
-p = failure_scores(fitted, checked)          # 새 범주가 있어도 (2, 10)으로 변환 · 확률은 유한값
+Z = fitted[:-1].transform(checked)           # 새 범주가 있어도 (2, 10)
+assert np.isfinite(Z).all()                  # NaN·inf 없음
+pos = list(fitted.classes_).index(1)         # 실패(1) 열 번호
+p = fitted.predict_proba(checked)[:, pos]    # 실패 확률 — 유한값
 assert np.array_equal(before, num["imputer"].statistics_)   # 통계 불변
-check_input(new_requests.drop(columns="priority"))         # ← ValueError가 나야 정상 (실패 시험)</code></pre>
+# priority 열을 뺀 입력 → 위 필수 열 확인에서 ValueError가 나야 정상 (실패 시험)</code></pre>
 <div class="io">
   <div class="io-title">▶ 실제로 돌려 보면 <small>valid 앞 2행 · 1행 글자수를 결측으로, task_type을 처음 보는 &#x27;translation&#x27;으로</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>fitted[:-1].transform(checked).shape</code></td><td><code>(2, 10)</code></td><td>결측·새 범주가 있어도 10열</td></tr>
     <tr><td><code>np.isfinite(Z).all()</code></td><td><code>True</code></td><td>NaN/inf 없음 — 결측은 학습 중앙값으로</td></tr>
-    <tr><td><code>failure_scores(fitted, checked)</code></td><td><code>[0.397, 0.259]</code></td><td>확률 2개, 유한값</td></tr>
+    <tr><td><code>fitted.predict_proba(checked)[:, pos]</code></td><td><code>[0.397, 0.259]</code></td><td>확률 2개, 유한값</td></tr>
     <tr><td><code>np.array_equal(before, num[&quot;imputer&quot;].statistics_)</code></td><td><code>True</code></td><td>예측해도 통계 불변</td></tr>
-    <tr><td><code>check_input(new_requests.drop(columns=&quot;priority&quot;))</code></td><td><code>ValueError: 필수 열 누락: [&#x27;priority&#x27;]</code></td><td>필수 열 누락 → 예측 전에 멈춤 (실패해야 정상)</td></tr>
+    <tr><td><code>필수 열 확인 (new_requests.drop(columns=&quot;priority&quot;))</code></td><td><code>ValueError: 필수 열 누락: [&#x27;priority&#x27;]</code></td><td>필수 열 누락 → 예측 전에 멈춤 (실패해야 정상)</td></tr>
     <tr><td><code>roc_auc_score(실패 0건인 y, 점수)</code></td><td><code>nan · 경고 UndefinedMetricWarning → 기록 None, 실제 양성 0</code></td><td>nan을 그대로 평균에 섞지 않고, 클래스 수를 먼저 확인해 None + 양성 수로 기록</td></tr>
   </table>
 </div>

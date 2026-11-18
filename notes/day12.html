@@ -27,26 +27,32 @@
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day12 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day12">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      <!-- ============================================================ -->
+      <h2 id="map">🗺️ 큰 그림 — 순서를 읽는 모델들</h2>
+      <p>사진은 "한 장" 데이터예요. 센서 · 문장 · 로그 · 오디오는 <b>순서가 의미를 가지는 데이터</b>예요. 같은 단어라도 순서를 바꾸면 뜻이 달라져요(“woman ate raccoon” vs “raccoon ate woman”). 그래서 시계열은 순서를 마구 섞으면 같은 문제가 아니에요.</p>
+      <div class="flow">
+        <span class="step">순서 데이터<br><small>[B, T, F] + lengths · Mask</small></span><span class="arrow">→</span>
+        <span class="step"><b>RNN</b><br><small>메모 한 장 h</small></span><span class="arrow">→</span>
+        <span class="step"><b>LSTM</b><br><small>더하는 기억 통로 c</small></span><span class="arrow">→</span>
+        <span class="step"><b>Transformer</b><br><small>모든 위치를 한 번에 (T²)</small></span>
       </div>
-
-      <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
+      <p>RNN → LSTM → Transformer는 "순서를 더 잘 읽기"의 발전이고, Autoencoder는 미래가 아니라 <b>입력 자신</b>을 되살리는 다른 갈래예요. 이 페이지의 ①~⑦이 이 순서예요.</p>
       <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>torch</code></td><td>RNN·LSTM·Transformer 층, Padding 도구, 손실 함수, DataLoader 전부 (Day9부터 설치됨)</td><td><code>import torch</code>, <code>from torch import nn</code>, <code>from torch.nn.utils.rnn import pad_sequence</code></td></tr>
-        <tr><td><code>matplotlib</code> <small>(선택)</small></td><td>loss 곡선, 예측 vs 실제, Mask·Latent 그림</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#seq">① 순서 데이터</a></td><td><code>[B, T, F]</code> · Padding · Mask · Window</td><td>길이가 다른 순서를 어떻게 한 묶음으로? 채운 칸은 어떻게 빼나?</td></tr>
+        <tr><td><a href="#rnn">② RNN</a></td><td>같은 Cell을 시점마다 반복해 h로 요약</td><td>과거를 어떻게 다음 시점으로 넘기나?</td></tr>
+        <tr><td><a href="#lstm">③ LSTM</a></td><td>Gate로 지우고 · 쓰고 · 꺼내는 c 통로</td><td>먼 과거의 기울기는 왜 사라지고, 어떻게 살리나?</td></tr>
+        <tr><td><a href="#attn">④ Attention · Transformer</a></td><td>Q · K · V 가중합 + Position · Mask</td><td>필요한 위치를 차례로 거치지 않고 직접 보려면?</td></tr>
+        <tr><td><a href="#ae">⑤ Autoencoder</a></td><td>좁은 Latent로 줄였다가 되살리기</td><td>정답이 없을 때 "낯선 입력"을 어떻게 찾나?</td></tr>
+        <tr><td><a href="#compare">⑥ 아키텍처 비교</a></td><td>같은 조건 · 목적별 표</td><td>무엇을 기준으로 고르나?</td></tr>
+        <tr><td><a href="#speed">⑦ 길이 · 속도 측정</a></td><td>T vs T², Padding 낭비, 실측</td><td>길어지면 무엇이 얼마나 무거워지나?</td></tr>
       </table>
-      <h3>🔧 확인</h3>
-<pre><code>python -c "import torch; print(torch.__version__); print('CUDA:', torch.cuda.is_available())"</code></pre>
-      <div class="callout">💡 오늘 쓰는 순서 모델 도구(<code>nn.RNN</code>, <code>nn.LSTM</code>, <code>nn.MultiheadAttention</code>, <code>pad_sequence</code> …)는 전부 <code>torch</code> 안에 들어 있어서 따로 설치할 게 없어요. 정상 설치된 환경은 그대로 두고, 기본 학습은 CPU로, GPU 비교는 GPU가 있을 때만 해요.</div>
-      <div class="callout">🤔 <strong>왜 설치 버전을 기록해?</strong> — 시간·메모리 측정값과 일부 기본 동작은 PyTorch 버전·장치에 따라 달라져요. 나중에 결과를 다시 만들거나 남과 비교하려면 "어떤 환경에서 잰 숫자인지"가 같이 있어야 해요.</div>
-
-      <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
-      <p>Day11의 이미지는 "한 장" 데이터였죠. 오늘은 <b>순서가 의미를 가지는 데이터</b>예요(센서·문장·로그·오디오). 같은 단어라도 순서를 바꾸면 뜻이 달라져요(“woman ate raccoon” vs “raccoon ate woman”). 그래서 시계열은 순서를 마구 섞으면 같은 문제가 아니에요.</p>
+<pre><code>입력  [B, T, F] + lengths 또는 padding_mask (True = 채운 칸)
+  ├ RNN / LSTM:   시점마다 같은 가중치 반복 → output [B, T, H] · h_n (· c_n)
+  ├ Transformer:  Embedding + Position → Self-Attention(+Mask) → Pooling [B, E]
+  └ Autoencoder:  x [B, 8] → z [B, 2] → x̂ [B, 8]   (목적이 다름: 재구성)
+Head  → 분류 logit · 다음 값 · 재구성 오차</code></pre>
+      <p>어디에 쓰나:</p>
       <div class="usecases">
         <div class="usecase"><div class="emoji">📈</div><strong>다음 값 예측</strong><span>과거 12개 관측을 보고 다음 1개 맞히기 (설비 센서)</span></div>
         <div class="usecase"><div class="emoji">💬</div><strong>순서 분류</strong><span>문장·로그·신호 한 줄을 보고 클래스 고르기</span></div>
@@ -64,7 +70,7 @@
       <!-- ============================================================ -->
       <h2 id="seq">① 순서 데이터 [B, T, F] · Padding · Mask · Window</h2>
       <table>
-        <tr><th>축</th><th>뜻</th><th>예 (오늘 LSTM 예측)</th></tr>
+        <tr><th>축</th><th>뜻</th><th>예 (LSTM 다음 값 예측)</th></tr>
         <tr><td><b>B</b> · Batch</td><td>Window(순서) 개수</td><td>B개</td></tr>
         <tr><td><b>T</b> · Time</td><td>시점 수 (길이)</td><td>T=12, 과거 12개 관측</td></tr>
         <tr><td><b>F</b> · Feature</td><td>한 시점에 동시에 관측한 특성 수</td><td>F=1, 시점마다 값 1개</td></tr>
@@ -74,8 +80,8 @@
 
 ✕ Padding까지 평균:  (3+1+4+0+0) ÷ 5 = 1.6     ← 틀림
 ○ 실제 길이로 평균:  (3+1+4) ÷ 3     = 2.67</code></pre>
-      <div class="callout">🤔 <strong>왜 길이가 달라도 같은 모델에 넣을 수 있어?</strong> — 순서 모델은 <b>모든 시점에 같은 가중치</b>를 써요. 시점마다 다른 가중치(W₁, W₂, …)를 쓰면 길이 4로 배운 모델은 5번째 시점용 W₅가 없어서 못 읽고, 길이가 바뀔 때마다 새로 배워야 하죠. 같은 W를 반복하면 길이가 4든 50이든 그대로 읽어요. 그래서 <code>nn.RNN(input_size, hidden_size)</code>에는 길이 T를 정하는 인자가 아예 없어요. (Day11 Conv가 "모든 <b>위치</b>에 같은 Kernel"이었던 것과 같은 생각이에요.)</div>
-      <div class="callout">🤔 <strong>왜 Padding은 계속 빼라고 해?</strong> — Padding은 길이를 맞추려고 채운 0이라 <b>실제 값이 아니에요</b>. 평균에 섞이면 위처럼 값이 작아지고, "마지막 값"을 꺼내면 진짜 마지막이 아닌 0을 꺼내고, Attention에선 가짜 칸에 비율을 나눠 줘요. 그래서 오늘 모든 모델에서 따로 빼요.</div>
+      <div class="callout">🤔 <strong>왜 길이가 달라도 같은 모델에 넣을 수 있어?</strong> — 순서 모델은 <b>모든 시점에 같은 가중치</b>를 써요. 시점마다 다른 가중치(W₁, W₂, …)를 쓰면 길이 4로 배운 모델은 5번째 시점용 W₅가 없어서 못 읽고, 길이가 바뀔 때마다 새로 배워야 하죠. 같은 W를 반복하면 길이가 4든 50이든 그대로 읽어요. 그래서 <code>nn.RNN(input_size, hidden_size)</code>에는 길이 T를 정하는 인자가 아예 없어요. (<a href="day11.html#share">CNN의 가중치 공유</a> — "모든 <b>위치</b>에 같은 Kernel"과 같은 생각이에요.)</div>
+      <div class="callout">🤔 <strong>왜 Padding은 계속 빼라고 해?</strong> — Padding은 길이를 맞추려고 채운 0이라 <b>실제 값이 아니에요</b>. 평균에 섞이면 위처럼 값이 작아지고, "마지막 값"을 꺼내면 진짜 마지막이 아닌 0을 꺼내고, Attention에선 가짜 칸에 비율을 나눠 줘요. 그래서 모든 순서 모델에서 따로 빼요.</div>
       <figure><img class="smooth" src="img/day12/padding_mask.png" alt="길이 12, 8, 10, 5인 센서 순서 네 개를 12로 맞추며 회색 Padding을 채운 그림과, True/False로 된 4×12 Mask 행렬"><figcaption><b>무엇을 보나:</b> 왼쪽은 길이가 다른 센서 기록 4개를 가장 긴 12에 맞춘 모습이에요. 회색 빗금 칸이 채워 넣은 0(Padding). 오른쪽은 같은 모양의 Mask로, 회색 <b>T</b>(True) 칸이 정확히 왼쪽의 회색 칸과 겹쳐요. 빨간 숫자는 "0까지 넣고 평균"한 값인데, 샘플3은 진짜 평균 0.38이 <b>0.16</b>으로 반 토막 나요. <b>🤔 왜 짧을수록 더 틀려?</b> 짧은 샘플일수록 채운 0이 많아서 평균의 분모(12)에서 가짜 칸 비중이 커져요. 그러면 모델은 "짧다"는 사실을 "값이 작다"로 착각해요. Mask로 회색 칸을 빼고 진짜 길이로 나누면 길이와 상관없이 정직한 평균이 나와요.</figcaption></figure>
 
       <div class="cmdref">
@@ -241,85 +247,14 @@ output, _ = self.lstm(x)                       # [B, 12, 16]</code></pre>
       </div>
 
       <!-- ============================================================ -->
-      <h2 id="ae">④ Autoencoder — 정답이 입력 자신</h2>
-      <p>RNN·LSTM은 <b>미래</b>를 맞혀요. Autoencoder는 목적이 달라요. 입력 x를 <b>작게 줄였다가(z)</b> 다시 <b>원래대로 되살리기(x̂)</b>. 긴 글을 세 줄로 요약했다가 다시 풀어 쓰는 것과 비슷해요. 오늘은 Linear 층으로 만든 MLP형이라 시간축이 없어요.</p>
-      <div class="flow">
-        <span class="step">x · 8<br><small>[B,8]</small></span><span class="arrow">→</span>
-        <span class="step"><b>Encoder</b><br><small>8 → 4 → 2</small></span><span class="arrow">→</span>
-        <span class="step"><b>z · 2</b><br><small>Latent [B,2]</small></span><span class="arrow">→</span>
-        <span class="step"><b>Decoder</b><br><small>2 → 4 → 8</small></span><span class="arrow">→</span>
-        <span class="step">x̂ ≈ x<br><small>[B,8]</small></span>
-      </div>
-      <table>
-        <tr><th></th><th>예측 (LSTM)</th><th>재구성 (Autoencoder)</th></tr>
-        <tr><td>입력 → 출력</td><td>과거 12개 → 다음 1개</td><td>x 8개 → x̂ 8개</td></tr>
-        <tr><td>정답</td><td>미래 값</td><td><b>x 자신</b></td></tr>
-        <tr><td>지표</td><td>예측 MSE</td><td>재구성 오차</td></tr>
-      </table>
-      <table>
-        <tr><th>가운데(Latent)가</th><th>결과</th></tr>
-        <tr><td>너무 넓으면 (모델이 너무 크면)</td><td>그대로 베끼기만 함 → 배운 게 없고 일반화가 약해짐</td></tr>
-        <tr><td>적당히 좁으면</td><td>중요한 패턴만 골라 담음</td></tr>
-        <tr><td>너무 좁으면</td><td>중요한 정보까지 잃음 → Underfitting</td></tr>
-      </table>
-      <figure>
-        <svg viewBox="0 0 660 230" style="width:100%;height:auto" role="img" aria-label="Autoencoder 모래시계 그림. 8칸 입력이 4칸, 2칸 Latent로 좁아졌다가 다시 4칸, 8칸으로 넓어진다">
-          <defs><marker id="d12aeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
-          <polygon points="150,30 290,75 290,155 150,200" fill="var(--accent)" opacity="0.12"/>
-          <polygon points="370,75 510,30 510,200 370,155" fill="var(--accent2)" opacity="0.12"/>
-          <g fill="var(--accent)">
-            <rect x="130" y="30" width="20" height="170" rx="4"/><rect x="215" y="70" width="20" height="90" rx="4" opacity="0.85"/>
-          </g>
-          <rect x="315" y="92" width="30" height="46" rx="6" fill="var(--text)"/>
-          <g fill="var(--accent2)"><rect x="425" y="70" width="20" height="90" rx="4" opacity="0.85"/><rect x="510" y="30" width="20" height="170" rx="4"/></g>
-          <g font-size="13" text-anchor="middle" fill="var(--text)">
-            <text x="140" y="220">x · 8칸</text><text x="225" y="180">4칸</text><text x="330" y="160" font-weight="bold">z · 2칸</text><text x="435" y="180">4칸</text><text x="520" y="220">x̂ · 8칸</text>
-            <text x="220" y="20" font-weight="bold" fill="var(--accent)">Encoder (압축)</text><text x="440" y="20" font-weight="bold" fill="var(--accent2)">Decoder (복원)</text>
-            <text x="330" y="84" font-size="12" fill="var(--muted)">Latent</text>
-          </g>
-          <line x1="40" y1="115" x2="122" y2="115" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12aeArrow)"/><text x="40" y="105" font-size="12" fill="var(--muted)">입력</text>
-          <line x1="538" y1="115" x2="620" y2="115" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12aeArrow)"/><text x="575" y="105" font-size="12" fill="var(--muted)">x와 비교</text>
-          <text x="600" y="140" text-anchor="middle" font-size="12" fill="var(--text)">재구성 오차</text>
-        </svg>
-        <figcaption><b>무엇을 보나:</b> 오늘 Autoencoder(<code>8 → 4 → 2 → 4 → 8</code>)를 막대 높이 = 칸 수로 그린 모래시계예요. 가운데 검은 2칸이 Latent z. 끝에서 나온 x̂를 처음 x와 비교한 차이가 재구성 오차예요. <b>🤔 왜 모래시계 모양이어야 해?</b> 가운데가 8칸이면 "그대로 복사"로 오차 0을 쉽게 만들어요. 2칸으로 조이면 8개 숫자를 2개로 <b>요약하는 규칙</b>을 배워야만 되살릴 수 있어요. 그 규칙이 바로 "정상 데이터의 패턴"이고, 이 패턴에서 벗어난 입력은 2칸에 잘 안 담겨서 되살리기에 실패해요.</figcaption>
-      </figure>
-      <div class="callout">🤔 <strong>왜 가운데를 일부러 좁게 만들어?</strong> — 통로가 입력만큼 넓으면 "그대로 복사"가 제일 쉬운 답이라 아무 규칙도 안 배워요. 8개를 2개로 줄여야 하면, 8개 값 사이에 <b>공통으로 반복되는 패턴</b>을 찾아 그것만 담을 수밖에 없어요. 그게 Autoencoder가 배우는 "주요 패턴"이에요. 다만 분류 모델이 아니라서 z의 각 칸이 무슨 뜻인지는 따로 분석해야 해요.</div>
-      <div class="callout">🤔 <strong>왜 "오차 큼 = 이상"이 아니라 "이상 후보"야?</strong> — 정상 데이터로만 배운 모델은 낯선 입력을 잘 못 되살려서 오차가 커져요. 하지만 전처리 실수, 모델 용량, 학습 분포 밖의 정상 데이터 때문에도 오차가 클 수 있어서 <b>확정할 수 없어요</b>. 그래서 점검할 후보로만 표시해요.</div>
-      <figure><img class="smooth" src="img/day12/ae_recon.png" alt="정상 샘플은 입력과 재구성이 거의 겹치고 칸별 오차가 0에 가깝지만, 이상 샘플은 재구성이 크게 어긋나 칸별 오차 막대가 큰 그림"><figcaption><b>무엇을 보나:</b> 사인파 조각(8칸, 진폭·위상 무작위)으로 <b>정상만</b> 학습한 진짜 Autoencoder(8-4-2-4-8)의 결과예요. 왼쪽 정상 샘플은 검은 입력 x와 초록 점선 x̂가 거의 겹쳐 오차 0.002, 아래 칸별 막대도 안 보일 만큼 작아요. 오른쪽 이상 샘플(일부러 만든 패턴 없는 잡음)은 x̂가 엉뚱하게 "사인파처럼" 매끈하게 나와 오차 <b>1.171</b>(약 600배). <b>🤔 왜 이상 샘플을 사인파처럼 되살려?</b> Decoder는 2칸 z로부터 "자기가 배운 패턴(사인파)"밖에 그릴 줄 몰라요. 그래서 낯선 입력도 가장 비슷한 사인파로 바꿔 그리고, 그 차이가 그대로 오차가 돼요.</figcaption></figure>
-      <figure><img class="smooth" src="img/day12/ae_error_hist.png" alt="정상 valid 400개와 이상 60개의 재구성 오차 분포 히스토그램과 99% 분위수 기준선"><figcaption><b>무엇을 보나:</b> 샘플마다 오차 1개(<code>reduction="none"</code> → <code>mean(dim=1)</code>)를 모아 그린 분포예요(가로 로그 눈금). 초록 정상 valid는 0.001 근처에 모이고, 빨강 이상은 0.05~1로 멀리 떨어져 있어요. 보라 점선이 아래 코드의 <code>torch.quantile(valid_err, 0.99)</code> 기준값이에요. <b>🤔 왜 정상도 4개가 넘어가?</b> "valid 오차의 99%"를 기준으로 잡으면 정의상 정상의 약 1%(400개 중 4개)는 기준을 넘어요. 기준을 높이면 놓치는 이상이, 낮추면 헛경보가 늘어요 → 몇 %로 할지는 업무가 정하고, 넘은 것은 "확정"이 아니라 "점검 후보"예요. (여기 이상 샘플은 일부러 티 나게 만든 거라 실제보다 깔끔하게 갈려요.)</figcaption></figure>
-      <div class="callout warn">⚠️ 예측 MSE와 재구성 오차는 정답도 단위도 달라요. <b>평균 내거나 한 표에서 순위 매기지 말고</b> 목적별로 표를 따로 만드세요.</div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Autoencoder forward와 재구성 오차 <a href="../commands.html#d12-autoencoder-forward와-재구성-오차">명령어 사전에서 자세히 →</a></div>
-<pre><code>loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
-score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)</code></pre>
-      </div>
-      <div class="figs">
-        <figure><img class="smooth" src="img/day12/ae_latent.png" alt="2칸 Latent z 평면에 정상 샘플이 위상 색깔 순서대로 고리 모양으로 놓이고 이상 샘플은 흩어진 산점도"><figcaption><b>무엇을 보나:</b> 학습된 Encoder(<code>model[:4]</code>)로 뽑은 z 2칸을 좌표로 찍었어요. 정상 점들의 색(사인파 위상)이 <b>무지개처럼 순서대로</b> 고리를 이뤄요. 빨간 ✕(이상)는 고리 안쪽·바깥 등 아무 데나 흩어져요. <b>🤔 왜 고리야?</b> 정상 데이터는 사실 "진폭·위상" 두 가지만 달라요. Autoencoder가 아무도 안 알려 줬는데 이 두 성질을 2칸에 펼쳐 담은 거예요. 다만 z[0]·z[1] 각각이 무슨 뜻인지는 정해져 있지 않아서 이렇게 그려 보며 해석해야 해요.</figcaption></figure>
-        <figure><img class="smooth" src="img/day12/latent_size.png" alt="Latent 크기 1, 2, 4, 8에 따른 valid 재구성 MSE 막대. 1에서 0.032, 2부터 0.002 이하"><figcaption><b>무엇을 보나:</b> 가운데 칸 수만 1·2·4·8로 바꿔 학습한 valid 재구성 오차예요(앞뒤 층 16칸, 같은 데이터·epoch, seed 3개 중 최솟값). 1칸이면 0.032로 크고, 2칸부터 0.002 이하로 뚝 떨어져요. <b>🤔 왜 2에서 꺾여?</b> 이 데이터의 본질이 "진폭·위상" 두 숫자라서 2칸이면 거의 다 담겨요. 그보다 줄이면 필요한 정보를 잃고(Underfitting), 늘려도 얻는 게 적고 복사에 가까워져요. 실전에선 이렇게 크기를 바꿔 가며 "꺾이는 지점"을 찾아요.</figcaption></figure>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 샘플별 오차 <code>reduction="none"</code> <a href="../commands.html#d12-reduction-none">명령어 사전에서 자세히 →</a></div>
-<pre><code>loss_fn = nn.MSELoss(reduction="none")
-error = loss_fn(recon, x).mean(dim=1)      # [B, F] → [B]  샘플마다 점수 1개</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 입력 = 정답 Batch · Denoising · 기준값 <a href="../commands.html#d12-입력-정답-batch-denoising-기준값">명령어 사전에서 자세히 →</a></div>
-<pre><code>loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
-threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함</code></pre>
-      </div>
-
-      <!-- ============================================================ -->
-      <h2 id="attn">⑤ Attention · Transformer — 필요한 위치를 직접 골라 본다</h2>
+      <h2 id="attn">④ Attention · Transformer — 필요한 위치를 직접 골라 본다</h2>
       <p><b>LSTM의 남은 문제</b>: 여전히 한 시점씩 차례로 계산해서 느리고, 먼 시점 정보는 중간을 모두 거쳐 와야 해요. <b>Attention</b>은 순차 전달 대신 위치끼리의 관계를 <b>한 번에 직접</b> 가중합으로 계산해요.</p>
       <table>
         <tr><th></th><th>LSTM</th><th>Attention</th></tr>
         <tr><td>4번 위치가 1번을 보려면</td><td>1 → 2 → 3 → 4 차례로 거쳐 옴</td><td>4가 1·2·3을 한 번에 직접 봄</td></tr>
         <tr><td>계산</td><td>순차 (현재 상태가 이전 상태에 의존해서 나눠 돌릴 수 없음)</td><td>병렬 (한꺼번에) — 그래서 [B, T, E] 전체를 한 번에 받음</td></tr>
       </table>
-      <h3>Query · Key · Value</h3>
+      <h3 id="qkv">Query · Key · Value</h3>
       <p>회의에 비유하면: 내 질문(<b>Query</b>, 찾을 정보)과 관련 있는 사람(<b>Key</b>, 비교할 위치)일수록 그 사람 말(<b>Value</b>, 합산할 내용)에 더 귀 기울여요.</p>
 <pre><code>weight = softmax( Q · Kᵀ / √d )     ← 어디를 얼마나 볼지 (합 = 1)
 출력   = weight · V                 ← 그 비율대로 Value 섞기
@@ -379,7 +314,7 @@ threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할�
         <div class="verdict" id="attnVerdict"></div>
       </div>
       <figure><img class="smooth" src="img/day12/softmax_scale.png" alt="점수 8, 4, 0을 그대로 softmax하면 0.98, 0.02, 0.00이고, 4로 나누면 0.67, 0.24, 0.09가 되는 막대그래프"><figcaption><b>무엇을 보나:</b> 같은 점수 [8, 4, 0]을 그대로 softmax(왼쪽)하면 위치1이 <b>0.98</b>을 독차지하고 나머지는 사실상 0, √16 = 4로 나눈 [2, 1, 0](오른쪽)은 0.67 / 0.24 / 0.09로 다른 위치도 조금씩 봐요. Value가 [10, 20, 30]이면 출력도 10.2 vs 14.2로 달라요. <b>🤔 왜 왼쪽이 학습에 나빠?</b> 0.00이 된 위치는 점수를 조금 바꿔도 비율이 거의 안 변해서 기울기가 0에 가까워요. 그러면 "사실 위치3이 더 중요했다"는 걸 배울 길이 막혀요. 점수 차이를 √d로 눌러 주면 모든 위치에 기울기가 살아 있어요.</figcaption></figure>
-      <h3>Transformer에 더 필요한 것</h3>
+      <h3 id="transformer">Transformer에 더 필요한 것</h3>
       <p>한 Batch 흐름: 입력 → Embedding <b>+ Position</b> → Self-Attention → FFN·Residual·정규화 → Pooling·Head</p>
       <table>
         <tr><th>재료</th><th>🤔 왜 필요?</th></tr>
@@ -391,7 +326,7 @@ threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할�
         <tr><td><b>LayerNorm</b></td><td>위치 하나 안의 Feature로 정규화 → 길이·Padding이 제각각이어도 OK (BatchNorm은 여러 샘플을 묶어 정규화해서 순서 데이터엔 불편)</td></tr>
         <tr><td><b>한 층 구성</b></td><td>Self-Attention(위치끼리 섞기) + Feedforward(위치마다 따로 변환), 각각 뒤에 Residual + LayerNorm. 입력·출력 크기 [B, T, E]가 같아서 여러 층을 쌓아 문맥을 강화할 수 있어요</td></tr>
       </table>
-      <figure><img class="smooth" src="img/day12/attention_heatmap.png" alt="실제 4칸과 Padding 2칸으로 된 길이 6 순서의 Self-Attention 가중치 6×6 표. Mask가 없으면 pad 열에 비율이 가고, key_padding_mask를 쓰면 pad 열이 0"><figcaption><b>무엇을 보나:</b> 길이 6 순서(실제 x0~x3 + Padding 2칸)에 <code>softmax(QKᵀ/√d)</code>를 직접 계산한 Attention 가중치 표예요. 행 = 보는 주체(Query), 열 = 보이는 대상(Key), 한 행의 합 = 1. 왼쪽(Mask 없음)은 빨간 점선 안 pad 열에 행마다 0.3~0.6이나 새어 나가요. 오른쪽(<code>key_padding_mask</code>)은 pad 열이 전부 <b>0.00</b>이고 그 몫이 실제 칸으로 재분배돼요. ※ Q·K 투영은 무작위(seed 4)라 어떤 칸이 진한지에는 의미가 없어요. <b>🤔 왜 열만 0이고 pad 행은 남아?</b> Mask는 "이 Key를 보지 마"라는 표시라 <b>열</b>을 막아요. pad 위치도 Query로서 출력은 계속 만들어지니(아래 두 줄), Pooling 때 그 출력을 따로 빼야 해요(<code>masked_mean</code>).</figcaption></figure>
+      <figure><img class="smooth" src="img/day12/attention_heatmap.png" alt="실제 4칸과 Padding 2칸으로 된 길이 6 순서의 Self-Attention 가중치 6×6 표. Mask가 없으면 pad 열에 비율이 가고, key_padding_mask를 쓰면 pad 열이 0"><figcaption><b>무엇을 보나:</b> 길이 6 순서(실제 x0~x3 + Padding 2칸)에 <code>softmax(QKᵀ/√d)</code>를 직접 계산한 Attention 가중치 표예요. 행 = 보는 주체(Query), 열 = 보이는 대상(Key), 한 행의 합 = 1. 왼쪽(Mask 없음)은 빨간 점선 안 pad 열에 행마다 0.3~0.6이나 새어 나가요. 오른쪽(<code>key_padding_mask</code>)은 pad 열이 전부 <b>0.00</b>이고 그 몫이 실제 칸으로 재분배돼요. ※ Q·K 투영은 무작위(seed 4)라 어떤 칸이 진한지에는 의미가 없어요. <b>🤔 왜 열만 0이고 pad 행은 남아?</b> Mask는 "이 Key를 보지 마"라는 표시라 <b>열</b>을 막아요. pad 위치도 Query로서 출력은 계속 만들어지니(아래 두 줄), Pooling 때 그 출력을 따로 빼야 해요(Mask로 실제 위치만 평균).</figcaption></figure>
       <figure style="max-width:440px;margin:16px auto"><img class="smooth" src="img/day12/causal_mask.png" alt="6×6 Causal Mask. 대각선과 그 아래는 O(볼 수 있음), 대각선 위는 X(미래라서 차단)"><figcaption><b>무엇을 보나:</b> Causal Mask(<code>attn_mask</code>, [T, T])예요. 행 t3을 보면 t0~t3(초록 O)만 볼 수 있고 t4·t5(회색 X)는 막혀요. 아래로 갈수록 볼 수 있는 칸이 하나씩 늘어 계단(삼각형) 모양이 돼요. <b>🤔 왜 삼각형?</b> "다음 값 맞히기"에서 t3 시점의 예측이 t4를 보면 정답을 베끼는 셈이에요. "자기 자신과 과거만"이라는 규칙을 모든 행에 적용하면 대각선 위가 전부 막힌 삼각형이 돼요. Padding Mask(열 단위)와 달리 <b>위치 쌍</b> 단위로 막아요.</figcaption></figure>
 
       <div class="cmdref">
@@ -413,6 +348,77 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)</code></p
       </div>
 
       <!-- ============================================================ -->
+      <h2 id="ae">⑤ Autoencoder — 정답이 입력 자신</h2>
+      <p>RNN · LSTM · Transformer는 <b>미래</b>나 클래스를 맞혀요. Autoencoder는 목적이 달라요. 입력 x를 <b>작게 줄였다가(z)</b> 다시 <b>원래대로 되살리기(x̂)</b>. 긴 글을 세 줄로 요약했다가 다시 풀어 쓰는 것과 비슷해요. 여기 예시는 Linear 층으로 만든 MLP형이라 시간축이 없어요.</p>
+      <div class="flow">
+        <span class="step">x · 8<br><small>[B,8]</small></span><span class="arrow">→</span>
+        <span class="step"><b>Encoder</b><br><small>8 → 4 → 2</small></span><span class="arrow">→</span>
+        <span class="step"><b>z · 2</b><br><small>Latent [B,2]</small></span><span class="arrow">→</span>
+        <span class="step"><b>Decoder</b><br><small>2 → 4 → 8</small></span><span class="arrow">→</span>
+        <span class="step">x̂ ≈ x<br><small>[B,8]</small></span>
+      </div>
+      <table>
+        <tr><th></th><th>예측 (LSTM)</th><th>재구성 (Autoencoder)</th></tr>
+        <tr><td>입력 → 출력</td><td>과거 12개 → 다음 1개</td><td>x 8개 → x̂ 8개</td></tr>
+        <tr><td>정답</td><td>미래 값</td><td><b>x 자신</b></td></tr>
+        <tr><td>지표</td><td>예측 MSE</td><td>재구성 오차</td></tr>
+      </table>
+      <table>
+        <tr><th>가운데(Latent)가</th><th>결과</th></tr>
+        <tr><td>너무 넓으면 (모델이 너무 크면)</td><td>그대로 베끼기만 함 → 배운 게 없고 일반화가 약해짐</td></tr>
+        <tr><td>적당히 좁으면</td><td>중요한 패턴만 골라 담음</td></tr>
+        <tr><td>너무 좁으면</td><td>중요한 정보까지 잃음 → Underfitting</td></tr>
+      </table>
+      <figure>
+        <svg viewBox="0 0 660 230" style="width:100%;height:auto" role="img" aria-label="Autoencoder 모래시계 그림. 8칸 입력이 4칸, 2칸 Latent로 좁아졌다가 다시 4칸, 8칸으로 넓어진다">
+          <defs><marker id="d12aeArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+          <polygon points="150,30 290,75 290,155 150,200" fill="var(--accent)" opacity="0.12"/>
+          <polygon points="370,75 510,30 510,200 370,155" fill="var(--accent2)" opacity="0.12"/>
+          <g fill="var(--accent)">
+            <rect x="130" y="30" width="20" height="170" rx="4"/><rect x="215" y="70" width="20" height="90" rx="4" opacity="0.85"/>
+          </g>
+          <rect x="315" y="92" width="30" height="46" rx="6" fill="var(--text)"/>
+          <g fill="var(--accent2)"><rect x="425" y="70" width="20" height="90" rx="4" opacity="0.85"/><rect x="510" y="30" width="20" height="170" rx="4"/></g>
+          <g font-size="13" text-anchor="middle" fill="var(--text)">
+            <text x="140" y="220">x · 8칸</text><text x="225" y="180">4칸</text><text x="330" y="160" font-weight="bold">z · 2칸</text><text x="435" y="180">4칸</text><text x="520" y="220">x̂ · 8칸</text>
+            <text x="220" y="20" font-weight="bold" fill="var(--accent)">Encoder (압축)</text><text x="440" y="20" font-weight="bold" fill="var(--accent2)">Decoder (복원)</text>
+            <text x="330" y="84" font-size="12" fill="var(--muted)">Latent</text>
+          </g>
+          <line x1="40" y1="115" x2="122" y2="115" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12aeArrow)"/><text x="40" y="105" font-size="12" fill="var(--muted)">입력</text>
+          <line x1="538" y1="115" x2="620" y2="115" stroke="var(--muted)" stroke-width="2" marker-end="url(#d12aeArrow)"/><text x="575" y="105" font-size="12" fill="var(--muted)">x와 비교</text>
+          <text x="600" y="140" text-anchor="middle" font-size="12" fill="var(--text)">재구성 오차</text>
+        </svg>
+        <figcaption><b>무엇을 보나:</b> 예시 Autoencoder(<code>8 → 4 → 2 → 4 → 8</code>)를 막대 높이 = 칸 수로 그린 모래시계예요. 가운데 검은 2칸이 Latent z. 끝에서 나온 x̂를 처음 x와 비교한 차이가 재구성 오차예요. <b>🤔 왜 모래시계 모양이어야 해?</b> 가운데가 8칸이면 "그대로 복사"로 오차 0을 쉽게 만들어요. 2칸으로 조이면 8개 숫자를 2개로 <b>요약하는 규칙</b>을 배워야만 되살릴 수 있어요. 그 규칙이 바로 "정상 데이터의 패턴"이고, 이 패턴에서 벗어난 입력은 2칸에 잘 안 담겨서 되살리기에 실패해요.</figcaption>
+      </figure>
+      <div class="callout">🤔 <strong>왜 가운데를 일부러 좁게 만들어?</strong> — 통로가 입력만큼 넓으면 "그대로 복사"가 제일 쉬운 답이라 아무 규칙도 안 배워요. 8개를 2개로 줄여야 하면, 8개 값 사이에 <b>공통으로 반복되는 패턴</b>을 찾아 그것만 담을 수밖에 없어요. 그게 Autoencoder가 배우는 "주요 패턴"이에요. 다만 분류 모델이 아니라서 z의 각 칸이 무슨 뜻인지는 따로 분석해야 해요.</div>
+      <div class="callout">🤔 <strong>왜 "오차 큼 = 이상"이 아니라 "이상 후보"야?</strong> — 정상 데이터로만 배운 모델은 낯선 입력을 잘 못 되살려서 오차가 커져요. 하지만 전처리 실수, 모델 용량, 학습 분포 밖의 정상 데이터 때문에도 오차가 클 수 있어서 <b>확정할 수 없어요</b>. 그래서 점검할 후보로만 표시해요.</div>
+      <figure><img class="smooth" src="img/day12/ae_recon.png" alt="정상 샘플은 입력과 재구성이 거의 겹치고 칸별 오차가 0에 가깝지만, 이상 샘플은 재구성이 크게 어긋나 칸별 오차 막대가 큰 그림"><figcaption><b>무엇을 보나:</b> 사인파 조각(8칸, 진폭·위상 무작위)으로 <b>정상만</b> 학습한 진짜 Autoencoder(8-4-2-4-8)의 결과예요. 왼쪽 정상 샘플은 검은 입력 x와 초록 점선 x̂가 거의 겹쳐 오차 0.002, 아래 칸별 막대도 안 보일 만큼 작아요. 오른쪽 이상 샘플(일부러 만든 패턴 없는 잡음)은 x̂가 엉뚱하게 "사인파처럼" 매끈하게 나와 오차 <b>1.171</b>(약 600배). <b>🤔 왜 이상 샘플을 사인파처럼 되살려?</b> Decoder는 2칸 z로부터 "자기가 배운 패턴(사인파)"밖에 그릴 줄 몰라요. 그래서 낯선 입력도 가장 비슷한 사인파로 바꿔 그리고, 그 차이가 그대로 오차가 돼요.</figcaption></figure>
+      <figure><img class="smooth" src="img/day12/ae_error_hist.png" alt="정상 valid 400개와 이상 60개의 재구성 오차 분포 히스토그램과 99% 분위수 기준선"><figcaption><b>무엇을 보나:</b> 샘플마다 오차 1개(<code>reduction="none"</code> → <code>mean(dim=1)</code>)를 모아 그린 분포예요(가로 로그 눈금). 초록 정상 valid는 0.001 근처에 모이고, 빨강 이상은 0.05~1로 멀리 떨어져 있어요. 보라 점선이 아래 코드의 <code>torch.quantile(valid_err, 0.99)</code> 기준값이에요. <b>🤔 왜 정상도 4개가 넘어가?</b> "valid 오차의 99%"를 기준으로 잡으면 정의상 정상의 약 1%(400개 중 4개)는 기준을 넘어요. 기준을 높이면 놓치는 이상이, 낮추면 헛경보가 늘어요 → 몇 %로 할지는 업무가 정하고, 넘은 것은 "확정"이 아니라 "점검 후보"예요. (여기 이상 샘플은 일부러 티 나게 만든 거라 실제보다 깔끔하게 갈려요.)</figcaption></figure>
+      <div class="callout warn">⚠️ 예측 MSE와 재구성 오차는 정답도 단위도 달라요. <b>평균 내거나 한 표에서 순위 매기지 말고</b> 목적별로 표를 따로 만드세요.</div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Autoencoder forward와 재구성 오차 <a href="../commands.html#d12-autoencoder-forward와-재구성-오차">명령어 사전에서 자세히 →</a></div>
+<pre><code>loss = nn.MSELoss()(recon, x)              # 정답 자리에 x 자신! (Batch 평균, 학습용)
+score = ((recon - x) ** 2).mean(dim=1)     # 샘플별 오류 [B] (점검용)</code></pre>
+      </div>
+      <div class="figs">
+        <figure><img class="smooth" src="img/day12/ae_latent.png" alt="2칸 Latent z 평면에 정상 샘플이 위상 색깔 순서대로 고리 모양으로 놓이고 이상 샘플은 흩어진 산점도"><figcaption><b>무엇을 보나:</b> 학습된 Encoder(<code>model[:4]</code>)로 뽑은 z 2칸을 좌표로 찍었어요. 정상 점들의 색(사인파 위상)이 <b>무지개처럼 순서대로</b> 고리를 이뤄요. 빨간 ✕(이상)는 고리 안쪽·바깥 등 아무 데나 흩어져요. <b>🤔 왜 고리야?</b> 정상 데이터는 사실 "진폭·위상" 두 가지만 달라요. Autoencoder가 아무도 안 알려 줬는데 이 두 성질을 2칸에 펼쳐 담은 거예요. 다만 z[0]·z[1] 각각이 무슨 뜻인지는 정해져 있지 않아서 이렇게 그려 보며 해석해야 해요.</figcaption></figure>
+        <figure><img class="smooth" src="img/day12/latent_size.png" alt="Latent 크기 1, 2, 4, 8에 따른 valid 재구성 MSE 막대. 1에서 0.032, 2부터 0.002 이하"><figcaption><b>무엇을 보나:</b> 가운데 칸 수만 1·2·4·8로 바꿔 학습한 valid 재구성 오차예요(앞뒤 층 16칸, 같은 데이터·epoch, seed 3개 중 최솟값). 1칸이면 0.032로 크고, 2칸부터 0.002 이하로 뚝 떨어져요. <b>🤔 왜 2에서 꺾여?</b> 이 데이터의 본질이 "진폭·위상" 두 숫자라서 2칸이면 거의 다 담겨요. 그보다 줄이면 필요한 정보를 잃고(Underfitting), 늘려도 얻는 게 적고 복사에 가까워져요. 실전에선 이렇게 크기를 바꿔 가며 "꺾이는 지점"을 찾아요.</figcaption></figure>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 샘플별 오차 <code>reduction="none"</code> <a href="../commands.html#d12-reduction-none">명령어 사전에서 자세히 →</a></div>
+<pre><code>loss_fn = nn.MSELoss(reduction="none")
+error = loss_fn(recon, x).mean(dim=1)      # [B, F] → [B]  샘플마다 점수 1개</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 입력 = 정답 Batch · Denoising · 기준값 <a href="../commands.html#d12-입력-정답-batch-denoising-기준값">명령어 사전에서 자세히 →</a></div>
+<pre><code>loader = DataLoader(TensorDataset(x_train), batch_size=32, shuffle=True)
+threshold = torch.quantile(valid_err, 0.99)    # 예시 규칙 — 몇 %로 할지는 업무 기준으로 정함</code></pre>
+      </div>
+
+      <!-- ============================================================ -->
       <h2 id="compare">⑥ 아키텍처 비교 — 목표·길이·자원에 맞게 고르기</h2>
       <p>점수 하나가 아니라 <b>입력 구조와 학습 비용</b>을 함께 비교해요.</p>
       <table>
@@ -425,7 +431,7 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)</code></p
         <tr><td>Shape</td><td>output [B,T,H], h_n [L·D,B,H]</td><td>[B,8] → [B,2] → [B,8]</td><td>[B,T,E] → [B,T,E] → Pooling [B,E]</td></tr>
         <tr><td>대표 지표</td><td>Accuracy·MSE</td><td>Reconstruction error</td><td>Accuracy·AUC·MSE</td></tr>
       </table>
-      <figure><img class="smooth" src="img/day12/params_compare.png" alt="RNN 321개, LSTM 1,233개, Autoencoder 98개, Transformer 1층 FFN 32는 3,298개, FFN 기본 2048은 69,826개인 파라미터 수 막대그래프"><figcaption><b>무엇을 보나:</b> 이 페이지 코드의 모델들을 실제로 만들어 <code>sum(p.numel())</code>로 센 크기예요(세로 로그 눈금, 한 칸 = 10배). LSTM(1,233)은 같은 hidden 16인 RNN(321)의 약 4배, Transformer는 <code>dim_feedforward=32</code>면 3,298개인데 기본값 2048을 그대로 두면 <b>69,826개</b>로 20배 넘게 커져요. <b>🤔 왜 이런 차이가?</b> LSTM은 Gate 3개 + 후보 1개로 가중치가 네 벌이고, Transformer의 FFN은 <code>d_model × dim_feedforward × 2</code>라 중간 크기에 정비례해요. 점수가 비슷하다면 작은 쪽이 빠르고 과적합도 덜하니, 비교표에 Params를 꼭 같이 적는 이유예요.</figcaption></figure>
+      <figure><img class="smooth" src="img/day12/params_compare.png" alt="RNN 321개, LSTM 1,233개, Autoencoder 98개, Transformer 1층 FFN 32는 3,298개, FFN 기본 2048은 69,826개인 파라미터 수 막대그래프"><figcaption><b>무엇을 보나:</b> 이 페이지 예시 모델들을 실제로 만들어 <code>sum(p.numel())</code>로 센 크기예요(세로 로그 눈금, 한 칸 = 10배). LSTM(1,233)은 같은 hidden 16인 RNN(321)의 약 4배, Transformer는 <code>dim_feedforward=32</code>면 3,298개인데 기본값 2048을 그대로 두면 <b>69,826개</b>로 20배 넘게 커져요. <b>🤔 왜 이런 차이가?</b> LSTM은 Gate 3개 + 후보 1개로 가중치가 네 벌이고, Transformer의 FFN은 <code>d_model × dim_feedforward × 2</code>라 중간 크기에 정비례해요. 점수가 비슷하다면 작은 쪽이 빠르고 과적합도 덜하니, 비교표에 Params를 꼭 같이 적는 이유예요.</figcaption></figure>
       <table>
         <tr><th>비교 규칙</th><th>🤔 왜?</th></tr>
         <tr><td>같은 train·valid·test·Window·Feature·Target 사용</td><td>데이터가 다르면 점수 차이가 모델 때문인지 데이터 때문인지 알 수 없어요</td></tr>
@@ -435,6 +441,7 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)</code></p
       </table>
       <div class="callout warn">⚠️ <strong>자주 하는 실수</strong> — BTF와 TBF 축 순서 혼동 · Padding을 마지막 상태·평균 Pooling에 포함 · 시점별 예측에서 허용하지 않은 미래 관측 참조 · 목표가 다른 지표·분할을 한 표에서 직접 순위화 · h_n과 c_n을 하나로 취급 · 양방향 출력의 두 방향을 어떻게 합쳤는지 설명 안 함.</div>
 
+
       <!-- ============================================================ -->
       <h2 id="speed">⑦ 길이 T · Padding · 속도 측정</h2>
       <table>
@@ -443,7 +450,7 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)</code></p
         <tr><td>Attention 점수 T²</td><td>256</td><td>1,024</td><td>4,096</td><td>16,384</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 길어지면 Transformer가 더 무거워져?</strong> — 모든 위치 쌍을 비교하니까 길이 T면 T×T번 비교하고, 그 점수 표를 메모리에 들고 있어야 해요. 길이 2배 → 순차 단계는 2배, Attention 점수는 <b>4배</b>. 다만 RNN은 단계를 나눠 돌릴 수 없고 Attention은 한꺼번에 계산하니, 실제 시간은 장치·Batch·오버헤드에 따라 달라져요 — <b>직접 재 봐야</b> 해요. Transformer가 항상 빠르거나 RNN이 항상 가벼운 건 아니에요.</div>
-      <figure><img class="smooth" src="img/day12/length_cost.png" alt="왼쪽은 길이 T에 따른 순차 단계 T와 Attention 점수 칸 T제곱의 로그 그래프, 오른쪽은 CPU에서 실측한 LSTM과 Transformer 순전파 시간"><figcaption><b>무엇을 보나:</b> 왼쪽은 계산량 "개수"예요. 두 선 모두 로그-로그라 직선인데, 보라(T²)가 주황(T)보다 <b>두 배 가파르게</b> 올라가요(T=512면 26만 칸). 오른쪽은 이 노트북 CPU에서 <code>nn.LSTM</code>과 <code>TransformerEncoder</code> 1층(B=32, E=16)을 실제로 잰 순전파 시간이에요. T=128 근처까지는 둘 다 1ms 아래에서 측정 잡음 속에 비슷하다가, 512에서는 Transformer가 약 10ms로 LSTM(약 2.3ms)의 4배쯤이 돼요. <b>🤔 왜 짧을 땐 비슷해?</b> 짧은 길이에선 T² 표가 작아서 계산보다 함수 호출 같은 고정 비용이 시간을 차지해요. 길어질수록 T² 항이 고정 비용을 압도하면서 차이가 벌어져요. 숫자는 장치·버전마다 달라요 → 직접 재 봐야 하는 이유.</figcaption></figure>
+      <figure><img class="smooth" src="img/day12/length_cost.png" alt="왼쪽은 길이 T에 따른 순차 단계 T와 Attention 점수 칸 T제곱의 로그 그래프, 오른쪽은 CPU에서 실측한 LSTM과 Transformer 순전파 시간"><figcaption><b>무엇을 보나:</b> 왼쪽은 계산량 "개수"예요. 두 선 모두 로그-로그라 직선인데, 보라(T²)가 주황(T)보다 <b>두 배 가파르게</b> 올라가요(T=512면 26만 칸). 오른쪽은 노트북 CPU에서 <code>nn.LSTM</code>과 <code>TransformerEncoder</code> 1층(B=32, E=16)을 실제로 잰 순전파 시간이에요. T=128 근처까지는 둘 다 1ms 아래에서 측정 잡음 속에 비슷하다가, 512에서는 Transformer가 약 10ms로 LSTM(약 2.3ms)의 4배쯤이 돼요. <b>🤔 왜 짧을 땐 비슷해?</b> 짧은 길이에선 T² 표가 작아서 계산보다 함수 호출 같은 고정 비용이 시간을 차지해요. 길어질수록 T² 항이 고정 비용을 압도하면서 차이가 벌어져요. 숫자는 장치·버전마다 달라요 → 직접 재 봐야 하는 이유.</figcaption></figure>
       <div class="callout">🤔 <strong>왜 Padding 비율이 높으면 손해야?</strong> — 실제 정보가 없는 칸에도 연산과 메모리를 써요. 길이가 비슷한 것끼리 묶는 Bucket, PackedSequence, Nested Tensor가 상황에 따라 이 낭비를 줄여 줘요.</div>
 
       <div class="cmdref">
@@ -452,6 +459,59 @@ z = self.encoder(x + self.pos(pos), src_key_padding_mask=padding_mask)</code></p
 seconds = time.perf_counter() - start</code></pre>
       </div>
 
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-shape">모델별 입력 · 출력 shape (<code>batch_first=True</code>)</h3>
+      <table>
+        <tr><th>모델 · 층</th><th>입력</th><th>출력</th><th>메모</th></tr>
+        <tr><td><code>nn.RNN(F, H)</code></td><td><code>[B, T, F]</code></td><td><code>output [B, T, D·H]</code>, <code>h_n [L·D, B, H]</code></td><td><code>h_n</code>은 <code>batch_first</code>와 상관없이 층·방향이 맨 앞</td></tr>
+        <tr><td><code>nn.LSTM(F, H)</code></td><td><code>[B, T, F]</code></td><td><code>output</code>, <code>(h_n, c_n)</code></td><td>h_n · c_n은 같은 모양, 다른 뜻 (꺼낸 메모 / 보관 기억)</td></tr>
+        <tr><td>다음 값 예측 Window</td><td><code>[N, 12, 1]</code></td><td><code>[N, 1]</code></td><td><code>unfold(0, 13, 1)</code> = 과거 12 + 정답 1</td></tr>
+        <tr><td><code>nn.MultiheadAttention(E, heads)</code></td><td>Q · K · V <code>[B, T, E]</code></td><td><code>output [B, T, E]</code>, <code>weights [B, T, T]</code></td><td>weights 한 행의 합 = 1</td></tr>
+        <tr><td><code>nn.TransformerEncoder</code></td><td><code>[B, T, E]</code></td><td><code>[B, T, E]</code></td><td>입출력 크기가 같아 층을 쌓을 수 있음 → Pooling <code>[B, E]</code></td></tr>
+        <tr><td>Autoencoder (8-4-2-4-8)</td><td><code>[B, 8]</code></td><td>z <code>[B, 2]</code> → x̂ <code>[B, 8]</code></td><td>정답 = 입력 자신</td></tr>
+        <tr><td><code>MSELoss(reduction="none")</code> → <code>mean(dim=1)</code></td><td><code>[B, F]</code></td><td><code>[B]</code></td><td>샘플마다 재구성 오차 1개</td></tr>
+      </table>
+      <h3 id="spec-mask">Mask 약속</h3>
+      <table>
+        <tr><th>Mask</th><th>shape</th><th>True의 뜻</th><th>막는 것</th></tr>
+        <tr><td>Padding Mask (<code>key_padding_mask</code> · <code>src_key_padding_mask</code>)</td><td><code>[B, T]</code></td><td>채운 칸 → 무시</td><td>그 위치를 <b>Key로</b> 보는 것 (열). 그 위치의 출력은 남으므로 Pooling에서 다시 뺌</td></tr>
+        <tr><td>Causal Mask (<code>attn_mask</code>, bool)</td><td><code>[T, T]</code></td><td>볼 수 없음</td><td>미래 위치 쌍 (대각선 위 삼각형)</td></tr>
+        <tr><td><code>lengths</code> (<code>pack_padded_sequence</code>)</td><td><code>[B]</code></td><td>—</td><td>RNN · LSTM이 실제 길이 뒤의 Padding을 건너뜀 → <code>h_n</code> = 실제 마지막 시점</td></tr>
+      </table>
+      <h3 id="spec-cost">길이 T에 따른 비용</h3>
+      <table>
+        <tr><th></th><th>RNN · LSTM</th><th>Attention</th></tr>
+        <tr><td>계산 단계</td><td>순차 T단계 (병렬 불가)</td><td>한 번에 (병렬)</td></tr>
+        <tr><td>점수 칸 수</td><td>—</td><td>T² (T=128이면 16,384)</td></tr>
+        <tr><td>길이 2배</td><td>2배</td><td>점수 칸 4배</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>torch</code></td><td>RNN·LSTM·Transformer 층, Padding 도구, 손실 함수, DataLoader 전부 (<a href="day09.html#packages">PyTorch 기초</a>에서 설치)</td><td><code>import torch</code>, <code>from torch import nn</code>, <code>from torch.nn.utils.rnn import pad_sequence</code></td></tr>
+        <tr><td><code>matplotlib</code> <small>(선택)</small></td><td>loss 곡선, 예측 vs 실제, Mask·Latent 그림</td><td><code>import matplotlib.pyplot as plt</code></td></tr>
+      </table>
+      <h3>🔧 확인</h3>
+<pre><code>python -c "import torch; print(torch.__version__); print('CUDA:', torch.cuda.is_available())"</code></pre>
+      <div class="callout">💡 순서 모델 도구(<code>nn.RNN</code>, <code>nn.LSTM</code>, <code>nn.MultiheadAttention</code>, <code>pad_sequence</code> …)는 전부 <code>torch</code> 안에 들어 있어서 따로 설치할 게 없어요. 정상 설치된 환경은 그대로 두고, 기본 학습은 CPU로, GPU 비교는 GPU가 있을 때만 해요.</div>
+      <div class="callout">🤔 <strong>왜 설치 버전을 기록해?</strong> — 시간·메모리 측정값과 일부 기본 동작은 PyTorch 버전·장치에 따라 달라져요. 나중에 결과를 다시 만들거나 남과 비교하려면 "어떤 환경에서 잰 숫자인지"가 같이 있어야 해요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day12">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day11.html">CNN · 이미지 분류 · 전이학습</a></td><td>위치마다 같은 Kernel(가중치 공유) — 시점마다 같은 가중치와 같은 생각</td></tr>
+        <tr><td><a href="day20.html">LLM 원리 — Token · Embedding · Attention</a></td><td>Self-Attention · Position · Mask를 토큰 · 언어 모델로 넓히기</td></tr>
+        <tr><td><a href="day13.html">OpenCV 이미지 · 영상 전처리</a></td><td>영상 = 프레임의 순서 — 프레임을 읽고 처리하는 법</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
       <h2>원본 자료</h2>
       <ul>
         <li>강의: <code>20261102_2.pdf</code> (Day12 딥러닝 핵심 아키텍처 및 학습, 104쪽) · 요약: <code>Day12_개념지도.pdf</code></li>

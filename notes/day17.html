@@ -22,63 +22,377 @@
         <strong>📌 딱 3줄 요약</strong>
         <ol>
           <li><b>FastAPI</b>는 "이 주소로 이런 요청이 오면 이 함수를 실행해"를 연결해 주는 도구예요. RAG·Agent를 사람들이 쓰는 <b>서비스</b>로 만들 때 입구가 돼요.</li>
-          <li>오늘은 AI가 나중에 쓸 <b>지식의 원본</b>을 등록·조회·수정·삭제(<b>CRUD</b>)하고 <b>JSON 파일</b>에 저장하는 API를 만들어요.</li>
+          <li>대표 예시는 AI가 나중에 참고할 <b>지식의 원본</b>을 등록·조회·수정·삭제(<b>CRUD</b>)하고 <b>JSON 파일</b>에 저장하는 <b>지식 관리 API</b>예요.</li>
           <li>응답 한 번으로 끝내지 않고 <b>상태 코드</b>(200·201·204·404·422)와 <b>실제 파일</b>, <b>재시작 후 값</b>까지 확인해야 완성이에요.</li>
         </ol>
       </div>
 
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Day17 명령어 한눈에 — 이론 구역별 명령어·인자 설명 <a href="../commands.html#day17">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요.</p>
-      </div>
-
       <!-- ============================================================ -->
-      <h2 id="packages">📦 필요한 패키지</h2>
+      <h2 id="map">🗺️ 큰 그림 — 요청 하나가 지식 파일에 닿기까지</h2>
+      <figure id="fig-platform"><img class="smooth" src="img/day17/platform_map.png" alt="사용자 화면 아래 FastAPI가 있고, 그 아래 지식 관리 API, RAG, AI Agent 세 칸과 각각의 저장소가 있는 그림"><figcaption><b>무엇을 보나:</b> 맨 위 사용자 화면의 요청은 모두 <b>FastAPI</b>라는 입구를 지나요. 그 아래 세 갈래 중 <b>초록 실선</b>(지식 관리 API + JSON 파일)이 이 페이지에서 다루는 부분이고, 회색 점선(RAG, Agent)은 그 위에 나중에 붙는 계층이에요. <b>🤔 왜 이 순서?</b> RAG는 지식을 <b>검색</b>하고 Agent는 그걸 <b>도구로 불러</b> 쓰는데, 둘 다 원본이 정리돼 있어야 시작할 수 있어요. 원본이 낡으면 검색도 답변도 같이 흔들려요.</figcaption></figure>
+      <p>요청 하나는 아래 순서로 처리되고, 이 페이지의 ①~⑪도 이 흐름을 따라가요.</p>
       <table>
-        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
-        <tr><td><code>fastapi</code></td><td>주소(Route)와 함수를 연결하고, 입력 검증·자동 문서(<code>/docs</code>)를 만들어 줌</td><td><code>from fastapi import FastAPI, HTTPException, Response</code></td></tr>
-        <tr><td><code>uvicorn</code></td><td>실제로 네트워크 요청을 받아 FastAPI 앱에 넘겨주는 <b>서버 프로그램</b></td><td>직접 import 안 함 — <code>python -m uvicorn main:app</code>으로 실행</td></tr>
-        <tr><td><code>pydantic</code></td><td>입력·응답 데이터의 모양 검사 (fastapi를 깔면 같이 설치됨)</td><td><code>from pydantic import BaseModel, Field</code></td></tr>
-        <tr><td><code>json</code>, <code>pathlib</code>, <code>threading</code></td><td>파일 읽기/쓰기, 파일 경로, 잠금 — <b>파이썬 기본 내장</b>이라 설치 안 함</td><td><code>import json</code>, <code>from pathlib import Path</code>, <code>from threading import Lock</code></td></tr>
-        <tr><td><code>jinja2</code> (선택)</td><td>JSON 대신 HTML 화면을 만들 때 쓰는 템플릿 엔진</td><td><code>from fastapi.templating import Jinja2Templates</code></td></tr>
-        <tr><td><code>pytest</code>, <code>httpx</code> (선택)</td><td>자동 테스트. <code>TestClient</code>가 내부에서 httpx를 씀</td><td><code>from fastapi.testclient import TestClient</code></td></tr>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#first">① 입구</a></td><td>FastAPI 앱 · Uvicorn 서버 · <code>/docs</code></td><td>요청을 누가 받아 어느 함수로 넘기나?</td></tr>
+        <tr><td><a href="#http">② 요청 · 응답</a></td><td>Method · Path · Query · Body · Status</td><td>무엇을 어떤 모양으로 주고받나?</td></tr>
+        <tr><td><a href="#storage">③ 저장소</a></td><td>JSON 파일 · 임시 파일 교체 · Lock</td><td>껐다 켜도, 동시에 와도 데이터가 안전한가?</td></tr>
+        <tr><td><a href="#read">④ 조회</a></td><td>GET 목록 · 상세 · Query 조건</td><td>없는 건 404인가, 빈 배열인가?</td></tr>
+        <tr><td><a href="#create">⑤ 등록 · 검증</a></td><td>POST · Pydantic · 422 · <code>next_id</code></td><td>잘못된 입력이 저장 전에 막히나? 새 ID는 누가 정하나?</td></tr>
+        <tr><td><a href="#update">⑥ 수정</a></td><td>PUT 전체 교체</td><td>ID · 항목 수를 지키며 그 자리만 바꾸나?</td></tr>
+        <tr><td><a href="#delete">⑦ 삭제 · 상태 코드</a></td><td>DELETE 204 · 상태 코드 정리</td><td>실패가 실패로 드러나나?</td></tr>
+        <tr><td><a href="#restart">⑧ 끝까지 확인</a></td><td>추적 시나리오 · 재시작</td><td>응답만이 아니라 파일에 진짜 남았나?</td></tr>
+        <tr><td><a href="#structure">⑨ 구조</a></td><td>main · Router · Repository · schemas</td><td>저장 방식을 바꿔도 URL은 그대로인가?</td></tr>
+        <tr><td><a href="#beyond">⑩ 한계 · 확장</a></td><td>파일 → DB · Agent 연결</td><td>파일로는 부족한 게 무엇이고, Agent는 이 API를 어떻게 쓰나?</td></tr>
+        <tr><td><a href="#trouble">⑪ 문제 진단</a></td><td>증상 → 가장 가까운 원인</td><td>어느 층에서 막혔나?</td></tr>
       </table>
-      <h3>🔧 설치 · 확인 (PowerShell)</h3>
-<pre><code>python --version                                   # 3.10 이상인지
-python -m venv .venv                               # 프로젝트 전용 가상환경 만들기
-.\.venv\Scripts\Activate.ps1                       # 가상환경 켜기
-python -m pip install fastapi uvicorn
-python -c "import sys; print(sys.executable)"      # 지금 쓰는 python이 .venv 안의 것인지
-python -m pip show fastapi pydantic uvicorn        # 설치된 버전 확인</code></pre>
-      <div class="callout">💡 <b>활성화(Activate.ps1)가 보안 정책 때문에 막힐 때</b>는 정책을 억지로 바꾸지 말고, 가상환경의 python을 <b>경로로 직접</b> 부르면 돼요. 활성화는 "python이라고만 쳐도 .venv 것을 쓰게 해 주는" 편의 기능일 뿐이에요.</div>
-<pre><code>.\.venv\Scripts\python.exe -m pip install fastapi uvicorn
-.\.venv\Scripts\python.exe -m uvicorn main:app --reload
-Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요청 확인</code></pre>
-      <div class="callout">🤔 <strong>왜 <code>pip</code> 대신 <code>python -m pip</code>?</strong> — PC에 파이썬이 여러 개 있으면 <code>pip</code>가 엉뚱한 파이썬에 설치할 수 있어요. <code>python -m pip</code>은 "<b>지금 이 python</b>에 설치해"라는 뜻이라 설치한 곳과 실행하는 곳이 어긋나지 않아요. <code>python -m uvicorn</code>도 같은 이유예요.</div>
+<pre><code>클라이언트 (브라우저 · /docs · 다른 프로그램)
+  └ Uvicorn: 네트워크에서 요청 받기
+       └ FastAPI: Route 찾기 → 입력 검증(Pydantic) → 함수 호출 → 응답(JSON + 상태 코드)
+            └ 저장 코드: with LOCK → 읽기 · 변경 · 임시 파일에 쓰고 replace
+                 └ data/knowledge.json</code></pre>
 
       <!-- ============================================================ -->
-      <h2>이거 어디에 써?</h2>
-      <p>새로 온 직원이 "우리 팀 개발환경은 어디서 확인해요?"라고 물으면, 나중에는 <b>AI Agent</b>가 대답해 줄 거예요. 그런데 Agent가 답하려면 <b>근거가 되는 안내문</b>이 어딘가에 정리돼 있어야 해요. 오늘은 그 <b>안내문(지식)의 원본</b>을 넣고·찾고·고치고·지우는 API를 만들어요.</p>
+      <h2 id="first">① API와 FastAPI — 서비스의 입구</h2>
+      <p><b>API</b>(Application Programming Interface)는 프로그램끼리 주고받는 <b>약속된 창구</b>예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.</p>
+      <h3 id="role">어디에 쓰나 — 지식 관리 API · RAG · Agent</h3>
+      <p>새로 온 직원이 "우리 팀 개발환경은 어디서 확인해요?"라고 물으면, 나중에는 <b>AI Agent</b>가 대답해 줄 거예요. 그런데 Agent가 답하려면 <b>근거가 되는 안내문</b>이 어딘가에 정리돼 있어야 해요. 지식 관리 API는 그 <b>안내문(지식)의 원본</b>을 넣고·찾고·고치고·지우는 일을 맡아요.</p>
       <div class="usecases">
         <div class="usecase"><div class="emoji">🧑‍💼</div><strong>사내 온보딩</strong><span>"가상환경 사용 안내" 같은 문서를 등록·수정</span></div>
         <div class="usecase"><div class="emoji">❓</div><strong>FAQ 관리</strong><span>자주 묻는 질문 답변을 분류별로 조회</span></div>
         <div class="usecase"><div class="emoji">🔎</div><strong>RAG의 재료</strong><span>검색·답변 생성이 읽어 갈 원본 저장소</span></div>
         <div class="usecase"><div class="emoji">🤖</div><strong>Agent 도구</strong><span>Agent가 "지식 조회"를 부를 때 실제로 찾는 곳</span></div>
       </div>
-      <figure id="fig-platform"><img class="smooth" src="img/day17/platform_map.png" alt="사용자 화면 아래 FastAPI가 있고, 그 아래 지식 관리 API(오늘), RAG(이후), AI Agent(이후) 세 칸과 각각의 저장소가 있는 그림"><figcaption><b>무엇을 보나:</b> 맨 위 사용자 화면의 요청은 모두 <b>FastAPI</b>라는 입구를 지나요. 그 아래 세 갈래 중 <b>초록 실선</b>(지식 관리 API + JSON 파일)만 오늘 만들고, 회색 점선(RAG, Agent)은 이후 수업에서 붙여요. <b>🤔 왜 이 순서?</b> RAG는 지식을 <b>검색</b>하고 Agent는 그걸 <b>도구로 불러</b> 쓰는데, 둘 다 원본이 정리돼 있어야 시작할 수 있어요. 원본이 낡으면 검색도 답변도 같이 흔들려요.</figcaption></figure>
       <table>
-        <tr><th></th><th>지식 관리 API (오늘)</th><th>RAG (다음 단계)</th><th>AI Agent (이후)</th></tr>
+        <tr><th></th><th>지식 관리 API</th><th>RAG</th><th>AI Agent</th></tr>
         <tr><td>답하는 질문</td><td>"안내문을 어떻게 유지하지?"</td><td>"관련 근거가 어디 있지?"</td><td>"이 작업엔 어떤 도구가 필요하지?"</td></tr>
         <tr><td>하는 일</td><td>등록·조회·수정·삭제, 저장 상태 확인</td><td>문서 검색 → 문맥 제공 → 답변·출처</td><td>도구 선택·호출 제안 → 실행 결과 점검</td></tr>
         <tr><td>AI 모델 필요?</td><td>❌ 없어도 동작</td><td>✅ 임베딩·LLM</td><td>✅ LLM</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 셋을 따로 나눠?</strong> — 같은 서비스로 이어 붙일 수는 있지만 <b>책임</b>이 달라요. 원본 저장은 "정확히 남기기", 검색은 "잘 찾기", Agent는 "무슨 도구를 쓸지 판단하기"예요. 한 덩어리로 섞으면 검색 방식을 바꿀 때 저장 코드까지 건드리게 돼요.</div>
-      <div class="callout warn">⚠️ <b>FastAPI ≠ AI 모델 ≠ Agent.</b> 오늘 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 나중에 만들 <b>검색 인덱스는 자동으로 바뀌지 않아요</b>(따로 다시 만들어야 해요).</div>
+      <div class="callout warn">⚠️ <b>FastAPI ≠ AI 모델 ≠ Agent.</b> 지식 관리 API 코드에는 PDF·임베딩·LLM 호출이 하나도 없어요. 그리고 원본을 PUT·DELETE 해도 검색용 <b>인덱스는 자동으로 바뀌지 않아요</b>(따로 다시 만들어야 해요).</div>
 
+      <h3 id="run">첫 서버 띄우기 — <code>main.py</code> · <code>uvicorn</code> · <code>/docs</code></h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>main.py</code> — 첫 JSON 응답 <a href="../commands.html#d17-main-py">명령어 사전에서 자세히 →</a></div>
+<pre><code>app = FastAPI(title="Knowledge API")       # 앱 객체 만들기
+@app.get("/health")                        # GET /health 요청이 오면</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 서버 실행 <a href="../commands.html#d17-서버-실행">명령어 사전에서 자세히 →</a></div>
+<pre><code>python -m uvicorn main:app --reload
+http://127.0.0.1:8000/health      → {"status":"ok"}</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>/docs</code> — 자동 문서에서 요청 보내기 <a href="../commands.html#d17-docs">명령어 사전에서 자세히 →</a></div>
+      </div>
 
       <!-- ============================================================ -->
-      <h2 id="spec">📋 명세 — 지식 관리 API (JSON 파일 버전)</h2>
-      <p>오늘 만든 API의 약속을 한곳에 모았어요. Day19에서 저장소를 PostgreSQL로 바꿔도 <b>1·2·4번(바깥 약속)은 그대로</b>예요.</p>
+      <h2 id="http">② HTTP 요청과 응답</h2>
+      <p><b>HTTP</b>는 브라우저·프로그램이 서버와 대화하는 규칙이에요. 대화는 항상 <b>요청 1개 ↔ 응답 1개</b>가 한 쌍이에요.</p>
+      <figure id="fig-url"><img class="smooth" src="img/day17/url_anatomy.png" alt="http://127.0.0.1:8000/api/knowledge/2?category=api 를 통신 방식, 내 컴퓨터, 포트, 자원 경로, Path 값, Query로 나눠 색칠한 그림"><figcaption><b>무엇을 보나:</b> URL 하나를 색깔별로 잘랐어요. <code>127.0.0.1:8000</code>까지가 "<b>어느 서버</b>", <code>/api/knowledge</code>가 "<b>무슨 자원</b>", <code>/2</code>가 "<b>그중 어느 것</b>(Path 값)", <code>?category=api</code>가 "<b>어떤 조건으로</b>(Query)"예요. <b>🤔 왜 둘을 나눠?</b> Path는 대상을 콕 집을 때(2번 지식), Query는 목록을 걸러낼 때(분류가 api인 것만) 써요. 빠지면 안 되는 건 Path, 있어도 없어도 되는 건 Query가 자연스러워요.</figcaption></figure>
+      <table>
+        <tr><th>이름</th><th>예시</th><th>역할</th></tr>
+        <tr><td><b>Method</b></td><td><code>GET</code> · <code>POST</code> · <code>PUT</code> · <code>DELETE</code></td><td>무엇을 하려는지 (요청의 의도)</td></tr>
+        <tr><td><b>Path</b></td><td><code>/api/knowledge/4</code></td><td>어떤 자원의 어느 것인지</td></tr>
+        <tr><td><b>Query</b></td><td><code>?category=api</code></td><td>목록을 거를 선택 조건</td></tr>
+        <tr><td><b>Header</b></td><td><code>Content-Type: application/json</code></td><td>본문 형식 같은 부가 정보</td></tr>
+        <tr><td><b>Body</b></td><td><code>{"title": "실습 환경 안내", ...}</code></td><td>새로 만들거나 고칠 데이터 (GET엔 보통 없음)</td></tr>
+        <tr><td><b>Status</b></td><td><code>200</code> · <code>201</code> · <code>204</code> · <code>404</code> · <code>422</code></td><td>처리 결과를 숫자로</td></tr>
+        <tr><td><b>Response body</b></td><td>지식 JSON / 오류 <code>detail</code> / 없음</td><td>클라이언트가 받는 내용</td></tr>
+      </table>
+<pre><code># 요청                                   # 응답
+GET /api/knowledge/2                     Status: 200
+Host: 127.0.0.1:8000                     Content-Type: application/json
+(Body 없음)                              {"id": 2, "title": "서버 실행",
+                                          "category": "api",
+                                          "content": "uvicorn으로 개발 서버를 켠다."}</code></pre>
+      <figure id="fig-flow"><img class="smooth" src="img/day17/request_flow.png" alt="클라이언트, Uvicorn, Route, 타입 검증, 처리 함수, storage.py 여섯 칸을 지나 200, 404, 422로 갈라지는 흐름도"><figcaption><b>무엇을 보나:</b> <code>GET /api/knowledge/2</code> 한 건이 ①→⑥을 차례로 지나요. 같은 경로라도 <b>어디서 멈추느냐</b>에 따라 결과가 갈라져요 — <code>foo</code>는 ④ 타입 검증에서 정수로 못 바꿔 <b>422</b>(함수는 아예 실행 안 됨), <code>9999</code>는 ⑤ 함수가 끝까지 못 찾아 <b>404</b>, <code>2</code>는 ⑥에서 찾아 <b>200</b>. <b>🤔 왜 알아야 해?</b> 상태 코드만 보고 "어느 단계에서 막혔는지"를 바로 알 수 있어서, 오류가 나면 고칠 곳을 좁힐 수 있어요.</figcaption></figure>
+      <div class="callout">🤔 <strong>왜 URL을 직접 쪼개서 해석하지 않아?</strong> — FastAPI가 Route(Method+Path 대조) → 타입 검증 → 함수 → 응답을 <b>순서대로 연결</b>해 줘요. 우리는 "<code>knowledge_id: int</code>"라고 <b>약속만</b> 적으면, 문자열 "2"를 정수 2로 바꾸고 안 되면 422를 돌려주는 일까지 자동이에요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="storage">③ JSON 파일 저장소</h2>
+      <p>이 API의 저장소는 데이터베이스가 아니라 <b>JSON 파일 하나</b>예요. 서버를 껐다 켜도 지식이 남아 있게 하려면 메모리(변수)가 아니라 <b>파일</b>에 써야 해요.</p>
+<pre><code>// data/knowledge.json
+{
+  "next_id": 4,
+  "entries": [
+    {"id": 1, "title": "가상환경", "category": "setup", "content": "프로젝트별 패키지를 분리한다."},
+    {"id": 2, "title": "서버 실행", "category": "api",   "content": "uvicorn으로 개발 서버를 켠다."},
+    {"id": 3, "title": "입력 오류", "category": "api",   "content": "422이면 입력값을 확인한다."}
+  ]
+}</code></pre>
+      <table>
+        <tr><th>키</th><th>뜻</th></tr>
+        <tr><td><code>entries</code></td><td>지식 항목 목록. 항목 1건 = <code>id</code> + 제목 + 본문 + 분류</td></tr>
+        <tr><td><code>id</code></td><td><b>서버가</b> 발급하는 번호. 사용자가 정하지 않아요</td></tr>
+        <tr><td><code>next_id</code></td><td>다음에 줄 번호. 파일 안에만 두고, API 응답에는 내보내지 않아요</td></tr>
+      </table>
+      <div class="callout warn">⚠️ JSON 문자열은 <b>큰따옴표</b>만 돼요(<code>'가상환경'</code> ❌). 마지막 항목 뒤 쉼표도 안 돼요. 파일 문법이 깨지면 서버가 읽다가 실패해요.</div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>json.load</code> · <code>json.dump</code> · <code>Path.replace</code> — JSON 파일 읽기 · 안전하게 쓰기 <a href="../commands.html#d17-storage-py">명령어 사전에서 자세히 →</a></div>
+<pre><code>json.dump(data, f, ensure_ascii=False, indent=2)
+temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기</code></pre>
+      </div>
+      <figure id="fig-atomic"><img class="smooth" src="img/day17/atomic_write.png" alt="왼쪽은 원본에 바로 쓰다 중간에 끊겨 반쯤 쓰인 파일, 오른쪽은 임시 파일에 다 쓴 뒤 원본과 바꿔치기하는 그림"><figcaption><b>무엇을 보나:</b> 왼쪽은 <code>knowledge.json</code>을 바로 <code>"w"</code>로 열어 쓰다가 도중에 멈춘 경우예요. <code>"w"</code>로 여는 순간 원본 내용이 지워지니, 반쯤 쓰인 깨진 JSON만 남아요. 오른쪽은 <code>.tmp</code>에 먼저 <b>끝까지</b> 쓰고, 성공했을 때만 <code>replace()</code>로 바꿔치기해요. <b>🤔 왜?</b> 쓰다 실패해도 망가지는 건 임시 파일뿐이라 원본이 살아남아요. 그래서 "저장 실패 = 예전 데이터 그대로"가 보장돼요.</figcaption></figure>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>threading.Lock</code> — 읽기부터 저장까지 한 번에 잠그기 <a href="../commands.html#d17-with-lock">명령어 사전에서 자세히 →</a></div>
+<pre><code>with LOCK:                       # 이 블록은 한 번에 한 요청만
+    data = read_data()           # 1. 읽고</code></pre>
+      </div>
+      <figure id="fig-lock"><img class="smooth" src="img/day17/lock_race.png" alt="동시에 20건을 등록했을 때 Lock 없이는 1건, with LOCK은 20건이 저장된 가로 막대그래프"><figcaption><b>무엇을 보나:</b> 스레드 20개가 동시에 "파일 읽기 → 항목 추가 → 저장"을 했을 때 파일에 남은 항목 수예요(5번 반복한 가운데 값, 읽기와 저장 사이에 0.01초 틈을 일부러 넣어 차이를 크게 보이게 했어요). Lock이 없으면 <b>20건을 보냈는데 1건</b>만 남았어요. <b>🤔 왜?</b> 20개가 모두 "빈 파일"을 거의 동시에 읽고, 각자 1건을 더해 저장했어요. 나중에 저장한 쪽이 앞선 저장을 <b>덮어써서</b> 결국 하나만 남아요. <code>with LOCK:</code>으로 읽기~저장을 묶으면 앞 요청이 끝날 때까지 다음 요청이 기다리니 20건이 다 남아요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="read">④ 조회 (GET) — 목록·상세·조건</h2>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>@app.get</code> — 목록 조회 <a href="../commands.html#d17-목록-조회">명령어 사전에서 자세히 →</a></div>
+<pre><code>@app.get("/api/knowledge")
+    return data["entries"]          # list를 돌려주면 JSON 배열</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Path 매개변수 · <code>HTTPException</code> — 상세 조회 + 404 <a href="../commands.html#d17-상세-조회-404">명령어 사전에서 자세히 →</a></div>
+<pre><code>@app.get("/api/knowledge/{knowledge_id}")
+    raise HTTPException(404, "Knowledge not found")   # 끝까지 없으면 404</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 Query 매개변수 · <code>Query(max_length=)</code> — 목록 거르기 <a href="../commands.html#d17-query로-목록-거르기">명령어 사전에서 자세히 →</a></div>
+<pre><code>@app.get("/api/knowledge")
+def list_knowledge(category: str | None = None):     # 기본값이 있으면 → Query, 생략 가능</code></pre>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="create">⑤ 등록 (POST) · 입력 검증</h2>
+      <p>새 지식은 URL이 아니라 <b>Body</b>에 담아 보내요. <b>ID는 보내지 않아요</b> — 서버가 정해요.</p>
+<pre><code>POST /api/knowledge
+Content-Type: application/json
+
+{
+  "title": "실습 환경 안내",
+  "content": "Python 3.10 이상을 사용한다.",
+  "category": "setup"
+}</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>BaseModel</code> · <code>Field</code> — 입력 모양 정하기 <a href="../commands.html#d17-pydantic으로-입력-모양-정하기">명령어 사전에서 자세히 →</a></div>
+<pre><code>class KnowledgeWrite(BaseModel):                          # POST·PUT 입력
+    title: str = Field(min_length=1, max_length=80)</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>@app.post(status_code=201, response_model=)</code> — 등록 <a href="../commands.html#d17-등록-함수">명령어 사전에서 자세히 →</a></div>
+<pre><code>@app.post("/api/knowledge", status_code=201, response_model=Knowledge)
+def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite로 검사</code></pre>
+      </div>
+      <figure id="fig-id"><img class="smooth" src="img/day17/id_policy.png" alt="위는 len+1 방식으로 ID 2 삭제 후 새 항목이 3을 받아 충돌, 아래는 next_id 방식으로 4를 받는 그림"><figcaption><b>무엇을 보나:</b> 위 줄은 "목록 길이 + 1"로 번호를 매긴 경우예요. ID 2를 지우면 길이가 2가 되고, 새 항목이 <b>3</b>을 받아 이미 있는 3번과 <b>겹쳐요</b>(빨강). 아래 줄은 <code>next_id</code>를 파일에 따로 적어 두는 방식 — 삭제해도 4는 그대로라 새 항목은 <b>4</b>를 받아요. <b>🤔 왜?</b> ID는 "이 지식의 이름표"라 한 번 쓴 번호는 다시 쓰면 안 돼요. 지워진 2번을 기억하던 다른 프로그램이 새 항목을 옛 지식으로 착각할 수 있어요. 그래서 <code>next_id</code>는 <b>줄이지 않고</b>, entries와 <b>같은 파일</b>에 저장해 재시작해도 이어져요.</figcaption></figure>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 422 — 잘못된 입력은 저장 전에 막힘 <a href="../commands.html#d17-422-잘못된-입력은-저장-전에-막힘">명령어 사전에서 자세히 →</a></div>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="update">⑥ 수정 (PUT)</h2>
+<pre><code>PUT /api/knowledge/4
+Content-Type: application/json
+
+{"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}</code></pre>
+      <p>이 API의 PUT 규칙: <b>세 필드를 모두</b> 보내 내용을 통째로 교체해요. ID·항목 수·<code>next_id</code>는 그대로예요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>@app.put</code> · <code>enumerate</code> — 수정 (전체 교체) <a href="../commands.html#d17-수정-함수">명령어 사전에서 자세히 →</a></div>
+<pre><code>@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
+def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Body 둘 다</code></pre>
+      </div>
+      <figure id="fig-index"><img class="smooth" src="img/day17/index_vs_id.png" alt="id 1, 3, 4 세 항목 아래에 index 0, 1, 2를 적고, entries[4]는 IndexError, entries[1]은 id 3 항목이라는 설명을 붙인 그림"><figcaption><b>무엇을 보나:</b> ID 2를 지운 뒤 목록이에요. 칸 안 숫자는 <b>id</b>(이름표), 아래 주황 숫자는 <b>index</b>(지금 줄 선 순서)예요. <code>entries[4]</code>로 id 4를 찾으면 위치는 0~2뿐이라 오류, <code>entries[1]</code>로 id 1을 찾으면 엉뚱하게 id 3이 나와요. <b>🤔 왜?</b> 처음엔 우연히 id 1이 index 0, id 2가 index 1…처럼 하나씩 밀려 맞아 보이지만, 삭제가 한 번 일어나면 바로 어긋나요. 그래서 <code>data["entries"][knowledge_id]</code>로 찾지 않고, 하나씩 돌며 <code>entry["id"] == knowledge_id</code>로 비교해요.</figcaption></figure>
+
+      <!-- ============================================================ -->
+      <h2 id="delete">⑦ 삭제 (DELETE) · 상태 코드</h2>
+      <p>지우는 건 <code>knowledge.json</code> 파일 전체가 아니라, 그 안에서 <b>ID가 일치하는 항목 하나</b>예요. 나머지 항목과 <code>next_id</code>는 그대로예요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>@app.delete</code> · <code>Response(status_code=204)</code> — 삭제 <a href="../commands.html#d17-삭제-함수">명령어 사전에서 자세히 →</a></div>
+<pre><code>@app.delete("/api/knowledge/{knowledge_id}", status_code=204)
+    return Response(status_code=204)       # 본문 없는 성공</code></pre>
+      </div>
+      <h3 id="status">이 API의 상태 코드</h3>
+      <table>
+        <tr><th>코드</th><th>우리 API의 상황</th><th>다음에 확인할 것</th></tr>
+        <tr><td><code>200</code> OK</td><td>목록·상세 조회 / 정상 수정</td><td>응답 데이터 = 저장된 값?</td></tr>
+        <tr><td><code>201</code> Created</td><td>새 항목 생성</td><td>새 ID가 실제 파일에도?</td></tr>
+        <tr><td><code>204</code> No Content</td><td>삭제 성공</td><td>본문 없음 + 재조회 404</td></tr>
+        <tr><td><code>404</code> Not Found</td><td>없는 경로 / 없는 지식</td><td>Path 오타인지 ID가 없는 건지</td></tr>
+        <tr><td><code>405</code> Method Not Allowed</td><td>경로는 있는데 그 Method는 없음</td><td>GET·POST·PUT·DELETE 중 맞는지</td></tr>
+        <tr><td><code>422</code> Unprocessable</td><td>자료형·필수값·길이 규칙 위반</td><td><code>detail</code>의 <code>loc</code>·<code>msg</code></td></tr>
+        <tr><td><code>500</code> Server Error</td><td>서버 코드·파일 접근 오류</td><td>서버 터미널 로그와 저장 파일</td></tr>
+      </table>
+      <div class="callout">🤔 <strong>왜 숫자가 2xx·4xx·5xx로 나뉘어?</strong> — 첫 자리만 봐도 누구 탓인지 알 수 있어요. <b>2xx</b> 성공, <b>4xx</b> 요청한 쪽이 뭔가 잘못 보냄(주소·입력), <b>5xx</b> 서버가 처리하다 실패. 그래서 404·422를 200으로 숨기면 안 돼요 — 받는 프로그램이 실패를 알아챌 방법이 사라져요.</div>
+      <div class="callout warn">⚠️ <b>실패한 요청은 파일을 바꾸면 안 돼요.</b> 422는 함수 실행 전에 막히니 저장 코드가 안 돌고, 404는 저장 전에 <code>raise</code> 하고, 쓰기 실패 땐 성공 응답을 만들지 않아요. 확인할 때는 실패 요청 <b>전후로</b> 항목 수와 <code>next_id</code>가 같은지 봐요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="lab">🧪 직접 요청 보내 보기</h2>
+      <p>브라우저 안에서 지식 관리 API를 흉내 냈어요(실제 서버는 아니고, 위 코드와 같은 규칙으로 움직여요). Method와 ID, Body를 바꿔 <b>보내기</b>를 누르면 상태 코드·응답·파일 내용이 바뀌어요. 아래 칸은 <code>knowledge.json</code>이에요.</p>
+      <div class="lab" id="crud-lab">
+        <div class="readout">
+          <label>Method
+            <select id="lab-method">
+              <option value="LIST">GET /api/knowledge (목록)</option>
+              <option value="GET" selected>GET /api/knowledge/{id}</option>
+              <option value="POST">POST /api/knowledge</option>
+              <option value="PUT">PUT /api/knowledge/{id}</option>
+              <option value="DELETE">DELETE /api/knowledge/{id}</option>
+            </select>
+          </label>
+          <label>id <input type="text" id="lab-id" value="2" size="6"></label>
+          <label>?category= <input type="text" id="lab-cat-q" value="" size="8" placeholder="(생략)"></label>
+        </div>
+        <div class="readout">
+          <label>title <input type="text" id="lab-title" value="실습 환경 안내" size="14"></label>
+          <label>content <input type="text" id="lab-content" value="Python 3.10 이상을 사용한다." size="24"></label>
+          <label>category <input type="text" id="lab-category" value="setup" size="8"></label>
+          <label><input type="checkbox" id="lab-nocat"> category 빼고 보내기</label>
+        </div>
+        <div class="readout">
+          <button type="button" class="filter-btn active" id="lab-send">▶ 보내기</button>
+          <button type="button" class="filter-btn" id="lab-restart">🔄 서버 재시작</button>
+          <button type="button" class="filter-btn" id="lab-reset">🗑 처음 3건으로 되돌리기</button>
+          <label><input type="checkbox" id="lab-len"> 번호를 len(entries)+1 로 매기기 (잘못된 방식)</label>
+        </div>
+        <div class="readout" style="font-family:var(--font-code)"><div id="lab-req"></div></div>
+        <div class="readout"><div>Status <span class="big" id="lab-status">—</span></div></div>
+        <div class="readout"><pre id="lab-body" style="margin:0;max-width:100%;white-space:pre-wrap;text-align:left"><code>(아직 보낸 요청 없음)</code></pre></div>
+        <p class="verdict" id="lab-why" style="font-weight:400"></p>
+        <div class="readout"><pre id="lab-file" style="margin:0;max-width:100%;white-space:pre-wrap;text-align:left"><code></code></pre></div>
+      </div>
+      <div class="callout">💡 해 볼 것: ① id에 <code>foo</code> 넣고 GET → 422 ② POST 두 번 → id 4, 5 ③ id 2 DELETE 후 <b>len+1 방식</b>을 켜고 POST → 번호 충돌 ④ PUT으로 없는 id 9999 → 404이고 파일은 그대로 ⑤ 서버 재시작 후에도 파일이 남는지.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="restart">⑧ 끝까지 추적 · 재시작 확인</h2>
+      <p>지식 하나를 만들고 → 고치고 → 서버를 껐다 켜고 → 지우고 → 다시 껐다 켜며, 각 단계에서 <b>파일 상태</b>가 예상대로인지 봐요.</p>
+      <figure id="fig-scenario"><img class="smooth" src="img/day17/scenario_state.png" alt="6단계 동안 저장된 항목 수(3,4,4,4,3,3)와 next_id(4,5,5,5,5,5)를 계단 그래프로 그리고 각 단계의 상태 코드를 적은 그림"><figcaption><b>무엇을 보나:</b> 위 코드를 실제로 돌리며 기록한 값이에요. 보라 실선은 저장된 항목 수, 주황 점선은 <code>next_id</code>예요. POST에서 둘 다 1씩 오르고, PUT과 재시작에서는 그대로, DELETE에서는 <b>항목 수만</b> 줄고 <code>next_id</code>는 5로 남아요. 아래 글씨는 각 단계의 응답이에요. <b>🤔 왜 재시작까지 봐?</b> 응답은 "방금 메모리에서 만든 값"일 뿐이에요. 서버를 껐다 켜도 같은 값이 나와야 <b>파일에 진짜 저장</b>된 거예요. 응답만 바뀌고 파일이 그대로면 미완성이에요.</figcaption></figure>
+      <table>
+        <tr><th>순서</th><th>요청·조작</th><th>예상 데이터 상태</th></tr>
+        <tr><td>1</td><td>처음 파일 확인</td><td>항목 3개 · next_id 4</td></tr>
+        <tr><td>2</td><td>"실습 환경 안내" POST → 받은 ID 기록</td><td>항목 4개 · id 4 · next_id 5</td></tr>
+        <tr><td>3</td><td>같은 ID 본문 PUT</td><td>개수·ID 그대로, 본문만 변경</td></tr>
+        <tr><td>4</td><td>서버 종료(<kbd>Ctrl+C</kbd>) → 같은 폴더·같은 명령으로 재실행</td><td>수정한 본문이 그대로 조회됨</td></tr>
+        <tr><td>5</td><td>같은 ID DELETE → 재조회</td><td>상세 404 · 목록에서 사라짐</td></tr>
+        <tr><td>6</td><td>다시 재실행 → 재조회</td><td>삭제 상태 유지 · next_id 5</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>서버 시작 ≠ 데이터 초기화.</b> 서버를 켤 때마다 seed(처음 데이터)를 복사하는 코드가 있으면 재시작할 때마다 수정·삭제가 되돌아가요. 초기화는 서버를 끄고 <b>따로, 일부러</b> 하는 작업이에요. 재실행했더니 값이 달라졌다면 자동 초기화나 <b>다른 폴더의 파일</b>을 읽고 있지 않은지 의심해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="structure">⑨ 역할별로 파일 나누기</h2>
+      <p>기능이 늘면 <code>main.py</code> 하나가 너무 길어져요. <b>바뀌는 이유가 다른 코드</b>를 다른 파일로 나눠요.</p>
+<pre><code>fastapi_knowledge/
+├─ app/
+│  ├─ __init__.py
+│  ├─ main.py                 ← 앱 만들고 Router 등록만
+│  ├─ schemas.py              ← 입력·응답 모양 (KnowledgeWrite, Knowledge)
+│  ├─ routers/
+│  │  ├─ __init__.py
+│  │  └─ knowledge.py         ← HTTP: Method·Path·상태 코드
+│  └─ repositories/
+│     ├─ __init__.py
+│     └─ json_knowledge.py    ← 저장: 읽기·변경·저장·LOCK
+├─ data/
+│  ├─ knowledge.json          ← 실제 데이터
+│  └─ knowledge.seed.json     ← 처음 데이터 (초기화용)
+├─ README.md
+└─ requirements.txt</code></pre>
+      <figure id="fig-layers"><img class="smooth" src="img/day17/layers.png" alt="main.py에서 routers, repositories, data/knowledge.json으로 이어지고 아래 schemas.py가 router에 연결된 구조도"><figcaption><b>무엇을 보나:</b> 요청은 왼쪽에서 오른쪽으로 흘러요. <b>main</b>은 조립만, <b>Router</b>는 HTTP 약속(어떤 주소·어떤 상태 코드), <b>Repository</b>는 파일 읽기·저장, 맨 오른쪽이 실제 데이터예요. 아래 <b>schemas</b>는 Router가 입력 검사와 응답 모양에 써요. <b>🤔 왜 나눠?</b> 데이터가 같아도 HTTP 규칙과 저장 방식은 <b>바뀌는 이유가 달라요</b>. JSON 파일을 PostgreSQL로 바꿀 때(<a href="day19.html">FastAPI–PostgreSQL 연동</a>) Repository만 고치면 되고, URL·상태 코드는 그대로 둘 수 있어요.</figcaption></figure>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>app/main.py</code> — 조립 <a href="../commands.html#d17-app-main-py">명령어 사전에서 자세히 →</a></div>
+<pre><code>app.include_router(router)                 # Router에 모아 둔 경로들을 앱에 연결
+python -m uvicorn app.main:app --reload</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>APIRouter</code> — 관련 경로 묶기 <a href="../commands.html#d17-apirouter">명령어 사전에서 자세히 →</a></div>
+<pre><code>router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+@router.post("", status_code=201, response_model=Knowledge)</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>Path(__file__).resolve().parents[n]</code> — 깊은 폴더에서 프로젝트 루트 찾기 <a href="../commands.html#d17-repository-저장-로직-그대로-옮기기">명령어 사전에서 자세히 →</a></div>
+<pre><code>BASE = Path(__file__).resolve().parents[2]       # 프로젝트 루트 (repositories → app → 루트)
+def create(fields: dict) -&gt; dict:</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>Jinja2Templates</code> · <code>TemplateResponse</code> — 같은 데이터를 HTML 화면으로 <a href="../commands.html#d17-같은-데이터를-html-화면으로-template">명령어 사전에서 자세히 →</a></div>
+<pre><code>templates = Jinja2Templates(directory=BASE / "templates")
+@app.get("/web/knowledge", response_class=HTMLResponse)</code></pre>
+      </div>
+
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>TestClient</code> · <code>monkeypatch</code> · <code>tmp_path</code> — 실제 지식 파일은 건드리지 않는 테스트 <a href="../commands.html#d17-자동-테스트-실제-지식-파일은-건드리지-않게">명령어 사전에서 자세히 →</a></div>
+<pre><code>monkeypatch.setattr(repo, "DATA", test_file)       # 저장 경로만 임시 파일로 바꿔치기
+with TestClient(app) as client:</code></pre>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="beyond">⑩ 파일 저장소의 한계 · Agent와의 연결</h2>
+      <h3 id="why-db">왜 파일로 되는데 DB를 쓰나?</h3>
+      <table>
+        <tr><th>JSON 파일 저장소</th><th>DB(PostgreSQL)가 답하는 질문</th></tr>
+        <tr><td>정상 저장 후 재시작해도 남아요</td><td>동시에 여러 요청이 바꾸면?</td></tr>
+        <tr><td>작은 파일 <b>전체</b>를 읽고 전체를 다시 저장해요</td><td>데이터가 10만 건이면? 필요한 줄만 읽을 수 없나?</td></tr>
+        <tr><td>Lock은 서버 프로세스 하나 안에서만</td><td>서버가 여러 대면?</td></tr>
+        <tr><td>표 하나(entries)</td><td>작성자·분류 같은 여러 표의 <b>관계</b>를 어떻게 지키지?</td></tr>
+        <tr><td>—</td><td>여러 변경을 "모두 성공 아니면 모두 취소"로 하려면? → <b>트랜잭션</b></td></tr>
+      </table>
+      <p>이 질문들은 <a href="day18.html">PostgreSQL 입문 · 지식 관리 DB</a>에서 표 · 관계 · 트랜잭션으로 다루고, 같은 API를 DB 위로 옮기는 건 <a href="day19.html">FastAPI–PostgreSQL 연동</a>에서 다뤄요.</p>
+      <div class="callout">🤔 <strong>왜 URL·Method는 그대로 두라고 해?</strong> — 이 API를 부르는 쪽(화면, 다른 서버, 나중의 Agent)은 <b>주소와 응답 모양</b>만 알아요. 저장소가 파일에서 DB로 바뀌어도 약속이 같으면 부르는 쪽은 아무것도 고칠 필요가 없어요. 그래서 바꾸는 건 저장 구현(Repository)뿐이에요.</div>
+
+      <h3 id="agent">Agent와 API가 만나는 두 방향</h3>
+      <table>
+        <tr><th>방향</th><th>흐름</th><th>뜻</th></tr>
+        <tr><td>사용자가 Agent를 부름</td><td>사용자 → FastAPI → Agent 처리</td><td>API가 Agent의 <b>서비스 입구</b>. 작업 요청을 검증하고 결과·상태를 전달</td></tr>
+        <tr><td>Agent가 API를 씀</td><td>Agent → 도구 함수 → 지식 API</td><td>"지식 조회"를 <b>도구</b>로 연결. 도구의 설명·입력·실행 코드는 따로 만들어요</td></tr>
+      </table>
+      <table>
+        <tr><th>단계</th><th>누가</th><th>예</th></tr>
+        <tr><td>판단</td><td>Agent(LLM)</td><td>"지식 조회가 필요하다"</td></tr>
+        <tr><td>도구 호출 <b>제안</b></td><td>Agent(LLM)</td><td><code>get_knowledge(2)</code></td></tr>
+        <tr><td>검증·실행</td><td><b>애플리케이션</b></td><td>권한 확인 → <code>GET /api/knowledge/2</code></td></tr>
+        <tr><td>결과 반환</td><td>애플리케이션</td><td>원문 + 상태 기록</td></tr>
+      </table>
+      <div class="callout warn">⚠️ <b>FastAPI 경로를 만들었다고 Agent 도구가 되지는 않아요.</b> 모델은 "이걸 부르자"고 <b>제안</b>만 하고, 실제 호출·권한 확인·기록은 우리 애플리케이션 책임이에요. 처음 연결할 땐 <b>조회(GET)부터</b> — 수정·삭제를 Agent에게 맡기려면 별도 권한·승인 규칙이 먼저예요.</div>
+      <div class="callout">🤔 <strong>왜 Agent에게 삭제부터 안 줘?</strong> — LLM은 그럴듯하게 틀릴 수 있어요(<a href="day16.html">VLM</a>이 이미지에 없는 내용을 지어내듯). 조회는 틀려도 답이 이상할 뿐이지만, 삭제는 <b>원본이 사라져요</b>. 되돌릴 수 없는 일일수록 사람의 승인을 거치게 해요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="trouble">⑪ 🩺 문제가 생기면 — 가장 가까운 원인부터</h2>
+      <table>
+        <tr><th>증상</th><th>먼저 볼 것</th><th>구분할 점</th></tr>
+        <tr><td>서버 접속이 안 됨</td><td>터미널(서버가 떠 있나) · 포트 · 실행 명령</td><td>HTTP 오류 응답과는 다름 — 응답 자체가 없음</td></tr>
+        <tr><td><code>404</code> / <code>405</code></td><td><code>/docs</code>의 Path · Method · ID</td><td>없는 자원(404) vs 그 Method가 없음(405)</td></tr>
+        <tr><td><code>422</code></td><td><code>detail</code>의 <code>loc</code> · <code>msg</code></td><td>Path · Query · Body 중 어디인가</td></tr>
+        <tr><td>파일 없음 / JSON 오류</td><td>파일 경로 · 괄호 · 큰따옴표 · 끝 쉼표</td><td>빈 데이터로 덮어쓰지 않기</td></tr>
+        <tr><td>재실행하면 값이 달라짐</td><td>자동 초기화 코드 · 다른 폴더의 파일</td><td>서버 재시작과 seed 복사는 다른 일</td></tr>
+        <tr><td>코드를 고쳤는데 그대로</td><td>서버가 두 개 떠 있지 않은지 · <code>--reload</code></td><td>같은 Route 중복 등록</td></tr>
+      </table>
+      <div class="callout warn">⚠️ 없는 ID를 시험할 땐 Body는 <b>정상값</b>으로 보내요. 없는 ID + 빠진 필드를 한꺼번에 보내면 422가 먼저 나와서 404를 확인할 수 없어요. 오류 조건은 <b>한 번에 하나씩</b>.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>부품</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td>Uvicorn</td><td>요청 수신 · 서버 프로세스</td><td>데이터 준비 (<code>/health</code> 200 ≠ 파일 정상)</td></tr>
+        <tr><td>Route + 함수 (<code>@app.get</code> 등)</td><td>Method · Path → 함수 연결</td><td>같은 Route 중복 등록 막기</td></tr>
+        <tr><td>Pydantic 입력 모델 (<code>KnowledgeWrite</code>)</td><td>형식 검사 · 실패 시 함수 실행 전 422</td><td>내용의 사실 · 권한</td></tr>
+        <tr><td><code>response_model</code> (<code>Knowledge</code>)</td><td>응답 모양 정리 · <code>next_id</code> 같은 내부 값 차단</td><td>응답 = 파일에 저장된 값</td></tr>
+        <tr><td><code>HTTPException</code> · 상태 코드</td><td>실패를 숫자(4xx · 5xx)로 드러냄</td><td>—</td></tr>
+        <tr><td><code>next_id</code></td><td>재사용 없는 ID</td><td>빈 번호 없는 연속 번호 (삭제하면 빔)</td></tr>
+        <tr><td><code>with LOCK:</code></td><td>한 프로세스 안에서 읽기~저장을 한 번에 하나씩</td><td>여러 프로세스 · 서버, 편집기로 직접 고치기</td></tr>
+        <tr><td>임시 파일 + <code>replace()</code></td><td>쓰다 실패해도 원본 보존</td><td>여러 변경을 한 묶음으로 확정 (→ 트랜잭션)</td></tr>
+        <tr><td>재시작 후 재조회</td><td>파일에 저장됐다는 증거</td><td>—</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <p>지식 관리 API(JSON 파일 버전)의 약속을 한곳에 모았어요. 저장소를 PostgreSQL로 바꿔도(<a href="day19.html">FastAPI–PostgreSQL 연동</a>) <b>1·2·4번(바깥 약속)은 그대로</b>예요.</p>
 
       <h3>1. 엔드포인트</h3>
       <table>
@@ -143,321 +457,47 @@ Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요�
       </table>
 
       <!-- ============================================================ -->
-      <h2 id="first">① 첫 서버 띄우기</h2>
-      <p><b>API</b>(Application Programming Interface)는 프로그램끼리 주고받는 <b>약속된 창구</b>예요. 식당으로 치면 메뉴판 + 주문 창구 — "이 주소로 이런 형식으로 주문하면, 이런 형식으로 음식이 나온다"를 정해 둔 거예요.</p>
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>main.py</code> — 첫 JSON 응답 <a href="../commands.html#d17-main-py">명령어 사전에서 자세히 →</a></div>
-<pre><code>app = FastAPI(title="Knowledge API")       # 앱 객체 만들기
-@app.get("/health")                        # GET /health 요청이 오면</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 서버 실행 <a href="../commands.html#d17-서버-실행">명령어 사전에서 자세히 →</a></div>
-<pre><code>python -m uvicorn main:app --reload
-http://127.0.0.1:8000/health      → {"status":"ok"}</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>/docs</code> — 자동 문서에서 요청 보내기 <a href="../commands.html#d17-docs">명령어 사전에서 자세히 →</a></div>
-      </div>
-
-      <!-- ============================================================ -->
-      <h2 id="http">② HTTP 요청과 응답</h2>
-      <p><b>HTTP</b>는 브라우저·프로그램이 서버와 대화하는 규칙이에요. 대화는 항상 <b>요청 1개 ↔ 응답 1개</b>가 한 쌍이에요.</p>
-      <figure id="fig-url"><img class="smooth" src="img/day17/url_anatomy.png" alt="http://127.0.0.1:8000/api/knowledge/2?category=api 를 통신 방식, 내 컴퓨터, 포트, 자원 경로, Path 값, Query로 나눠 색칠한 그림"><figcaption><b>무엇을 보나:</b> URL 하나를 색깔별로 잘랐어요. <code>127.0.0.1:8000</code>까지가 "<b>어느 서버</b>", <code>/api/knowledge</code>가 "<b>무슨 자원</b>", <code>/2</code>가 "<b>그중 어느 것</b>(Path 값)", <code>?category=api</code>가 "<b>어떤 조건으로</b>(Query)"예요. <b>🤔 왜 둘을 나눠?</b> Path는 대상을 콕 집을 때(2번 지식), Query는 목록을 걸러낼 때(분류가 api인 것만) 써요. 빠지면 안 되는 건 Path, 있어도 없어도 되는 건 Query가 자연스러워요.</figcaption></figure>
+      <h2 id="packages">📦 패키지 · 명령어</h2>
       <table>
-        <tr><th>이름</th><th>예시</th><th>역할</th></tr>
-        <tr><td><b>Method</b></td><td><code>GET</code> · <code>POST</code> · <code>PUT</code> · <code>DELETE</code></td><td>무엇을 하려는지 (요청의 의도)</td></tr>
-        <tr><td><b>Path</b></td><td><code>/api/knowledge/4</code></td><td>어떤 자원의 어느 것인지</td></tr>
-        <tr><td><b>Query</b></td><td><code>?category=api</code></td><td>목록을 거를 선택 조건</td></tr>
-        <tr><td><b>Header</b></td><td><code>Content-Type: application/json</code></td><td>본문 형식 같은 부가 정보</td></tr>
-        <tr><td><b>Body</b></td><td><code>{"title": "실습 환경 안내", ...}</code></td><td>새로 만들거나 고칠 데이터 (GET엔 보통 없음)</td></tr>
-        <tr><td><b>Status</b></td><td><code>200</code> · <code>201</code> · <code>204</code> · <code>404</code> · <code>422</code></td><td>처리 결과를 숫자로</td></tr>
-        <tr><td><b>Response body</b></td><td>지식 JSON / 오류 <code>detail</code> / 없음</td><td>클라이언트가 받는 내용</td></tr>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>fastapi</code></td><td>주소(Route)와 함수를 연결하고, 입력 검증·자동 문서(<code>/docs</code>)를 만들어 줌</td><td><code>from fastapi import FastAPI, HTTPException, Response</code></td></tr>
+        <tr><td><code>uvicorn</code></td><td>실제로 네트워크 요청을 받아 FastAPI 앱에 넘겨주는 <b>서버 프로그램</b></td><td>직접 import 안 함 — <code>python -m uvicorn main:app</code>으로 실행</td></tr>
+        <tr><td><code>pydantic</code></td><td>입력·응답 데이터의 모양 검사 (fastapi를 깔면 같이 설치됨)</td><td><code>from pydantic import BaseModel, Field</code></td></tr>
+        <tr><td><code>json</code>, <code>pathlib</code>, <code>threading</code></td><td>파일 읽기/쓰기, 파일 경로, 잠금 — <b>파이썬 기본 내장</b>이라 설치 안 함</td><td><code>import json</code>, <code>from pathlib import Path</code>, <code>from threading import Lock</code></td></tr>
+        <tr><td><code>jinja2</code> (선택)</td><td>JSON 대신 HTML 화면을 만들 때 쓰는 템플릿 엔진</td><td><code>from fastapi.templating import Jinja2Templates</code></td></tr>
+        <tr><td><code>pytest</code>, <code>httpx</code> (선택)</td><td>자동 테스트. <code>TestClient</code>가 내부에서 httpx를 씀</td><td><code>from fastapi.testclient import TestClient</code></td></tr>
       </table>
-<pre><code># 요청                                   # 응답
-GET /api/knowledge/2                     Status: 200
-Host: 127.0.0.1:8000                     Content-Type: application/json
-(Body 없음)                              {"id": 2, "title": "서버 실행",
-                                          "category": "api",
-                                          "content": "uvicorn으로 개발 서버를 켠다."}</code></pre>
-      <figure id="fig-flow"><img class="smooth" src="img/day17/request_flow.png" alt="클라이언트, Uvicorn, Route, 타입 검증, 처리 함수, storage.py 여섯 칸을 지나 200, 404, 422로 갈라지는 흐름도"><figcaption><b>무엇을 보나:</b> <code>GET /api/knowledge/2</code> 한 건이 ①→⑥을 차례로 지나요. 같은 경로라도 <b>어디서 멈추느냐</b>에 따라 결과가 갈라져요 — <code>foo</code>는 ④ 타입 검증에서 정수로 못 바꿔 <b>422</b>(함수는 아예 실행 안 됨), <code>9999</code>는 ⑤ 함수가 끝까지 못 찾아 <b>404</b>, <code>2</code>는 ⑥에서 찾아 <b>200</b>. <b>🤔 왜 알아야 해?</b> 상태 코드만 보고 "어느 단계에서 막혔는지"를 바로 알 수 있어서, 오류가 나면 고칠 곳을 좁힐 수 있어요.</figcaption></figure>
-      <div class="callout">🤔 <strong>왜 URL을 직접 쪼개서 해석하지 않아?</strong> — FastAPI가 Route(Method+Path 대조) → 타입 검증 → 함수 → 응답을 <b>순서대로 연결</b>해 줘요. 우리는 "<code>knowledge_id: int</code>"라고 <b>약속만</b> 적으면, 문자열 "2"를 정수 2로 바꾸고 안 되면 422를 돌려주는 일까지 자동이에요.</div>
+      <h3>🔧 설치 · 확인 (PowerShell)</h3>
+<pre><code>python --version                                   # 3.10 이상인지
+python -m venv .venv                               # 프로젝트 전용 가상환경 만들기
+.\.venv\Scripts\Activate.ps1                       # 가상환경 켜기
+python -m pip install fastapi uvicorn
+python -c "import sys; print(sys.executable)"      # 지금 쓰는 python이 .venv 안의 것인지
+python -m pip show fastapi pydantic uvicorn        # 설치된 버전 확인</code></pre>
+      <div class="callout">💡 <b>활성화(Activate.ps1)가 보안 정책 때문에 막힐 때</b>는 정책을 억지로 바꾸지 말고, 가상환경의 python을 <b>경로로 직접</b> 부르면 돼요. 활성화는 "python이라고만 쳐도 .venv 것을 쓰게 해 주는" 편의 기능일 뿐이에요.</div>
+<pre><code>.\.venv\Scripts\python.exe -m pip install fastapi uvicorn
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
+Invoke-RestMethod http://127.0.0.1:8000/health      # PowerShell에서 GET 요청 확인</code></pre>
+      <div class="callout">🤔 <strong>왜 <code>pip</code> 대신 <code>python -m pip</code>?</strong> — PC에 파이썬이 여러 개 있으면 <code>pip</code>가 엉뚱한 파이썬에 설치할 수 있어요. <code>python -m pip</code>은 "<b>지금 이 python</b>에 설치해"라는 뜻이라 설치한 곳과 실행하는 곳이 어긋나지 않아요. <code>python -m uvicorn</code>도 같은 이유예요.</div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day17">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">본문에는 핵심 코드 한두 줄만 남겼어요. 결과값은 같은 코드를 <code>TestClient</code>와 임시 폴더로 실제로 실행해서 얻은 값이에요.</p>
+      </div>
 
-      <!-- ============================================================ -->
-      <h2 id="storage">③ JSON 파일 저장소</h2>
-      <p>오늘의 저장소는 데이터베이스가 아니라 <b>JSON 파일 하나</b>예요. 서버를 껐다 켜도 지식이 남아 있게 하려면 메모리(변수)가 아니라 <b>파일</b>에 써야 해요.</p>
-<pre><code>// data/knowledge.json
-{
-  "next_id": 4,
-  "entries": [
-    {"id": 1, "title": "가상환경", "category": "setup", "content": "프로젝트별 패키지를 분리한다."},
-    {"id": 2, "title": "서버 실행", "category": "api",   "content": "uvicorn으로 개발 서버를 켠다."},
-    {"id": 3, "title": "입력 오류", "category": "api",   "content": "422이면 입력값을 확인한다."}
-  ]
-}</code></pre>
+
+      <h2 id="next">이어서 볼 주제</h2>
       <table>
-        <tr><th>키</th><th>뜻</th></tr>
-        <tr><td><code>entries</code></td><td>지식 항목 목록. 항목 1건 = <code>id</code> + 제목 + 본문 + 분류</td></tr>
-        <tr><td><code>id</code></td><td><b>서버가</b> 발급하는 번호. 사용자가 정하지 않아요</td></tr>
-        <tr><td><code>next_id</code></td><td>다음에 줄 번호. 파일 안에만 두고, API 응답에는 내보내지 않아요</td></tr>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day18.html">PostgreSQL 입문 · 지식 관리 DB</a></td><td>파일 저장소로 부족한 관계 · 제약 · 트랜잭션을 표와 SQL로</td></tr>
+        <tr><td><a href="day19.html">FastAPI–PostgreSQL 연동</a></td><td>같은 URL · 상태 코드를 두고 저장소만 DB로 바꾸기 (ORM · 설정 · 통합 테스트)</td></tr>
+        <tr><td><a href="day21.html">Prompt · Context Engineering</a> · <a href="day22.html">LLM API 클라이언트</a></td><td>이 API가 관리하는 원본을 LLM 입력 · 출처로 쓰기</td></tr>
+        <tr><td><a href="day23.html">Embedding · Vector Search</a></td><td><code>?q=</code> 글자 포함 검색이 아니라 <b>뜻</b>으로 찾기</td></tr>
+        <tr><td>RAG · Agent</td><td>검색한 원문을 근거로 답하기 · "지식 조회"를 도구로 연결</td></tr>
       </table>
-      <div class="callout warn">⚠️ JSON 문자열은 <b>큰따옴표</b>만 돼요(<code>'가상환경'</code> ❌). 마지막 항목 뒤 쉼표도 안 돼요. 파일 문법이 깨지면 서버가 읽다가 실패해요.</div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>storage.py</code> — 읽기·쓰기 보조 함수 <a href="../commands.html#d17-storage-py">명령어 사전에서 자세히 →</a></div>
-<pre><code>json.dump(data, f, ensure_ascii=False, indent=2)
-temp.replace(DATA)                       # 다 쓴 임시 파일로 바꿔치기</code></pre>
-      </div>
-      <figure id="fig-atomic"><img class="smooth" src="img/day17/atomic_write.png" alt="왼쪽은 원본에 바로 쓰다 중간에 끊겨 반쯤 쓰인 파일, 오른쪽은 임시 파일에 다 쓴 뒤 원본과 바꿔치기하는 그림"><figcaption><b>무엇을 보나:</b> 왼쪽은 <code>knowledge.json</code>을 바로 <code>"w"</code>로 열어 쓰다가 도중에 멈춘 경우예요. <code>"w"</code>로 여는 순간 원본 내용이 지워지니, 반쯤 쓰인 깨진 JSON만 남아요. 오른쪽은 <code>.tmp</code>에 먼저 <b>끝까지</b> 쓰고, 성공했을 때만 <code>replace()</code>로 바꿔치기해요. <b>🤔 왜?</b> 쓰다 실패해도 망가지는 건 임시 파일뿐이라 원본이 살아남아요. 그래서 "저장 실패 = 예전 데이터 그대로"가 보장돼요.</figcaption></figure>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>with LOCK:</code> — 읽기부터 저장까지 한 번에 잠그기 <a href="../commands.html#d17-with-lock">명령어 사전에서 자세히 →</a></div>
-<pre><code>with LOCK:                       # 이 블록은 한 번에 한 요청만
-    data = read_data()           # 1. 읽고</code></pre>
-      </div>
-      <figure id="fig-lock"><img class="smooth" src="img/day17/lock_race.png" alt="동시에 20건을 등록했을 때 Lock 없이는 1건, with LOCK은 20건이 저장된 가로 막대그래프"><figcaption><b>무엇을 보나:</b> 스레드 20개가 동시에 "파일 읽기 → 항목 추가 → 저장"을 했을 때 파일에 남은 항목 수예요(이 PC에서 직접 5번 돌린 결과, 읽기와 저장 사이에 0.01초 틈을 일부러 넣어 차이를 크게 보이게 했어요). Lock이 없으면 <b>20건을 보냈는데 1건</b>만 남았어요. <b>🤔 왜?</b> 20개가 모두 "빈 파일"을 거의 동시에 읽고, 각자 1건을 더해 저장했어요. 나중에 저장한 쪽이 앞선 저장을 <b>덮어써서</b> 결국 하나만 남아요. <code>with LOCK:</code>으로 읽기~저장을 묶으면 앞 요청이 끝날 때까지 다음 요청이 기다리니 20건이 다 남아요.</figcaption></figure>
-
-      <!-- ============================================================ -->
-      <h2 id="read">④ 조회 (GET) — 목록·상세·조건</h2>
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 목록 조회 <a href="../commands.html#d17-목록-조회">명령어 사전에서 자세히 →</a></div>
-<pre><code>@app.get("/api/knowledge")
-    return data["entries"]          # list를 돌려주면 JSON 배열</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 상세 조회 + 404 <a href="../commands.html#d17-상세-조회-404">명령어 사전에서 자세히 →</a></div>
-<pre><code>@app.get("/api/knowledge/{knowledge_id}")
-    raise HTTPException(404, "Knowledge not found")   # 끝까지 없으면 404</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Query로 목록 거르기 <a href="../commands.html#d17-query로-목록-거르기">명령어 사전에서 자세히 →</a></div>
-<pre><code>@app.get("/api/knowledge")
-def list_knowledge(category: str | None = None):     # 기본값이 있으면 → Query, 생략 가능</code></pre>
-      </div>
-
-      <!-- ============================================================ -->
-      <h2 id="create">⑤ 등록 (POST) · 입력 검증</h2>
-      <p>새 지식은 URL이 아니라 <b>Body</b>에 담아 보내요. <b>ID는 보내지 않아요</b> — 서버가 정해요.</p>
-<pre><code>POST /api/knowledge
-Content-Type: application/json
-
-{
-  "title": "실습 환경 안내",
-  "content": "Python 3.10 이상을 사용한다.",
-  "category": "setup"
-}</code></pre>
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Pydantic으로 입력 모양 정하기 <a href="../commands.html#d17-pydantic으로-입력-모양-정하기">명령어 사전에서 자세히 →</a></div>
-<pre><code>class KnowledgeWrite(BaseModel):                          # POST·PUT 입력
-    title: str = Field(min_length=1, max_length=80)</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 등록 함수 <a href="../commands.html#d17-등록-함수">명령어 사전에서 자세히 →</a></div>
-<pre><code>@app.post("/api/knowledge", status_code=201, response_model=Knowledge)
-def create_knowledge(payload: KnowledgeWrite):        # Body를 KnowledgeWrite로 검사</code></pre>
-      </div>
-      <figure id="fig-id"><img class="smooth" src="img/day17/id_policy.png" alt="위는 len+1 방식으로 ID 2 삭제 후 새 항목이 3을 받아 충돌, 아래는 next_id 방식으로 4를 받는 그림"><figcaption><b>무엇을 보나:</b> 위 줄은 "목록 길이 + 1"로 번호를 매긴 경우예요. ID 2를 지우면 길이가 2가 되고, 새 항목이 <b>3</b>을 받아 이미 있는 3번과 <b>겹쳐요</b>(빨강). 아래 줄은 <code>next_id</code>를 파일에 따로 적어 두는 강의 방식 — 삭제해도 4는 그대로라 새 항목은 <b>4</b>를 받아요. <b>🤔 왜?</b> ID는 "이 지식의 이름표"라 한 번 쓴 번호는 다시 쓰면 안 돼요. 지워진 2번을 기억하던 다른 프로그램이 새 항목을 옛 지식으로 착각할 수 있어요. 그래서 <code>next_id</code>는 <b>줄이지 않고</b>, entries와 <b>같은 파일</b>에 저장해 재시작해도 이어져요.</figcaption></figure>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 422 — 잘못된 입력은 저장 전에 막힘 <a href="../commands.html#d17-422-잘못된-입력은-저장-전에-막힘">명령어 사전에서 자세히 →</a></div>
-      </div>
-
-      <!-- ============================================================ -->
-      <h2 id="update">⑥ 수정 (PUT)</h2>
-<pre><code>PUT /api/knowledge/4
-Content-Type: application/json
-
-{"title": "실습 환경 안내", "content": "프로젝트별 가상환경을 사용한다.", "category": "setup"}</code></pre>
-      <p>이 API의 PUT 규칙: <b>세 필드를 모두</b> 보내 내용을 통째로 교체해요. ID·항목 수·<code>next_id</code>는 그대로예요.</p>
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 수정 함수 <a href="../commands.html#d17-수정-함수">명령어 사전에서 자세히 →</a></div>
-<pre><code>@app.put("/api/knowledge/{knowledge_id}", response_model=Knowledge)
-def update_knowledge(knowledge_id: int, payload: KnowledgeWrite):   # Path + Body 둘 다</code></pre>
-      </div>
-      <figure id="fig-index"><img class="smooth" src="img/day17/index_vs_id.png" alt="id 1, 3, 4 세 항목 아래에 index 0, 1, 2를 적고, entries[4]는 IndexError, entries[1]은 id 3 항목이라는 설명을 붙인 그림"><figcaption><b>무엇을 보나:</b> ID 2를 지운 뒤 목록이에요. 칸 안 숫자는 <b>id</b>(이름표), 아래 주황 숫자는 <b>index</b>(지금 줄 선 순서)예요. <code>entries[4]</code>로 id 4를 찾으면 위치는 0~2뿐이라 오류, <code>entries[1]</code>로 id 1을 찾으면 엉뚱하게 id 3이 나와요. <b>🤔 왜?</b> 처음엔 우연히 id 1이 index 0, id 2가 index 1…처럼 하나씩 밀려 맞아 보이지만, 삭제가 한 번 일어나면 바로 어긋나요. 그래서 <code>data["entries"][knowledge_id]</code>로 찾지 않고, 하나씩 돌며 <code>entry["id"] == knowledge_id</code>로 비교해요.</figcaption></figure>
-
-      <!-- ============================================================ -->
-      <h2 id="delete">⑦ 삭제 (DELETE) · 상태 코드</h2>
-      <p>지우는 건 <code>knowledge.json</code> 파일 전체가 아니라, 그 안에서 <b>ID가 일치하는 항목 하나</b>예요. 나머지 항목과 <code>next_id</code>는 그대로예요.</p>
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 삭제 함수 <a href="../commands.html#d17-삭제-함수">명령어 사전에서 자세히 →</a></div>
-<pre><code>@app.delete("/api/knowledge/{knowledge_id}", status_code=204)
-    return Response(status_code=204)       # 본문 없는 성공</code></pre>
-      </div>
-      <h3>지금까지 쓴 상태 코드</h3>
-      <table>
-        <tr><th>코드</th><th>우리 API의 상황</th><th>다음에 확인할 것</th></tr>
-        <tr><td><code>200</code> OK</td><td>목록·상세 조회 / 정상 수정</td><td>응답 데이터 = 저장된 값?</td></tr>
-        <tr><td><code>201</code> Created</td><td>새 항목 생성</td><td>새 ID가 실제 파일에도?</td></tr>
-        <tr><td><code>204</code> No Content</td><td>삭제 성공</td><td>본문 없음 + 재조회 404</td></tr>
-        <tr><td><code>404</code> Not Found</td><td>없는 경로 / 없는 지식</td><td>Path 오타인지 ID가 없는 건지</td></tr>
-        <tr><td><code>405</code> Method Not Allowed</td><td>경로는 있는데 그 Method는 없음</td><td>GET·POST·PUT·DELETE 중 맞는지</td></tr>
-        <tr><td><code>422</code> Unprocessable</td><td>자료형·필수값·길이 규칙 위반</td><td><code>detail</code>의 <code>loc</code>·<code>msg</code></td></tr>
-        <tr><td><code>500</code> Server Error</td><td>서버 코드·파일 접근 오류</td><td>서버 터미널 로그와 저장 파일</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 숫자가 2xx·4xx·5xx로 나뉘어?</strong> — 첫 자리만 봐도 누구 탓인지 알 수 있어요. <b>2xx</b> 성공, <b>4xx</b> 요청한 쪽이 뭔가 잘못 보냄(주소·입력), <b>5xx</b> 서버가 처리하다 실패. 그래서 404·422를 200으로 숨기면 안 돼요 — 받는 프로그램이 실패를 알아챌 방법이 사라져요.</div>
-      <div class="callout warn">⚠️ <b>실패한 요청은 파일을 바꾸면 안 돼요.</b> 422는 함수 실행 전에 막히니 저장 코드가 안 돌고, 404는 저장 전에 <code>raise</code> 하고, 쓰기 실패 땐 성공 응답을 만들지 않아요. 확인할 때는 실패 요청 <b>전후로</b> 항목 수와 <code>next_id</code>가 같은지 봐요.</div>
-
-      <!-- ============================================================ -->
-      <h2 id="lab">🧪 직접 요청 보내 보기</h2>
-      <p>브라우저 안에서 오늘 만든 API를 흉내 냈어요(실제 서버는 아니고, 강의 코드와 같은 규칙으로 움직여요). Method와 ID, Body를 바꿔 <b>보내기</b>를 누르면 상태 코드·응답·파일 내용이 바뀌어요. 아래 칸은 <code>knowledge.json</code>이에요.</p>
-      <div class="lab" id="crud-lab">
-        <div class="readout">
-          <label>Method
-            <select id="lab-method">
-              <option value="LIST">GET /api/knowledge (목록)</option>
-              <option value="GET" selected>GET /api/knowledge/{id}</option>
-              <option value="POST">POST /api/knowledge</option>
-              <option value="PUT">PUT /api/knowledge/{id}</option>
-              <option value="DELETE">DELETE /api/knowledge/{id}</option>
-            </select>
-          </label>
-          <label>id <input type="text" id="lab-id" value="2" size="6"></label>
-          <label>?category= <input type="text" id="lab-cat-q" value="" size="8" placeholder="(생략)"></label>
-        </div>
-        <div class="readout">
-          <label>title <input type="text" id="lab-title" value="실습 환경 안내" size="14"></label>
-          <label>content <input type="text" id="lab-content" value="Python 3.10 이상을 사용한다." size="24"></label>
-          <label>category <input type="text" id="lab-category" value="setup" size="8"></label>
-          <label><input type="checkbox" id="lab-nocat"> category 빼고 보내기</label>
-        </div>
-        <div class="readout">
-          <button type="button" class="filter-btn active" id="lab-send">▶ 보내기</button>
-          <button type="button" class="filter-btn" id="lab-restart">🔄 서버 재시작</button>
-          <button type="button" class="filter-btn" id="lab-reset">🗑 처음 3건으로 되돌리기</button>
-          <label><input type="checkbox" id="lab-len"> 번호를 len(entries)+1 로 매기기 (잘못된 방식)</label>
-        </div>
-        <div class="readout" style="font-family:var(--font-code)"><div id="lab-req"></div></div>
-        <div class="readout"><div>Status <span class="big" id="lab-status">—</span></div></div>
-        <div class="readout"><pre id="lab-body" style="margin:0;max-width:100%;white-space:pre-wrap;text-align:left"><code>(아직 보낸 요청 없음)</code></pre></div>
-        <p class="verdict" id="lab-why" style="font-weight:400"></p>
-        <div class="readout"><pre id="lab-file" style="margin:0;max-width:100%;white-space:pre-wrap;text-align:left"><code></code></pre></div>
-      </div>
-      <div class="callout">💡 해 볼 것: ① id에 <code>foo</code> 넣고 GET → 422 ② POST 두 번 → id 4, 5 ③ id 2 DELETE 후 <b>len+1 방식</b>을 켜고 POST → 번호 충돌 ④ PUT으로 없는 id 9999 → 404이고 파일은 그대로 ⑤ 서버 재시작 후에도 파일이 남는지.</div>
-
-      <!-- ============================================================ -->
-      <h2 id="restart">⑧ 끝까지 추적 · 재시작 확인</h2>
-      <p>지식 하나를 만들고 → 고치고 → 서버를 껐다 켜고 → 지우고 → 다시 껐다 켜며, 각 단계에서 <b>파일 상태</b>가 예상대로인지 봐요.</p>
-      <figure id="fig-scenario"><img class="smooth" src="img/day17/scenario_state.png" alt="6단계 동안 저장된 항목 수(3,4,4,4,3,3)와 next_id(4,5,5,5,5,5)를 계단 그래프로 그리고 각 단계의 상태 코드를 적은 그림"><figcaption><b>무엇을 보나:</b> 강의 코드를 실제로 돌리며 기록한 값이에요. 보라 실선은 저장된 항목 수, 주황 점선은 <code>next_id</code>예요. POST에서 둘 다 1씩 오르고, PUT과 재시작에서는 그대로, DELETE에서는 <b>항목 수만</b> 줄고 <code>next_id</code>는 5로 남아요. 아래 글씨는 각 단계의 응답이에요. <b>🤔 왜 재시작까지 봐?</b> 응답은 "방금 메모리에서 만든 값"일 뿐이에요. 서버를 껐다 켜도 같은 값이 나와야 <b>파일에 진짜 저장</b>된 거예요. 응답만 바뀌고 파일이 그대로면 미완성이에요.</figcaption></figure>
-      <table>
-        <tr><th>순서</th><th>요청·조작</th><th>예상 데이터 상태</th></tr>
-        <tr><td>1</td><td>처음 파일 확인</td><td>항목 3개 · next_id 4</td></tr>
-        <tr><td>2</td><td>"실습 환경 안내" POST → 받은 ID 기록</td><td>항목 4개 · id 4 · next_id 5</td></tr>
-        <tr><td>3</td><td>같은 ID 본문 PUT</td><td>개수·ID 그대로, 본문만 변경</td></tr>
-        <tr><td>4</td><td>서버 종료(<kbd>Ctrl+C</kbd>) → 같은 폴더·같은 명령으로 재실행</td><td>수정한 본문이 그대로 조회됨</td></tr>
-        <tr><td>5</td><td>같은 ID DELETE → 재조회</td><td>상세 404 · 목록에서 사라짐</td></tr>
-        <tr><td>6</td><td>다시 재실행 → 재조회</td><td>삭제 상태 유지 · next_id 5</td></tr>
-      </table>
-      <div class="callout warn">⚠️ <b>서버 시작 ≠ 데이터 초기화.</b> 서버를 켤 때마다 seed(처음 데이터)를 복사하는 코드가 있으면 재시작할 때마다 수정·삭제가 되돌아가요. 초기화는 서버를 끄고 <b>따로, 일부러</b> 하는 작업이에요. 재실행했더니 값이 달라졌다면 자동 초기화나 <b>다른 폴더의 파일</b>을 읽고 있지 않은지 의심해요.</div>
-
-      <!-- ============================================================ -->
-      <h2 id="structure">⑨ 역할별로 파일 나누기</h2>
-      <p>기능이 늘면 <code>main.py</code> 하나가 너무 길어져요. <b>바뀌는 이유가 다른 코드</b>를 다른 파일로 나눠요.</p>
-<pre><code>fastapi_knowledge/
-├─ app/
-│  ├─ __init__.py
-│  ├─ main.py                 ← 앱 만들고 Router 등록만
-│  ├─ schemas.py              ← 입력·응답 모양 (KnowledgeWrite, Knowledge)
-│  ├─ routers/
-│  │  ├─ __init__.py
-│  │  └─ knowledge.py         ← HTTP: Method·Path·상태 코드
-│  └─ repositories/
-│     ├─ __init__.py
-│     └─ json_knowledge.py    ← 저장: 읽기·변경·저장·LOCK
-├─ data/
-│  ├─ knowledge.json          ← 실제 데이터
-│  └─ knowledge.seed.json     ← 처음 데이터 (초기화용)
-├─ README.md
-└─ requirements.txt</code></pre>
-      <figure id="fig-layers"><img class="smooth" src="img/day17/layers.png" alt="main.py에서 routers, repositories, data/knowledge.json으로 이어지고 아래 schemas.py가 router에 연결된 구조도"><figcaption><b>무엇을 보나:</b> 요청은 왼쪽에서 오른쪽으로 흘러요. <b>main</b>은 조립만, <b>Router</b>는 HTTP 약속(어떤 주소·어떤 상태 코드), <b>Repository</b>는 파일 읽기·저장, 맨 오른쪽이 실제 데이터예요. 아래 <b>schemas</b>는 Router가 입력 검사와 응답 모양에 써요. <b>🤔 왜 나눠?</b> 데이터가 같아도 HTTP 규칙과 저장 방식은 <b>바뀌는 이유가 달라요</b>. 다음 수업에서 JSON 파일을 PostgreSQL로 바꿀 때 Repository만 고치면 되고, URL·상태 코드는 그대로 둘 수 있어요.</figcaption></figure>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>app/main.py</code> — 조립 <a href="../commands.html#d17-app-main-py">명령어 사전에서 자세히 →</a></div>
-<pre><code>app.include_router(router)                 # Router에 모아 둔 경로들을 앱에 연결
-python -m uvicorn app.main:app --reload</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>APIRouter</code> — 관련 경로 묶기 <a href="../commands.html#d17-apirouter">명령어 사전에서 자세히 →</a></div>
-<pre><code>router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
-@router.post("", status_code=201, response_model=Knowledge)</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 Repository — 저장 로직 그대로 옮기기 <a href="../commands.html#d17-repository-저장-로직-그대로-옮기기">명령어 사전에서 자세히 →</a></div>
-<pre><code>BASE = Path(__file__).resolve().parents[2]       # 프로젝트 루트 (repositories → app → 루트)
-def create(fields: dict) -&gt; dict:</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 같은 데이터를 HTML 화면으로 (Template) <a href="../commands.html#d17-같은-데이터를-html-화면으로-template">명령어 사전에서 자세히 →</a></div>
-<pre><code>templates = Jinja2Templates(directory=BASE / "templates")
-@app.get("/web/knowledge", response_class=HTMLResponse)</code></pre>
-      </div>
-
-      <div class="cmdref">
-        <div class="cmdref-head">🔧 자동 테스트 — 실제 지식 파일은 건드리지 않게 <a href="../commands.html#d17-자동-테스트-실제-지식-파일은-건드리지-않게">명령어 사전에서 자세히 →</a></div>
-<pre><code>monkeypatch.setattr(repo, "DATA", test_file)       # 저장 경로만 임시 파일로 바꿔치기
-with TestClient(app) as client:</code></pre>
-      </div>
-
-      <!-- ============================================================ -->
-      <h2 id="next">⑩ 다음 단계와 연결</h2>
-      <h3>왜 파일로 되는데 DB를 배워?</h3>
-      <table>
-        <tr><th>오늘의 JSON 파일</th><th>PostgreSQL에서 풀 질문</th></tr>
-        <tr><td>정상 저장 후 재시작해도 남아요</td><td>동시에 여러 요청이 바꾸면?</td></tr>
-        <tr><td>작은 파일 <b>전체</b>를 읽고 전체를 다시 저장해요</td><td>데이터가 10만 건이면? 필요한 줄만 읽을 수 없나?</td></tr>
-        <tr><td>Lock은 서버 프로세스 하나 안에서만</td><td>서버가 여러 대면?</td></tr>
-        <tr><td>표 하나(entries)</td><td>작성자·분류 같은 여러 표의 <b>관계</b>를 어떻게 지키지?</td></tr>
-        <tr><td>—</td><td>여러 변경을 "모두 성공 아니면 모두 취소"로 하려면? → <b>트랜잭션</b></td></tr>
-      </table>
-      <table>
-        <tr><th>날짜</th><th>핵심 질문</th><th>결과</th></tr>
-        <tr><td>11/10 (오늘)</td><td>HTTP로 지식을 어떻게 CRUD 하나?</td><td>JSON 파일 기반 FastAPI CRUD</td></tr>
-        <tr><td>11/11</td><td>표·관계·SQL로 데이터를 어떻게 다루나?</td><td>SQL CRUD · JOIN · ERD · 트랜잭션</td></tr>
-        <tr><td>11/12</td><td>오늘 API를 PostgreSQL에 어떻게 연결하나?</td><td>ORM · 연동 CRUD · 설정 · 통합 테스트</td></tr>
-        <tr><td>11/13 ~ 11/20</td><td>LLM · Prompt · LLM API · Embedding · Vector DB · Chunking</td><td>Retriever–Prompt–Generator, 즉 RAG를 API로 제공</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 URL·Method는 그대로 두라고 해?</strong> — 이 API를 부르는 쪽(화면, 다른 서버, 나중의 Agent)은 <b>주소와 응답 모양</b>만 알아요. 저장소가 파일에서 DB로 바뀌어도 약속이 같으면 부르는 쪽은 아무것도 고칠 필요가 없어요. 그래서 바꾸는 건 저장 구현(Repository)뿐이에요.</div>
-
-      <h3>Agent와 API가 만나는 두 방향</h3>
-      <table>
-        <tr><th>방향</th><th>흐름</th><th>뜻</th></tr>
-        <tr><td>사용자가 Agent를 부름</td><td>사용자 → FastAPI → Agent 처리</td><td>API가 Agent의 <b>서비스 입구</b>. 작업 요청을 검증하고 결과·상태를 전달</td></tr>
-        <tr><td>Agent가 API를 씀</td><td>Agent → 도구 함수 → 지식 API</td><td>"지식 조회"를 <b>도구</b>로 연결. 도구의 설명·입력·실행 코드는 따로 만들어요</td></tr>
-      </table>
-      <table>
-        <tr><th>단계</th><th>누가</th><th>예</th></tr>
-        <tr><td>판단</td><td>Agent(LLM)</td><td>"지식 조회가 필요하다"</td></tr>
-        <tr><td>도구 호출 <b>제안</b></td><td>Agent(LLM)</td><td><code>get_knowledge(2)</code></td></tr>
-        <tr><td>검증·실행</td><td><b>애플리케이션</b></td><td>권한 확인 → <code>GET /api/knowledge/2</code></td></tr>
-        <tr><td>결과 반환</td><td>애플리케이션</td><td>원문 + 상태 기록</td></tr>
-      </table>
-      <div class="callout warn">⚠️ <b>FastAPI 경로를 만들었다고 Agent 도구가 되지는 않아요.</b> 모델은 "이걸 부르자"고 <b>제안</b>만 하고, 실제 호출·권한 확인·기록은 우리 애플리케이션 책임이에요. 처음 연결할 땐 <b>조회(GET)부터</b> — 수정·삭제를 Agent에게 맡기려면 별도 권한·승인 규칙이 먼저예요.</div>
-      <div class="callout">🤔 <strong>왜 Agent에게 삭제부터 안 줘?</strong> — LLM은 그럴듯하게 틀릴 수 있어요(Day16의 VLM이 없는 걸 지어낸 것처럼). 조회는 틀려도 답이 이상할 뿐이지만, 삭제는 <b>원본이 사라져요</b>. 되돌릴 수 없는 일일수록 사람의 승인을 거치게 해요.</div>
-
-      <!-- ============================================================ -->
-      <h2>🩺 문제가 생기면 — 가장 가까운 원인부터</h2>
-      <table>
-        <tr><th>증상</th><th>먼저 볼 것</th><th>구분할 점</th></tr>
-        <tr><td>서버 접속이 안 됨</td><td>터미널(서버가 떠 있나) · 포트 · 실행 명령</td><td>HTTP 오류 응답과는 다름 — 응답 자체가 없음</td></tr>
-        <tr><td><code>404</code> / <code>405</code></td><td><code>/docs</code>의 Path · Method · ID</td><td>없는 자원(404) vs 그 Method가 없음(405)</td></tr>
-        <tr><td><code>422</code></td><td><code>detail</code>의 <code>loc</code> · <code>msg</code></td><td>Path · Query · Body 중 어디인가</td></tr>
-        <tr><td>파일 없음 / JSON 오류</td><td>파일 경로 · 괄호 · 큰따옴표 · 끝 쉼표</td><td>빈 데이터로 덮어쓰지 않기</td></tr>
-        <tr><td>재실행하면 값이 달라짐</td><td>자동 초기화 코드 · 다른 폴더의 파일</td><td>서버 재시작과 seed 복사는 다른 일</td></tr>
-        <tr><td>코드를 고쳤는데 그대로</td><td>서버가 두 개 떠 있지 않은지 · <code>--reload</code></td><td>같은 Route 중복 등록</td></tr>
-      </table>
-      <div class="callout warn">⚠️ 없는 ID를 시험할 땐 Body는 <b>정상값</b>으로 보내요. 없는 ID + 빠진 필드를 한꺼번에 보내면 422가 먼저 나와서 404를 확인할 수 없어요. 오류 조건은 <b>한 번에 하나씩</b>.</div>
-
       <h2>원본 자료</h2>
       <ul>
-        <li>강의: <code>20261110.pdf</code> (FastAPI 입문 · 지식 관리 API, 94쪽) — 플랫폼 속 위치 p2–11 · 첫 서버 p12–20 · JSON 조회 p22–28 · POST·검증 p30–36 · PUT p38–41 · DELETE·상태 코드 p43–47 · 역할별 구조·Template p49–55 · 플랫폼 연결 p57–65 · 부록(저장·Lock·용어·PATCH·검색·Template·테스트·Windows 실행) p79–91</li>
-        <li>노트의 실제 응답·Lock 실험 값: 강의 코드를 FastAPI 0.162.2 · Pydantic 2.14.3에서 직접 실행해 확인 (그림 스크립트 <code>tools/visuals/make_day17.py</code>)</li>
+        <li>원본: <code>20261110.pdf</code> (FastAPI 입문 · 지식 관리 API, 94쪽) — 플랫폼 속 위치 p2–11 · 첫 서버 p12–20 · JSON 조회 p22–28 · POST·검증 p30–36 · PUT p38–41 · DELETE·상태 코드 p43–47 · 역할별 구조·Template p49–55 · 플랫폼 연결 p57–65 · 부록(저장·Lock·용어·PATCH·검색·Template·테스트·Windows 실행) p79–91</li>
+        <li>실제 응답·Lock 실험 값: 원본 코드를 FastAPI 0.162.2 · Pydantic 2.14.3에서 직접 실행해 확인 (그림 스크립트 <code>tools/visuals/make_day17.py</code>)</li>
         <li>공식 문서: <a href="https://fastapi.tiangolo.com/tutorial/first-steps/" target="_blank">FastAPI First Steps</a> · <a href="https://fastapi.tiangolo.com/tutorial/path-params/" target="_blank">Path Parameters</a> · <a href="https://fastapi.tiangolo.com/tutorial/query-params/" target="_blank">Query Parameters</a> · <a href="https://fastapi.tiangolo.com/tutorial/body/" target="_blank">Request Body</a></li>
         <li>공식 문서: <a href="https://fastapi.tiangolo.com/tutorial/response-status-code/" target="_blank">Response Status Code</a> · <a href="https://fastapi.tiangolo.com/tutorial/handling-errors/" target="_blank">Handling Errors</a> · <a href="https://fastapi.tiangolo.com/tutorial/body-updates/" target="_blank">Body - Updates (PUT/PATCH)</a> · <a href="https://fastapi.tiangolo.com/tutorial/response-model/" target="_blank">Response Model</a></li>
         <li>공식 문서: <a href="https://fastapi.tiangolo.com/tutorial/bigger-applications/" target="_blank">Bigger Applications (APIRouter)</a> · <a href="https://fastapi.tiangolo.com/advanced/templates/" target="_blank">Templates</a> · <a href="https://fastapi.tiangolo.com/tutorial/testing/" target="_blank">Testing</a> · <a href="https://www.uvicorn.org/settings/" target="_blank">Uvicorn Settings</a></li>

@@ -2,15 +2,15 @@
 <section class="cmd-overview" data-day="16">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day16.html#packages">📦 필요한 패키지</a></td><td><code>pip install opencv-python numpy pandas pytesseract</code> + <b>Tesseract 프로그램</b> (VLM은 <code>transformers</code>)</td></tr>
+        <tr><td><a href="notes/day16.html#packages">📦 패키지 · 명령어</a></td><td><code>pip install opencv-python numpy pandas pytesseract</code> + <b>Tesseract 프로그램</b> (VLM은 <code>transformers</code>)</td></tr>
         <tr><td><a href="notes/day16.html#prep">① 문서 전처리</a></td><td><code>cv2.imread()</code>, <code>cv2.cvtColor()</code>, <code>cv2.threshold()</code>, <code>cv2.adaptiveThreshold()</code>, <code>cv2.getPerspectiveTransform()</code>, <code>cv2.warpPerspective()</code>, <code>cv2.perspectiveTransform()</code>(좌표 되돌리기), <code>cv2.resize()</code></td></tr>
         <tr><td><a href="notes/day16.html#ocr">② OCR 실행 · Box · Confidence</a></td><td><code>pytesseract.image_to_data(lang=, config="--oem 3 --psm 6", output_type=Output.DATAFRAME)</code></td></tr>
-        <tr><td><a href="notes/day16.html#eval">③ OCR 품질 평가</a></td><td><code>levenshtein()</code> → <code>cer()</code>, <code>jiwer.cer()</code>, 필드 정확도</td></tr>
-        <tr><td><a href="notes/day16.html#struct">④ 구조화 · JSON · 검증</a></td><td><code>re.search()</code>, <code>re.sub()</code>, <code>json.dump()</code>, <code>validate_invoice()</code></td></tr>
+        <tr><td><a href="notes/day16.html#eval">③ OCR 품질 평가</a></td><td><code>jiwer.cer()</code> · <code>jiwer.wer()</code>, <code>" ".join(text.split())</code> 정규화</td></tr>
+        <tr><td><a href="notes/day16.html#struct">④ 구조화 · JSON · 검증</a></td><td><code>re.search()</code>, <code>re.sub()</code>, <code>re.findall(re.MULTILINE)</code>, <code>date()</code>, <code>json.dump()</code></td></tr>
         <tr><td><a href="notes/day16.html#vlm">⑤ VLM 이미지 질의응답</a></td><td><code>pipeline("image-text-to-text")</code>, <code>processor.apply_chat_template()</code>, <code>model.generate()</code></td></tr>
-        <tr><td><a href="notes/day16.html#ground">⑥ 근거 검증 · Hybrid · 보안</a></td><td><code>json.loads()</code> + 필수 key·bbox 검사, <code>if answer == raw</code> → 채택 / <code>None</code>(보류)</td></tr>
+        <tr><td><a href="notes/day16.html#ground">⑥ 근거 검증 · Hybrid · 보안</a></td><td><code>json.loads()</code> + <code>JSONDecodeError</code>, 필수 key 집합 빼기 · bbox 검사</td></tr>
         <tr><td><a href="notes/day16.html#deploy">⑦ 엣지 배포 (TensorRT · Jetson · DeepStream)</a></td><td><code>torch.onnx.export()</code>, <code>trtexec --onnx= --saveEngine=</code>, <code>--loadEngine=</code>, <code>--minShapes/--optShapes/--maxShapes</code></td></tr>
-        <tr><td><a href="notes/day16.html#app">⑧ OCR·VLM 미니 애플리케이션 설계</a></td><td><code>@dataclass OCRResult</code>, <code>VLMResult</code>, 폴더별 역할</td></tr>
+        <tr><td><a href="notes/day16.html#app">⑧ OCR·VLM 애플리케이션 설계</a></td><td><code>@dataclass</code> — <code>OCRWord</code> · <code>OCRResult</code> · <code>VLMResult</code> 결과 상자</td></tr>
       </table>
 </section>
 <section class="cmd" id="d16-cv2-imread" data-topic="OpenCV" data-sub="문서 전처리" data-day="16" data-theory="notes/day16.html#prep">
@@ -26,7 +26,7 @@ print("Gray shape:", gray.shape)     # (H, W)
 if not cv2.imwrite("gray.png", gray):
     raise OSError("gray.png 저장 실패")</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>수업 청구서 data/doc03.png</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 청구서 data/doc03.png</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>image = cv2.imread(&quot;doc03.png&quot;, cv2.IMREAD_COLOR)</code></td><td><code>image.shape → (700, 1000, 3)</code></td><td>(H, W, 3) — 세로 700 · 가로 1000 · BGR</td></tr>
@@ -126,7 +126,7 @@ warped = cv2.warpPerspective(
   <h3>보정본 좌표 → 원본 사진 좌표 <code>cv2.perspectiveTransform()</code> · 작은 사진 확대 <code>cv2.resize()</code></h3>
 <pre><code>box = np.float32([[[40, 370]]])                      # 보정본에서 찾은 TOTAL: 의 왼쪽 위 점, shape (1, 1, 2)
 back = cv2.perspectiveTransform(box, np.linalg.inv(M))
-print(back)                                         # 강의 요약본의 실제 사진(모서리 좌표가 다름)에선 [[[64.7 349.6]]] → 사진에서 직접 읽은 (65, 350)과 1px 안
+print(back)                                         # 원본 자료의 실제 사진(모서리 좌표가 다름)에선 [[[64.7 349.6]]] → 사진에서 직접 읽은 (65, 350)과 1px 안
 
 small = cv2.resize(warped, None, fx=2, fy=2,        # 가로·세로 2배
                    interpolation=cv2.INTER_CUBIC)</code></pre>
@@ -146,11 +146,11 @@ small = cv2.resize(warped, None, fx=2, fy=2,        # 가로·세로 2배
         <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
         <tr><td><code>np.linalg.inv(M)</code></td><td>M(사진 → 보정본)의 <b>역행렬</b> = 보정본 → 사진</td><td>M을 그대로 쓰면 한 번 더 "펴는" 셈이라 엉뚱한 곳을 가리켜요</td></tr>
         <tr><td>점 shape <code>(N, 1, 2)</code></td><td><code>perspectiveTransform</code>이 기대하는 모양</td><td><code>(N, 2)</code>로 넣으면 에러 — 이미지가 아니라 <b>점</b>을 옮기는 함수라 따로 있어요(<code>warpPerspective</code>는 이미지용)</td></tr>
-        <tr><td><code>fx=2, fy=2</code></td><td>가로·세로 배율 (<code>dsize=None</code>일 때)</td><td>요약본 실측: 0.4배로 줄인 흐린 사진이 CER <b>0.066 → 0.008</b>, 필드 2/3 → 3/3</td></tr>
+        <tr><td><code>fx=2, fy=2</code></td><td>가로·세로 배율 (<code>dsize=None</code>일 때)</td><td>실측: 0.4배로 줄인 흐린 사진이 CER <b>0.066 → 0.008</b>, 필드 2/3 → 3/3</td></tr>
         <tr><td><code>INTER_CUBIC</code></td><td>주변 16칸으로 부드럽게 새 픽셀 계산</td><td><code>INTER_NEAREST</code>면 계단이 그대로 커져 확대 효과가 줄어요</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 확대만 했는데 더 잘 읽어?</strong> — 새 정보가 생긴 건 아니에요. Tesseract 공식 문서(ImproveQuality)에 따르면 글자가 어느 정도 커야(대문자 높이 30px 안팎) 가장 잘 읽혀서, 너무 작은 글자는 획이 1~2픽셀로 뭉개져 모양을 못 알아봐요. 키워 주면 엔진이 <b>익숙한 크기</b>로 보게 되는 거예요.</div>
-      <div class="callout warn">⚠️ <strong>흔한 실수: 모서리 순서</strong> — 요약본에서 <code>corners</code>의 시작점을 오른쪽 위로 바꿨더니(값은 같고 순서만 한 칸 밀림) 문서가 <b>90도 돌아가 찌그러져</b> CER 0.008 → <b>1.254</b>, 필드 3/3 → 0/3이 됐어요. 두 점만 맞바꾸면 사각형이 꼬여 화면 대부분이 검게 나왔고요(CER 1.0). <a href="notes/day16.html#warp">Day16 본문 원근 보정 체험</a>의 "2번 ↔ 4번" 버튼이 바로 그 상황이에요. <br>🤔 <b>CER이 1을 넘을 수 있어?</b> — 네. 분모는 정답 글자 수인데, 엉뚱한 글자를 잔뜩 <b>끼워 넣으면(I)</b> 오류 수가 정답 길이보다 많아질 수 있어요.</div>
+      <div class="callout warn">⚠️ <strong>흔한 실수: 모서리 순서</strong> — 실측에서 <code>corners</code>의 시작점을 오른쪽 위로 바꿨더니(값은 같고 순서만 한 칸 밀림) 문서가 <b>90도 돌아가 찌그러져</b> CER 0.008 → <b>1.254</b>, 필드 3/3 → 0/3이 됐어요. 두 점만 맞바꾸면 사각형이 꼬여 화면 대부분이 검게 나왔고요(CER 1.0). <a href="notes/day16.html#warp">Day16 본문 원근 보정 체험</a>의 "2번 ↔ 4번" 버튼이 바로 그 상황이에요. <br>🤔 <b>CER이 1을 넘을 수 있어?</b> — 네. 분모는 정답 글자 수인데, 엉뚱한 글자를 잔뜩 <b>끼워 넣으면(I)</b> 오류 수가 정답 길이보다 많아질 수 있어요.</div>
 </section>
 
 <section class="cmd" id="d16-pytesseract-image-to-data" data-topic="OCR · 문서" data-sub="OCR 실행" data-day="16" data-theory="notes/day16.html#ocr">
@@ -171,7 +171,7 @@ review = words[words.conf.lt(50)]                       # 점수 낮은 단어 =
 columns = ["text", "conf", "left", "top", "width", "height"]
 print(words[columns])</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>이 PC엔 Tesseract가 없어서, 수업 lesson.json에 기록된 실제 Tesseract 5.5.0(eng, psm 6) 결과로 표를 만들고 거르기만 실행 — lowres_raw.png(작은 사진) 기준</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>이 PC엔 Tesseract가 없어서, 예제 lesson.json에 기록된 실제 Tesseract 5.5.0(eng, psm 6) 결과로 표를 만들고 거르기만 실행 — lowres_raw.png(작은 사진) 기준</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>pytesseract.image_to_data(gray, ...)  (이 PC)</code></td><td><code>TesseractNotFoundError: tesseract is not installed or it&#x27;s not in your PATH. See README file for more information.</code></td><td>엔진 프로그램이 따로 설치돼 있어야 해요</td></tr>
@@ -206,52 +206,6 @@ print(words[columns])</code></pre>
       <div class="callout">💡 객체탐지의 box와 OCR의 word box는 둘 다 "위치"예요. 차이는 OCR box에는 <b>문자열·줄·블록 정보</b>가 함께 붙는다는 것.</div>
 </section>
 
-<section class="cmd" id="d16-cer-계산-함수" data-topic="OCR · 문서" data-sub="품질 평가" data-day="16" data-theory="notes/day16.html#eval">
-  <h3>CER 계산 함수</h3>
-<pre><code>def levenshtein(a: str, b: str) -&gt; int:
-    dp = list(range(len(b) + 1))           # 빈 문자열 → b의 앞 j글자: j번 삽입
-    for i, ca in enumerate(a, start=1):
-        prev, dp[0] = dp[0], i
-        for j, cb in enumerate(b, start=1):
-            old = dp[j]
-            dp[j] = min(
-                dp[j] + 1,                 # 삭제 (D)
-                dp[j - 1] + 1,             # 삽입 (I)
-                prev + (ca != cb),         # 치환 (S) — 같으면 +0
-            )
-            prev = old
-    return dp[-1]
-
-def cer(reference: str, prediction: str) -&gt; float:
-    if not reference:
-        raise ValueError("빈 정답 문서는 별도 평가합니다")
-    errors = levenshtein(reference, prediction)
-    return errors / len(reference)</code></pre>
-<div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 예시 문자열 + lesson.json의 정답 글자 vs 기록된 실제 Tesseract 결과 (doc03 계열)</small></div>
-  <table class="io-table">
-    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
-    <tr><td><code>levenshtein(&quot;1,234,500원&quot;, &quot;1,234,5O0원&quot;)</code></td><td><code>1</code></td><td>0 → O 치환(S) 1번</td></tr>
-    <tr><td><code>cer(&quot;1,234,500원&quot;, &quot;1,234,5O0원&quot;)</code></td><td><code>0.100</code></td><td>1 ÷ 정답 10글자</td></tr>
-    <tr><td><code>levenshtein(&quot;33000&quot;, &quot;3300&quot;)  ·  (&quot;33000&quot;, &quot;330000&quot;)</code></td><td><code>1 · 1</code></td><td>빠뜨림(D) 1 · 끼워 넣음(I) 1</td></tr>
-    <tr><td><code>cer(정답, doc03 OCR)  — 정면 깨끗한 문서</code></td><td><code>0.006</code></td><td>DOC03 → DOCO3 한 글자만 틀림</td></tr>
-    <tr><td><code>cer(정답, rotated_raw OCR)</code></td><td><code>0.025</code></td><td>기울어진 사진 그대로</td></tr>
-    <tr><td><code>cer(정답, lowres_raw / lowres_corrected OCR)</code></td><td><code>0.063 / 0.019</code></td><td>작은 사진 → 보정하면 줄어듦</td></tr>
-    <tr><td><code>cer(정답, shadow_raw OCR)  — OCR 결과가 빈 문자열</code></td><td><code>1.000</code></td><td>전부 빠뜨림 = 1.0</td></tr>
-    <tr><td><code>cer(&quot;&quot;, &quot;abc&quot;)</code></td><td><code>ValueError: 빈 정답 문서는 별도 평가합니다</code></td><td>빈 정답은 0으로 나누지 않고 따로 집계</td></tr>
-  </table>
-</div>
-      <table>
-        <tr><th>코드 · 규칙</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>dp</code> 한 줄</td><td>표 전체 대신 직전 줄만 기억하며 최소 횟수를 채움</td><td>결과는 같고 메모리만 아껴요</td></tr>
-        <tr><td><code>prev + (ca != cb)</code></td><td>두 글자가 같으면 비용 0, 다르면 1(치환)</td><td>치환 비용을 2로 하면 "지우고 넣기"와 같아져 다른 지표가 돼요</td></tr>
-        <tr><td><code>len(reference)</code></td><td>분모 = <b>정답</b> 글자 수</td><td>OCR 결과 길이로 나누면, 글자를 잔뜩 빠뜨린 결과가 오히려 점수가 좋아 보여요</td></tr>
-        <tr><td>빈 정답 → <code>ValueError</code></td><td>0으로 나누기 방지 + 따로 집계</td><td>조용히 0점 처리하면 "글자 없는 페이지에 글자를 지어낸" 오류가 숨어요</td></tr>
-        <tr><td>정규화 규칙</td><td>공백·대소문자·기호를 비교 전에 어떻게 다룰지 <b>먼저 고정</b></td><td>규칙이 바뀌면 같은 결과도 CER이 달라져요(<a href="notes/day16.html#fig-cer-align">Day16 본문 CER 체험</a>의 "공백 지우기" 체크박스)</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 문서별 평균과 micro CER을 구분해?</strong> — 문서별 CER을 평균 내면 10글자짜리 영수증과 2,000글자짜리 계약서가 <b>같은 무게</b>예요. micro CER은 전체 오류 수 ÷ 전체 정답 글자 수라서 <b>글자 하나하나가 같은 무게</b>예요. 짧은 문서 몇 장이 크게 틀리면 두 값이 크게 달라지니, 어떤 걸 보고했는지 적어요.</div>
-</section>
-
 <section class="cmd" id="d16-jiwer-cer" data-topic="OCR · 문서" data-sub="품질 평가" data-day="16" data-theory="notes/day16.html#eval">
   <h3>라이브러리로 한 줄 <code>jiwer.cer()</code></h3>
 <pre><code>import jiwer                                   # pip install jiwer
@@ -261,7 +215,7 @@ read = " ".join(text.split())                   # OCR 글자 — 줄바꿈·여�
 score = jiwer.cer(truth, read)                  # (정답, 예측) 순서!
 print(round(score, 3))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>jiwer가 이 PC에 없어 같은 정의(편집 거리 ÷ 정답 글자 수)인 CER 계산 함수의 cer()로 계산 — doc01 psm 3 기록 · lowres_raw 기록</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>jiwer가 이 PC에 없어 같은 정의(편집 거리 ÷ 정답 글자 수)로 직접 cer()를 계산 — doc01 psm 3 기록 · lowres_raw 기록</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>import jiwer</code></td><td><code>ModuleNotFoundError: No module named &#x27;jiwer&#x27;</code></td><td>pip install jiwer 필요</td></tr>
@@ -301,7 +255,7 @@ if am:
     total = int(am.group(1).replace(",", ""))
 print(issued_at, total)        # 2026-11-09 1234500</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>사전 코드의 text 문자열 + 수업 doc03의 실제 Tesseract 기록 문자열</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>사전 코드의 text 문자열 + 예제 doc03의 실제 Tesseract 기록 문자열</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>re.search(date_pat, text).groups()</code></td><td><code>(&#x27;2026&#x27;, &#x27;11&#x27;, &#x27;09&#x27;)</code></td><td>괄호 세 개 = 그룹 세 개 (아직 글자)</td></tr>
@@ -330,7 +284,7 @@ print(issued_at, total)        # 2026-11-09 1234500</code></pre>
         <tr><td><code>flags</code></td><td><code>re.IGNORECASE</code>(대소문자 무시), <code>re.MULTILINE</code>(줄마다 <code>^ $</code>)</td><td>"Total"/"TOTAL"을 한 패턴으로 잡을 때 IGNORECASE</td></tr>
       </table>
       <div class="callout">🤔 <strong>왜 패턴으로 찾고 <code>date()</code>로 또 검사해?</strong> — 정규식은 "모양"만 봐요. <code>2026-13-45</code>도 모양은 날짜예요. <code>date(2026, 13, 45)</code>는 <code>ValueError</code>를 내니까, 패턴은 <b>후보 찾기</b>, date는 <b>진짜인지 확인</b>으로 역할을 나눠요. 그리고 실패하면 아무 값이나 넣지 말고 <code>None</code>으로 남겨요.</div>
-      <div class="callout warn">🔬 <strong>정규식을 느슨하게 바꾸면</strong> (oneday 요약본 실측, 실제 OCR 문자열) <br>
+      <div class="callout warn">🔬 <strong>정규식을 느슨하게 바꾸면</strong> (실측, 실제 OCR 문자열) <br>
         · <code>re.search(r"^TOTAL: (\d+)$", text, re.MULTILINE)</code> → <code>"33000"</code> ✅ <br>
         · <code>re.search(r"(\d+)", text)</code> (첫 숫자) → <code>"3"</code> ❌ — 맨 윗줄 <code>DOCO3</code>의 3을 금액으로 집었어요. <br>
         · <code>re.MULTILINE</code>만 빼도 → <code>None</code> → <code>match.group(1)</code>에서 <b>프로그램이 멈춰요</b>. <br>
@@ -385,57 +339,6 @@ with open("invoice_001.json", "w", encoding="utf-8") as f:
       <div class="callout">🤔 <strong>왜 정규화한 값만 저장하면 문제야?</strong> — 오류가 났을 때 "원래 뭐라고 적혀 있었는지, 어디 있었는지"를 확인할 수 없어요. 실제 기록에는 이미지 경로·적용한 변환·<b>schema version</b>(이 JSON 모양의 버전)도 같이 남겨요.</div>
 </section>
 
-<section class="cmd" id="d16-validate-invoice" data-topic="OCR · 문서" data-sub="구조화" data-day="16" data-theory="notes/day16.html#struct">
-  <h3>업무 규칙으로 검증 <code>validate_invoice()</code></h3>
-      <table>
-        <tr><th>규칙</th><th>예</th></tr>
-        <tr><td><b>필수 필드</b></td><td>document_id · issued_at · supplier · total_amount</td></tr>
-        <tr><td><b>형식</b></td><td>날짜는 ISO 8601(<code>2026-11-09</code>), 금액은 정수, 통화는 별도 필드</td></tr>
-        <tr><td><b>관계</b></td><td>공급가액 + 세액 = 합계, 수량 × 단가 ≈ 금액</td></tr>
-        <tr><td><b>범위</b></td><td>날짜·금액·수량이 허용 범위 안인지</td></tr>
-        <tr><td><b>상태</b></td><td><code>passed</code> · <code>warning</code> · <code>failed</code> + 사람이 확인할 이유</td></tr>
-      </table>
-<pre><code>def validate_invoice(doc: dict) -&gt; list[str]:
-    if not isinstance(doc, dict):
-        return ["입력은 객체여야 합니다"]
-    errors = []
-    if not doc.get("document_id"):
-        errors.append("document_id 누락")
-    fields = doc.get("fields", {})
-    if not isinstance(fields, dict):
-        return errors + ["fields는 객체여야 합니다"]
-    for name in ["issued_at", "supplier", "total_amount"]:
-        item = fields.get(name)
-        value = item.get("value") if isinstance(item, dict) else None
-        if value is None or value == "":
-            errors.append(f"필수 필드 누락: {name}")
-        elif name == "total_amount":
-            if type(value) is not int or value &lt; 0:
-                errors.append("합계는 0 이상의 정수여야 합니다")
-    return errors</code></pre>
-<div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>json.dump 항목의 record와 일부러 망가뜨린 사본들</small></div>
-  <table class="io-table">
-    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
-    <tr><td><code>validate_invoice(record)</code></td><td><code>[]</code></td><td>빈 목록 = 통과</td></tr>
-    <tr><td><code>total_amount value = 0</code></td><td><code>[]</code></td><td>0원은 진짜 값 — 누락이 아님</td></tr>
-    <tr><td><code>total_amount value = &quot;1234500&quot;  (글자)</code></td><td><code>[&#x27;합계는 0 이상의 정수여야 합니다&#x27;]</code></td><td>정수가 아님</td></tr>
-    <tr><td><code>total_amount value = True</code></td><td><code>[&#x27;합계는 0 이상의 정수여야 합니다&#x27;]</code></td><td>type() is int 검사라 bool도 걸러짐</td></tr>
-    <tr><td><code>supplier 필드 삭제</code></td><td><code>[&#x27;필수 필드 누락: supplier&#x27;]</code></td><td>필수 필드 검사</td></tr>
-    <tr><td><code>{&quot;fields&quot;: &quot;x&quot;}</code></td><td><code>[&#x27;document_id 누락&#x27;, &#x27;fields는 객체여야 합니다&#x27;]</code></td><td>문제를 모아서 한꺼번에</td></tr>
-    <tr><td><code>validate_invoice([record])</code></td><td><code>[&#x27;입력은 객체여야 합니다&#x27;]</code></td><td>dict가 아니면 바로 거절 (.get 에러 없이)</td></tr>
-  </table>
-</div>
-      <table>
-        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>isinstance(doc, dict)</code> 먼저</td><td>모양을 확인한 뒤에 필드에 접근</td><td>빼면 리스트·None이 들어올 때 <code>.get</code>에서 프로그램이 죽어요</td></tr>
-        <tr><td><code>value is None or value == ""</code></td><td>"없음"만 누락으로 봄</td><td><code>if not value:</code>로 쓰면 <b>금액 0</b>도 누락으로 처리돼요 (0은 거짓으로 취급되니까)</td></tr>
-        <tr><td><code>type(value) is not int</code></td><td>정확히 int만 금액으로 인정</td><td><code>isinstance(value, int)</code>로 쓰면 <code>True</code>도 통과해요 — Python에서 bool은 int의 한 종류(True == 1)라서</td></tr>
-        <tr><td>오류 <b>목록</b> 반환</td><td>문제를 전부 모아서 돌려줌</td><td>첫 오류에서 멈추면 사람이 여러 번 고쳐야 해요</td></tr>
-      </table>
-      <div class="callout warn">⚠️ 검증에 실패했다고 <b>0이나 빈 문자열로 자동 치환하면 안 돼요.</b> 진짜 0원과 "못 읽음"이 구분되지 않아요. <code>warning</code>·<code>failed</code> 상태와 이유를 남기고 사람이 보게 해요. 날짜·문자열·좌표까지 전부 검사하려면 이 함수를 Schema(데이터 모양 규칙)로 확장해요.</div>
-</section>
-
 <section class="cmd" id="d16-pipeline-image-text-to-text" data-topic="VLM · Transformers" data-sub="VLM 실행" data-day="16" data-theory="notes/day16.html#vlm">
   <h3>간단 버전 <code>pipeline("image-text-to-text")</code></h3>
 <pre><code>from transformers import pipeline
@@ -467,7 +370,7 @@ print(result[0]["generated_text"])</code></pre>
         <tr><td><code>max_new_tokens</code></td><td>새로 만들 답의 최대 길이(토큰)</td><td>너무 작으면 JSON이 중간에 잘려 파싱 실패. 크면 느려지고 쓸데없는 말이 붙을 수 있어요</td></tr>
         <tr><td><code>return_full_text=False</code></td><td>새 답 부분만 돌려받기</td><td>True면 질문(입력)까지 붙어 나와서 답만 따로 잘라야 해요</td></tr>
       </table>
-      <div class="callout">🔬 <strong><code>max_new_tokens</code>를 3으로 줄이면</strong> — oneday 요약본에서 SmolVLM-256M에 "What is the total amount?"를 물었을 때 128이면 <code>33000</code>, 3이면 <code>33</code>이 나왔어요. <b>에러 없이</b> 잘린 숫자가 나온 거예요. <br>🤔 왜 에러가 안 나? 모델은 토큰을 한 조각씩 만들다 개수 제한에 닿으면 그냥 멈출 뿐이에요. "답이 덜 끝났다"는 신호가 따로 없어서, 잘린 <code>33</code>도 멀쩡한 답처럼 보여요. 그래서 다음 단계(<a href="notes/day16.html#ground">Day16 ⑥ 근거 검증</a>)에서 OCR 원문과 대조하면 <code>33 ≠ 33000</code>으로 걸러져 보류돼요.</div>
+      <div class="callout">🔬 <strong><code>max_new_tokens</code>를 3으로 줄이면</strong> — SmolVLM-256M에 "What is the total amount?"를 물었을 때 128이면 <code>33000</code>, 3이면 <code>33</code>이 나왔어요. <b>에러 없이</b> 잘린 숫자가 나온 거예요. <br>🤔 왜 에러가 안 나? 모델은 토큰을 한 조각씩 만들다 개수 제한에 닿으면 그냥 멈출 뿐이에요. "답이 덜 끝났다"는 신호가 따로 없어서, 잘린 <code>33</code>도 멀쩡한 답처럼 보여요. 그래서 다음 단계(<a href="notes/day16.html#ground">Day16 ⑥ 근거 검증</a>)에서 OCR 원문과 대조하면 <code>33 ≠ 33000</code>으로 걸러져 보류돼요.</div>
       <div class="callout">💡 <strong><code>do_sample=False</code></strong> — 매번 가장 확률 높은 토큰만 고르는 방식(greedy)이라 <b>같은 입력이면 같은 답</b>이 나와요. 결과를 기록하고 다시 실행해 대조하려면 이 설정이 필요해요.</div>
 </section>
 
@@ -560,34 +463,6 @@ print("설명용 이미지의 Box 범위:", valid_box)</code></pre>
       <div class="callout warn">⚠️ <strong>JSON 파싱 성공 ≠ 내용이 사실.</strong> 이 코드는 <b>구조</b>만 봐요. answer·evidence·page가 맞는지는 OCR 원문과 그 bbox를 잘라 낸 이미지(crop)에 <b>대조한 뒤</b> 확인완료·검토필요·실패를 정해요.</div>
 </section>
 
-<section class="cmd" id="d16-가장-단순한-결합-규칙" data-topic="VLM · Transformers" data-sub="근거 검증 · Hybrid" data-day="16" data-theory="notes/day16.html#ground">
-  <h3>가장 단순한 결합 규칙</h3>
-<pre><code>if answer == total["raw"]:          # VLM 답이 OCR 원문과 같으면
-    final = total["value"]          # → 채택
-else:
-    final = None                    # → 보류, 사람이 확인 (정답으로 세지 않음)</code></pre>
-<div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>VLM 답 6개는 Day16 본문 표에 기록된 SmolVLM 결과(이 PC에선 VLM 미실행) · OCR 원문(raw)은 수업 doc03의 실제 Tesseract 기록에서 ^TOTAL: · ^SUPPLIER: · ^DATE: 정규식으로 뽑음 (문서에 없는 항목은 None)</small></div>
-  <table class="io-table">
-    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
-    <tr><td><code>answer=&#x27;33000&#x27; vs raw=&#x27;33000&#x27;</code></td><td><code>final = &#x27;33000&#x27;</code></td><td>✅ 채택</td></tr>
-    <tr><td><code>answer=&#x27;ALPHA STUDIO&#x27; vs raw=&#x27;ALPHA STUDIO&#x27;</code></td><td><code>final = &#x27;ALPHA STUDIO&#x27;</code></td><td>✅ 채택</td></tr>
-    <tr><td><code>answer=&#x27;2026-11-03&#x27; vs raw=&#x27;2026-11-03&#x27;</code></td><td><code>final = &#x27;2026-11-03&#x27;</code></td><td>✅ 채택</td></tr>
-    <tr><td><code>answer=&#x27;0.&#x27; vs raw=None</code></td><td><code>final = None</code></td><td>⏸ 보류 — 문서에 근거 없음</td></tr>
-    <tr><td><code>answer=&#x27;33000&#x27; vs raw=None</code></td><td><code>final = None</code></td><td>⏸ 보류 — 문서에 근거 없음</td></tr>
-    <tr><td><code>answer=&#x27;ALPHA STUDIO&#x27; vs raw=None</code></td><td><code>final = None</code></td><td>⏸ 보류 — 문서에 근거 없음</td></tr>
-    <tr><td><code>max_new_tokens=3으로 잘린 답 &#x27;33&#x27; vs raw &#x27;33000&#x27;</code></td><td><code>final = None</code></td><td>에러 없이 잘린 답도 대조에서 걸러짐</td></tr>
-    <tr><td><code>채택 수 · 보류 수</code></td><td><code>3 · 3</code></td><td>보류는 정답으로 세지 않아요</td></tr>
-  </table>
-</div>
-      <table>
-        <tr><th>코드</th><th>뜻</th><th>바꾸면?</th></tr>
-        <tr><td><code>answer == total["raw"]</code></td><td>VLM 답을 OCR이 읽은 <b>원문 글자</b>와 비교</td><td>대조 없이 <code>final = answer</code>로 하면 할인액 질문의 <code>33000</code>이 그대로 "할인액"으로 저장돼요(요약본 실측)</td></tr>
-        <tr><td><code>final = None</code></td><td>보류 — 값이 없다는 게 아니라 "확인 전"</td><td>0이나 <code>""</code>를 넣으면 진짜 값과 구분이 안 돼요</td></tr>
-      </table>
-      <div class="callout">🤔 <strong>왜 보류를 정답으로 안 세?</strong> — 보류는 "사람이 확인해야 함"이지 "맞음"이 아니에요. 보류를 정답에 넣으면 자동화율이 부풀고, 빼고 세면 "자동으로 처리된 것 중 몇 개가 맞았나"와 "몇 개를 사람에게 넘겼나"를 따로 볼 수 있어요. <a href="notes/day16.html#ground">Day16 ⑥ "실제 VLM은 얼마나 지어낼까" 표</a>라면 6개 중 <b>채택 3 · 보류 3</b>.</div>
-</section>
-
 <section class="cmd" id="d16-torch-onnx-export" data-topic="배포 · 최적화" data-sub="TensorRT" data-day="16" data-theory="notes/day16.html#deploy">
   <h3>PyTorch → ONNX 내보내기 <code>torch.onnx.export()</code></h3>
 <pre><code>import torch
@@ -656,17 +531,10 @@ class VLMResult:
     raw_text: str
     model_id: str
 
-def run_ocr(image) -&gt; OCRResult:
-    raise NotImplementedError("OCR 어댑터를 연결하세요")      # 엔진별 어댑터 구현은 별도
 
-def ask_document(image_path, question, pipe) -&gt; VLMResult:
-    messages = [{"role": "user", "content": [
-        {"type": "image", "path": str(image_path)},
-        {"type": "text", "text": question},
-    ]}]
-    raise NotImplementedError("VLM 어댑터를 연결하세요")      # 호출·파싱은 별도</code></pre>
+# 엔진별 어댑터(Tesseract · VLM 호출)는 이 상자들을 돌려주도록 따로 구현</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>수업 doc03의 기록된 Tesseract 단어로 결과 상자 만들기</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>예제 doc03의 기록된 Tesseract 단어로 결과 상자 만들기</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>OCRWord(text, confidence, bbox)  — TOTAL: 단어</code></td><td><code>OCRWord(text=&#x27;TOTAL:&#x27;, confidence=96.7, bbox=(56, 501, 156, 523))</code></td><td>출력(__repr__)을 자동으로 만들어 줌</td></tr>
@@ -674,7 +542,6 @@ def ask_document(image_path, question, pipe) -&gt; VLMResult:
     <tr><td><code>OCRWord(&#x27;a&#x27;, 1.0, (0, 0, 1, 1)) == OCRWord(&#x27;a&#x27;, 1.0, (0, 0, 1, 1))</code></td><td><code>True</code></td><td>값이 같으면 같다(__eq__ 자동)</td></tr>
     <tr><td><code>OCRWord(text=&quot;a&quot;, conf=1.0, bbox=(0, 0, 1, 1))  (이름 오타)</code></td><td><code>TypeError: OCRWord.__init__() got an unexpected keyword argument &#x27;conf&#x27;</code></td><td>dict와 달리 오타를 바로 알려 줌</td></tr>
     <tr><td><code>VLMResult(answer=None, evidence=None, raw_text=&quot;0.&quot;, model_id=&quot;SmolVLM-256M&quot;)</code></td><td><code>VLMResult(answer=None, evidence=None, raw_text=&#x27;0.&#x27;, model_id=&#x27;SmolVLM-256M&#x27;)</code></td><td>근거 없으면 None + 원문은 따로</td></tr>
-    <tr><td><code>run_ocr(image)</code></td><td><code>NotImplementedError: OCR 어댑터를 연결하세요</code></td><td>아직 어댑터가 없다는 걸 분명히</td></tr>
   </table>
 </div>
       <table>

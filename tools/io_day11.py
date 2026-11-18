@@ -66,7 +66,7 @@ from PIL import Image  # noqa: E402
 
 pil = Image.open(png).convert("RGB")
 t = transforms.ToTensor()(pil)
-IO["d11-축-순서-바꾸기-개수-축-붙이기"] = (f"torch.rand 난수(seed 0) · 강의 데이터 train/horizontal/{png.name}", [
+IO["d11-축-순서-바꾸기-개수-축-붙이기"] = (f"torch.rand 난수(seed 0) · 예제 데이터 train/horizontal/{png.name}", [
     ("images = torch.rand(4, 3, 32, 32); images.shape", sh(images), "[N, C, H, W] = 4장 · 3채널 · 32×32"),
     ("img = images[0]; img.shape", sh(img), "한 장을 꺼내면 N축이 빠짐"),
     ("img.permute(1, 2, 0).shape", sh(hwc), "[H, W, C] — plt.imshow가 원하는 순서"),
@@ -175,7 +175,7 @@ valid_loader = DataLoader(valid_ds, batch_size=32, shuffle=False)
 images_b, labels_b = next(iter(train_loader))
 raw = datasets.ImageFolder(str(DATA / "train"))
 s0 = train_ds.samples[0]
-IO["d11-imagefolder"] = ("강의 데이터 data/train (horizontal 30 · vertical 30) · data/valid (10 · 10)", [
+IO["d11-imagefolder"] = ("예제 데이터 data/train (horizontal 30 · vertical 30) · data/valid (10 · 10)", [
     ("train_ds.class_to_idx", repr(train_ds.class_to_idx), "폴더 이름 알파벳 순서로 번호"),
     ("len(train_ds), len(valid_ds)", f"{len(train_ds)}, {len(valid_ds)}", ""),
     ("train_ds.samples[0]", f"('…/train/horizontal/{Path(s0[0]).name}', {s0[1]})", "(파일 경로, 라벨)"),
@@ -225,7 +225,7 @@ alias_changed = not torch.equal(before, alias["fc.bias"])
 deep_changed = not torch.equal(best_state["fc.bias"], model.state_dict()["fc.bias"])
 model.load_state_dict(best_state)
 ce = lambda lg, y: f"{nn.CrossEntropyLoss()(torch.tensor([lg]), torch.tensor([y])).item():.3f}"
-IO["d11-손실-학습-루프-valid-평가-best-저장"] = (f"강의 데이터 train 60장으로 SmallCNN 8 epoch (seed 0, {GPU}) — 숫자는 작은 데이터라 흔들릴 수 있어요", [
+IO["d11-손실-학습-루프-valid-평가-best-저장"] = (f"예제 데이터 train 60장으로 SmallCNN 8 epoch (seed 0, {GPU}) — 숫자는 작은 데이터라 흔들릴 수 있어요", [
     ("nn.CrossEntropyLoss()([[0., 0.]], [0])", ce([0.0, 0.0], 0), "반반 확신 → −log 0.5"),
     ("nn.CrossEntropyLoss()([[3., 0.]], [0])", ce([3.0, 0.0], 0), "정답에 자신 있게 → 벌점 작음"),
     ("nn.CrossEntropyLoss()([[0., 3.]], [0])", ce([0.0, 3.0], 0), "자신 있게 틀림 → 벌점 큼"),
@@ -288,7 +288,7 @@ rn.train()
 rn(torch.rand(2, 3, 224, 224))
 bn1_train_same = torch.equal(bn1_before, rn.bn1.running_mean)
 t224 = tf(pil)
-IO["d11-resnet18-head-only-전이학습"] = ("ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 강의 PNG 한 장", [
+IO["d11-resnet18-head-only-전이학습"] = ("ResNet18 — 사전학습 가중치 없이 구조만(weights=None, 다운로드 안 함) · 예제 PNG 한 장", [
     ("weights.transforms()", "crop 224 · resize 256 · bilinear\nmean [0.485, 0.456, 0.406]\nstd [0.229, 0.224, 0.225]", "ImageNet 학습 때와 같은 입력 규칙"),
     ("transform(64×64 PNG).shape", sh(t224), "64×64가 224×224로 커짐"),
     ("transform(PNG).mean(), .std()", f"{t224.mean():.2f}, {t224.std():.2f}", "Normalize 때문에 0~1이 아님 (음수도 나옴)"),
@@ -360,7 +360,7 @@ def no_sync(device, a):
 
 
 cpu_ips, cpu_mem = bench(torch.device("cpu"), train_loader)
-rows = [("CPU · 강의 train 60장, batch 32", f"{cpu_ips:,.0f} images/s · 메모리 {cpu_mem}", "CPU에선 VRAM 값 없음")]
+rows = [("CPU · 예제 train 60장, batch 32", f"{cpu_ips:,.0f} images/s · 메모리 {cpu_mem}", "CPU에선 VRAM 값 없음")]
 if DEV.type == "cuda":
     gpu_ips, gpu_mem = bench(DEV, train_loader)
     rows.append((f"GPU({GPU}) · 같은 조건", f"{gpu_ips:,.0f} images/s · peak {gpu_mem}", f"CPU의 약 {gpu_ips / cpu_ips:.1f}배 — 60장·batch 32라 GPU가 덜 바쁨"))
