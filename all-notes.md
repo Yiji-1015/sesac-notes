@@ -17890,3 +17890,1458 @@ cache_key = hashlib.sha256(
 - **Model Routing**: 호출 전에 요청 조건·권한·기능·예산에 맞는 모델을 고르고 이유(route_reason)를 기록하는 정책. 실패 후 대안으로 바꾸는 Fallback과 달라요.
 - **run_status**: 앱이 본 실행의 결과(validated·refused·incomplete·오류코드). 답변 객체의 status(answered·insufficient_context)와 별도로 반환해요. validated ≠ 사람 승인.
 - **store=False** (store = False): 생성 응답을 공급자 쪽에 저장해 두지 않게 하는 요청 옵션. 모든 로그·보존이 0이라는 뜻은 아니라서, 보낼 데이터 자체를 줄이는 것도 함께 필요해요.
+
+---
+
+# Day23 · Embedding · Vector Search — pgvector로 근거 찾기
+_2026-11-18(수) · Semantic Search · Dot · Cosine · L2 · 정규화 · Sentence Transformers · E5 query/passage · pgvector 설치 · vector(384) · Top-k · Metadata Filter · HNSW · EXPLAIN · 정성평가 · Retriever_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day23.html
+
+📌 딱 3줄 요약
+
+- Vector Search = 원문을 미리 벡터로 저장해 두고, 질문도 같은 모델 · 같은 규칙으로 벡터로 바꿔 가장 가까운 후보 k개를 꺼내는 것. 단어가 안 겹쳐도 비슷한 표현을 찾아요.
+
+- 가까움의 척도는 셋 — Dot · Cosine · L2. 유사도는 큰 값, 거리는 작은 값이 가까워요. 벡터를 길이 1로 정규화하면 세 척도의 순위가 같아져요. pgvector의 <=>는 Cosine 거리라 ORDER BY … ASC.
+
+- Top-k는 후보지 정답이 아니에요. 관련 자료가 없어도 "가장 가까운 것"은 나와요. 원문을 읽고 관련성을 판단하고, 빈 결과 · DB 오류 · 무관한 결과를 따로 기록해요.
+
+## 🗺️ 큰 그림 — 질문 하나가 근거 후보가 되기까지
+
+[그림: 자료 준비 경로(원문 → passage Embedding → 검사 → PostgreSQL 저장)와 질문 처리 경로(질문 → query Embedding → pgvector Top-k → 원문 후보 → 관련성 검토)] 무엇을 보나: 경로가 둘이에요. 위쪽 자료 준비는 원문이 바뀔 때만 돌고, 아래쪽 질문 처리는 요청마다 돌아요. 둘은 같은 Embedding 모델 · 같은 정규화 규칙으로 이어져야 비교가 성립해요. 🤔 왜 질문마다 문서를 다시 Embedding하지 않아? 문서 벡터는 원문과 모델이 그대로면 결과가 같아서요. 미리 만들어 DB에 두고, 질문 벡터 하나만 새로 만들어요.
+
+검색 하나는 아래 여덟 단계를 지나요. 이 페이지의 ①~⑧이 이 순서 그대로예요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 표현 | 문장 → 숫자 벡터 | 컴퓨터가 "뜻이 가깝다"를 어떻게 계산하나? |
+| ② 비교 | Dot · Cosine · L2 · 정규화 | 무엇을 "가깝다"고 부르고, 어느 방향으로 정렬하나? |
+| ③ 벡터 만들기 | Sentence Transformers · query/passage | 질문과 문서를 같은 규칙으로 바꿨나? |
+| ④ 저장소 준비 | pgvector 설치 · 활성화 · Python 연결 | 네 층이 다 준비됐나? |
+| ⑤ 저장 · 검색 | 한 행 저장 · Top-k · 필터 | ID · 원문 · 벡터가 맞게 짝지어졌나? |
+| ⑥ 인덱스 | Exact vs ANN · HNSW · EXPLAIN | 빨라진 대신 무엇을 놓칠 수 있나? |
+| ⑦ 결과 평가 | 관련 · 부분 관련 · 무관 · 빈 결과 · 오류 | 가까운 것 = 답할 근거인가? |
+| ⑧ 연결 | 검색 모듈 계약 · 출처 범위 · 재임베딩 | 검색 결과를 다음 단계에 어떻게 넘기나? |
+
+```
+Retriever (앱): 입력 검사 · 질문 Embedding · Top-k SQL · 결과 정리 · 기록
+  ├ Embedding 모델 (sentence-transformers + E5): 문장 → 384차원 벡터
+  └ PostgreSQL + pgvector: 원문 · vector(384) 저장 · 거리 계산 · (HNSW 인덱스)
+→ 검토한 후보만 Context → Prompt → LLM Client
+```
+
+💡 위치: 사람이 지식 ID를 직접 골라 넣던 Context 선택을 검색이 대신하는 자리예요. 뒤쪽 LLM API 클라이언트와 출력 검증은 그대로 써요.
+
+## ① 표현 — Embedding은 문장을 숫자 벡터로
+
+Embedding은 학습된 모델이 텍스트를 정해진 길이의 실수 배열로 바꾼 것이에요. 예를 들어 384차원 모델이면 어떤 문장이든 숫자 384개가 나와요. 비슷한 뜻의 문장은 이 공간에서 가까운 방향에 놓이도록 학습돼 있어서, 단어가 하나도 안 겹쳐도 가까움을 계산할 수 있어요. (원리 — Token Embedding과 Sentence Embedding의 차이 — 는 LLM 원리)
+
+```
+질문: "서버 어디서 켜요?"
+원문 102: "프로젝트 폴더에서 서버를 실행합니다."   ← 단어는 안 겹쳐도 후보로 찾는 게 목표
+"프로젝트 폴더에서 서버를 실행합니다."  →  Embedding 모델  →  [0.014, −0.023, … 384개]  (숫자 모양 예시)
+```
+
+🤔 384차원이면 384글자로 자른다는 뜻? → 아니요. 결과 벡터에 실수가 384개 있다는 뜻이에요. 입력 길이 상한(토큰 수)은 따로 있어요 (③).
+
+### 부품마다 하는 일이 달라요
+
+| 부품 | 하는 일 | 하지 않는 일 |
+|---|---|---|
+| LLM (생성 모델) | 질문 · 문맥을 보고 다음 텍스트를 생성 | — |
+| Embedding 모델 (예: E5) | 문장을 비교 가능한 고정 길이 벡터로 인코딩 | 자연어 답변 작성 |
+| PostgreSQL + pgvector | 이미 만든 벡터 저장 · 거리 연산 · 인덱스 | Embedding 모델 실행 |
+| Retriever (검색 모듈) | 질문 → 후보 ID · 원문 · 거리 묶어 반환 | 답이 맞는지 판정 |
+
+벡터만으로는 사용자에게 보여 줄 설명이 없어요. 그래서 벡터는 항상 ID · 원문과 한 행으로 다녀요.
+
+### 대칭 검색 vs 비대칭 검색
+
+|  | 질문 ↔ 질문 (대칭) | 질문 → 본문 (비대칭) |
+|---|---|---|
+| 비교 대상 | 성격이 같은 짧은 문장끼리 (예: FAQ 질문 목록) | 짧은 질문으로 긴 설명 · 지식 본문을 찾기 |
+| 예 | "서버 어디서 켜요?" ↔ "서버 실행 위치는?" | "서버를 어디서 실행해요?" → [102] "프로젝트 폴더에서 서버를 실행합니다." |
+| 입력 규칙 | 보통 같은 방식으로 인코딩 | 모델이 정한 질문용 · 문서용 규칙을 따로 적용 (E5: query: / passage:) |
+
+### 두 경로 — 자료 준비와 질문 처리
+
+| 경로 | 언제 | 흐름 |
+|---|---|---|
+| 자료 준비 | 원문 · 모델이 바뀔 때만 | 원문 · ID 검사 → passage: Embedding → 벡터 검사 → PostgreSQL vector 열에 저장 |
+| 질문 처리 | 요청마다 | 질문 검사 → query: Embedding → Top-k SQL → ID · 원문 · 거리 반환 |
+
+본문과 모델 계약이 그대로면 저장된 문서 벡터를 계속 써요. 본문이나 모델 계약이 바뀌면 관련 벡터를 다시 만들어요(⑦ 재임베딩).
+
+### 예시 지식 9개
+
+아래 설명 · 예제에서 쓰는 가상 지식이에요(실제 기관 규정 아님). 101~103은 Prompt · Context 예시와 같은 원문이고, 104~109는 검색 후보를 늘리려고 더한 것이라 source_version을 다르게 둬요.
+
+| id | title | content | category | source_version |
+|---|---|---|---|---|
+| 101 | 실습 파일 보관 | 실습 파일은 개인 폴더에 보관합니다. | course | knowledge_v1 |
+| 102 | 서버 실행 | 프로젝트 폴더에서 서버를 실행합니다. | development | knowledge_v1 |
+| 103 | 질문 작성 | 오류 메시지와 시도한 작업을 함께 적습니다. | support | knowledge_v1 |
+| 104 | 수업 녹화 | 녹화가 제공되는 수업은 강의실 안내 페이지에서 확인합니다. | course | knowledge_search_v2 |
+| 105 | 과제 제출 | 과제 제출 위치는 해당 과제의 안내 페이지에서 확인합니다. | course | knowledge_search_v2 |
+| 106 | 데이터베이스 연결 | PostgreSQL 접속 정보는 로컬 설정 파일에서 읽습니다. | development | knowledge_search_v2 |
+| 107 | 패키지 설치 | 필요한 Python 패키지는 기존 가상환경에 추가합니다. | development | knowledge_search_v2 |
+| 108 | 문제 해결 안내 | 문제를 보고할 때 재현한 단계와 오류 메시지를 기록합니다. | support | knowledge_search_v2 |
+| 109 | 결과 검토 | 검색된 자료는 원문과 실제 질문의 요구를 대조합니다. | support | knowledge_search_v2 |
+
+새 항목을 더해도 기존 원문을 덮어쓰지 않아요. ID는 이 예시에서 쓰는 번호이고, 다른 DB의 자동 생성 ID와 같다고 가정하지 않아요.
+
+## ② 비교 — 유사도와 거리
+
+### 세 척도: Dot · Cosine · L2
+
+[그림: 왼쪽: 길이 1인 q(1,0)와 a(0.8,0.6)의 Dot 0.8 · Cosine 0.8 · L2 0.6325. 오른쪽: q·U=1 < q·V=10 이지만 cos(q,U)=1.0 > cos(q,V)=0.7071] 무엇을 보나: 왼쪽은 길이 1인 두 벡터 — Dot과 Cosine이 같아요. 오른쪽은 길이가 다른 경우 — Dot은 긴 V를, Cosine은 같은 방향인 U를 1등으로 뽑아요. 숫자는 NumPy 실제 실행값(2차원 설명용 벡터, 모델 출력 아님).
+
+| 척도 | 계산 | 가까운 쪽 | q=(1,0), a=(0.8,0.6) |
+|---|---|---|---|
+| L2 norm (길이) | √(제곱의 합) — 원점에서 끝까지 | — | (3,4)의 길이 = 5 |
+| Dot Product (내적) | 같은 자리끼리 곱해 더함 q·d | 큰 값 | 0.8 |
+| Cosine similarity | (q·d) / (‖q‖ × ‖d‖) — 방향만, −1~1 | 큰 값 | 0.8 |
+| Cosine distance | 1 − Cosine similarity — 0~2 | 작은 값 | 0.2 |
+| L2 distance | 두 끝점 사이 직선거리 ‖q − d‖ | 작은 값 | √0.4 ≈ 0.6325 |
+
+🔧 NumPy로 세 척도 명령어 사전에서 자세히 →
+
+```
+dot = float(q @ a)
+cosine = dot / (np.linalg.norm(q) * np.linalg.norm(a))
+l2 = float(np.linalg.norm(q - a))     # 실제 실행: 0.8 · 0.8 · 0.6325
+```
+
+🤔 Cosine 0.8이면 정답 확률 80%? → 아니요. 학습된 벡터 공간에서의 방향 비교값일 뿐이에요. 모델마다 점수 분포가 달라서, 분포를 모른 채 "0.8 이상이면 정답" 같은 고정 기준을 두지 않아요. −1도 수학적으로 반대 방향이라는 뜻이지 "논리적 부정"이라는 판정이 아니에요.
+
+🤔 2차원 축마다 뜻이 있어? 아니요. 384차원을 한 화면에 못 그려서 2차원으로 설명하는 것이지, 각 축이 "출석" · "환불" 같은 업무 의미와 일대일로 대응하지 않아요.
+
+### 정규화 — 길이를 1로 맞추면 순위가 하나로
+
+정규화는 0이 아닌 벡터를 자기 길이로 나눠 방향은 그대로, 길이만 1로 맞추는 것이에요: v / ‖v‖. (3,4) → (0.6, 0.8).
+
+| 정규화하면 | 왜 |
+|---|---|
+| Dot = Cosine similarity | 분모 ‖q‖×‖d‖가 1 |
+| L2 순서 = Cosine 순서 | 단위 벡터에선 ‖x−y‖² = 2 − 2·cos (실제 실행: 0.0201 vs 0.0201) |
+
+🔧 여러 행 한 번에 정규화 명령어 사전에서 자세히 →
+
+```
+Mn = M / np.linalg.norm(M, axis=1, keepdims=True)   # 행마다 자기 길이로 나눔
+```
+
+전제는 문서와 질문에 같은 정규화 규칙을 쓰는 거예요. 그리고 "무조건 정규화가 최적"이라는 뜻은 아니에요 — 선택한 모델의 검색 규칙(모델 카드)을 따라요. 정규화하지 않은 임의의 벡터에서 Dot · Cosine · L2 순위가 같다고 가정하면 안 돼요.
+
+### 영벡터 · NaN — 비교할 수 없는 벡터
+
+| 상태 | 결과 (실제 실행) | 처리 |
+|---|---|---|
+| 영벡터 (0,0,…) | NumPy: nan + RuntimeWarning · pgvector <=>: NaN | 저장 전에 거부 — 0점으로 바꿔 조용히 통과시키지 않음 |
+| NaN · Inf 포함 | pgvector: NaN not allowed in vector | np.isfinite(…).all()로 미리 검사 |
+| 차원 불일치 | different vector dimensions 2 and 3 | 같은 모델 · 같은 차원만 비교 |
+
+수치가 멀쩡해도 원문 ID와 잘못 짝지어진 벡터는 따로 잡아야 해요(⑤).
+
+## 🧪 벡터 비교 실험실
+
+q = (1, 0)은 고정. d의 각도와 길이를 바꿔 보세요. 정규화를 켜면 Dot과 Cosine이 같아지는 걸 볼 수 있어요. (브라우저 안의 2차원 산수 · 모델 아님)
+
+## ③ 벡터 만들기 — Sentence Transformers · E5
+
+### 라이브러리와 모델은 다른 것
+
+|  | 무엇 | 예 |
+|---|---|---|
+| sentence-transformers | 모델을 불러와 encode()로 문장을 벡터로 바꾸는 Python 라이브러리 | pip install sentence-transformers |
+| Embedding 모델 | 실제 가중치 — Hugging Face 모델 ID로 지정 | intfloat/multilingual-e5-small (다국어 · 384차원 · 입력 최대 512토큰) |
+
+🔧 모델 한 번 로드 명령어 사전에서 자세히 →
+
+```
+model = SentenceTransformer("intfloat/multilingual-e5-small", device="cpu")   # 처음엔 다운로드
+model.get_embedding_dimension(), model.max_seq_length
+```
+
+- 모델 객체는 한 번 만들어 재사용해요. 질문마다 새로 만들면 느려요.
+
+- encode()는 추론이에요. 실행할 때마다 모델을 새로 학습하지 않아요.
+
+- device="cpu"면 GPU 없이도 돌아요. 기록에는 모델 ID와 실제 받은 revision(버전)을 남겨요.
+
+- 모델 파일 다운로드는 패키지 설치와 별개 — 처음 로드할 때 네트워크가 필요할 수 있어요.
+
+🤔 질문끼리 비교하는 모델(예: paraphrase-multilingual-MiniLM)도 384차원인데 바꿔 끼우면 안 돼? 차원이 같아도 다른 표현 공간이에요. 모델을 바꾸면 문서 벡터도 다시 만들어요. 그리고 모델 변경만으로 품질이 좋아진다고 단정하지 않고, 질문별 실제 결과로 평가해요(⑦).
+
+### query / passage 접두어 — 모델의 입력 규칙
+
+```
+query: 서버는 어디에서 실행하나요?
+passage: 서버 실행 프로젝트 폴더에서 서버를 실행합니다.     ← "passage: " + title + " " + content
+```
+
+E5는 질문엔 query: , 검색될 문서엔 passage: 를 붙이도록 학습된 모델이에요. 비대칭 검색(짧은 질문 → 긴 본문)을 위한 약속이고, 모든 Embedding 모델에 통하는 문법이 아니에요 — 모델 카드의 규칙을 따라요. 접두어 한 마디만 달라도 벡터가 달라져요(다른 모델로 확인한 실제 값: "query: 서버 실행"과 "passage: 서버 실행"의 Cosine = 0.5518).
+
+🔧 문서 · 질문 벡터 명령어 사전에서 자세히 →
+
+```
+doc_vecs = model.encode(passages, normalize_embeddings=True, convert_to_numpy=True, batch_size=8)
+query_vecs = model.encode(["query: " + q], normalize_embeddings=True, convert_to_numpy=True)
+```
+
+### 입력 토큰 길이 vs 출력 shape
+
+| 값 | 뜻 | 예 |
+|---|---|---|
+| 입력 토큰 수 | Tokenizer가 문장에 매긴 토큰 개수 (글자 수 아님) — Tokenizer | E5-small 상한 512 — 넘는 부분은 잘림 |
+| 출력 차원 | 입력 길이와 상관없이 고정 | 토큰 37개든 240개든 → 384 |
+| 문서 배열 | (n, 384) — n = 문서 개수 | 지식 9개 → (9, 384) |
+| 질문 배열 | 리스트로 넣으면 (1, 384), 문자열 하나면 (384,) | DB 파라미터는 1차원 (384,) |
+| 점수 배열 | 질문 1개 × 문서 n개 | (1, 9) |
+
+긴 문서를 상한 안으로 나누는 일(Chunking)은 문서 Indexing의 주제예요. 벡터의 행 순서 = 지식 ID 순서라는 대응은 끝까지 유지해야 해요.
+
+### 저장 전 검사 — 개수 · 차원 · 유한값 · 길이
+
+| 검사 | NumPy | 잡는 것 |
+|---|---|---|
+| shape | values.shape == (len(KNOWLEDGE), 384) | 누락 · 다른 차원 모델 |
+| 유한값 | np.isfinite(values).all() | NaN · Inf |
+| 영벡터 | np.linalg.norm(values, axis=1) <= 1e-12 | Cosine 계산 불가 |
+| 정규화 | np.allclose(lengths, 1, rtol=0, atol=1e-5) | 정규화 안 된 벡터 |
+
+🔧 검사 코드 명령어 사전에서 자세히 →
+
+```
+if not np.isfinite(values).all(): raise ValueError("NaN 또는 Inf가 있습니다.")
+```
+
+💡 normalize_embeddings=False로 둬도 길이가 1로 나오는 모델이 있어요 — 모델 안에 Normalize 층이 들어 있는 경우(실제 확인: all-MiniLM-L6-v2는 Transformer → Pooling → Normalize). 그래서 설정을 믿기보다 np.linalg.norm으로 직접 확인해요. ⚠️ 검사를 다 통과해도 ID와 벡터가 맞게 짝지어졌는지, 질문과 관련이 있는지는 몰라요. 형식 검사예요.
+
+## ④ 저장소 준비 — PostgreSQL에 pgvector 더하기
+
+pgvector는 이미 쓰는 PostgreSQL에 vector 타입 · 거리 연산자 · 벡터 인덱스를 더하는 서버 확장이에요. PostgreSQL을 교체하지 않고, 원문 · Metadata를 보관하던 같은 DB에 벡터 열을 더해 기존 SQL(WHERE · 트랜잭션 · JOIN)과 함께 써요. (PostgreSQL 기본은 PostgreSQL · SQL)
+
+### 설치는 네 층 — 하나를 했다고 다음 층이 생기지 않아요
+
+[그림: ① 서버 파일(vector.dll · control · SQL) → ② DB 활성화(CREATE EXTENSION) → ③ Python 패키지(pip install pgvector) → ④ 연결 등록(register_vector)] 무엇을 보나: 서버 파일 설치 ≠ DB 활성화 ≠ Python 패키지 설치 ≠ 연결별 타입 등록. 🤔 왜 이렇게 쪼개 봐? 오류가 나면 고치는 곳이 층마다 달라요. pip install pgvector는 Python 쪽 변환 도구일 뿐, 서버에 vector.dll을 놓지 않아요.
+
+### ① 서버 파일 — Windows에서 소스로 빌드하기
+
+Windows용 공식 설치 경로는 소스를 받아 MSVC로 컴파일하는 거예요. Docker · WSL 없이 기존 Windows PostgreSQL에 바로 더해요.
+
+| 순서 | 할 일 | 성공 확인 |
+|---|---|---|
+| 1 | PostgreSQL 버전 · 경로 확인 (pg_config) | PostgreSQL 18.6 · …/18/include/server |
+| 2 | Visual Studio Build Tools 설치 — "Desktop development with C++" 워크로드 (MSVC x64 · Windows SDK) | VS Code와 다른 프로그램. 관리자 권한 · 설치 정책 필요할 수 있음 |
+| 3 | 시작 메뉴 → x64 Native Tools Command Prompt (관리자) | where cl · where nmake 경로, %VSCMD_ARG_TGT_ARCH% = x64 |
+| 4 | set "PGROOT=C:\Program Files\PostgreSQL\18" — bin · data가 아니라 설치 최상위 | postgres.h · postgres.lib 존재 |
+| 5 | 공식 소스를 태그로 고정해 받기 git clone --branch v0.8.7 --depth 1 | git describe --tags --exact-match → v0.8.7 |
+| 6 | nmake /F Makefile.win | 오류 없이 vector.dll 생성 — 첫 오류가 나면 설치로 넘어가지 않음 |
+| 7 | nmake /F Makefile.win install | lib\vector.dll · share\extension\vector.control · vector--*.sql |
+
+🔧 빌드 명령 명령어 사전에서 자세히 →
+
+```
+REM x64 Native Tools Command Prompt (관리자)
+nmake /F Makefile.win
+nmake /F Makefile.win install
+```
+
+🤔 왜 태그를 고정해? master는 계속 바뀌어서, 같은 명령이라도 받는 날마다 다른 코드가 될 수 있어요. 버전을 고정하면 재현돼요. 출처 불명의 DLL을 내려받아 대신 넣지 않아요.
+
+### ② DB 활성화 — 연결한 DB에만
+
+| 조회 | 결과 (실제 실행 · 새 DB) | 뜻 |
+|---|---|---|
+| pg_available_extensions | ('vector', '0.8.7', None) | 서버에 파일은 있음 · 이 DB엔 아직 |
+| CREATE EXTENSION IF NOT EXISTS vector 후 pg_extension | ('vector', '0.8.7') | 이 DB에 활성화 |
+| 한 번 더 실행 | NOTICE: 이미 있음, 건너뜀 | 오류 아님 |
+| 다른 DB에서 '[1,2,3]'::vector | "vector" 자료형 없음 | DB마다 따로 활성화 |
+
+🔧 활성화 명령어 사전에서 자세히 →
+
+```
+SELECT current_database();
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+설치 확인은 모델 없이 숫자부터 해요. 3차원 벡터로 같은 방향 0 · 직각 1 · 반대 2가 나오고(실제 실행 결과 그대로), 임시 테이블에서 1 → 2 → 3 순서가 나오면 확장은 작동해요. 이건 확장 동작 검사이지 의미 검색 품질 검사가 아니에요.
+
+### ③ · ④ Python 연결 — 패키지 설치와 연결별 등록
+
+🔧 register_vector(conn) 명령어 사전에서 자세히 →
+
+```
+with psycopg.connect(...) as conn:
+    register_vector(conn)                         # 연결마다
+    conn.execute("SELECT vector_dims(%s::vector)", (Vector([1.0, 0.0, 0.0]),))
+```
+
+| 상태 | SELECT '[1,0,0]'::vector 결과 (실제 실행) |
+|---|---|
+| 등록 전 | str '[1,0,0]' — 그냥 문자열 |
+| 등록 후 | Vector([1.0, 0.0, 0.0]) — .to_numpy()는 float32 배열 |
+
+접속 정보는 실행 파일 옆 .env(PGHOST · PGPORT · PGDATABASE · PGUSER · PGPASSWORD)에 두고 Git에서 빼요. PGDATABASE는 확장을 활성화한 그 DB여야 해요. DB 비밀번호와 LLM API 키는 별개예요.
+
+### 설치 오류 — 증상으로 층 찾기
+
+| 증상 | 층 | 원인 점검 → 다음 조치 |
+|---|---|---|
+| cl · nmake가 없다 | ① 빌드 | C++ 워크로드 설치 여부 · x64 Native Tools 창인지 → 구성 요소 확인 후 올바른 창에서 다시 |
+| postgres.h를 찾을 수 없음 | ① 빌드 | PGROOT가 설치 최상위인지 · include\server\postgres.h 존재 → 경로 재지정 후 빌드 |
+| error C2196: case value '4' already used | ① 빌드 | 32비트 창에서 빌드 → x64 창에서 nmake /F Makefile.win clean 후 재빌드 |
+| Access is denied | ① 설치 | 관리자 권한 · 대상 폴더 쓰기 권한 → 권한 확인 후 공식 절차로 재시도 |
+| extension "vector" is not available | ① ↔ ② | 지금 접속한 서버에 control · SQL 파일이 있나 → pg_config 경로와 연결 서버 대조 |
+| CREATE EXTENSION 권한 오류 | ② 활성화 | Windows 관리자 ≠ PostgreSQL 권한 → 확장 생성 권한 있는 DB 계정으로 |
+| type "vector" does not exist | ② 활성화 | 이 DB에 확장 활성화됐나 · 스키마 검색 경로 → current_database() · pg_extension 확인 |
+| ModuleNotFoundError: pgvector | ③ Python | VS Code Python과 pip 대상 가상환경이 같은가 → sys.executable · pip show pgvector |
+| current transaction is aborted | SQL 세션 | 앞 SQL 실패로 트랜잭션이 막힘 → 미확정 작업 확인 후 ROLLBACK, 원인 수정 |
+
+⚠️ 기존 DB · 데이터 폴더 삭제, 보안 기능 해제, 출처 불명 DLL 설치는 해결책이 아니에요.
+
+## ⑤ 저장 · 검색 — 한 행에 원문과 벡터, 가까운 순으로 k개
+
+### 저장 단위 = ID · 원문 · 벡터가 묶인 한 행
+
+| 열 | 왜 |
+|---|---|
+| id · title · content | 원문 식별 · 사용자에게 돌려줄 근거 |
+| category · source_version | 필터 · 원문 변경 추적 |
+| embedding_model | 이 벡터를 만든 모델 ID |
+| embedding vector(384) | 모델 출력 차원을 DB가 검사하는 계약 |
+
+DB는 모델 버전이 실제로 같은지, 그 행이 질문에 답할 근거인지 스스로 알지 못해요. 그래서 모델 ID · 원문 버전을 행에 같이 적어요.
+
+### 검색용 테이블은 기존 테이블과 분리
+
+🔧 vector(384) 열 명령어 사전에서 자세히 →
+
+```
+CREATE TABLE IF NOT EXISTS day23_search_docs (
+  id integer PRIMARY KEY, title text NOT NULL, content text NOT NULL,
+  category text NOT NULL, source_version text NOT NULL,
+  embedding_model text NOT NULL, embedding vector(384) NOT NULL);
+```
+
+| 잘못 넣으면 (실제 실행) | 결과 |
+|---|---|
+| 3차원 배열 | expected 384 dimensions, not 3 |
+| NaN 포함 | NaN not allowed in vector |
+| 실패 직후 같은 트랜잭션에서 다른 SQL | InFailedSqlTransaction — ROLLBACK 전까지 막힘 |
+
+검색 연습 때문에 기존 지식 CRUD 테이블을 지우거나 초기화하지 않아요. 🤔 Vector DB의 "Collection"은 여기서 뭐야? 제품마다 뜻이 달라요. pgvector에서는 PostgreSQL 테이블 + WHERE 조건이 검색 범위를 정해요.
+
+### 짝이 어긋나면 SQL은 성공해도 검색이 틀려요
+
+벡터는 원문 순서대로 만들어졌기 때문에 행 순서가 곧 짝이에요. id=102 행에 101의 벡터가 들어가도 SQL은 아무 오류 없이 성공하고, 검색만 조용히 틀려져요. 저장 전에 ID 중복 · 행 수 = 벡터 수 · 원문 변경을 확인하고, 갱신은 한 트랜잭션에서 해요.
+
+🔧 INSERT … ON CONFLICT (id) DO UPDATE 명령어 사전에서 자세히 →
+
+```
+for row, doc_vec in zip(KNOWLEDGE, doc_vecs):     # 원문 순서 = 벡터 순서
+    conn.execute(sql, (row["id"], ..., MODEL_ID, doc_vec))
+conn.commit()
+```
+
+실제 실행: 9개 저장 → count = 9, 같은 id=102로 한 번 더 → rowcount = 1(UPDATE), 개수는 그대로 9. 무엇을 언제 갱신할지(원문 · 모델 버전 비교)는 이 SQL이 아니라 앱 정책이 정해요.
+
+### Top-k — 가까운 후보를 최대 k개
+
+🔧 ORDER BY embedding <=> %s ASC LIMIT %s 명령어 사전에서 자세히 →
+
+```
+SELECT id, title, content, embedding <=> %s AS cosine_distance
+FROM day23_search_docs
+ORDER BY embedding <=> %s ASC
+LIMIT %s
+```
+
+| q · k | 결과 (실제 실행 · 2차원 예시 좌표 A~F, q=(1,0)) |
+|---|---|
+| k = 3 | A(0.0000) → F(0.0793) → B(0.2000) |
+| k = 10, 자료 6개 | 6행만 — k는 최대 개수 |
+| 실수로 DESC | E → D → C — 가장 먼 것부터 |
+
+Exact Search는 대상 전체의 거리를 계산해 정렬하는 정확한 기준선이에요. 행이 적으면 이것으로 충분하고, 인덱스(⑥)를 써도 이 결과를 정답표로 보관해요. ⚠️ 관련 자료가 전혀 없는 질문이어도 "가장 가까운" 벡터는 반드시 나와요.
+
+### Metadata 필터 — 범위를 먼저 좁히기
+
+🔧 WHERE category = %s 명령어 사전에서 자세히 →
+
+```
+rows = conn.execute(sql, (qvec, category, qvec, k)).fetchall()   # %s 순서 그대로
+```
+
+| 조건 | 결과 (실제 실행) | 읽는 법 |
+|---|---|---|
+| development, k=3 | F(0.0793) → B(0.2000) | 조건 맞는 행이 2개뿐 → 2행 |
+| support, k=3 | C(0.6013) → E(2.0000) | 조건 안에서 가까운 순 |
+| billing, k=3 | [] | 정상 0건 — DB 오류가 아님 |
+
+%s는 값만 바인딩해요. 테이블 · 열 이름을 문자열로 이어 붙이지 않아요 (SQL Injection). Exact Search라면 필터를 만족하는 전체 행의 거리를 비교해요 — ANN과 섞이면 이야기가 달라져요(⑥).
+
+### 연산자 고르기 — 척도 · 정렬 · 인덱스를 한 세트로
+
+| 척도 | 연산자 | 정렬 | 인덱스 opclass | 실제 실행 ([1,0] vs [0.8,0.6]) |
+|---|---|---|---|---|
+| Cosine distance | <=> | ASC | vector_cosine_ops | 0.2 (표시용 유사도 1 − 거리 = 0.8) |
+| L2 distance | <-> | ASC | vector_l2_ops | 0.6325 |
+| Negative inner product | <#> | ASC (작을수록 큰 내적) | vector_ip_ops | −0.8 |
+
+정규화한 E5 벡터면 Cosine distance <=>가 자연스러운 선택이에요. 유사도로 보여 주고 싶으면 SELECT에서 1 − distance로 계산하되, ORDER BY에는 원래 거리 연산자를 그대로 둬요 — 그래야 인덱스를 쓸 수 있어요.
+
+## 🧪 Top-k · 필터 계산기
+
+2차원 예시 좌표 A~F에서 질문 방향 q를 돌리고, k · category · 척도를 바꿔 보세요. 아래에 같은 조건의 SQL도 보여요. (브라우저 안의 산수 · 모델 아님. q=(1,0) · 전체 · Cosine의 값은 위 실제 실행 결과와 같아요)
+
+## ⑥ 인덱스 — 빨라지는 대신 놓칠 수 있다
+
+### Exact Search vs ANN
+
+|  | Exact Search | ANN (Approximate Nearest Neighbor) |
+|---|---|---|
+| 탐색 범위 | 모든 행의 거리 계산 | 인덱스를 따라 일부 후보만 |
+| 결과 | 정확한 최근접 k개 — 기준선 | 기준선의 후보를 놓칠 수 있음 |
+| EXPLAIN | Seq Scan + 정렬 | Index Scan using …_hnsw |
+| 언제 | 행이 적을 때 · 품질 기준을 잴 때 | 행이 많아 속도가 문제일 때 — 품질 · 시간 · 메모리를 같이 보고 선택 |
+
+여기서 ANN은 딥러닝의 Artificial Neural Network가 아니라 근사 최근접 이웃 검색이에요. 지식 9건 같은 작은 자료는 Exact Search만으로 충분해요 — 인덱스는 선택이에요.
+
+### HNSW — 층층이 연결된 이웃 그래프
+
+HNSW(Hierarchical Navigable Small World)는 벡터를 여러 층의 이웃 그래프로 이어 두고, 위층에서 크게 이동한 뒤 아래층에서 좁혀 가며 가까운 벡터를 찾는 ANN 인덱스예요. pgvector는 HNSW와 IVFFlat(목록 기반 근사 인덱스)을 제공해요.
+
+🔧 HNSW 인덱스 명령어 사전에서 자세히 →
+
+```
+CREATE INDEX IF NOT EXISTS day23_search_docs_hnsw
+ON day23_search_docs USING hnsw (embedding vector_cosine_ops);
+ANALYZE day23_search_docs;
+```
+
+| 옵션 | 언제 | 영향 |
+|---|---|---|
+| m · ef_construction (기본 16 · 64) | 인덱스 만들 때 | 연결 수 · 구축 탐색 폭 — 크면 품질↑, 구축 시간 · 메모리↑ |
+| hnsw.ef_search (기본 40) | 질의할 때 | 살펴볼 후보 폭 — 크면 놓침↓, 시간↑ |
+
+⚠️ 연산자와 opclass가 같아야 인덱스가 쓰여요. vector_cosine_ops로 만들고 <->(L2)로 정렬하면 인덱스를 못 써요(실제 실행: 강제로 Seq Scan을 막아도 L2 정렬은 Seq Scan). 그리고 IF NOT EXISTS는 같은 이름의 다른 정의를 고쳐 주지 않아요.
+
+### EXPLAIN — 인덱스를 "만들었다" ≠ "쓴다"
+
+🔧 실행 계획 명령어 사전에서 자세히 →
+
+```
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id FROM day23_search_docs ORDER BY embedding <=> %s ASC LIMIT 3
+```
+
+| 상황 (실제 실행) | 플래너가 고른 길 |
+|---|---|
+| 9건 테이블, HNSW 있음 | Seq Scan — 9건이면 전부 계산하는 게 더 쌈 (정상) |
+| 9건, enable_seqscan = off (관찰용) | Index Scan using day23_search_docs_hnsw |
+| 임의 벡터 20,000건 | Index Scan using bench_hnsw |
+| 20,000건, enable_indexscan = off | Seq Scan = Exact 기준선 (결과가 NumPy 전수 계산과 일치) |
+
+cost는 플래너의 추정 비용 단위이지 밀리초가 아니에요. EXPLAIN ANALYZE는 SELECT를 실제로 실행해서 걸린 시간과 행 수를 보여 줘요.
+
+### ef_search — 품질과 시간의 줄다리기
+
+[그림: 왼쪽: ef_search 10·20·40·100·200에서 recall@10 0.922·0.98·0.98·1.0·1.0, 질의당 시간 0.24·0.21·0.24·0.28·0.55ms. 오른쪽: 1% 카테고리 필터에서 iterative_scan off면 평균 0.34행, relaxed_order면 10행] 무엇을 보나: 왼쪽 — 탐색 폭을 넓히면 Exact Top-10을 더 많이 찾지만 시간이 늘어요. 오른쪽 — 드문 카테고리로 필터하면 k=10을 요청해도 대부분 0~1행만 나와요. 덩어리 구조로 만든 임의 벡터 20,000개(모델 출력 아님) · 질의 50개 · PostgreSQL 18.6 + pgvector 0.8.7 실제 실행이고, 시간은 이 PC 기준이라 다른 환경에 일반화하지 않아요.
+
+| hnsw.ef_search | 10 | 20 | 40 (기본) | 100 | 200 |
+|---|---|---|---|---|---|
+| recall@10 | 0.922 | 0.980 | 0.980 | 1.000 | 1.000 |
+| ms / 질의 | 0.24 | 0.21 | 0.24 | 0.28 | 0.55 |
+
+recall@10 = Exact Top-10 중 ANN이 찾은 비율. 측정 없이 최댓값을 고르지 않고, 자기 데이터 · 질문으로 기준선과 비교해 정해요. 작은 학습용 데이터의 결과를 일반화하지도 않아요.
+
+### ANN + 필터 — k개보다 적게 나올 수 있다
+
+HNSW는 먼저 ef_search개 후보를 찾고 그다음에 WHERE를 적용해요. 조건에 맞는 행이 드물면 후보 안에 거의 없어서 k보다 적게 나와요 — DB 전체엔 조건 맞는 자료가 충분히 있어도요.
+
+| 조건 (실제 실행 · 1% 카테고리 · k=10 · ef_search 40) | 반환 행 수 |
+|---|---|
+| hnsw.iterative_scan = off (기본) | 평균 0.34 (최소 0 · 최대 3) |
+| SET hnsw.iterative_scan = relaxed_order | 평균 10.00 (모두 10) |
+
+🔧 탐색 폭 · 반복 탐색 명령어 사전에서 자세히 →
+
+```
+SET hnsw.ef_search = 100;
+SET hnsw.iterative_scan = relaxed_order;   -- pgvector 0.8.x · 기본 off
+```
+
+대응 순서: ① Exact Search 기준선으로 필터 결과부터 확인 → ② 필요하면 iterative_scan으로 더 탐색. 반복 탐색에도 상한(hnsw.max_scan_tuples, 기본 20,000)이 있어서 완전 보장은 아니에요.
+
+## ⑦ 결과 평가 — 가까운 것 ≠ 답할 근거
+
+### 관련 · 부분 관련 · 무관
+
+Retrieval 품질은 점수 · 순위가 아니라 원문이 질문에 필요한 사실을 담고 있는가로 판단해요.
+
+| 등급 | 뜻 |
+|---|---|
+| 관련 | 원문이 질문이 요구한 사실을 직접 제공 |
+| 부분 관련 | 주제는 비슷하지만 필요한 속성 · 조건이 빠짐 |
+| 무관 | 표현이 비슷해 보여도 필요한 사실이 없음 |
+
+| 질문 | 관련 | 부분 관련 | 이유 |
+|---|---|---|---|
+| 서버는 어디에서 실행하나요? | 102 | 106 | 102에 "프로젝트 폴더에서 서버를 실행" 이 직접 있음. 106은 DB 접속 설정 이야기 |
+| 실습 파일은 몇 년 동안 보관하나요? | — | 101 | 101은 보관 위치만 — 기간을 말할 근거 없음. "3년" 같은 추측 금지 |
+| 오류를 질문할 때 무엇을 적어야 하나요? | 103 · 108 | — | 둘 다 오류 메시지와 시도 · 재현 단계를 적으라는 안내 |
+
+사람이 원문을 읽고 매긴 판정이에요. 기록에는 질문 ID · k · 순위 · ID · 원문 · 등급 · 이유와 함께 모델 ID · revision · 원문 버전 · 필터 조건을 남겨요. 이 정성 기록이 나중에 정량 지표(Recall@k · MRR · nDCG)의 정답표가 돼요.
+
+### 범위 밖 질문에도 후보는 나온다
+
+"회사 비밀번호가 무엇인가요?"처럼 자료에 없는 질문에도 Top-k는 무언가를 돌려줘요. 상위 후보를 억지로 근거 삼으면 사실을 만들어 내게 돼요. 거리 · 원문 · 권한 · 필수 정보 포함 여부를 보고 중단 또는 정보 부족(insufficient_context)으로 연결해요.
+
+### 빈 결과 · 오류 · 무관은 다른 기록
+
+| 상태 | 예 | 뜻 |
+|---|---|---|
+| empty | 필터에 맞는 자료가 없어 rows = [] | 정상 실행 — 검색 대상 없음 |
+| error | DB 연결 실패 · 차원 불일치 · SQL 오류 | 이번 검색 실행 실패 |
+| irrelevant | 3건이 나왔지만 질문을 해결 못 함 | 가까운 후보가 있을 뿐 |
+
+⚠️ DB 장애를 "자료 부족"으로 바꿔 돌려주면 운영 문제가 숨어요. 세 상태를 나눠 다음 단계(Agent 분기 · 재시도 · 중단)의 근거로 남겨요.
+
+### 원문 · 모델이 바뀌면 — 재임베딩
+
+| 바뀐 것 | 할 일 |
+|---|---|
+| content | 그 문서가 Embedding 입력에 포함되면 다시 계산 |
+| category만 | 본문이 그대로면 벡터는 재사용 가능 — 필터 결과는 바뀜 |
+| 모델 · revision · 접두어 · 정규화 | 같은 384차원이어도 다른 공간 → 문서 · 질문 모두 새 계약으로 재생성 |
+| ID | 원문과 벡터가 같은 자료를 가리키는지 다시 확인 |
+
+점수만 봐서는 품질 변화를 추적하기 어려워요. 그래서 행마다 embedding_model · source_version을 남기고, 한 테이블에 서로 다른 Embedding 공간의 벡터를 섞지 않아요.
+
+## ⑧ 연결 — 검색 결과를 다음 단계로
+
+### 검색 모듈은 단계별 입출력으로
+
+| 단계 | 입력 → 출력 | 책임 |
+|---|---|---|
+| 입력 검사 | 질문 · k · category · 권한 범위 → 통과 / 거부 | 빈 질문 · 이상한 k 막기 |
+| 질문 Embedding | 질문 → (384,) 벡터 | 같은 모델 · 같은 접두어 · 같은 정규화 |
+| Top-k 검색 | 벡터 · k · 필터 → ID · 원문 · 거리 목록 | Exact 또는 인덱스, 파라미터 바인딩 |
+| 결과 정리 | rows → [{id, title, content, category, source_version, distance}] | distance를 사실성 점수로 바꾸지 않음 |
+| 기록 | 모델 · DB · pgvector 버전 · k · 필터 · 성공/empty/error | 나중에 재현 · 비교 |
+
+한 함수가 모든 책임을 떠맡기보다 단계마다 반환을 정해요. 이 단계 구분은 설계 예시이고, pgvector나 SDK가 정한 고정 인터페이스는 아니에요.
+
+### 검색 후보 ⊇ 전달한 자료 ⊇ 인용한 출처
+
+```
+retrieved_ids  [101, 102, 107]   검색이 가져온 후보 전체
+included_ids   [102]             관련성 · 권한 · 버전을 확인해 이번 Context에 넣은 것
+source_ids     [102]             LLM 응답이 인용한 것 → included_ids 안에 있어야 함
+```
+
+출처로 인용할 수 있는 ID는 DB 전체도, 후보 전체도 아니라 실제로 전달하고 검증한 자료예요 — provided_ids 규칙과 같은 원리. 검색됐다는 사실만으로 모델에게 보내지 않아요(권한 · 개인정보). 그리고 검색이 됐다고 status = answered로 정하지 않아요 — 원문에 필요한 정보가 있는지 따로 봐요.
+
+### 벡터 계약을 기록해 두기
+
+```
+vector_contract = {
+    "model_id": "intfloat/multilingual-e5-small",
+    "dimensions": 384,
+    "query_prefix": "query: ",
+    "document_prefix": "passage: ",
+    "normalize_embeddings": True,
+}
+```
+
+이 중 하나라도 바뀌면 기존 벡터와 새 벡터를 섞지 않고 문서 · 질문 벡터를 같은 조건으로 다시 만들어요.
+
+## 🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것
+
+| 부품 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| Embedding 모델 · encode | 고정 길이 벡터 | 숫자 · 부정 · 기한 · 고유명사의 정확한 구분 |
+| 정규화 · 수치 검사 | 길이 1 · 유한값 · 맞는 shape | ID-벡터 짝 · 관련성 |
+| vector(384) 열 | 차원 · NaN 거부 | 같은 모델 · 같은 버전 |
+| Top-k SQL | 가까운 순 최대 k개 후보 | 정답 · k개 개수 · 답할 근거 |
+| HNSW 인덱스 | 빠른 근사 검색 | Exact와 같은 결과 · 필터 후 k개 |
+| 사람의 정성평가 | 관련 / 부분 관련 / 무관 + 이유 | — |
+
+검색은 Retriever의 책임이고, 답을 만드는 것은 그 뒤 Context → Prompt → LLM Client → 검증이에요. 검색 결과나 LLM 응답이 도구를 실행해도 된다는 권한을 주지는 않아요.
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 벡터 계약 — 예시 설정
+
+| 항목 | 예시 값 | 바뀌면 |
+|---|---|---|
+| 모델 ID | intfloat/multilingual-e5-small | 문서 · 질문 전부 재생성 |
+| 차원 | 384 (vector(384)) | 테이블 열 · 인덱스도 새로 |
+| 질문 · 문서 접두어 | "query: " · "passage: " | 재생성 |
+| 문서 입력 | "passage: " + title + " " + content | 재생성 |
+| 정규화 | normalize_embeddings=True | 재생성 |
+| 거리 · 정렬 | <=> Cosine distance · ASC | 인덱스 opclass도 맞춰 변경 |
+| k | 3 | — |
+| 실행 위치 | device="cpu" | — |
+
+### 검색 테이블
+
+| 열 | 타입 (실제 udt_name) | 뜻 |
+|---|---|---|
+| id | int4 · PK | 지식 ID |
+| title · content | text | 원문 |
+| category | text | 필터 (course · development · support) |
+| source_version | text | 원문 버전 (knowledge_v1 · knowledge_search_v2) |
+| embedding_model | text | 벡터를 만든 모델 |
+| embedding | vector (384) | 문서 벡터 |
+
+### 검색 결과 · 상태
+
+| 항목 | 값 |
+|---|---|
+| 결과 행 | {id, title, content, category, source_version, distance} — distance는 기록용, 사실성 점수 아님 |
+| 실행 상태 | empty(정상 0건) · error(실행 실패) · 결과 있음 |
+| 사람 판정 | 관련 · 부분 관련 · 무관 + 이유 |
+| ID 범위 | source_ids ⊆ included_ids ⊆ retrieved_ids |
+| 기록 | 질문 ID · k · 필터 · 모델 ID · revision · 원문 버전 · PostgreSQL · pgvector 버전 |
+
+### 환경 — 예시
+
+| 항목 | 값 |
+|---|---|
+| OS · DB | Windows 11 · PostgreSQL 18.6 x64 (C:\Program Files\PostgreSQL\18) |
+| pgvector | v0.8.7 (태그 고정 소스 빌드) |
+| 빌드 도구 | Visual Studio Build Tools · C++ 워크로드 · x64 Native Tools Command Prompt |
+| Python 쪽 | 기존 가상환경 · sentence-transformers · psycopg 3 · pgvector · python-dotenv |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| sentence-transformers | Embedding 모델 로드 · encode (안에서 torch · transformers 사용) | from sentence_transformers import SentenceTransformer |
+| numpy | 벡터 계산 · 정규화 · 검사 | import numpy as np |
+| psycopg[binary] (3) | PostgreSQL 연결 · SQL 실행 · 파라미터 바인딩 | import psycopg |
+| pgvector (Python) | vector ↔ NumPy · Vector 변환 등록 | from pgvector.psycopg import register_vector |
+| python-dotenv | DB 접속 .env 읽기 | from dotenv import dotenv_values |
+| pgvector (서버 확장) | PostgreSQL에 vector 타입 · 연산자 · HNSW — pip 아님, 소스 빌드 | CREATE EXTENSION vector; |
+
+🔧 설치 확인 명령어 사전에서 자세히 →
+
+```
+python -c "import sys; print(sys.executable)"
+python -m pip show sentence-transformers psycopg pgvector python-dotenv   # 없는 것만 install
+```
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+결과값은 실제로 실행해서 얻은 값이에요. NumPy 계산, pg_config, PostgreSQL 18.6 + pgvector 0.8.7의 SQL, psycopg + pgvector-python을 노트 전용 DB에서 돌렸어요. E5 모델은 받지 않았고, sentence-transformers의 동작(shape · 정규화 · 접두어)은 이미 있던 다른 모델(all-MiniLM-L6-v2)로만 확인했어요 — 그래서 실제 E5 검색 순위는 싣지 않았어요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| LLM 원리 — Embedding | Token Embedding · Sentence Embedding · Cosine의 바탕 |
+| Context 선택 · 출력 계약 | 검색 후보 중 실제로 넣을 자료 고르기 · insufficient_context |
+| LLM API 클라이언트 | 고른 근거로 호출 · 판정 · 기록 |
+| 문서 Indexing | Parsing → 정제 → Chunking → Metadata → Embedding → 저장을 대량으로 |
+| Basic RAG | 질문 → Retriever → Context → Prompt → LLM → 검증 · Citation |
+| Hybrid Search · Reranking · 평가 지표 | Keyword + Dense 융합, 재순위, Recall@k · MRR · nDCG |
+
+## 원본 자료
+
+- 원본: Day23_20261118.html (생성형 AI · LLM 및 RAG 엔지니어링 · Day23 Embedding · pgvector 오프라인 인터랙티브 교안). 예시 지식 9개, 2차원 예시 좌표 A~F, 관련성 판정 사례, 설치 오류 목록은 원본 자료의 것.
+
+- 결과 값: 이 PC에서 실제 실행 (Python 3.13 · numpy 2.3.5 · sentence-transformers 6.3.0 · torch 2.14.0 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). DB는 노트 전용 DB를 만들어 쓰고 지웠음. E5 모델은 내려받지 않음 — Embedding 동작은 로컬 캐시의 all-MiniLM-L6-v2로 오프라인 확인. HNSW 측정은 덩어리 구조 임의 벡터. 스크립트 tools/io_day23.py, 그림 tools/visuals/make_day23.py
+
+- 공식 문서: pgvector (Windows 설치 · HNSW · iterative scan) · pgvector 0.8.7 릴리스 · pgvector-python · pg_available_extensions · CREATE EXTENSION · pg_config · EXPLAIN · MSVC 명령줄 빌드 · Visual Studio Build Tools
+
+- 그 밖: Sentence Transformers · Semantic Search · SentenceTransformer API · multilingual-e5-small 모델 카드 · Psycopg 3 · 연결과 트랜잭션 · Psycopg 3 · 파라미터
+
+## 🔧 Day23 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day23)
+| 이론 | 대응 명령어 |
+|---|---|
+| ② 비교 — 유사도 · 거리 · 정규화 | q @ a, np.linalg.norm, keepdims=True, np.isfinite, np.allclose |
+| ③ 벡터 만들기 — Sentence Transformers | SentenceTransformer(…, device="cpu"), get_embedding_dimension(), max_seq_length, encode(normalize_embeddings=True) |
+| ④ 저장소 준비 — pgvector 설치 · 활성화 | pg_config, where cl, git clone --branch v0.8.7, nmake /F Makefile.win, pg_available_extensions, CREATE EXTENSION vector, register_vector |
+| ⑤ 저장 · 검색 — Top-k | vector(384), INSERT … ON CONFLICT, <=> · <-> · <#>, ORDER BY … ASC LIMIT k, WHERE category = %s |
+| ⑥ 인덱스 — HNSW | USING hnsw (embedding vector_cosine_ops), EXPLAIN (ANALYZE, BUFFERS), hnsw.ef_search, hnsw.iterative_scan |
+| 📦 패키지 | python -m pip show sentence-transformers psycopg pgvector python-dotenv |
+
+### Dot · Cosine · L2 를 NumPy로 — q @ a · np.linalg.norm
+
+```
+import numpy as np
+
+q = np.array([1.0, 0.0])
+a = np.array([0.8, 0.6])
+
+dot = float(q @ a)                                          # 같은 자리끼리 곱해 더하기
+cosine = dot / (np.linalg.norm(q) * np.linalg.norm(a))      # 길이로 나눠 방향만 비교
+l2 = float(np.linalg.norm(q - a))                           # 두 끝점 사이 직선거리
+
+print("dot", round(dot, 4))
+print("cosine", round(cosine, 4))
+print("L2", round(l2, 4))
+```
+
+▶ 실제로 돌려 보면 NumPy 실제 실행 · 2차원 설명용 벡터 (모델 출력 아님)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| q @ a # q=(1,0), a=(0.8,0.6) | 0.8 | Dot Product — 같은 자리끼리 곱해 더함 |
+| dot / (norm(q) * norm(a)) | 0.8 | Cosine similarity — 두 벡터 길이가 1이라 Dot과 같음 |
+| np.linalg.norm(q - a) | 0.6325 | L2 distance = √0.4 |
+| q @ U, q @ V # U=(1,0), V=(10,10) | 1, 10 | Dot은 V가 앞 — 길이가 큰 벡터가 이김 |
+| cos(q,U), cos(q,V) | 1.0, 0.7071 | Cosine은 U가 앞 — 방향만 봄 |
+
+| 부분 | 뜻 |
+|---|---|
+| q @ a | 행렬곱 연산자 — 1차원끼리면 내적(Dot Product). np.dot(q, a)와 같음 |
+| np.linalg.norm(v) | L2 norm = √(제곱의 합) — 벡터의 길이 |
+| np.linalg.norm(q - a) | 두 벡터 차이의 길이 = L2 distance |
+| float(...) | NumPy 스칼라 → 파이썬 float (출력 · JSON 저장용) |
+
+💡 큰 값이 가까운 것: Dot · Cosine similarity. 작은 값이 가까운 것: Cosine distance · L2 distance. 정렬 방향을 섞으면 순위가 뒤집혀요.
+
+### 정규화 — v / np.linalg.norm(v) · 여러 행은 axis=1, keepdims=True
+
+```
+import numpy as np
+
+v = np.array([3.0, 4.0])
+print(np.linalg.norm(v))            # 길이
+print(v / np.linalg.norm(v))        # 방향 유지, 길이 1
+
+M = np.array([[3.0, 4.0], [10.0, 10.0], [0.8, 0.6]])
+Mn = M / np.linalg.norm(M, axis=1, keepdims=True)    # 행마다 정규화
+print(Mn)
+print(np.linalg.norm(Mn, axis=1))
+
+x, y = Mn[0], Mn[1]
+print(np.linalg.norm(x - y) ** 2, 2 - 2 * (x @ y))   # 단위 벡터면 같은 값
+```
+
+▶ 실제로 돌려 보면 NumPy 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| np.linalg.norm([3, 4]) | 5 | L2 norm (원점에서 끝까지 길이) |
+| v / np.linalg.norm(v) | [0.6, 0.8] | 방향은 그대로, 길이만 1 |
+| M / np.linalg.norm(M, axis=1, keepdims=True) | [[0.6, 0.8], [0.7071, 0.7071], [0.8, 0.6]] | 행마다 정규화 — keepdims 로 (3,1) 모양을 유지해 나눔 |
+| np.linalg.norm(Mn, axis=1) | [1.0, 1.0, 1.0] | 모든 행 길이 1 |
+| ‖x−y‖² vs 2 − 2·(x·y) # 정규화된 두 행 | 0.0201 vs 0.0201 | 단위 벡터면 L2 순서 = Cosine 순서 |
+
+| 부분 | 뜻 |
+|---|---|
+| axis=1 | 행(벡터 하나)마다 길이 계산 → 모양 (3,) |
+| keepdims=True | 결과를 (3, 1)로 유지 → M의 각 행을 자기 길이로 나누는 broadcasting |
+| ‖x−y‖² = 2 − 2·(x·y) | 길이 1인 벡터끼리만 성립 — 그래서 정규화하면 L2 순서와 Cosine 순서가 같아져요 |
+
+### 저장 전 검사 — .shape · np.isfinite · np.linalg.norm(axis=1) · np.allclose
+
+```
+import numpy as np
+
+values = np.asarray(doc_vecs, dtype=np.float32)   # doc_vecs: 모델이 만든 (n, 384)
+
+if values.shape != (len(KNOWLEDGE), 384):
+    raise ValueError("벡터 shape가 모델 계약과 다릅니다.")
+if not np.isfinite(values).all():
+    raise ValueError("NaN 또는 Inf가 있습니다.")
+lengths = np.linalg.norm(values, axis=1)
+if np.any(lengths <= 1e-12):
+    raise ValueError("영벡터가 있습니다.")
+if not np.allclose(lengths, 1, rtol=0, atol=1e-5):
+    raise ValueError("정규화 조건 불일치")
+```
+
+▶ 실제로 돌려 보면 NumPy 실제 실행 · 저장 전 검사에 쓰는 함수들
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| q @ z / (norm(q) * norm(z)) # z=(0,0) | nan + RuntimeWarning | 영벡터는 분모 0 → nan. 조용히 0점으로 바꾸지 않음 |
+| good.shape == (2, 2) | True | 개수 · 차원 검사 |
+| np.isfinite(bad_nan).all() | False | NaN · Inf 가 하나라도 있으면 False |
+| np.linalg.norm(bad_zero, axis=1) | [0.0, 1.0] | 길이 0 인 행 = 영벡터 |
+| np.allclose(np.linalg.norm(good, axis=1), 1, rtol=0, atol=1e-5) | True | 정규화 확인 통과 |
+| np.allclose(np.linalg.norm([[3, 4]], axis=1), 1, …) | False | 길이 5 — 정규화 안 된 벡터 |
+
+| 부분 | 잡는 것 |
+|---|---|
+| values.shape != (n, 384) | 개수 누락 · 다른 차원 모델 |
+| np.isfinite(values).all() | NaN · Inf (하나라도 있으면 False) |
+| lengths <= 1e-12 | 영벡터 — Cosine 분모가 0 |
+| np.allclose(lengths, 1, rtol=0, atol=1e-5) | 정규화 안 된 벡터 (절대오차 1e-5 이내만 통과) |
+
+⚠️ 모두 통과해도 ID와 벡터가 맞게 짝지어졌는지, 질문에 관련 있는지는 모릅니다. 수치 검사는 형식 검사예요.
+
+### 기존 가상환경에 Embedding 패키지 확인 · 추가 (Git Bash)
+
+```
+# 지금 쓰는 Python 확인 — VS Code 인터프리터와 같아야 함
+python -c "import sys; print(sys.executable)"
+python -m pip show sentence-transformers numpy torch transformers
+
+# 없는 경우에만
+python -m pip install sentence-transformers
+python -m pip check
+```
+
+▶ 실제로 돌려 보면 실제 가상환경에서 확인 (pip show 대신 import)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| import sentence_transformers, torch, numpy | sentence-transformers 6.3.0 · torch 2.14.0+cu130 · numpy 2.3.5 | 이미 있는 패키지는 다시 설치하지 않음 |
+| python --version | 3.13.16 | 이 버전 기준 결과 |
+
+| 부분 | 뜻 |
+|---|---|
+| sentence-transformers | 모델을 불러와 문장을 벡터로 바꾸는 라이브러리 — torch · transformers를 함께 씀 |
+| python -m pip check | 설치된 패키지끼리 버전 조건이 깨지지 않았는지 |
+
+💡 패키지 설치 ≠ 모델 다운로드. 모델 가중치는 처음 SentenceTransformer(...)를 만들 때 Hugging Face에서 받아 캐시에 저장돼요 (네트워크 필요).
+
+### 모델 한 번 로드 — SentenceTransformer(MODEL_ID, device="cpu")
+
+```
+from sentence_transformers import SentenceTransformer
+
+MODEL_ID = "intfloat/multilingual-e5-small"
+model = SentenceTransformer(MODEL_ID, device="cpu")   # 처음엔 모델 파일 다운로드
+
+print("차원:", model.get_embedding_dimension())
+print("입력 상한:", model.max_seq_length)
+```
+
+▶ 실제로 돌려 보면 실제 실행 · 이 PC에 캐시돼 있던 sentence-transformers/all-MiniLM-L6-v2 로 동작만 확인 (E5 아님 · 오프라인)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SentenceTransformer(MODEL_ID, device='cpu') | SentenceTransformer | 모델 객체 한 번 생성 → 계속 재사용 |
+| model.get_embedding_dimension() | 384 | 출력 벡터 길이 (E5-small 도 모델 카드상 384) · 예전 이름 get_sentence_embedding_dimension 은 FutureWarning |
+| [type(m).__name__ for m in model] | Transformer → Pooling → Normalize | 모듈 구성 — 이 모델은 끝에 Normalize 층이 있음 |
+| model.max_seq_length | 256 | 입력 토큰 상한 — 모델마다 다름 (E5-small 은 512) |
+| model.device | cpu | GPU 없이 CPU 추론 |
+
+| 부분 | 뜻 |
+|---|---|
+| SentenceTransformer(id, device="cpu") | 모델 ID로 가중치를 불러온 객체. 질문마다 새로 만들지 말고 한 번 만들어 재사용 |
+| get_embedding_dimension() | 출력 벡터 길이. 예전 이름 get_sentence_embedding_dimension()은 6.x에서 FutureWarning |
+| max_seq_length | 입력 토큰 상한 — 넘는 부분은 잘림 (글자 수 아님) |
+| for m in model | 모듈 구성 (Transformer → Pooling → (Normalize)) 확인 |
+
+### 문서 · 질문 벡터 만들기 — model.encode(..., normalize_embeddings=True)
+
+```
+import numpy as np
+
+# KNOWLEDGE: id · title · content 를 가진 지식 목록 · model: 위에서 만든 객체
+passages = ["passage: " + row["title"] + " " + row["content"] for row in KNOWLEDGE]
+query_inputs = ["query: 서버는 어디에서 실행하나요?"]
+
+doc_vecs = model.encode(passages, normalize_embeddings=True,
+                        convert_to_numpy=True, batch_size=8)
+query_vecs = model.encode(query_inputs, normalize_embeddings=True,
+                          convert_to_numpy=True)
+print(doc_vecs.shape, query_vecs.shape)
+
+qvec = query_vecs[0]                 # DB 파라미터로 쓸 (384,) 1차원
+scores = query_vecs @ doc_vecs.T     # 정규화했으니 Cosine similarity
+```
+
+▶ 실제로 돌려 보면 실제 실행 · 캐시된 all-MiniLM-L6-v2 · 지식 9개 · 숫자는 E5 결과가 아님
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| model.encode(passages, normalize_embeddings=True, convert_to_numpy=True, batch_size=8) | shape (9, 384) · dtype float32 | (지식 개수, 차원) |
+| model.encode([query], …) | shape (1, 384) | 리스트로 넣으면 질문 1개도 2차원 (1, 384) |
+| model.encode(query_str, …) # 리스트 아님 | shape (384,) | 문자열 하나면 1차원 (384,) — DB에 넣을 qvec 모양 |
+| np.linalg.norm(docs, axis=1).round(4) | [1.0] | normalize_embeddings=True → 모두 길이 1 |
+| np.linalg.norm(encode(…, normalize_embeddings=False), axis=1) | [1.0, 1.0] | 이 모델은 Normalize 층이 있어 꺼도 1 — 모델마다 다르니 norm 으로 직접 확인 |
+| (qv @ docs.T).shape | (1, 9) | 질문 1개 × 지식 9개 점수 |
+| cos('query: 서버 실행', 'passage: 서버 실행') | 0.5518 | 접두어만 달라도 다른 벡터 → 질문·문서 규칙을 섞지 않음 |
+
+| 인자 | 뜻 |
+|---|---|
+| "query: " · "passage: " | E5 모델의 입력 규칙 — 질문과 문서에 다른 접두어. 모든 모델에 통하는 문법은 아님 |
+| normalize_embeddings=True | 출력 벡터를 길이 1로 — 문서 · 질문 둘 다 같은 설정 |
+| convert_to_numpy=True | 결과를 NumPy 배열로 (기본값) |
+| batch_size=8 | 한 번에 몇 문장씩 모델에 넣을지 — 메모리 · 속도 조절, 결과값엔 영향 없음 |
+| 리스트 vs 문자열 | 리스트 → (n, 384), 문자열 하나 → (384,) |
+
+⚠️ 같은 384차원이라도 다른 모델의 벡터끼리는 비교하지 않아요. 차원이 같다고 같은 표현 공간이 아니에요.
+
+### PostgreSQL 설치 위치 · 버전 — pg_config (cmd)
+
+```
+REM 실행: Windows 명령 프롬프트(cmd)
+"C:\Program Files\PostgreSQL\18\bin\pg_config.exe" --version
+"C:\Program Files\PostgreSQL\18\bin\pg_config.exe" --includedir-server
+"C:\Program Files\PostgreSQL\18\bin\pg_config.exe" --pkglibdir
+"C:\Program Files\PostgreSQL\18\bin\pg_config.exe" --sharedir
+```
+
+▶ 실제로 돌려 보면 이 PC에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| pg_config.exe --version | PostgreSQL 18.6 | 서버 버전 — 빌드 대상과 같아야 함 |
+| pg_config.exe --includedir-server | C:/PROGRA~1/POSTGR~1/18/include/server | postgres.h 가 있는 헤더 폴더 |
+| pg_config.exe --pkglibdir | C:/PROGRA~1/POSTGR~1/18/lib | vector.dll 이 놓일 폴더 |
+| pg_config.exe --sharedir | C:/PROGRA~1/POSTGR~1/18/share | share\extension 의 상위 — vector.control · SQL |
+
+| 옵션 | 알려 주는 것 |
+|---|---|
+| --version | 설치된 PostgreSQL 버전 — 확장은 이 버전용으로 빌드 |
+| --includedir-server | 서버 헤더(postgres.h) 폴더 — 컴파일에 필요 |
+| --pkglibdir | 확장 라이브러리(.dll)가 놓이는 폴더 |
+| --sharedir | share\extension의 상위 — .control · SQL 파일 위치 |
+
+### x64 빌드 도구 · PGROOT 확인 (x64 Native Tools Command Prompt)
+
+```
+REM 실행: 관리자 권한의 x64 Native Tools Command Prompt for VS
+where cl
+where nmake
+where git
+echo %VSCMD_ARG_TGT_ARCH%
+
+set "PGROOT=C:\Program Files\PostgreSQL\18"
+echo %PGROOT%
+"%PGROOT%\bin\pg_config.exe" --version
+dir "%PGROOT%\include\server\postgres.h"
+dir "%PGROOT%\lib\postgres.lib"
+```
+
+| 명령 | 확인할 것 |
+|---|---|
+| where cl · where nmake | MSVC 컴파일러 · 빌드 도구 경로가 나와야 함 (Visual Studio Build Tools의 C++ 워크로드) |
+| echo %VSCMD_ARG_TGT_ARCH% | x64 — 32비트 창이면 빌드 오류 |
+| set "PGROOT=…" | 이 창에서만 쓰는 환경변수. bin · data 가 아니라 설치 최상위 폴더 |
+| dir …postgres.h · postgres.lib | 헤더 · 라이브러리가 실제로 있는지 — 없으면 경로부터 다시 |
+
+💡 VS Code ≠ Visual Studio Build Tools. 빌드 단계만 이 전용 명령창을 쓰고, Python 작업은 평소 터미널(Git Bash)로 돌아가요.
+
+### 버전을 고정해 소스 받기 — git clone --branch v0.8.7 --depth 1
+
+```
+REM 실행: x64 Native Tools Command Prompt
+if not exist C:\pgvector-build mkdir C:\pgvector-build
+cd /d C:\pgvector-build
+git clone --branch v0.8.7 --depth 1 https://github.com/pgvector/pgvector.git
+cd pgvector
+git describe --tags --exact-match
+dir Makefile.win
+```
+
+| 부분 | 뜻 |
+|---|---|
+| --branch v0.8.7 | 태그를 고정 — 계속 바뀌는 master 대신 재현 가능한 버전 |
+| --depth 1 | 최신 커밋 하나만 (기록 전체 생략) |
+| git describe --tags --exact-match | 지금 소스가 정확히 그 태그인지 → v0.8.7 |
+| dir Makefile.win | Windows용 빌드 파일 존재 확인 |
+
+⚠️ 같은 이름 폴더가 이미 있으면 무조건 지우지 말고, 그 소스의 태그부터 확인해요.
+
+### 빌드 · 설치 — nmake /F Makefile.win → install
+
+```
+REM 실행: 같은 x64 Native Tools Command Prompt (관리자)
+nmake /F Makefile.win
+echo %ERRORLEVEL%
+dir vector.dll
+
+nmake /F Makefile.win install
+dir "%PGROOT%\lib\vector.dll"
+dir "%PGROOT%\share\extension\vector.control"
+dir "%PGROOT%\share\extension\vector--*.sql"
+```
+
+▶ 실제로 돌려 보면 이 PC의 설치 결과 확인 (빌드 자체는 다시 하지 않음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| dir "%PGROOT%\lib\vector.dll" | 있음 | 서버가 불러올 확장 라이브러리 |
+| dir "%PGROOT%\share\extension\vector.control" | 있음 | default_version 이 적힌 제어 파일 |
+| dir "…\vector--*.sql" | 42개 (예: vector--0.8.7.sql) | 버전별 설치 · 업그레이드 SQL |
+
+| 단계 | 뜻 |
+|---|---|
+| nmake /F Makefile.win | 컴파일 → vector.dll 생성. %ERRORLEVEL% 0 이 아니면 설치로 넘어가지 않음 |
+| … install | dll · control · SQL 파일을 PostgreSQL 폴더에 복사 (쓰기 권한 필요) |
+| nmake /F Makefile.win clean | 잘못된 창(32비트)에서 빌드했을 때 산출물 지우고 다시 |
+
+💡 여기까지는 서버 파일 준비예요. 실제 DB에서 쓰려면 다음 단계 CREATE EXTENSION이 따로 필요해요.
+
+### 확장 제공 여부 조회 — pg_available_extensions (pgAdmin Query Tool)
+
+```
+SELECT version();
+SELECT current_database(), current_user;
+SELECT name, default_version, installed_version
+FROM pg_available_extensions
+WHERE name = 'vector';
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SELECT version(); | PostgreSQL 18.6 on x86_64-windows | 서버 버전 |
+| SELECT current_database(); | sesac_notes_lab | 지금 연결된 DB — 확장은 DB마다 따로 |
+| pg_available_extensions WHERE name='vector' | ('vector', '0.8.7', None) | 행이 있음 = 서버 파일 설치됨 · installed_version None = 이 DB엔 아직 |
+
+| 결과 | 뜻 |
+|---|---|
+| 행 없음 | 서버에 확장 파일이 없음 → 빌드 · 설치 단계 확인 |
+| default_version | 설치된 파일이 제공하는 버전 (예: 0.8.7) |
+| installed_version = NULL | 파일은 있지만 지금 DB에는 아직 활성화 안 함 |
+
+### 현재 DB에 활성화 — CREATE EXTENSION IF NOT EXISTS vector
+
+```
+SELECT current_database();                 -- 맞는 DB인지 먼저
+CREATE EXTENSION IF NOT EXISTS vector;
+SELECT extname, extversion
+FROM pg_extension
+WHERE extname = 'vector';
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| CREATE EXTENSION IF NOT EXISTS vector; | CREATE EXTENSION | 이 DB에 vector 타입 · 연산자 등록 |
+| SELECT extname, extversion FROM pg_extension … | ('vector', '0.8.7') | 이 DB에 활성화된 버전 |
+| CREATE EXTENSION IF NOT EXISTS vector; # 한 번 더 | NOTICE: "vector" 확장 모듈이 이미 있음, 건너뜀 | 이미 있으면 건너뜀 — 오류 아님 |
+| 다른 DB에서 SELECT '[1,2,3]'::vector | UndefinedObject: "vector" 자료형 없음 | 확장은 연결한 DB에만 — 다른 DB는 따로 CREATE EXTENSION |
+| 다른 DB의 installed_version | None | 서버 파일은 있어도 그 DB엔 미설치 |
+
+| 부분 | 뜻 |
+|---|---|
+| CREATE EXTENSION | 지금 연결한 DB에 vector 타입 · 연산자 · 인덱스 방식을 등록 |
+| IF NOT EXISTS | 이미 있으면 NOTICE만 내고 건너뜀 |
+| pg_extension | 이 DB에 실제로 활성화된 확장 목록 |
+
+⚠️ 권한이 필요해요 — Windows 관리자 권한과 PostgreSQL 안의 CREATE EXTENSION 권한은 별개예요. 다른 DB에서는 다시 실행해야 해요.
+
+### 거리 연산자 — <=> Cosine · <-> L2 · <#> 음의 내적
+
+```
+-- 설명용 3차원 벡터 (모델 출력 아님)
+SELECT
+  '[1,0,0]'::vector <=> '[1,0,0]'::vector  AS same_direction,
+  '[1,0,0]'::vector <=> '[0,1,0]'::vector  AS perpendicular,
+  '[1,0,0]'::vector <=> '[-1,0,0]'::vector AS opposite_direction;
+
+SELECT '[1,0]'::vector <-> '[0.8,0.6]'::vector  AS l2,
+       '[1,0]'::vector <#> '[0.8,0.6]'::vector  AS neg_inner,
+       1 - ('[1,0]'::vector <=> '[0.8,0.6]'::vector) AS cosine_similarity;
+```
+
+▶ 실제로 돌려 보면 pgvector 0.8.7 실제 실행 · 설명용 벡터
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| [1,0,0] <=> [1,0,0] · [0,1,0] · [-1,0,0] | 0 · 1 · 2 | Cosine distance: 같은 방향 0 · 직각 1 · 반대 2 |
+| [1,0] <-> [0.8,0.6] | 0.6325 | L2 distance — NumPy 결과와 같음 |
+| [1,0] <#> [0.8,0.6] | -0.8 | 음의 내적(−0.8) — 작을수록 내적이 큼 |
+| 1 - ([1,0] <=> [0.8,0.6]) | 0.8 | 거리 → 유사도로 바꿔 표시만 |
+| [1,0,0] <=> [0,0,0] | nan | 영벡터와의 Cosine 은 정의 안 됨 → NaN |
+| [1,2] <=> [1,2,3] | DataException: different vector dimensions 2 and 3 | 차원이 다르면 비교 자체가 오류 |
+
+| 연산자 | 계산 | 가까운 쪽 | 인덱스 opclass |
+|---|---|---|---|
+| <=> | Cosine distance = 1 − Cosine similarity | 작은 값 | vector_cosine_ops |
+| <-> | L2 distance | 작은 값 | vector_l2_ops |
+| <#> | 음의 내적 (−Dot) | 작은 값 (= 큰 내적) | vector_ip_ops |
+| '[…]'::vector | 문자열 → vector 형변환 | 차원이 다른 벡터끼리는 오류 |  |
+
+### 임시 테이블로 저장 · Top-k 검사 — CREATE TEMP TABLE … ON COMMIT DROP
+
+```
+BEGIN;
+CREATE TEMP TABLE day23_vector_check (
+  id integer PRIMARY KEY,
+  label text NOT NULL,
+  embedding vector(3) NOT NULL
+) ON COMMIT DROP;
+INSERT INTO day23_vector_check (id, label, embedding) VALUES
+  (1, '같은 방향',   '[1,0,0]'),
+  (2, '가까운 방향', '[0.8,0.6,0]'),
+  (3, '직각 방향',   '[0,1,0]');
+SELECT id, label, embedding <=> '[1,0,0]'::vector AS distance
+FROM day23_vector_check
+ORDER BY embedding <=> '[1,0,0]'::vector ASC
+LIMIT 3;
+COMMIT;
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| ORDER BY embedding <=> '[1,0,0]' ASC LIMIT 3 | 1(같은 방향, 0) → 2(가까운 방향, 0.2) → 3(직각 방향, 1) | 거리가 작은 순 — 예상 1 → 2 → 3 |
+| COMMIT 뒤 SELECT … FROM day23_vector_check | UndefinedTable: "day23_vector_check" 이름의 릴레이션(relation)이 없습니다 | ON COMMIT DROP — 기존 테이블은 안 건드리는 검사 |
+
+| 부분 | 뜻 |
+|---|---|
+| TEMP TABLE | 이 세션에서만 보이는 임시 테이블 — 기존 테이블을 건드리지 않는 설치 검사 |
+| ON COMMIT DROP | COMMIT 하면 자동 삭제 |
+| vector(3) | 차원을 3으로 고정 — 다른 길이는 INSERT 거부 |
+
+### Python 쪽 도구 확인 · 추가 — pgvector · psycopg · python-dotenv
+
+```
+python -c "import sys; print(sys.executable)"
+python -m pip show psycopg pgvector python-dotenv
+# 없는 것만
+python -m pip install pgvector
+python -m pip install 'psycopg[binary]' python-dotenv
+python -m pip check
+```
+
+▶ 실제로 돌려 보면 실제 가상환경에서 확인
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| importlib.metadata.version(…) | psycopg 3.3.8 · pgvector 0.5.1 · python-dotenv 1.2.4 | pgvector(Python) 는 타입 변환 도구 — 서버 확장(vector.dll)과 별개 |
+
+| 패키지 | 역할 |
+|---|---|
+| psycopg (3) | Python ↔ PostgreSQL 연결 · SQL 실행 · 파라미터 바인딩 |
+| pgvector (Python) | vector 타입 ↔ NumPy · Vector 변환 등록 도구. 서버 확장 설치가 아님 |
+| python-dotenv | 접속 정보 .env 읽기 |
+
+### DB 접속 .env — 실행 파일 옆, Git 제외
+
+```
+PGHOST=127.0.0.1
+PGPORT=5432
+PGDATABASE=knowledge_lab
+PGUSER=본인_DB계정
+PGPASSWORD=본인_DB비밀번호
+```
+
+| 키 | 뜻 |
+|---|---|
+| PGDATABASE | pgAdmin에서 SELECT current_database();로 확인한 실제 DB 이름 — 확장을 활성화한 그 DB |
+| PGPASSWORD | DB 비밀번호 (API 키와 별개). .gitignore에 .env |
+
+### 연결마다 타입 등록 — register_vector(conn) · Vector · vector_dims
+
+```
+from pathlib import Path
+import psycopg
+from dotenv import dotenv_values
+from pgvector import Vector
+from pgvector.psycopg import register_vector
+
+cfg = dotenv_values(Path(__file__).with_name(".env"), interpolate=False)
+required = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+if any(not cfg.get(key) for key in required):
+    raise RuntimeError("DB 설정이 부족합니다.")
+
+with psycopg.connect(host=cfg["PGHOST"], port=int(cfg["PGPORT"]),
+                     dbname=cfg["PGDATABASE"], user=cfg["PGUSER"],
+                     password=cfg["PGPASSWORD"]) as conn:
+    register_vector(conn)                      # 연결마다 vector 타입 등록
+    test = Vector([1.0, 0.0, 0.0])
+    dims, dist = conn.execute(
+        "SELECT vector_dims(%s::vector), %s::vector <=> %s::vector",
+        (test, test, test),
+    ).fetchone()
+    assert dims == 3 and abs(float(dist)) < 1e-6
+    print("DB 연결 및 pgvector 변환 확인 완료")
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| register_vector 전: SELECT '[1,0,0]'::vector | str '[1,0,0]' | 등록 전엔 그냥 문자열로 옴 |
+| register_vector(conn) | None | 이 연결에 vector ↔ NumPy 변환 등록 (연결마다) |
+| vector_dims(%s::vector), %s <=> %s # Vector([1,0,0]) | 3, 0 | assert dims == 3 and abs(dist) < 1e-6 통과 |
+| 등록 후: SELECT '[1,0,0]'::vector | Vector Vector([1.0, 0.0, 0.0]) | pgvector.Vector 객체로 |
+| row.to_numpy().dtype | float32 | NumPy 배열이 필요하면 .to_numpy() |
+| np.array([1,0]) <-> np.array([0.8,0.6]) | 0.6325 | NumPy 배열을 그대로 파라미터로 |
+
+| 부분 | 뜻 |
+|---|---|
+| register_vector(conn) | 이 연결에 vector 타입 변환 등록 — NumPy 배열 · Vector를 파라미터로, 결과는 Vector로. 연결을 새로 열면 다시 |
+| Vector([...]) | pgvector-python의 벡터 객체. .to_numpy() · .to_list() |
+| vector_dims(v) | pgvector SQL 함수 — 벡터 차원 수 |
+| %s | psycopg 파라미터 자리 — 값은 SQL 문자열에 이어 붙이지 않고 따로 전달 |
+| with psycopg.connect(...) as conn | 블록이 정상 종료하면 commit, 예외면 rollback 후 닫힘 |
+
+### 검색용 테이블 — embedding vector(384) NOT NULL
+
+```
+CREATE TABLE IF NOT EXISTS day23_search_docs (
+  id              integer PRIMARY KEY,
+  title           text NOT NULL,
+  content         text NOT NULL,
+  category        text NOT NULL,
+  source_version  text NOT NULL,
+  embedding_model text NOT NULL,
+  embedding       vector(384) NOT NULL
+);
+-- 구조 확인
+SELECT column_name, data_type, udt_name
+FROM information_schema.columns
+WHERE table_name = 'day23_search_docs'
+ORDER BY ordinal_position;
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| information_schema.columns … day23_search_docs | id:int4 · title:text · content:text · category:text · source_version:text · embedding_model:text · embedding:vector | embedding 은 data_type USER-DEFINED · udt_name vector |
+| INSERT … embedding = 3차원 배열 | DataException: expected 384 dimensions, not 3 | vector(384) 가 차원을 검사 |
+| INSERT … embedding 에 NaN | DataException: NaN not allowed in vector | NaN 도 거부 |
+| 실패 직후 같은 트랜잭션에서 SELECT 1 | InFailedSqlTransaction: 현재 트랜잭션은 중지되어 있습니다. 이 트랜잭션을 종료하기 전까지는 모든 명령이 무시될 것입니다 | ROLLBACK 전까지 이 트랜잭션은 막힘 |
+
+| 열 | 왜 있나 |
+|---|---|
+| id · title · content | 원문 식별 · 사용자에게 돌려줄 근거 |
+| category · source_version | 필터 · 원문 변경 추적 |
+| embedding_model | 어떤 모델로 만든 벡터인지 — 모델이 바뀌면 재생성 대상 |
+| vector(384) | 차원 계약 — 다른 길이 · NaN은 DB가 거부. 모델 버전 · ID 짝은 검사 못 함 |
+| IF NOT EXISTS | 같은 이름이 있으면 건너뜀 — 구조가 달라도 고쳐 주지 않으니 위 조회로 확인 |
+
+### 원문과 벡터를 한 행으로 — INSERT … ON CONFLICT (id) DO UPDATE
+
+```
+# conn: register_vector(conn) 까지 마친 연결 · doc_vec: 검사를 통과한 (384,) 배열
+sql = """
+INSERT INTO day23_search_docs
+  (id, title, content, category, source_version, embedding_model, embedding)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  content = EXCLUDED.content,
+  category = EXCLUDED.category,
+  source_version = EXCLUDED.source_version,
+  embedding_model = EXCLUDED.embedding_model,
+  embedding = EXCLUDED.embedding
+"""
+for row, doc_vec in zip(KNOWLEDGE, doc_vecs):        # 같은 순서로 만든 벡터와 짝
+    conn.execute(sql, (row["id"], row["title"], row["content"],
+                       row["category"], row["source_version"],
+                       MODEL_ID, doc_vec))
+conn.commit()
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · embedding 은 임의 단위 벡터 (모델 출력 아님)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 지식 9개 INSERT … ON CONFLICT → SELECT count(*) | 9 | 행 하나 = 원문 + Metadata + 벡터 |
+| id=102 로 다시 실행 → cur.rowcount | 1 | 충돌 → UPDATE 한 행 |
+| SELECT count(*) · id=102 의 content, source_version | 9 · '프로젝트 폴더에서 서버를 실행합니다. (수정)', 'knowledge_search_v2' | 개수는 그대로, 같은 행이 갱신 |
+
+| 부분 | 뜻 |
+|---|---|
+| ON CONFLICT (id) | 같은 id가 이미 있으면 INSERT 대신 아래 UPDATE |
+| EXCLUDED.열 | 이번에 넣으려던(거부된) 새 값 |
+| zip(KNOWLEDGE, doc_vecs) | 원문 순서 = 벡터 행 순서. 순서가 어긋나면 SQL은 성공해도 검색이 틀려요 |
+| conn.commit() | 원문 · 벡터 갱신을 한 트랜잭션으로 확정 |
+
+### Top-k 검색 — ORDER BY embedding <=> %s ASC LIMIT %s
+
+```
+# qvec: 같은 모델 · 같은 정규화로 만든 질문 벡터 (384,)
+k = 3
+sql = """
+SELECT id, title, content, category, source_version,
+       embedding <=> %s AS cosine_distance
+FROM day23_search_docs
+ORDER BY embedding <=> %s ASC
+LIMIT %s
+"""
+rows = conn.execute(sql, (qvec, qvec, k)).fetchall()
+retrieved = [
+    {"id": int(r[0]), "title": r[1], "content": r[2], "category": r[3],
+     "source_version": r[4], "distance": float(r[5])}
+    for r in rows
+]
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · 2차원 예시 좌표 A~F, q=(1,0)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| k = 3 | A(0.0000) → F(0.0793) → B(0.2000) | 거리가 작은 3개 |
+| k = 10 # 자료는 6개 | 6행: A(0.0000) → F(0.0793) → B(0.2000) → C(0.6013) → D(1.3011) → E(2.0000) | k 는 '최대' 개수 — 자료가 적으면 그만큼만 |
+| ASC 대신 DESC 로 정렬 (k=3) | E → D → C | 가장 먼 것부터 — 거리 연산자는 ASC |
+
+| 부분 | 뜻 |
+|---|---|
+| embedding <=> %s AS cosine_distance | 각 행의 거리를 결과에도 함께 (기록 · 디버깅용) |
+| ORDER BY … ASC | 거리는 작을수록 가까움. 인덱스를 쓰려면 ORDER BY에 연산자를 그대로 |
+| LIMIT %s | 최대 k개 — 자료가 적으면 그보다 적게 |
+| (qvec, qvec, k) | SQL 안 %s 세 개와 같은 순서 |
+
+⚠️ 관련 자료가 전혀 없는 질문에도 "가장 가까운" 행은 나와요. Top-k는 후보지 정답이 아니에요.
+
+### Metadata 필터 + 거리 — WHERE category = %s ORDER BY … LIMIT
+
+```
+category = "development"
+k = 3
+sql = """
+SELECT id, title, content,
+       embedding <=> %s AS distance
+FROM day23_search_docs
+WHERE category = %s
+ORDER BY embedding <=> %s ASC
+LIMIT %s
+"""
+rows = conn.execute(sql, (qvec, category, qvec, k)).fetchall()
+if not rows:
+    print("조건에 맞는 자료 없음 (정상 0건)")
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · 같은 예시 좌표
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| category = 'development', k = 3 | F(0.0793) → B(0.2000) | 조건에 맞는 행끼리만 거리 비교 — 2개뿐이라 2행 |
+| category = 'support', k = 3 | C(0.6013) → E(2.0000) | C 가 E 보다 가까움 |
+| category = 'billing', k = 3 | [] | 정상 실행 · 결과 0건 (오류 아님) |
+| 파라미터 순서 (qvec, category, qvec, k) | SQL 안 %s 4개와 같은 순서 | 값만 바인딩 — 테이블 · 열 이름은 %s 로 못 넣음 |
+
+| 부분 | 뜻 |
+|---|---|
+| WHERE category = %s | 검색 범위를 먼저 좁힘 — Exact Search면 조건 맞는 행 전체를 비교 |
+| (qvec, category, qvec, k) | 파라미터 순서 = SQL 안 %s 순서 |
+| rows == [] | 정상 실행의 0건 — DB 오류(예외)와 구분해서 기록 |
+
+### HNSW 인덱스 — CREATE INDEX … USING hnsw (embedding vector_cosine_ops)
+
+```
+CREATE INDEX IF NOT EXISTS day23_search_docs_hnsw
+ON day23_search_docs
+USING hnsw (embedding vector_cosine_ops);
+ANALYZE day23_search_docs;
+
+-- 구축 옵션을 바꿀 때 (기본 m = 16, ef_construction = 64)
+-- CREATE INDEX … USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| CREATE INDEX … USING hnsw (embedding vector_cosine_ops) | CREATE INDEX day23_search_docs_hnsw … hnsw (embedding vector_cosine_ops) | Cosine 거리(<=>)용 HNSW |
+| 덩어리 구조 임의 벡터 20,000개 · 384차원에 같은 인덱스 | 생성 1.2초 (이 PC) | 데이터가 많을수록 구축 시간 · 메모리 비용 |
+| SHOW hnsw.ef_search | 40 | 질의 때 살펴볼 후보 폭 기본값 |
+
+| 부분 | 뜻 |
+|---|---|
+| USING hnsw | 근사 최근접 이웃(ANN) 그래프 인덱스 |
+| vector_cosine_ops | <=> 정렬용. L2(<->)면 vector_l2_ops, 내적(<#>)이면 vector_ip_ops |
+| m · ef_construction | 구축 때 노드당 연결 수 · 후보 탐색 폭 — 크면 품질↑ 구축 시간 · 메모리↑ |
+| ANALYZE | 플래너 통계 갱신 |
+| IF NOT EXISTS | 같은 이름이 있으면 건너뜀 — 정의가 달라도 고쳐 주지 않음 |
+
+### 실행 계획 읽기 — EXPLAIN (ANALYZE, BUFFERS)
+
+```
+# qvec: (384,) 배열 · conn: register_vector 된 연결
+plan = conn.execute("""
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT id FROM day23_search_docs
+ORDER BY embedding <=> %s ASC LIMIT %s
+""", (qvec, 3)).fetchall()
+for (line,) in plan:
+    print(line)
+
+# 관찰용으로만: 다른 길을 막아 보고 계획이 어떻게 바뀌나
+# SET enable_seqscan = off;    -- 인덱스 강제
+# SET enable_indexscan = off;  -- 전수 계산(Exact) 강제
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · EXPLAIN (플랜 노드만 발췌)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 9건 테이블 · ORDER BY embedding <=> q LIMIT 3 | Limit / -> Seq Scan on day23_search_docs | 인덱스가 있어도 9건이면 Seq Scan + 정렬이 더 쌈 |
+| 9건 · SET enable_seqscan = off (관찰용) | Limit / -> Index Scan using day23_search_docs_hnsw on day23_search_docs | 강제로 막으면 HNSW Index Scan |
+| 9건 · 같은 조건, 연산자만 <-> (L2) | Limit / -> Seq Scan on day23_search_docs | vector_cosine_ops 인덱스는 L2 정렬에 못 씀 |
+| 20,000건 · <=> LIMIT 10 | Limit / -> Index Scan using bench_hnsw on bench | 행이 많으면 플래너가 HNSW 를 고름 |
+| 20,000건 · SET enable_indexscan = off | Limit / -> Seq Scan on bench | 전체 거리 계산 = Exact Search 기준선 |
+| Exact SQL 결과 == NumPy 전수 계산 (질의 5개) | True | 기준선이 맞는지 먼저 확인 |
+
+| 표시 | 뜻 |
+|---|---|
+| Seq Scan | 모든 행의 거리를 계산 후 정렬 = Exact Search |
+| Index Scan using …_hnsw | HNSW 그래프로 일부 후보만 탐색 = ANN |
+| cost=… | 플래너의 추정 비용 단위 — 밀리초 아님 |
+| ANALYZE 옵션 | SELECT를 실제로 실행해 걸린 시간 · 행 수를 보여 줌 |
+| BUFFERS | 읽은 메모리 · 디스크 페이지 수 |
+
+### 질의 때 탐색 폭 · 필터 보완 — hnsw.ef_search · hnsw.iterative_scan
+
+```
+SHOW hnsw.ef_search;                       -- 기본 40
+SET hnsw.ef_search = 100;                  -- 이 세션의 다음 질의부터
+-- 트랜잭션 안에서만: SET LOCAL hnsw.ef_search = 100;
+
+-- 필터 때문에 k개보다 적게 나올 때 (pgvector 0.8.x)
+SET hnsw.iterative_scan = relaxed_order;   -- off | strict_order | relaxed_order
+SELECT id FROM day23_search_docs
+WHERE category = 'development'
+ORDER BY embedding <=> '[…]' LIMIT 3;
+RESET hnsw.iterative_scan;
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · 덩어리 구조 임의 벡터 20,000개(모델 출력 아님) · 질의 50개 · k=10 · 시간은 이 PC 기준
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| SET hnsw.ef_search = 10 | recall@10 0.922 · 0.24 ms/질의 | Exact Top-10 중 찾은 비율 |
+| SET hnsw.ef_search = 20 | recall@10 0.980 · 0.21 ms/질의 | Exact Top-10 중 찾은 비율 |
+| SET hnsw.ef_search = 40 | recall@10 0.980 · 0.24 ms/질의 | Exact Top-10 중 찾은 비율 |
+| SET hnsw.ef_search = 100 | recall@10 1.000 · 0.28 ms/질의 | Exact Top-10 중 찾은 비율 |
+| SET hnsw.ef_search = 200 | recall@10 1.000 · 0.55 ms/질의 | Exact Top-10 중 찾은 비율 |
+| WHERE category='rare'(1%) · ef_search 40 · iterative_scan off | 반환 행 수 평균 0.34 (최소 0 · 최대 3) | 인덱스가 본 40개 후보 중 rare 가 거의 없음 → k 보다 적게 |
+| 같은 조건 · SET hnsw.iterative_scan = relaxed_order | 반환 행 수 평균 10.00 (최소 10) | 모자라면 더 탐색 (0.8.x 기능) |
+| SHOW hnsw.max_scan_tuples | 20000 | 반복 탐색 상한 — 완전 보장은 아님 |
+| SHOW hnsw.iterative_scan | off | 기본은 꺼져 있음 |
+
+| 설정 | 뜻 |
+|---|---|
+| hnsw.ef_search | 질의 때 살펴볼 후보 목록 크기 — 크면 놓침↓ 시간↑. LIMIT보다 작으면 결과가 k보다 적을 수 있음 |
+| hnsw.iterative_scan | 필터 통과 행이 모자라면 인덱스를 더 탐색 (기본 off) |
+| relaxed_order / strict_order | 거리 순서를 약간 어길 수 있음(더 빠름) / 엄격히 지킴 |
+| hnsw.max_scan_tuples | 반복 탐색 상한 (기본 20,000) — 그래서 "완전 보장"은 아님 |
+| SET / SET LOCAL / RESET | 세션 동안 / 트랜잭션 동안 / 기본값으로 |
+
+## 📖 Day23 용어 (25개)
+- **Semantic Search**: 질문과 문서를 Embedding 벡터로 바꿔 '가까운' 문서를 찾는 검색. 단어가 안 겹쳐도 비슷한 표현을 후보로 찾지만, 숫자·부정·기한·고유명사를 항상 맞히진 않아요.
+- **Embedding 모델** (Embedding model): 문장을 고정 길이 실수 벡터로 바꾸는 모델. 답을 생성하는 LLM과 역할이 달라요. 같은 차원이어도 모델이 다르면 벡터끼리 비교하지 않아요.
+- **Vector**: 숫자를 순서대로 담은 배열. 384차원 = 숫자 384개(글자 수 · 결과 개수가 아님). pgvector에선 vector(384) 열 타입으로 차원을 고정해요.
+- **L2 norm**: 원점에서 벡터 끝까지의 길이 √(제곱의 합). (3,4)의 길이는 5. 두 점 사이 거리(L2 distance)와 다른 말이에요.
+- **Dot Product**: 같은 자리 숫자끼리 곱해 더한 값. 방향뿐 아니라 길이의 영향도 받아 0~1 범위가 아니에요. 두 벡터를 정규화하면 Cosine similarity와 같아져요.
+- **Cosine Distance**: 1 − Cosine similarity. 작을수록 가까워요(같은 방향 0 · 직각 1 · 반대 2). pgvector의 <=> 연산자이고, 정렬은 ORDER BY … ASC.
+- **L2 Distance** (L2 (Euclidean) Distance): 두 벡터 끝점 사이의 직선거리. 작을수록 가까워요. pgvector의 <-> 연산자. 정규화된 벡터끼리면 Cosine과 순위가 같아요.
+- **Negative Inner Product**: pgvector의 <#> 연산자. 내적에 −1을 곱한 값이라, 작을수록(=내적이 클수록) 가까워요. 오름차순 정렬을 그대로 쓰려고 뒤집은 것.
+- **영벡터** (Zero vector): 모든 성분이 0인 벡터. 길이가 0이라 Cosine의 분모가 0 → NaN. NumPy는 nan + RuntimeWarning, pgvector는 NaN을 돌려줘요. NaN이 든 벡터는 vector 열이 거부해요.
+- **query · passage 접두어** (query / passage prefix (E5)): E5 모델의 입력 규칙 — 질문엔 'query: ', 검색될 문서엔 'passage: '를 붙여요. 짧은 질문으로 긴 본문을 찾는 비대칭 검색용 약속이고, 모든 모델의 문법은 아니에요.
+- **Sentence Transformers** (Sentence Transformers (library)): Embedding 모델을 불러와 encode()로 문장을 벡터로 바꾸는 Python 라이브러리. 라이브러리 ≠ 모델(예: intfloat/multilingual-e5-small). encode는 학습이 아니라 추론이에요.
+- **pgvector** (pgvector (PostgreSQL extension)): PostgreSQL에 vector 타입 · 거리 연산자 · HNSW/IVFFlat 인덱스를 더하는 서버 확장. PostgreSQL을 바꾸지 않고, Embedding 모델을 실행하지도 않아요.
+- **CREATE EXTENSION**: 서버에 설치된 확장 파일을 '지금 연결한 DB'에 등록하는 SQL. 다른 DB엔 따로 실행해요. pg_available_extensions = 서버에 파일 있음, pg_extension = 이 DB에 활성화됨.
+- **register_vector** (register_vector (pgvector-python)): psycopg 연결에 vector 타입 변환을 등록하는 함수. 등록 전엔 결과가 문자열 '[1,0,0]', 등록 후엔 Vector 객체. 연결마다 다시 해요.
+- **Top-k Search** (Top-k nearest neighbor search): 질문 벡터와 가장 가까운 후보를 최대 k개 돌려주는 검색. 자료가 적거나 필터로 빠지면 k보다 적어요. 관련 자료가 없어도 '가장 가까운' 것은 나와요.
+- **Exact Search** (Exact (brute-force) Search): 검색 대상 전체의 거리를 계산하는 기준선. 결과가 정확하지만 행이 많으면 느려요. 근사 인덱스(ANN)의 품질을 잴 때 정답표로 써요.
+- **ANN 검색** (Approximate Nearest Neighbor search): 인덱스를 따라 일부 후보만 살펴 빠르게 가까운 벡터를 찾는 방식. Exact Search의 결과를 일부 놓칠 수 있어요. (신경망 ANN과 다른 말)
+- **HNSW** (Hierarchical Navigable Small World): 벡터를 여러 층의 이웃 그래프로 연결해 가까운 쪽으로 건너뛰며 찾는 ANN 인덱스. 구축 옵션 m · ef_construction, 질의 옵션 hnsw.ef_search. 연산자와 opclass가 맞아야 쓰여요.
+- **ef_search** (hnsw.ef_search): HNSW 질의 때 살펴볼 후보 목록 크기(기본 40). 크면 놓침이 줄고 시간이 늘어요. 측정 없이 최댓값을 고르지 않아요.
+- **Iterative Scan** (Iterative Index Scan (pgvector 0.8)): 필터(WHERE)로 후보가 모자라면 인덱스를 더 탐색하는 기능(기본 off). hnsw.max_scan_tuples 상한이 있어 완전 보장은 아니에요.
+- **Metadata Filter**: 벡터 거리와 함께 category · 버전 같은 열 조건으로 검색 범위를 좁히는 것. Exact면 조건 맞는 행 전체를 비교하지만, ANN과 합치면 k개보다 적게 나올 수 있어요.
+- **Retriever**: 질문을 받아 관련 원문 후보(ID · 본문 · 거리)를 돌려주는 부품. 답을 만들지 않아요. 결과는 사람이/규칙이 검토한 뒤 Context로 넘어가요.
+- **retrieved · included · source ids** (retrieved / included / source IDs): retrieved = 검색이 가져온 후보 전체, included = 검토 후 이번 Context에 넣은 것, source = 모델 응답이 인용한 것. source ⊆ included ⊆ retrieved.
+- **정성평가** (Qualitative retrieval evaluation): 검색 결과 원문을 사람이 읽고 관련 / 부분 관련 / 무관과 이유를 적는 평가. 점수 · 순위만으로 판단하지 않아요. 정량 지표(Recall@k 등)의 기초 자료가 돼요.
+- **재임베딩** (Re-embedding): 원문이나 모델 · 전처리 계약이 바뀌면 관련 벡터를 다시 만드는 것. 모델이 바뀌면 문서와 질문을 모두 새 계약으로. 그래서 embedding_model · source_version을 행에 기록해요.

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day23 · Embedding · Vector Search — pgvector로 근거 찾기 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag llm">LLM·RAG</span>
+      <h1>Day23 · Embedding · Vector Search — pgvector로 근거 찾기</h1>
+      <div class="meta">2026-11-18(수) · Semantic Search · Dot · Cosine · L2 · 정규화 · Sentence Transformers · E5 query/passage · pgvector 설치 · vector(384) · Top-k · Metadata Filter · HNSW · EXPLAIN · 정성평가 · Retriever</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li><b>Vector Search</b> = 원문을 미리 <b>벡터로 저장</b>해 두고, 질문도 <b>같은 모델 · 같은 규칙</b>으로 벡터로 바꿔 <b>가장 가까운 후보 k개</b>를 꺼내는 것. 단어가 안 겹쳐도 비슷한 표현을 찾아요.</li>
+          <li>가까움의 척도는 셋 — <b>Dot · Cosine · L2</b>. 유사도는 <b>큰 값</b>, 거리는 <b>작은 값</b>이 가까워요. 벡터를 <b>길이 1로 정규화</b>하면 세 척도의 순위가 같아져요. pgvector의 <code>&lt;=&gt;</code>는 Cosine <b>거리</b>라 <code>ORDER BY … ASC</code>.</li>
+          <li>Top-k는 <b>후보</b>지 정답이 아니에요. 관련 자료가 없어도 "가장 가까운 것"은 나와요. 원문을 읽고 관련성을 판단하고, <b>빈 결과 · DB 오류 · 무관한 결과</b>를 따로 기록해요.</li>
+        </ol>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="map">🗺️ 큰 그림 — 질문 하나가 근거 후보가 되기까지</h2>
+      <figure id="fig-flow"><img class="smooth" src="img/day23/flow.png" alt="자료 준비 경로(원문 → passage Embedding → 검사 → PostgreSQL 저장)와 질문 처리 경로(질문 → query Embedding → pgvector Top-k → 원문 후보 → 관련성 검토)"><figcaption><b>무엇을 보나:</b> 경로가 <b>둘</b>이에요. 위쪽 <b>자료 준비</b>는 원문이 바뀔 때만 돌고, 아래쪽 <b>질문 처리</b>는 요청마다 돌아요. 둘은 <b>같은 Embedding 모델 · 같은 정규화 규칙</b>으로 이어져야 비교가 성립해요. 🤔 <b>왜 질문마다 문서를 다시 Embedding하지 않아?</b> 문서 벡터는 원문과 모델이 그대로면 결과가 같아서요. 미리 만들어 DB에 두고, 질문 벡터 하나만 새로 만들어요.</figcaption></figure>
+      <p>검색 하나는 아래 여덟 단계를 지나요. 이 페이지의 ①~⑧이 이 순서 그대로예요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#embedding">① 표현</a></td><td>문장 → 숫자 벡터</td><td>컴퓨터가 "뜻이 가깝다"를 어떻게 계산하나?</td></tr>
+        <tr><td><a href="#vector">② 비교</a></td><td>Dot · Cosine · L2 · 정규화</td><td>무엇을 "가깝다"고 부르고, 어느 방향으로 정렬하나?</td></tr>
+        <tr><td><a href="#encode">③ 벡터 만들기</a></td><td>Sentence Transformers · query/passage</td><td>질문과 문서를 같은 규칙으로 바꿨나?</td></tr>
+        <tr><td><a href="#pgvector">④ 저장소 준비</a></td><td>pgvector 설치 · 활성화 · Python 연결</td><td>네 층이 다 준비됐나?</td></tr>
+        <tr><td><a href="#store">⑤ 저장 · 검색</a></td><td>한 행 저장 · Top-k · 필터</td><td>ID · 원문 · 벡터가 맞게 짝지어졌나?</td></tr>
+        <tr><td><a href="#index">⑥ 인덱스</a></td><td>Exact vs ANN · HNSW · EXPLAIN</td><td>빨라진 대신 무엇을 놓칠 수 있나?</td></tr>
+        <tr><td><a href="#quality">⑦ 결과 평가</a></td><td>관련 · 부분 관련 · 무관 · 빈 결과 · 오류</td><td>가까운 것 = 답할 근거인가?</td></tr>
+        <tr><td><a href="#connect">⑧ 연결</a></td><td>검색 모듈 계약 · 출처 범위 · 재임베딩</td><td>검색 결과를 다음 단계에 어떻게 넘기나?</td></tr>
+      </table>
+<pre><code>Retriever (앱): 입력 검사 · 질문 Embedding · Top-k SQL · 결과 정리 · 기록
+  ├ Embedding 모델 (sentence-transformers + E5): 문장 → 384차원 벡터
+  └ PostgreSQL + pgvector: 원문 · vector(384) 저장 · 거리 계산 · (HNSW 인덱스)
+→ 검토한 후보만 Context → Prompt → LLM Client</code></pre>
+      <div class="callout">💡 위치: 사람이 지식 ID를 직접 골라 넣던 <a href="day21.html#context">Context 선택</a>을 <b>검색이</b> 대신하는 자리예요. 뒤쪽 <a href="day22.html">LLM API 클라이언트</a>와 출력 검증은 그대로 써요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="embedding">① 표현 — Embedding은 문장을 숫자 벡터로</h2>
+      <p><b>Embedding</b>은 학습된 모델이 텍스트를 <b>정해진 길이의 실수 배열</b>로 바꾼 것이에요. 예를 들어 384차원 모델이면 어떤 문장이든 숫자 384개가 나와요. 비슷한 뜻의 문장은 이 공간에서 <b>가까운 방향</b>에 놓이도록 학습돼 있어서, 단어가 하나도 안 겹쳐도 가까움을 계산할 수 있어요. (원리 — Token Embedding과 Sentence Embedding의 차이 — 는 <a href="day20.html#embedding">LLM 원리</a>)</p>
+<pre><code>질문: "서버 어디서 켜요?"
+원문 102: "프로젝트 폴더에서 서버를 실행합니다."   ← 단어는 안 겹쳐도 후보로 찾는 게 목표
+"프로젝트 폴더에서 서버를 실행합니다."  →  Embedding 모델  →  [0.014, −0.023, … 384개]  (숫자 모양 예시)</code></pre>
+      <div class="callout">🤔 <b>384차원이면 384글자로 자른다는 뜻?</b> → <b>아니요.</b> 결과 벡터에 실수가 384개 있다는 뜻이에요. 입력 길이 상한(토큰 수)은 따로 있어요 (③).</div>
+
+      <h3 id="roles">부품마다 하는 일이 달라요</h3>
+      <table>
+        <tr><th>부품</th><th>하는 일</th><th>하지 않는 일</th></tr>
+        <tr><td><b>LLM</b> (생성 모델)</td><td>질문 · 문맥을 보고 다음 텍스트를 생성</td><td>—</td></tr>
+        <tr><td><b>Embedding 모델</b> (예: E5)</td><td>문장을 비교 가능한 고정 길이 벡터로 인코딩</td><td>자연어 답변 작성</td></tr>
+        <tr><td><b>PostgreSQL + pgvector</b></td><td>이미 만든 벡터 저장 · 거리 연산 · 인덱스</td><td>Embedding 모델 실행</td></tr>
+        <tr><td><b>Retriever</b> (검색 모듈)</td><td>질문 → 후보 ID · 원문 · 거리 묶어 반환</td><td>답이 맞는지 판정</td></tr>
+      </table>
+      <p>벡터만으로는 사용자에게 보여 줄 설명이 없어요. 그래서 벡터는 <b>항상 ID · 원문과 한 행</b>으로 다녀요.</p>
+
+      <h3 id="asym">대칭 검색 vs 비대칭 검색</h3>
+      <table>
+        <tr><th></th><th>질문 ↔ 질문 (대칭)</th><th>질문 → 본문 (비대칭)</th></tr>
+        <tr><td>비교 대상</td><td>성격이 같은 짧은 문장끼리 (예: FAQ 질문 목록)</td><td>짧은 질문으로 긴 설명 · 지식 본문을 찾기</td></tr>
+        <tr><td>예</td><td>"서버 어디서 켜요?" ↔ "서버 실행 위치는?"</td><td>"서버를 어디서 실행해요?" → [102] "프로젝트 폴더에서 서버를 실행합니다."</td></tr>
+        <tr><td>입력 규칙</td><td>보통 같은 방식으로 인코딩</td><td>모델이 정한 <b>질문용 · 문서용 규칙</b>을 따로 적용 (E5: <code>query:</code> / <code>passage:</code>)</td></tr>
+      </table>
+
+      <h3 id="lanes">두 경로 — 자료 준비와 질문 처리</h3>
+      <table>
+        <tr><th>경로</th><th>언제</th><th>흐름</th></tr>
+        <tr><td><b>자료 준비</b></td><td>원문 · 모델이 바뀔 때만</td><td>원문 · ID 검사 → <code>passage:</code> Embedding → 벡터 검사 → PostgreSQL <code>vector</code> 열에 저장</td></tr>
+        <tr><td><b>질문 처리</b></td><td>요청마다</td><td>질문 검사 → <code>query:</code> Embedding → Top-k SQL → ID · 원문 · 거리 반환</td></tr>
+      </table>
+      <p>본문과 모델 계약이 그대로면 저장된 문서 벡터를 계속 써요. 본문이나 모델 계약이 바뀌면 관련 벡터를 <b>다시 만들어요</b>(<a href="#rebuild">⑦ 재임베딩</a>).</p>
+
+      <h3 id="kb">예시 지식 9개</h3>
+      <p>아래 설명 · 예제에서 쓰는 가상 지식이에요(실제 기관 규정 아님). 101~103은 <a href="day21.html#map">Prompt · Context 예시</a>와 같은 원문이고, 104~109는 검색 후보를 늘리려고 더한 것이라 <code>source_version</code>을 다르게 둬요.</p>
+      <table>
+        <tr><th>id</th><th>title</th><th>content</th><th>category</th><th>source_version</th></tr>
+        <tr><td>101</td><td>실습 파일 보관</td><td>실습 파일은 개인 폴더에 보관합니다.</td><td>course</td><td>knowledge_v1</td></tr>
+        <tr><td>102</td><td>서버 실행</td><td>프로젝트 폴더에서 서버를 실행합니다.</td><td>development</td><td>knowledge_v1</td></tr>
+        <tr><td>103</td><td>질문 작성</td><td>오류 메시지와 시도한 작업을 함께 적습니다.</td><td>support</td><td>knowledge_v1</td></tr>
+        <tr><td>104</td><td>수업 녹화</td><td>녹화가 제공되는 수업은 강의실 안내 페이지에서 확인합니다.</td><td>course</td><td>knowledge_search_v2</td></tr>
+        <tr><td>105</td><td>과제 제출</td><td>과제 제출 위치는 해당 과제의 안내 페이지에서 확인합니다.</td><td>course</td><td>knowledge_search_v2</td></tr>
+        <tr><td>106</td><td>데이터베이스 연결</td><td>PostgreSQL 접속 정보는 로컬 설정 파일에서 읽습니다.</td><td>development</td><td>knowledge_search_v2</td></tr>
+        <tr><td>107</td><td>패키지 설치</td><td>필요한 Python 패키지는 기존 가상환경에 추가합니다.</td><td>development</td><td>knowledge_search_v2</td></tr>
+        <tr><td>108</td><td>문제 해결 안내</td><td>문제를 보고할 때 재현한 단계와 오류 메시지를 기록합니다.</td><td>support</td><td>knowledge_search_v2</td></tr>
+        <tr><td>109</td><td>결과 검토</td><td>검색된 자료는 원문과 실제 질문의 요구를 대조합니다.</td><td>support</td><td>knowledge_search_v2</td></tr>
+      </table>
+      <p>새 항목을 더해도 <b>기존 원문을 덮어쓰지 않아요</b>. ID는 이 예시에서 쓰는 번호이고, 다른 DB의 자동 생성 ID와 같다고 가정하지 않아요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="vector">② 비교 — 유사도와 거리</h2>
+      <h3 id="metrics">세 척도: Dot · Cosine · L2</h3>
+      <figure id="fig-metrics"><img class="smooth" src="img/day23/metrics.png" alt="왼쪽: 길이 1인 q(1,0)와 a(0.8,0.6)의 Dot 0.8 · Cosine 0.8 · L2 0.6325. 오른쪽: q·U=1 < q·V=10 이지만 cos(q,U)=1.0 > cos(q,V)=0.7071"><figcaption><b>무엇을 보나:</b> 왼쪽은 길이 1인 두 벡터 — Dot과 Cosine이 같아요. 오른쪽은 길이가 다른 경우 — <b>Dot은 긴 V를, Cosine은 같은 방향인 U를</b> 1등으로 뽑아요. 숫자는 NumPy 실제 실행값(2차원 설명용 벡터, 모델 출력 아님).</figcaption></figure>
+      <table>
+        <tr><th>척도</th><th>계산</th><th>가까운 쪽</th><th>q=(1,0), a=(0.8,0.6)</th></tr>
+        <tr><td><b>L2 norm</b> (길이)</td><td>√(제곱의 합) — 원점에서 끝까지</td><td>—</td><td>(3,4)의 길이 = 5</td></tr>
+        <tr><td><b>Dot Product</b> (내적)</td><td>같은 자리끼리 곱해 더함 <code>q·d</code></td><td><b>큰 값</b></td><td>0.8</td></tr>
+        <tr><td><b>Cosine similarity</b></td><td><code>(q·d) / (‖q‖ × ‖d‖)</code> — 방향만, −1~1</td><td><b>큰 값</b></td><td>0.8</td></tr>
+        <tr><td><b>Cosine distance</b></td><td>1 − Cosine similarity — 0~2</td><td><b>작은 값</b></td><td>0.2</td></tr>
+        <tr><td><b>L2 distance</b></td><td>두 끝점 사이 직선거리 <code>‖q − d‖</code></td><td><b>작은 값</b></td><td>√0.4 ≈ 0.6325</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 NumPy로 세 척도 <a href="../commands.html#d23-numpy-math">명령어 사전에서 자세히 →</a></div>
+<pre><code>dot = float(q @ a)
+cosine = dot / (np.linalg.norm(q) * np.linalg.norm(a))
+l2 = float(np.linalg.norm(q - a))     # 실제 실행: 0.8 · 0.8 · 0.6325</code></pre>
+      </div>
+      <div class="callout">🤔 <b>Cosine 0.8이면 정답 확률 80%?</b> → <b>아니요.</b> 학습된 벡터 공간에서의 방향 비교값일 뿐이에요. 모델마다 점수 분포가 달라서, 분포를 모른 채 "0.8 이상이면 정답" 같은 고정 기준을 두지 않아요. <b>−1</b>도 수학적으로 반대 방향이라는 뜻이지 "논리적 부정"이라는 판정이 아니에요.</div>
+      <p>🤔 <b>2차원 축마다 뜻이 있어?</b> 아니요. 384차원을 한 화면에 못 그려서 2차원으로 설명하는 것이지, 각 축이 "출석" · "환불" 같은 업무 의미와 일대일로 대응하지 않아요.</p>
+
+      <h3 id="normalize">정규화 — 길이를 1로 맞추면 순위가 하나로</h3>
+      <p><b>정규화</b>는 0이 아닌 벡터를 자기 길이로 나눠 방향은 그대로, 길이만 1로 맞추는 것이에요: <code>v / ‖v‖</code>. (3,4) → (0.6, 0.8).</p>
+      <table>
+        <tr><th>정규화하면</th><th>왜</th></tr>
+        <tr><td>Dot = Cosine similarity</td><td>분모 <code>‖q‖×‖d‖</code>가 1</td></tr>
+        <tr><td>L2 순서 = Cosine 순서</td><td>단위 벡터에선 <code>‖x−y‖² = 2 − 2·cos</code> (실제 실행: 0.0201 vs 0.0201)</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 여러 행 한 번에 정규화 <a href="../commands.html#d23-normalize">명령어 사전에서 자세히 →</a></div>
+<pre><code>Mn = M / np.linalg.norm(M, axis=1, keepdims=True)   # 행마다 자기 길이로 나눔</code></pre>
+      </div>
+      <p>전제는 <b>문서와 질문에 같은 정규화 규칙</b>을 쓰는 거예요. 그리고 "무조건 정규화가 최적"이라는 뜻은 아니에요 — 선택한 모델의 검색 규칙(모델 카드)을 따라요. 정규화하지 않은 임의의 벡터에서 Dot · Cosine · L2 순위가 같다고 가정하면 안 돼요.</p>
+
+      <h3 id="zero">영벡터 · NaN — 비교할 수 없는 벡터</h3>
+      <table>
+        <tr><th>상태</th><th>결과 (실제 실행)</th><th>처리</th></tr>
+        <tr><td>영벡터 (0,0,…)</td><td>NumPy: <code>nan</code> + RuntimeWarning · pgvector <code>&lt;=&gt;</code>: <code>NaN</code></td><td>저장 전에 거부 — 0점으로 바꿔 조용히 통과시키지 않음</td></tr>
+        <tr><td>NaN · Inf 포함</td><td>pgvector: <code>NaN not allowed in vector</code></td><td><code>np.isfinite(…).all()</code>로 미리 검사</td></tr>
+        <tr><td>차원 불일치</td><td><code>different vector dimensions 2 and 3</code></td><td>같은 모델 · 같은 차원만 비교</td></tr>
+      </table>
+      <p>수치가 멀쩡해도 <b>원문 ID와 잘못 짝지어진</b> 벡터는 따로 잡아야 해요(⑤).</p>
+
+      <h2 id="lab-vec">🧪 벡터 비교 실험실</h2>
+      <p>q = (1, 0)은 고정. d의 <b>각도</b>와 <b>길이</b>를 바꿔 보세요. 정규화를 켜면 Dot과 Cosine이 같아지는 걸 볼 수 있어요. (브라우저 안의 2차원 산수 · 모델 아님)</p>
+      <div class="lab" id="vec-lab">
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+          <label>각도 θ <input type="range" id="vl-ang" min="0" max="180" step="5" value="37"> <span id="vl-angv">37</span>°</label>
+          <label>길이 <input type="range" id="vl-len" min="0" max="3" step="0.1" value="1"> <span id="vl-lenv">1.0</span></label>
+          <label><input type="checkbox" id="vl-norm"> 정규화 (길이 1로)</label>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:10px">
+          <svg id="vl-svg" viewBox="-3.3 -3.3 6.6 6.6" width="230" height="230" style="background:#fbfaff;border-radius:10px"></svg>
+          <table id="vl-out" style="flex:1;min-width:260px"></table>
+        </div>
+        <p id="vl-why" style="margin:8px 0 0;font-weight:600"></p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="encode">③ 벡터 만들기 — Sentence Transformers · E5</h2>
+      <h3 id="st">라이브러리와 모델은 다른 것</h3>
+      <table>
+        <tr><th></th><th>무엇</th><th>예</th></tr>
+        <tr><td><b>sentence-transformers</b></td><td>모델을 불러와 <code>encode()</code>로 문장을 벡터로 바꾸는 <b>Python 라이브러리</b></td><td><code>pip install sentence-transformers</code></td></tr>
+        <tr><td><b>Embedding 모델</b></td><td>실제 가중치 — Hugging Face 모델 ID로 지정</td><td><code>intfloat/multilingual-e5-small</code> (다국어 · 384차원 · 입력 최대 512토큰)</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 모델 한 번 로드 <a href="../commands.html#d23-st-load">명령어 사전에서 자세히 →</a></div>
+<pre><code>model = SentenceTransformer("intfloat/multilingual-e5-small", device="cpu")   # 처음엔 다운로드
+model.get_embedding_dimension(), model.max_seq_length</code></pre>
+      </div>
+      <ul>
+        <li>모델 객체는 <b>한 번 만들어 재사용</b>해요. 질문마다 새로 만들면 느려요.</li>
+        <li><code>encode()</code>는 <b>추론</b>이에요. 실행할 때마다 모델을 새로 학습하지 않아요.</li>
+        <li><code>device="cpu"</code>면 GPU 없이도 돌아요. 기록에는 모델 ID와 실제 받은 <b>revision</b>(버전)을 남겨요.</li>
+        <li>모델 파일 다운로드는 패키지 설치와 별개 — 처음 로드할 때 네트워크가 필요할 수 있어요.</li>
+      </ul>
+      <p>🤔 <b>질문끼리 비교하는 모델(예: paraphrase-multilingual-MiniLM)도 384차원인데 바꿔 끼우면 안 돼?</b> 차원이 같아도 <b>다른 표현 공간</b>이에요. 모델을 바꾸면 문서 벡터도 다시 만들어요. 그리고 모델 변경만으로 품질이 좋아진다고 단정하지 않고, <b>질문별 실제 결과</b>로 평가해요(⑦).</p>
+
+      <h3 id="prefix">query / passage 접두어 — 모델의 입력 규칙</h3>
+<pre><code>query: 서버는 어디에서 실행하나요?
+passage: 서버 실행 프로젝트 폴더에서 서버를 실행합니다.     ← "passage: " + title + " " + content</code></pre>
+      <p>E5는 <b>질문엔 <code>query: </code>, 검색될 문서엔 <code>passage: </code></b>를 붙이도록 학습된 모델이에요. 비대칭 검색(짧은 질문 → 긴 본문)을 위한 약속이고, <b>모든 Embedding 모델에 통하는 문법이 아니에요</b> — 모델 카드의 규칙을 따라요. 접두어 한 마디만 달라도 벡터가 달라져요(다른 모델로 확인한 실제 값: <code>"query: 서버 실행"</code>과 <code>"passage: 서버 실행"</code>의 Cosine = 0.5518).</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 문서 · 질문 벡터 <a href="../commands.html#d23-st-encode">명령어 사전에서 자세히 →</a></div>
+<pre><code>doc_vecs = model.encode(passages, normalize_embeddings=True, convert_to_numpy=True, batch_size=8)
+query_vecs = model.encode(["query: " + q], normalize_embeddings=True, convert_to_numpy=True)</code></pre>
+      </div>
+
+      <h3 id="shape">입력 토큰 길이 vs 출력 shape</h3>
+      <table>
+        <tr><th>값</th><th>뜻</th><th>예</th></tr>
+        <tr><td>입력 토큰 수</td><td>Tokenizer가 문장에 매긴 토큰 개수 (글자 수 아님) — <a href="day20.html#token">Tokenizer</a></td><td>E5-small 상한 512 — 넘는 부분은 잘림</td></tr>
+        <tr><td>출력 차원</td><td>입력 길이와 상관없이 고정</td><td>토큰 37개든 240개든 → 384</td></tr>
+        <tr><td>문서 배열</td><td><code>(n, 384)</code> — n = 문서 개수</td><td>지식 9개 → <code>(9, 384)</code></td></tr>
+        <tr><td>질문 배열</td><td>리스트로 넣으면 <code>(1, 384)</code>, 문자열 하나면 <code>(384,)</code></td><td>DB 파라미터는 1차원 <code>(384,)</code></td></tr>
+        <tr><td>점수 배열</td><td>질문 1개 × 문서 n개</td><td><code>(1, 9)</code></td></tr>
+      </table>
+      <p>긴 문서를 상한 안으로 나누는 일(Chunking)은 <b>문서 Indexing</b>의 주제예요. 벡터의 <b>행 순서 = 지식 ID 순서</b>라는 대응은 끝까지 유지해야 해요.</p>
+
+      <h3 id="check">저장 전 검사 — 개수 · 차원 · 유한값 · 길이</h3>
+      <table>
+        <tr><th>검사</th><th>NumPy</th><th>잡는 것</th></tr>
+        <tr><td>shape</td><td><code>values.shape == (len(KNOWLEDGE), 384)</code></td><td>누락 · 다른 차원 모델</td></tr>
+        <tr><td>유한값</td><td><code>np.isfinite(values).all()</code></td><td>NaN · Inf</td></tr>
+        <tr><td>영벡터</td><td><code>np.linalg.norm(values, axis=1) &lt;= 1e-12</code></td><td>Cosine 계산 불가</td></tr>
+        <tr><td>정규화</td><td><code>np.allclose(lengths, 1, rtol=0, atol=1e-5)</code></td><td>정규화 안 된 벡터</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 검사 코드 <a href="../commands.html#d23-check-vectors">명령어 사전에서 자세히 →</a></div>
+<pre><code>if not np.isfinite(values).all(): raise ValueError("NaN 또는 Inf가 있습니다.")</code></pre>
+      </div>
+      <div class="callout">💡 <code>normalize_embeddings=False</code>로 둬도 길이가 1로 나오는 모델이 있어요 — 모델 안에 <code>Normalize</code> 층이 들어 있는 경우(실제 확인: all-MiniLM-L6-v2는 <code>Transformer → Pooling → Normalize</code>). 그래서 설정을 믿기보다 <b><code>np.linalg.norm</code>으로 직접 확인</b>해요.<br>⚠️ 검사를 다 통과해도 ID와 벡터가 맞게 짝지어졌는지, 질문과 관련이 있는지는 몰라요. 형식 검사예요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="pgvector">④ 저장소 준비 — PostgreSQL에 pgvector 더하기</h2>
+      <p><b>pgvector</b>는 이미 쓰는 PostgreSQL에 <b>vector 타입 · 거리 연산자 · 벡터 인덱스</b>를 더하는 서버 확장이에요. PostgreSQL을 교체하지 않고, 원문 · Metadata를 보관하던 같은 DB에 벡터 열을 더해 기존 SQL(<code>WHERE</code> · 트랜잭션 · JOIN)과 함께 써요. (PostgreSQL 기본은 <a href="day18.html">PostgreSQL · SQL</a>)</p>
+
+      <h3 id="layers">설치는 네 층 — 하나를 했다고 다음 층이 생기지 않아요</h3>
+      <figure id="fig-layers"><img class="smooth" src="img/day23/layers.png" alt="① 서버 파일(vector.dll · control · SQL) → ② DB 활성화(CREATE EXTENSION) → ③ Python 패키지(pip install pgvector) → ④ 연결 등록(register_vector)"><figcaption><b>무엇을 보나:</b> 서버 파일 설치 ≠ DB 활성화 ≠ Python 패키지 설치 ≠ 연결별 타입 등록. 🤔 <b>왜 이렇게 쪼개 봐?</b> 오류가 나면 고치는 곳이 층마다 달라요. <code>pip install pgvector</code>는 Python 쪽 변환 도구일 뿐, 서버에 <code>vector.dll</code>을 놓지 않아요.</figcaption></figure>
+
+      <h3 id="build">① 서버 파일 — Windows에서 소스로 빌드하기</h3>
+      <p>Windows용 공식 설치 경로는 소스를 받아 <b>MSVC로 컴파일</b>하는 거예요. Docker · WSL 없이 기존 Windows PostgreSQL에 바로 더해요.</p>
+      <table>
+        <tr><th>순서</th><th>할 일</th><th>성공 확인</th></tr>
+        <tr><td>1</td><td>PostgreSQL 버전 · 경로 확인 (<code>pg_config</code>)</td><td><code>PostgreSQL 18.6</code> · <code>…/18/include/server</code></td></tr>
+        <tr><td>2</td><td>Visual Studio <b>Build Tools</b> 설치 — "Desktop development with C++" 워크로드 (MSVC x64 · Windows SDK)</td><td>VS Code와 다른 프로그램. 관리자 권한 · 설치 정책 필요할 수 있음</td></tr>
+        <tr><td>3</td><td>시작 메뉴 → <b>x64 Native Tools Command Prompt</b> (관리자)</td><td><code>where cl</code> · <code>where nmake</code> 경로, <code>%VSCMD_ARG_TGT_ARCH%</code> = x64</td></tr>
+        <tr><td>4</td><td><code>set "PGROOT=C:\Program Files\PostgreSQL\18"</code> — bin · data가 아니라 <b>설치 최상위</b></td><td><code>postgres.h</code> · <code>postgres.lib</code> 존재</td></tr>
+        <tr><td>5</td><td>공식 소스를 <b>태그로 고정</b>해 받기 <code>git clone --branch v0.8.7 --depth 1</code></td><td><code>git describe --tags --exact-match</code> → v0.8.7</td></tr>
+        <tr><td>6</td><td><code>nmake /F Makefile.win</code></td><td>오류 없이 <code>vector.dll</code> 생성 — 첫 오류가 나면 설치로 넘어가지 않음</td></tr>
+        <tr><td>7</td><td><code>nmake /F Makefile.win install</code></td><td><code>lib\vector.dll</code> · <code>share\extension\vector.control</code> · <code>vector--*.sql</code></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 빌드 명령 <a href="../commands.html#d23-nmake">명령어 사전에서 자세히 →</a></div>
+<pre><code>REM x64 Native Tools Command Prompt (관리자)
+nmake /F Makefile.win
+nmake /F Makefile.win install</code></pre>
+      </div>
+      <p>🤔 <b>왜 태그를 고정해?</b> master는 계속 바뀌어서, 같은 명령이라도 받는 날마다 다른 코드가 될 수 있어요. 버전을 고정하면 재현돼요. 출처 불명의 DLL을 내려받아 대신 넣지 않아요.</p>
+
+      <h3 id="activate">② DB 활성화 — 연결한 DB에만</h3>
+      <table>
+        <tr><th>조회</th><th>결과 (실제 실행 · 새 DB)</th><th>뜻</th></tr>
+        <tr><td><code>pg_available_extensions</code></td><td><code>('vector', '0.8.7', None)</code></td><td>서버에 파일은 있음 · 이 DB엔 아직</td></tr>
+        <tr><td><code>CREATE EXTENSION IF NOT EXISTS vector</code> 후 <code>pg_extension</code></td><td><code>('vector', '0.8.7')</code></td><td>이 DB에 활성화</td></tr>
+        <tr><td>한 번 더 실행</td><td>NOTICE: 이미 있음, 건너뜀</td><td>오류 아님</td></tr>
+        <tr><td><b>다른 DB</b>에서 <code>'[1,2,3]'::vector</code></td><td><code>"vector" 자료형 없음</code></td><td>DB마다 따로 활성화</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 활성화 <a href="../commands.html#d23-create-extension">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT current_database();
+CREATE EXTENSION IF NOT EXISTS vector;</code></pre>
+      </div>
+      <p>설치 확인은 <b>모델 없이 숫자부터</b> 해요. 3차원 벡터로 같은 방향 0 · 직각 1 · 반대 2가 나오고(실제 실행 결과 그대로), 임시 테이블에서 1 → 2 → 3 순서가 나오면 확장은 작동해요. 이건 <b>확장 동작 검사</b>이지 의미 검색 품질 검사가 아니에요.</p>
+
+      <h3 id="python">③ · ④ Python 연결 — 패키지 설치와 연결별 등록</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>register_vector(conn)</code> <a href="../commands.html#d23-register-vector">명령어 사전에서 자세히 →</a></div>
+<pre><code>with psycopg.connect(...) as conn:
+    register_vector(conn)                         # 연결마다
+    conn.execute("SELECT vector_dims(%s::vector)", (Vector([1.0, 0.0, 0.0]),))</code></pre>
+      </div>
+      <table>
+        <tr><th>상태</th><th><code>SELECT '[1,0,0]'::vector</code> 결과 (실제 실행)</th></tr>
+        <tr><td>등록 전</td><td><code>str '[1,0,0]'</code> — 그냥 문자열</td></tr>
+        <tr><td>등록 후</td><td><code>Vector([1.0, 0.0, 0.0])</code> — <code>.to_numpy()</code>는 float32 배열</td></tr>
+      </table>
+      <p>접속 정보는 실행 파일 옆 <code>.env</code>(<code>PGHOST · PGPORT · PGDATABASE · PGUSER · PGPASSWORD</code>)에 두고 Git에서 빼요. <code>PGDATABASE</code>는 <b>확장을 활성화한 그 DB</b>여야 해요. DB 비밀번호와 LLM API 키는 별개예요.</p>
+
+      <h3 id="errors">설치 오류 — 증상으로 층 찾기</h3>
+      <table>
+        <tr><th>증상</th><th>층</th><th>원인 점검 → 다음 조치</th></tr>
+        <tr><td><code>cl</code> · <code>nmake</code>가 없다</td><td>① 빌드</td><td>C++ 워크로드 설치 여부 · x64 Native Tools 창인지 → 구성 요소 확인 후 올바른 창에서 다시</td></tr>
+        <tr><td><code>postgres.h</code>를 찾을 수 없음</td><td>① 빌드</td><td>PGROOT가 설치 최상위인지 · <code>include\server\postgres.h</code> 존재 → 경로 재지정 후 빌드</td></tr>
+        <tr><td><code>error C2196: case value '4' already used</code></td><td>① 빌드</td><td>32비트 창에서 빌드 → x64 창에서 <code>nmake /F Makefile.win clean</code> 후 재빌드</td></tr>
+        <tr><td><code>Access is denied</code></td><td>① 설치</td><td>관리자 권한 · 대상 폴더 쓰기 권한 → 권한 확인 후 공식 절차로 재시도</td></tr>
+        <tr><td><code>extension "vector" is not available</code></td><td>① ↔ ②</td><td>지금 접속한 서버에 control · SQL 파일이 있나 → <code>pg_config</code> 경로와 연결 서버 대조</td></tr>
+        <tr><td><code>CREATE EXTENSION</code> 권한 오류</td><td>② 활성화</td><td>Windows 관리자 ≠ PostgreSQL 권한 → 확장 생성 권한 있는 DB 계정으로</td></tr>
+        <tr><td><code>type "vector" does not exist</code></td><td>② 활성화</td><td>이 DB에 확장 활성화됐나 · 스키마 검색 경로 → <code>current_database()</code> · <code>pg_extension</code> 확인</td></tr>
+        <tr><td><code>ModuleNotFoundError: pgvector</code></td><td>③ Python</td><td>VS Code Python과 pip 대상 가상환경이 같은가 → <code>sys.executable</code> · <code>pip show pgvector</code></td></tr>
+        <tr><td><code>current transaction is aborted</code></td><td>SQL 세션</td><td>앞 SQL 실패로 트랜잭션이 막힘 → 미확정 작업 확인 후 <code>ROLLBACK</code>, 원인 수정</td></tr>
+      </table>
+      <div class="callout">⚠️ 기존 DB · 데이터 폴더 삭제, 보안 기능 해제, 출처 불명 DLL 설치는 해결책이 아니에요.</div>
+
+      <!-- ============================================================ -->
+      <h2 id="store">⑤ 저장 · 검색 — 한 행에 원문과 벡터, 가까운 순으로 k개</h2>
+      <h3 id="row">저장 단위 = ID · 원문 · 벡터가 묶인 한 행</h3>
+      <table>
+        <tr><th>열</th><th>왜</th></tr>
+        <tr><td><code>id · title · content</code></td><td>원문 식별 · 사용자에게 돌려줄 근거</td></tr>
+        <tr><td><code>category · source_version</code></td><td>필터 · 원문 변경 추적</td></tr>
+        <tr><td><code>embedding_model</code></td><td>이 벡터를 만든 모델 ID</td></tr>
+        <tr><td><code>embedding vector(384)</code></td><td>모델 출력 차원을 DB가 검사하는 계약</td></tr>
+      </table>
+      <p>DB는 모델 버전이 실제로 같은지, 그 행이 질문에 답할 근거인지 <b>스스로 알지 못해요</b>. 그래서 모델 ID · 원문 버전을 행에 같이 적어요.</p>
+
+      <h3 id="table">검색용 테이블은 기존 테이블과 분리</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>vector(384)</code> 열 <a href="../commands.html#d23-table">명령어 사전에서 자세히 →</a></div>
+<pre><code>CREATE TABLE IF NOT EXISTS day23_search_docs (
+  id integer PRIMARY KEY, title text NOT NULL, content text NOT NULL,
+  category text NOT NULL, source_version text NOT NULL,
+  embedding_model text NOT NULL, embedding vector(384) NOT NULL);</code></pre>
+      </div>
+      <table>
+        <tr><th>잘못 넣으면 (실제 실행)</th><th>결과</th></tr>
+        <tr><td>3차원 배열</td><td><code>expected 384 dimensions, not 3</code></td></tr>
+        <tr><td>NaN 포함</td><td><code>NaN not allowed in vector</code></td></tr>
+        <tr><td>실패 직후 같은 트랜잭션에서 다른 SQL</td><td><code>InFailedSqlTransaction</code> — <code>ROLLBACK</code> 전까지 막힘</td></tr>
+      </table>
+      <p>검색 연습 때문에 기존 지식 CRUD 테이블을 지우거나 초기화하지 않아요. 🤔 <b>Vector DB의 "Collection"은 여기서 뭐야?</b> 제품마다 뜻이 달라요. pgvector에서는 <b>PostgreSQL 테이블 + WHERE 조건</b>이 검색 범위를 정해요.</p>
+
+      <h3 id="upsert">짝이 어긋나면 SQL은 성공해도 검색이 틀려요</h3>
+      <p>벡터는 원문 순서대로 만들어졌기 때문에 <b>행 순서가 곧 짝</b>이에요. <code>id=102</code> 행에 101의 벡터가 들어가도 SQL은 아무 오류 없이 성공하고, 검색만 조용히 틀려져요. 저장 전에 ID 중복 · 행 수 = 벡터 수 · 원문 변경을 확인하고, 갱신은 한 트랜잭션에서 해요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>INSERT … ON CONFLICT (id) DO UPDATE</code> <a href="../commands.html#d23-upsert">명령어 사전에서 자세히 →</a></div>
+<pre><code>for row, doc_vec in zip(KNOWLEDGE, doc_vecs):     # 원문 순서 = 벡터 순서
+    conn.execute(sql, (row["id"], ..., MODEL_ID, doc_vec))
+conn.commit()</code></pre>
+      </div>
+      <p>실제 실행: 9개 저장 → <code>count = 9</code>, 같은 id=102로 한 번 더 → <code>rowcount = 1</code>(UPDATE), 개수는 그대로 9. <b>무엇을 언제 갱신할지</b>(원문 · 모델 버전 비교)는 이 SQL이 아니라 앱 정책이 정해요.</p>
+
+      <h3 id="topk">Top-k — 가까운 후보를 최대 k개</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>ORDER BY embedding &lt;=&gt; %s ASC LIMIT %s</code> <a href="../commands.html#d23-topk">명령어 사전에서 자세히 →</a></div>
+<pre><code>SELECT id, title, content, embedding &lt;=&gt; %s AS cosine_distance
+FROM day23_search_docs
+ORDER BY embedding &lt;=&gt; %s ASC
+LIMIT %s</code></pre>
+      </div>
+      <table>
+        <tr><th>q · k</th><th>결과 (실제 실행 · 2차원 예시 좌표 A~F, q=(1,0))</th></tr>
+        <tr><td>k = 3</td><td>A(0.0000) → F(0.0793) → B(0.2000)</td></tr>
+        <tr><td>k = 10, 자료 6개</td><td>6행만 — k는 <b>최대</b> 개수</td></tr>
+        <tr><td>실수로 DESC</td><td>E → D → C — 가장 <b>먼</b> 것부터</td></tr>
+      </table>
+      <p><b>Exact Search</b>는 대상 전체의 거리를 계산해 정렬하는 정확한 기준선이에요. 행이 적으면 이것으로 충분하고, 인덱스(⑥)를 써도 이 결과를 <b>정답표</b>로 보관해요. ⚠️ 관련 자료가 전혀 없는 질문이어도 "가장 가까운" 벡터는 반드시 나와요.</p>
+
+      <h3 id="filter">Metadata 필터 — 범위를 먼저 좁히기</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>WHERE category = %s</code> <a href="../commands.html#d23-filter">명령어 사전에서 자세히 →</a></div>
+<pre><code>rows = conn.execute(sql, (qvec, category, qvec, k)).fetchall()   # %s 순서 그대로</code></pre>
+      </div>
+      <table>
+        <tr><th>조건</th><th>결과 (실제 실행)</th><th>읽는 법</th></tr>
+        <tr><td><code>development</code>, k=3</td><td>F(0.0793) → B(0.2000)</td><td>조건 맞는 행이 2개뿐 → 2행</td></tr>
+        <tr><td><code>support</code>, k=3</td><td>C(0.6013) → E(2.0000)</td><td>조건 안에서 가까운 순</td></tr>
+        <tr><td><code>billing</code>, k=3</td><td><code>[]</code></td><td><b>정상 0건</b> — DB 오류가 아님</td></tr>
+      </table>
+      <p><code>%s</code>는 <b>값</b>만 바인딩해요. 테이블 · 열 이름을 문자열로 이어 붙이지 않아요 (SQL Injection). Exact Search라면 필터를 만족하는 <b>전체 행</b>의 거리를 비교해요 — ANN과 섞이면 이야기가 달라져요(<a href="#annfilter">⑥</a>).</p>
+
+      <h3 id="ops">연산자 고르기 — 척도 · 정렬 · 인덱스를 한 세트로</h3>
+      <table>
+        <tr><th>척도</th><th>연산자</th><th>정렬</th><th>인덱스 opclass</th><th>실제 실행 ([1,0] vs [0.8,0.6])</th></tr>
+        <tr><td>Cosine distance</td><td><code>&lt;=&gt;</code></td><td>ASC</td><td><code>vector_cosine_ops</code></td><td>0.2 (표시용 유사도 <code>1 − 거리</code> = 0.8)</td></tr>
+        <tr><td>L2 distance</td><td><code>&lt;-&gt;</code></td><td>ASC</td><td><code>vector_l2_ops</code></td><td>0.6325</td></tr>
+        <tr><td>Negative inner product</td><td><code>&lt;#&gt;</code></td><td>ASC (작을수록 큰 내적)</td><td><code>vector_ip_ops</code></td><td>−0.8</td></tr>
+      </table>
+      <p>정규화한 E5 벡터면 Cosine distance <code>&lt;=&gt;</code>가 자연스러운 선택이에요. 유사도로 보여 주고 싶으면 <code>SELECT</code>에서 <code>1 − distance</code>로 계산하되, <b><code>ORDER BY</code>에는 원래 거리 연산자를 그대로</b> 둬요 — 그래야 인덱스를 쓸 수 있어요.</p>
+
+      <h2 id="lab-topk">🧪 Top-k · 필터 계산기</h2>
+      <p>2차원 예시 좌표 A~F에서 질문 방향 q를 돌리고, k · category · 척도를 바꿔 보세요. 아래에 같은 조건의 SQL도 보여요. (브라우저 안의 산수 · 모델 아님. q=(1,0) · 전체 · Cosine의 값은 위 실제 실행 결과와 같아요)</p>
+      <div class="lab" id="tk-lab">
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+          <label>q 각도 <input type="range" id="tk-ang" min="0" max="355" step="5" value="0"> <span id="tk-angv">0</span>°</label>
+          <label>k <select id="tk-k"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>10</option></select></label>
+          <label>category <select id="tk-cat"><option value="">(필터 없음)</option><option>course</option><option>development</option><option>support</option><option>billing</option></select></label>
+          <label>척도 <select id="tk-op"><option value="cos">&lt;=&gt; Cosine</option><option value="l2">&lt;-&gt; L2</option><option value="ip">&lt;#&gt; 음의 내적</option></select></label>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-top:10px">
+          <svg id="tk-svg" viewBox="-1.45 -1.45 2.9 2.9" width="230" height="230" style="background:#fbfaff;border-radius:10px"></svg>
+          <div style="flex:1;min-width:260px">
+            <table id="tk-out"></table>
+            <pre style="margin-top:8px"><code id="tk-sql"></code></pre>
+          </div>
+        </div>
+        <p id="tk-why" style="margin:8px 0 0;font-weight:600"></p>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="index">⑥ 인덱스 — 빨라지는 대신 놓칠 수 있다</h2>
+      <h3 id="ann">Exact Search vs ANN</h3>
+      <table>
+        <tr><th></th><th>Exact Search</th><th>ANN (Approximate Nearest Neighbor)</th></tr>
+        <tr><td>탐색 범위</td><td>모든 행의 거리 계산</td><td>인덱스를 따라 <b>일부 후보</b>만</td></tr>
+        <tr><td>결과</td><td>정확한 최근접 k개 — 기준선</td><td>기준선의 후보를 <b>놓칠 수 있음</b></td></tr>
+        <tr><td>EXPLAIN</td><td><code>Seq Scan</code> + 정렬</td><td><code>Index Scan using …_hnsw</code></td></tr>
+        <tr><td>언제</td><td>행이 적을 때 · 품질 기준을 잴 때</td><td>행이 많아 속도가 문제일 때 — 품질 · 시간 · 메모리를 같이 보고 선택</td></tr>
+      </table>
+      <p>여기서 ANN은 딥러닝의 Artificial Neural Network가 아니라 <b>근사 최근접 이웃 검색</b>이에요. 지식 9건 같은 작은 자료는 Exact Search만으로 충분해요 — 인덱스는 <b>선택</b>이에요.</p>
+
+      <h3 id="hnsw">HNSW — 층층이 연결된 이웃 그래프</h3>
+      <p><b>HNSW</b>(Hierarchical Navigable Small World)는 벡터를 여러 층의 이웃 그래프로 이어 두고, 위층에서 크게 이동한 뒤 아래층에서 좁혀 가며 가까운 벡터를 찾는 ANN 인덱스예요. pgvector는 HNSW와 IVFFlat(목록 기반 근사 인덱스)을 제공해요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 HNSW 인덱스 <a href="../commands.html#d23-hnsw">명령어 사전에서 자세히 →</a></div>
+<pre><code>CREATE INDEX IF NOT EXISTS day23_search_docs_hnsw
+ON day23_search_docs USING hnsw (embedding vector_cosine_ops);
+ANALYZE day23_search_docs;</code></pre>
+      </div>
+      <table>
+        <tr><th>옵션</th><th>언제</th><th>영향</th></tr>
+        <tr><td><code>m</code> · <code>ef_construction</code> (기본 16 · 64)</td><td>인덱스 <b>만들 때</b></td><td>연결 수 · 구축 탐색 폭 — 크면 품질↑, 구축 시간 · 메모리↑</td></tr>
+        <tr><td><code>hnsw.ef_search</code> (기본 40)</td><td><b>질의할 때</b></td><td>살펴볼 후보 폭 — 크면 놓침↓, 시간↑</td></tr>
+      </table>
+      <div class="callout">⚠️ <b>연산자와 opclass가 같아야</b> 인덱스가 쓰여요. <code>vector_cosine_ops</code>로 만들고 <code>&lt;-&gt;</code>(L2)로 정렬하면 인덱스를 못 써요(실제 실행: 강제로 Seq Scan을 막아도 L2 정렬은 Seq Scan). 그리고 <code>IF NOT EXISTS</code>는 같은 이름의 <b>다른 정의</b>를 고쳐 주지 않아요.</div>
+
+      <h3 id="explain">EXPLAIN — 인덱스를 "만들었다" ≠ "쓴다"</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 실행 계획 <a href="../commands.html#d23-explain">명령어 사전에서 자세히 →</a></div>
+<pre><code>EXPLAIN (ANALYZE, BUFFERS)
+SELECT id FROM day23_search_docs ORDER BY embedding &lt;=&gt; %s ASC LIMIT 3</code></pre>
+      </div>
+      <table>
+        <tr><th>상황 (실제 실행)</th><th>플래너가 고른 길</th></tr>
+        <tr><td>9건 테이블, HNSW 있음</td><td><code>Seq Scan</code> — 9건이면 전부 계산하는 게 더 쌈 (정상)</td></tr>
+        <tr><td>9건, <code>enable_seqscan = off</code> (관찰용)</td><td><code>Index Scan using day23_search_docs_hnsw</code></td></tr>
+        <tr><td>임의 벡터 20,000건</td><td><code>Index Scan using bench_hnsw</code></td></tr>
+        <tr><td>20,000건, <code>enable_indexscan = off</code></td><td><code>Seq Scan</code> = Exact 기준선 (결과가 NumPy 전수 계산과 일치)</td></tr>
+      </table>
+      <p><code>cost</code>는 플래너의 <b>추정 비용 단위</b>이지 밀리초가 아니에요. <code>EXPLAIN ANALYZE</code>는 SELECT를 <b>실제로 실행</b>해서 걸린 시간과 행 수를 보여 줘요.</p>
+
+      <h3 id="tuning">ef_search — 품질과 시간의 줄다리기</h3>
+      <figure id="fig-ann"><img class="smooth" src="img/day23/ann.png" alt="왼쪽: ef_search 10·20·40·100·200에서 recall@10 0.922·0.98·0.98·1.0·1.0, 질의당 시간 0.24·0.21·0.24·0.28·0.55ms. 오른쪽: 1% 카테고리 필터에서 iterative_scan off면 평균 0.34행, relaxed_order면 10행"><figcaption><b>무엇을 보나:</b> 왼쪽 — 탐색 폭을 넓히면 Exact Top-10을 더 많이 찾지만 시간이 늘어요. 오른쪽 — 드문 카테고리로 필터하면 k=10을 요청해도 대부분 0~1행만 나와요. 덩어리 구조로 만든 <b>임의 벡터 20,000개(모델 출력 아님)</b> · 질의 50개 · PostgreSQL 18.6 + pgvector 0.8.7 실제 실행이고, 시간은 이 PC 기준이라 다른 환경에 일반화하지 않아요.</figcaption></figure>
+      <table>
+        <tr><th><code>hnsw.ef_search</code></th><th>10</th><th>20</th><th>40 (기본)</th><th>100</th><th>200</th></tr>
+        <tr><td>recall@10</td><td>0.922</td><td>0.980</td><td>0.980</td><td>1.000</td><td>1.000</td></tr>
+        <tr><td>ms / 질의</td><td>0.24</td><td>0.21</td><td>0.24</td><td>0.28</td><td>0.55</td></tr>
+      </table>
+      <p>recall@10 = Exact Top-10 중 ANN이 찾은 비율. 측정 없이 최댓값을 고르지 않고, <b>자기 데이터 · 질문으로</b> 기준선과 비교해 정해요. 작은 학습용 데이터의 결과를 일반화하지도 않아요.</p>
+
+      <h3 id="annfilter">ANN + 필터 — k개보다 적게 나올 수 있다</h3>
+      <p>HNSW는 먼저 <code>ef_search</code>개 후보를 찾고 <b>그다음에</b> <code>WHERE</code>를 적용해요. 조건에 맞는 행이 드물면 후보 안에 거의 없어서 k보다 적게 나와요 — DB 전체엔 조건 맞는 자료가 충분히 있어도요.</p>
+      <table>
+        <tr><th>조건 (실제 실행 · 1% 카테고리 · k=10 · ef_search 40)</th><th>반환 행 수</th></tr>
+        <tr><td><code>hnsw.iterative_scan = off</code> (기본)</td><td>평균 0.34 (최소 0 · 최대 3)</td></tr>
+        <tr><td><code>SET hnsw.iterative_scan = relaxed_order</code></td><td>평균 10.00 (모두 10)</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 탐색 폭 · 반복 탐색 <a href="../commands.html#d23-ef-search">명령어 사전에서 자세히 →</a></div>
+<pre><code>SET hnsw.ef_search = 100;
+SET hnsw.iterative_scan = relaxed_order;   -- pgvector 0.8.x · 기본 off</code></pre>
+      </div>
+      <p>대응 순서: ① Exact Search 기준선으로 필터 결과부터 확인 → ② 필요하면 <code>iterative_scan</code>으로 더 탐색. 반복 탐색에도 상한(<code>hnsw.max_scan_tuples</code>, 기본 20,000)이 있어서 <b>완전 보장은 아니에요</b>.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="quality">⑦ 결과 평가 — 가까운 것 ≠ 답할 근거</h2>
+      <h3 id="relevance">관련 · 부분 관련 · 무관</h3>
+      <p>Retrieval 품질은 점수 · 순위가 아니라 <b>원문이 질문에 필요한 사실을 담고 있는가</b>로 판단해요.</p>
+      <table>
+        <tr><th>등급</th><th>뜻</th></tr>
+        <tr><td><b>관련</b></td><td>원문이 질문이 요구한 사실을 <b>직접</b> 제공</td></tr>
+        <tr><td><b>부분 관련</b></td><td>주제는 비슷하지만 필요한 속성 · 조건이 빠짐</td></tr>
+        <tr><td><b>무관</b></td><td>표현이 비슷해 보여도 필요한 사실이 없음</td></tr>
+      </table>
+      <table>
+        <tr><th>질문</th><th>관련</th><th>부분 관련</th><th>이유</th></tr>
+        <tr><td>서버는 어디에서 실행하나요?</td><td>102</td><td>106</td><td>102에 "프로젝트 폴더에서 서버를 실행" 이 직접 있음. 106은 DB 접속 설정 이야기</td></tr>
+        <tr><td>실습 파일은 <b>몇 년</b> 동안 보관하나요?</td><td>—</td><td>101</td><td>101은 보관 <b>위치</b>만 — 기간을 말할 근거 없음. "3년" 같은 추측 금지</td></tr>
+        <tr><td>오류를 질문할 때 무엇을 적어야 하나요?</td><td>103 · 108</td><td>—</td><td>둘 다 오류 메시지와 시도 · 재현 단계를 적으라는 안내</td></tr>
+      </table>
+      <p>사람이 원문을 읽고 매긴 판정이에요. 기록에는 <b>질문 ID · k · 순위 · ID · 원문 · 등급 · 이유</b>와 함께 모델 ID · revision · 원문 버전 · 필터 조건을 남겨요. 이 정성 기록이 나중에 정량 지표(Recall@k · MRR · nDCG)의 정답표가 돼요.</p>
+
+      <h3 id="scope">범위 밖 질문에도 후보는 나온다</h3>
+      <p>"회사 비밀번호가 무엇인가요?"처럼 자료에 없는 질문에도 Top-k는 무언가를 돌려줘요. 상위 후보를 억지로 근거 삼으면 사실을 만들어 내게 돼요. 거리 · 원문 · 권한 · 필수 정보 포함 여부를 보고 <b>중단</b> 또는 <b>정보 부족</b>(<a href="day21.html#states">insufficient_context</a>)으로 연결해요.</p>
+
+      <h3 id="empty">빈 결과 · 오류 · 무관은 다른 기록</h3>
+      <table>
+        <tr><th>상태</th><th>예</th><th>뜻</th></tr>
+        <tr><td><code>empty</code></td><td>필터에 맞는 자료가 없어 <code>rows = []</code></td><td>정상 실행 — 검색 대상 없음</td></tr>
+        <tr><td><code>error</code></td><td>DB 연결 실패 · 차원 불일치 · SQL 오류</td><td>이번 검색 <b>실행 실패</b></td></tr>
+        <tr><td><code>irrelevant</code></td><td>3건이 나왔지만 질문을 해결 못 함</td><td>가까운 후보가 있을 뿐</td></tr>
+      </table>
+      <div class="callout">⚠️ DB 장애를 "자료 부족"으로 바꿔 돌려주면 운영 문제가 숨어요. 세 상태를 나눠 다음 단계(Agent 분기 · 재시도 · 중단)의 근거로 남겨요.</div>
+
+      <h3 id="rebuild">원문 · 모델이 바뀌면 — 재임베딩</h3>
+      <table>
+        <tr><th>바뀐 것</th><th>할 일</th></tr>
+        <tr><td><code>content</code></td><td>그 문서가 Embedding 입력에 포함되면 다시 계산</td></tr>
+        <tr><td><code>category</code>만</td><td>본문이 그대로면 벡터는 재사용 가능 — 필터 결과는 바뀜</td></tr>
+        <tr><td>모델 · revision · 접두어 · 정규화</td><td>같은 384차원이어도 <b>다른 공간</b> → 문서 · 질문 <b>모두</b> 새 계약으로 재생성</td></tr>
+        <tr><td>ID</td><td>원문과 벡터가 같은 자료를 가리키는지 다시 확인</td></tr>
+      </table>
+      <p>점수만 봐서는 품질 변화를 추적하기 어려워요. 그래서 행마다 <code>embedding_model</code> · <code>source_version</code>을 남기고, 한 테이블에 서로 다른 Embedding 공간의 벡터를 섞지 않아요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="connect">⑧ 연결 — 검색 결과를 다음 단계로</h2>
+      <h3 id="module">검색 모듈은 단계별 입출력으로</h3>
+      <table>
+        <tr><th>단계</th><th>입력 → 출력</th><th>책임</th></tr>
+        <tr><td>입력 검사</td><td>질문 · k · category · 권한 범위 → 통과 / 거부</td><td>빈 질문 · 이상한 k 막기</td></tr>
+        <tr><td>질문 Embedding</td><td>질문 → <code>(384,)</code> 벡터</td><td>같은 모델 · 같은 접두어 · 같은 정규화</td></tr>
+        <tr><td>Top-k 검색</td><td>벡터 · k · 필터 → ID · 원문 · 거리 목록</td><td>Exact 또는 인덱스, 파라미터 바인딩</td></tr>
+        <tr><td>결과 정리</td><td>rows → <code>[{id, title, content, category, source_version, distance}]</code></td><td>distance를 사실성 점수로 바꾸지 않음</td></tr>
+        <tr><td>기록</td><td>모델 · DB · pgvector 버전 · k · 필터 · 성공/empty/error</td><td>나중에 재현 · 비교</td></tr>
+      </table>
+      <p>한 함수가 모든 책임을 떠맡기보다 단계마다 반환을 정해요. 이 단계 구분은 설계 예시이고, pgvector나 SDK가 정한 고정 인터페이스는 아니에요.</p>
+
+      <h3 id="ids">검색 후보 ⊇ 전달한 자료 ⊇ 인용한 출처</h3>
+<pre><code>retrieved_ids  [101, 102, 107]   검색이 가져온 후보 전체
+included_ids   [102]             관련성 · 권한 · 버전을 확인해 이번 Context에 넣은 것
+source_ids     [102]             LLM 응답이 인용한 것 → included_ids 안에 있어야 함</code></pre>
+      <p>출처로 인용할 수 있는 ID는 DB 전체도, 후보 전체도 아니라 <b>실제로 전달하고 검증한 자료</b>예요 — <a href="day22.html#request">provided_ids</a> 규칙과 같은 원리. 검색됐다는 사실만으로 모델에게 보내지 않아요(권한 · 개인정보). 그리고 검색이 됐다고 <code>status = answered</code>로 정하지 않아요 — 원문에 필요한 정보가 있는지 따로 봐요.</p>
+
+      <h3 id="contract">벡터 계약을 기록해 두기</h3>
+<pre><code>vector_contract = {
+    "model_id": "intfloat/multilingual-e5-small",
+    "dimensions": 384,
+    "query_prefix": "query: ",
+    "document_prefix": "passage: ",
+    "normalize_embeddings": True,
+}</code></pre>
+      <p>이 중 하나라도 바뀌면 기존 벡터와 새 벡터를 섞지 않고 문서 · 질문 벡터를 같은 조건으로 다시 만들어요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 각 부품이 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>부품</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td>Embedding 모델 · <code>encode</code></td><td>고정 길이 벡터</td><td>숫자 · 부정 · 기한 · 고유명사의 정확한 구분</td></tr>
+        <tr><td>정규화 · 수치 검사</td><td>길이 1 · 유한값 · 맞는 shape</td><td>ID-벡터 짝 · 관련성</td></tr>
+        <tr><td><code>vector(384)</code> 열</td><td>차원 · NaN 거부</td><td>같은 모델 · 같은 버전</td></tr>
+        <tr><td>Top-k SQL</td><td>가까운 순 최대 k개 후보</td><td>정답 · k개 개수 · 답할 근거</td></tr>
+        <tr><td>HNSW 인덱스</td><td>빠른 근사 검색</td><td>Exact와 같은 결과 · 필터 후 k개</td></tr>
+        <tr><td>사람의 정성평가</td><td>관련 / 부분 관련 / 무관 + 이유</td><td>—</td></tr>
+      </table>
+      <p>검색은 <b>Retriever</b>의 책임이고, 답을 만드는 것은 그 뒤 <a href="day21.html#context">Context</a> → Prompt → <a href="day22.html">LLM Client</a> → 검증이에요. 검색 결과나 LLM 응답이 <b>도구를 실행해도 된다는 권한</b>을 주지는 않아요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-contract">벡터 계약 — 예시 설정</h3>
+      <table>
+        <tr><th>항목</th><th>예시 값</th><th>바뀌면</th></tr>
+        <tr><td>모델 ID</td><td><code>intfloat/multilingual-e5-small</code></td><td>문서 · 질문 전부 재생성</td></tr>
+        <tr><td>차원</td><td>384 (<code>vector(384)</code>)</td><td>테이블 열 · 인덱스도 새로</td></tr>
+        <tr><td>질문 · 문서 접두어</td><td><code>"query: "</code> · <code>"passage: "</code></td><td>재생성</td></tr>
+        <tr><td>문서 입력</td><td><code>"passage: " + title + " " + content</code></td><td>재생성</td></tr>
+        <tr><td>정규화</td><td><code>normalize_embeddings=True</code></td><td>재생성</td></tr>
+        <tr><td>거리 · 정렬</td><td><code>&lt;=&gt;</code> Cosine distance · ASC</td><td>인덱스 opclass도 맞춰 변경</td></tr>
+        <tr><td>k</td><td>3</td><td>—</td></tr>
+        <tr><td>실행 위치</td><td><code>device="cpu"</code></td><td>—</td></tr>
+      </table>
+      <h3 id="spec-table">검색 테이블</h3>
+      <table>
+        <tr><th>열</th><th>타입 (실제 <code>udt_name</code>)</th><th>뜻</th></tr>
+        <tr><td><code>id</code></td><td>int4 · PK</td><td>지식 ID</td></tr>
+        <tr><td><code>title</code> · <code>content</code></td><td>text</td><td>원문</td></tr>
+        <tr><td><code>category</code></td><td>text</td><td>필터 (course · development · support)</td></tr>
+        <tr><td><code>source_version</code></td><td>text</td><td>원문 버전 (knowledge_v1 · knowledge_search_v2)</td></tr>
+        <tr><td><code>embedding_model</code></td><td>text</td><td>벡터를 만든 모델</td></tr>
+        <tr><td><code>embedding</code></td><td>vector (384)</td><td>문서 벡터</td></tr>
+      </table>
+      <h3 id="spec-result">검색 결과 · 상태</h3>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>결과 행</td><td><code>{id, title, content, category, source_version, distance}</code> — distance는 기록용, 사실성 점수 아님</td></tr>
+        <tr><td>실행 상태</td><td><code>empty</code>(정상 0건) · <code>error</code>(실행 실패) · 결과 있음</td></tr>
+        <tr><td>사람 판정</td><td>관련 · 부분 관련 · 무관 + 이유</td></tr>
+        <tr><td>ID 범위</td><td><code>source_ids ⊆ included_ids ⊆ retrieved_ids</code></td></tr>
+        <tr><td>기록</td><td>질문 ID · k · 필터 · 모델 ID · revision · 원문 버전 · PostgreSQL · pgvector 버전</td></tr>
+      </table>
+      <h3 id="spec-env">환경 — 예시</h3>
+      <table>
+        <tr><th>항목</th><th>값</th></tr>
+        <tr><td>OS · DB</td><td>Windows 11 · PostgreSQL 18.6 x64 (<code>C:\Program Files\PostgreSQL\18</code>)</td></tr>
+        <tr><td>pgvector</td><td>v0.8.7 (태그 고정 소스 빌드)</td></tr>
+        <tr><td>빌드 도구</td><td>Visual Studio Build Tools · C++ 워크로드 · x64 Native Tools Command Prompt</td></tr>
+        <tr><td>Python 쪽</td><td>기존 가상환경 · sentence-transformers · psycopg 3 · pgvector · python-dotenv</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td><code>sentence-transformers</code></td><td>Embedding 모델 로드 · <code>encode</code> (안에서 <code>torch</code> · <code>transformers</code> 사용)</td><td><code>from sentence_transformers import SentenceTransformer</code></td></tr>
+        <tr><td><code>numpy</code></td><td>벡터 계산 · 정규화 · 검사</td><td><code>import numpy as np</code></td></tr>
+        <tr><td><code>psycopg[binary]</code> (3)</td><td>PostgreSQL 연결 · SQL 실행 · 파라미터 바인딩</td><td><code>import psycopg</code></td></tr>
+        <tr><td><code>pgvector</code> (Python)</td><td>vector ↔ NumPy · <code>Vector</code> 변환 등록</td><td><code>from pgvector.psycopg import register_vector</code></td></tr>
+        <tr><td><code>python-dotenv</code></td><td>DB 접속 <code>.env</code> 읽기</td><td><code>from dotenv import dotenv_values</code></td></tr>
+        <tr><td>pgvector (서버 확장)</td><td>PostgreSQL에 vector 타입 · 연산자 · HNSW — pip 아님, 소스 빌드</td><td><code>CREATE EXTENSION vector;</code></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 설치 확인 <a href="../commands.html#d23-embed-install">명령어 사전에서 자세히 →</a></div>
+<pre><code>python -c "import sys; print(sys.executable)"
+python -m pip show sentence-transformers psycopg pgvector python-dotenv   # 없는 것만 install</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day23">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">결과값은 실제로 실행해서 얻은 값이에요. NumPy 계산, <code>pg_config</code>, PostgreSQL 18.6 + pgvector 0.8.7의 SQL, psycopg + pgvector-python을 노트 전용 DB에서 돌렸어요. E5 모델은 받지 않았고, sentence-transformers의 동작(shape · 정규화 · 접두어)은 이미 있던 다른 모델(all-MiniLM-L6-v2)로만 확인했어요 — 그래서 <b>실제 E5 검색 순위는 싣지 않았어요</b>.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day20.html#embedding">LLM 원리 — Embedding</a></td><td>Token Embedding · Sentence Embedding · Cosine의 바탕</td></tr>
+        <tr><td><a href="day21.html#context">Context 선택 · 출력 계약</a></td><td>검색 후보 중 실제로 넣을 자료 고르기 · <code>insufficient_context</code></td></tr>
+        <tr><td><a href="day22.html">LLM API 클라이언트</a></td><td>고른 근거로 호출 · 판정 · 기록</td></tr>
+        <tr><td>문서 Indexing</td><td>Parsing → 정제 → Chunking → Metadata → Embedding → 저장을 대량으로</td></tr>
+        <tr><td>Basic RAG</td><td>질문 → Retriever → Context → Prompt → LLM → 검증 · Citation</td></tr>
+        <tr><td>Hybrid Search · Reranking · 평가 지표</td><td>Keyword + Dense 융합, 재순위, Recall@k · MRR · nDCG</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2>원본 자료</h2>
+      <ul>
+        <li>원본: <code>Day23_20261118.html</code> (생성형 AI · LLM 및 RAG 엔지니어링 · Day23 Embedding · pgvector 오프라인 인터랙티브 교안). 예시 지식 9개, 2차원 예시 좌표 A~F, 관련성 판정 사례, 설치 오류 목록은 원본 자료의 것.</li>
+        <li>결과 값: 이 PC에서 실제 실행 (Python 3.13 · numpy 2.3.5 · sentence-transformers 6.3.0 · torch 2.14.0 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). DB는 노트 전용 DB를 만들어 쓰고 지웠음. <b>E5 모델은 내려받지 않음</b> — Embedding 동작은 로컬 캐시의 all-MiniLM-L6-v2로 오프라인 확인. HNSW 측정은 덩어리 구조 임의 벡터. 스크립트 <code>tools/io_day23.py</code>, 그림 <code>tools/visuals/make_day23.py</code></li>
+        <li>공식 문서: <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector (Windows 설치 · HNSW · iterative scan)</a> · <a href="https://www.postgresql.org/about/news/pgvector-087-released-3392/" target="_blank">pgvector 0.8.7 릴리스</a> · <a href="https://github.com/pgvector/pgvector-python" target="_blank">pgvector-python</a> · <a href="https://www.postgresql.org/docs/18/view-pg-available-extensions.html" target="_blank">pg_available_extensions</a> · <a href="https://www.postgresql.org/docs/18/sql-createextension.html" target="_blank">CREATE EXTENSION</a> · <a href="https://www.postgresql.org/docs/18/app-pgconfig.html" target="_blank">pg_config</a> · <a href="https://www.postgresql.org/docs/18/sql-explain.html" target="_blank">EXPLAIN</a> · <a href="https://learn.microsoft.com/en-us/cpp/build/building-on-the-command-line" target="_blank">MSVC 명령줄 빌드</a> · <a href="https://visualstudio.microsoft.com/downloads/" target="_blank">Visual Studio Build Tools</a></li>
+        <li>그 밖: <a href="https://www.sbert.net/examples/sentence_transformer/applications/semantic-search/README.html" target="_blank">Sentence Transformers · Semantic Search</a> · <a href="https://www.sbert.net/docs/package_reference/sentence_transformer/SentenceTransformer.html" target="_blank">SentenceTransformer API</a> · <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small 모델 카드</a> · <a href="https://www.psycopg.org/psycopg3/docs/basic/usage.html" target="_blank">Psycopg 3 · 연결과 트랜잭션</a> · <a href="https://www.psycopg.org/psycopg3/docs/basic/params.html" target="_blank">Psycopg 3 · 파라미터</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day22.html">← 이전: Day22</a>
+      <span></span>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  (() => {
+    const $ = id => document.getElementById(id);
+    const f4 = x => (Number.isFinite(x) ? (Math.round(x * 10000) / 10000).toFixed(4) : 'NaN');
+    const svgEl = (tag, attrs) => { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+    const arrowTo = (svg, x, y, col, w) => {
+      svg.appendChild(svgEl('line', { x1: 0, y1: 0, x2: x, y2: -y, stroke: col, 'stroke-width': w, 'stroke-linecap': 'round' }));
+      svg.appendChild(svgEl('circle', { cx: x, cy: -y, r: w * 1.6, fill: col }));
+    };
+
+    /* ---------------- 벡터 비교 ---------------- */
+    function vec() {
+      const ang = +$('vl-ang').value, len0 = +$('vl-len').value, norm = $('vl-norm').checked;
+      $('vl-angv').textContent = ang; $('vl-lenv').textContent = len0.toFixed(1);
+      const len = norm && len0 > 0 ? 1 : len0;
+      const dx = len * Math.cos(ang * Math.PI / 180), dy = len * Math.sin(ang * Math.PI / 180);
+      const q = [1, 0];
+      const dot = q[0] * dx + q[1] * dy;
+      const cos = len === 0 ? NaN : dot / (1 * len);
+      const l2 = Math.hypot(q[0] - dx, q[1] - dy);
+      const svg = $('vl-svg'); svg.innerHTML = '';
+      svg.appendChild(svgEl('circle', { cx: 0, cy: 0, r: 1, fill: 'none', stroke: '#d0c8e8', 'stroke-width': 0.02, 'stroke-dasharray': '0.06 0.06' }));
+      svg.appendChild(svgEl('line', { x1: -3.2, y1: 0, x2: 3.2, y2: 0, stroke: '#eee6fb', 'stroke-width': 0.02 }));
+      svg.appendChild(svgEl('line', { x1: 0, y1: -3.2, x2: 0, y2: 3.2, stroke: '#eee6fb', 'stroke-width': 0.02 }));
+      svg.appendChild(svgEl('line', { x1: 1, y1: 0, x2: dx, y2: -dy, stroke: '#ff922b', 'stroke-width': 0.04, 'stroke-dasharray': '0.08 0.06' }));
+      arrowTo(svg, 1, 0, '#7c4dff', 0.06); arrowTo(svg, dx, dy, '#ff5fa2', 0.06);
+      const row = (k, v, note) => `<tr><td>${k}</td><td><code>${v}</code></td><td>${note}</td></tr>`;
+      $('vl-out').innerHTML = '<tr><th>척도</th><th>값</th><th>가까운 쪽</th></tr>' +
+        row('d', `(${f4(dx)}, ${f4(dy)}) · 길이 ${f4(len)}`, '') +
+        row('Dot q·d', f4(dot), '큰 값') +
+        row('Cosine similarity', f4(cos), '큰 값') +
+        row('Cosine distance (&lt;=&gt;)', f4(1 - cos), '작은 값') +
+        row('L2 distance (&lt;-&gt;)', f4(l2), '작은 값');
+      let why;
+      if (len === 0) why = '길이 0 = 영벡터 → Cosine 분모가 0이라 NaN. 저장 전에 거부해요.';
+      else if (Math.abs(len - 1) < 1e-9) why = `길이 1 → Dot(${f4(dot)}) = Cosine(${f4(cos)}), L2² = 2 − 2·cos = ${f4(2 - 2 * cos)}.`;
+      else why = `길이 ${len.toFixed(1)} → Dot(${f4(dot)}) ≠ Cosine(${f4(cos)}). 길이가 Dot을 부풀리거나 줄여요 — 각도가 같으면 Cosine은 그대로.`;
+      $('vl-why').textContent = why;
+    }
+    ['vl-ang', 'vl-len', 'vl-norm'].forEach(id => $(id).addEventListener('input', vec));
+    vec();
+
+    /* ---------------- Top-k · 필터 ---------------- */
+    const FIX = [{ id: 'A', x: 1, y: 0, category: 'course' }, { id: 'B', x: 0.8, y: 0.6, category: 'development' },
+      { id: 'C', x: 0.4, y: 0.92, category: 'support' }, { id: 'D', x: -0.3, y: 0.95, category: 'course' },
+      { id: 'E', x: -1, y: 0, category: 'support' }, { id: 'F', x: 0.92, y: -0.39, category: 'development' }];
+    const COL = { course: '#4dabf7', development: '#0fb5a6', support: '#ff922b' };
+    const OPS = { cos: ['&lt;=&gt;', '<=>'], l2: ['&lt;-&gt;', '<->'], ip: ['&lt;#&gt;', '<#>'] };
+    function topk() {
+      const ang = +$('tk-ang').value; $('tk-angv').textContent = ang;
+      const qx = Math.cos(ang * Math.PI / 180), qy = Math.sin(ang * Math.PI / 180);
+      const k = +$('tk-k').value, cat = $('tk-cat').value, op = $('tk-op').value;
+      const val = p => {
+        const dot = qx * p.x + qy * p.y, n = Math.hypot(p.x, p.y);
+        if (op === 'cos') return 1 - dot / n;
+        if (op === 'l2') return Math.hypot(qx - p.x, qy - p.y);
+        return -dot;
+      };
+      const pool = FIX.filter(p => !cat || p.category === cat).map(p => ({ ...p, v: val(p) })).sort((a, b) => a.v - b.v);
+      const hits = pool.slice(0, k);
+      const svg = $('tk-svg'); svg.innerHTML = '';
+      svg.appendChild(svgEl('circle', { cx: 0, cy: 0, r: 1, fill: 'none', stroke: '#e3dcf3', 'stroke-width': 0.012 }));
+      arrowTo(svg, qx, qy, '#7c4dff', 0.03);
+      FIX.forEach(p => {
+        const rank = hits.findIndex(h => h.id === p.id);
+        const out = cat && p.category !== cat;
+        svg.appendChild(svgEl('circle', { cx: p.x, cy: -p.y, r: rank >= 0 ? 0.09 : 0.06, fill: out ? '#dee2e6' : COL[p.category], stroke: rank >= 0 ? '#2a2340' : 'none', 'stroke-width': 0.02 }));
+        const t = svgEl('text', { x: p.x + 0.1, y: -p.y + 0.05, 'font-size': 0.16, fill: out ? '#adb5bd' : '#2a2340', 'font-weight': rank >= 0 ? 700 : 400 });
+        t.textContent = rank >= 0 ? `${p.id} #${rank + 1}` : p.id; svg.appendChild(t);
+      });
+      $('tk-out').innerHTML = '<tr><th>순위</th><th>id</th><th>category</th><th>값</th></tr>' +
+        (hits.length ? hits.map((h, i) => `<tr><td>${i + 1}</td><td>${h.id}</td><td>${h.category}</td><td><code>${f4(h.v)}</code></td></tr>`).join('')
+          : '<tr><td colspan="4"><code>[]</code> — 정상 실행 · 결과 0건</td></tr>');
+      $('tk-sql').textContent = `SELECT id, category, embedding ${OPS[op][1]} %s AS d\nFROM fixture2d\n${cat ? 'WHERE category = %s\n' : ''}ORDER BY embedding ${OPS[op][1]} %s ASC\nLIMIT %s;   -- (qvec${cat ? ", '" + cat + "'" : ''}, qvec, ${k})`;
+      let why;
+      if (!hits.length) why = '조건에 맞는 자료가 없어요 → empty. DB 오류와 다르게 기록해요.';
+      else if (hits.length < k) why = `k=${k}를 요청했지만 ${hits.length}행 — 조건에 맞는 자료가 ${pool.length}개뿐이에요. k는 '최대' 개수.`;
+      else why = `가까운 순 ${k}개. 1등 ${hits[0].id}도 '가장 가까운 후보'일 뿐 — 원문을 읽고 관련성을 따로 판단해요.`;
+      if (op === 'ip') why += ' (<#>는 음의 내적이라 작을수록 내적이 커요)';
+      $('tk-why').textContent = why;
+    }
+    ['tk-ang', 'tk-k', 'tk-cat', 'tk-op'].forEach(id => { $(id).addEventListener('input', topk); $(id).addEventListener('change', topk); });
+    topk();
+  })();
+  </script>
+</body>
+</html>
