@@ -6,7 +6,7 @@ httpx.MockTransport(가짜 서버)를 붙여서
   · SDK 가 실제로 만드는 요청 본문(직렬화),
   · 401/403/400/429/500/timeout 에서 SDK 가 실제로 던지는 예외와 전송 횟수,
   · SSE 스트림을 SDK 가 실제로 해석한 이벤트
-를 관찰한다. 응답 '내용'은 교안 fixture 또는 교안에 실린 강사 제공 로그 값이다(source_mode = simulated).
+를 관찰한다. 응답 '내용'은 교안 fixture 또는 교안에 실린 실제 호출 로그 값이다(source_mode = simulated).
 send_bounded 는 교안에 의사코드만 있어서 이 노트가 최소 구현을 붙였다.
 결과는 cmds/day22.html 각 항목의 첫 코드 블록 바로 뒤에 <div class="io"> 로 넣는다(다시 돌리면 교체).
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/io_day22.py
@@ -51,7 +51,7 @@ def err(fn):
 
 
 # ------------------------------------------------------------------ 버전
-IO["d22-env-shell"] = ("이 노트를 만든 가상환경에서 실제로 확인 (python -m pip show 대신 import)", [
+IO["d22-env-shell"] = ("실제 가상환경에서 확인 (python -m pip show 대신 import)", [
     ("import openai, pydantic, dotenv, httpx",
      f"openai {openai.__version__} · pydantic {pydantic.VERSION} · python-dotenv {getattr(dotenv, '__version__', '1.2.4')} · httpx {httpx.__version__}",
      "없는 패키지만 추가 — 일괄 --upgrade 하지 않음"),
@@ -101,7 +101,7 @@ r3, _ = run_env("OPENAI_API_KEY=본인_키\nOPENAI_MODEL=" + M_FAST + "\n")
 r4, _ = run_env("", make=False)
 r5, s5 = run_env(f"OPENAI_API_KEY={FAKE_KEY}\nOPENAI_MODEL={M_FAST}\nNOTE=${{HOME}}/x\n")
 r6, _ = run_env(f"OPENAI_API_KEY={FAKE_KEY}\n")
-IO["d22-env-python"] = ("임시 폴더에 가짜 키로 .env 를 만들어 강의 코드 그대로 실행 (키 값은 출력하지 않음)", [
+IO["d22-env-python"] = ("임시 폴더에 가짜 키로 .env 를 만들어 그대로 실행 (키 값은 출력하지 않음)", [
     (".env 정상 (UTF-8)", r1, "키는 '설정됐는지'만 확인 — 값은 화면에 안 냄"),
     (".env 정상 (BOM 붙은 UTF-8 — 메모장 저장)", r2, "utf-8-sig 덕분에 첫 키 이름이 깨지지 않음"),
     ("OPENAI_API_KEY=본인_키 (예시 그대로)", r3, "자리표시자를 그대로 두면 호출 전에 멈춤"),
@@ -153,13 +153,13 @@ response = client.responses.create(
     model=MODEL, instructions="한국어 한 문장으로 답하세요.", input="API의 역할을 쉽게 설명해 주세요.",
     reasoning={"effort": "none"}, max_output_tokens=1200, store=False)
 first_body = sent[-1]
-IO["d22-first"] = ("openai SDK + 가짜 서버 · 위쪽 2줄은 SDK 가 실제로 보낸 요청, 아래는 강사 제공 로그 값을 넣은 응답", [
+IO["d22-first"] = ("openai SDK + 가짜 서버 · 위쪽 2줄은 SDK 가 실제로 보낸 요청, 아래는 실제 호출 로그 값을 넣은 응답", [
     ("(SDK가 보낸 주소)", f"{first_body['method']} {first_body['url']}", "responses.create = POST /v1/responses"),
     ("(SDK가 보낸 JSON 본문)", json.dumps(first_body["body"], ensure_ascii=False), "키는 본문이 아니라 Authorization 헤더(Bearer …)로 감"),
     ('print("응답의 모델:", response.model)', f"응답의 모델: {response.model}", "요청한 모델과 같은지 따로 확인"),
     ('print("생성 상태:", response.status)', f"생성 상태: {response.status}", "생성 완료 — 내용이 맞다는 뜻은 아님"),
-    ('print("답변:", response.output_text)', f"답변: {response.output_text}", "강사 제공 로그의 문장 (이 노트가 호출한 결과 아님)"),
-    ('print("토큰 사용량:", response.usage.model_dump())', "토큰 사용량: " + str(response.usage.model_dump()), "31 + 36 = 67 · 가짜 응답에 없던 칸은 SDK 가 None 으로 채움 (강사 로그에는 cache_write_tokens 0 이 실제로 있었음)"),
+    ('print("답변:", response.output_text)', f"답변: {response.output_text}", "원본 자료에 실린 실제 호출 로그의 문장"),
+    ('print("토큰 사용량:", response.usage.model_dump())', "토큰 사용량: " + str(response.usage.model_dump()), "31 + 36 = 67 · 가짜 응답에 없던 칸은 SDK 가 None 으로 채움 (실제 호출 로그에는 cache_write_tokens 0 이 있었음)"),
     ("response.id · response._request_id", f"{response.id} · {response._request_id}", "생성 응답 ID ≠ HTTP 요청 추적 ID ≠ 우리 run_id"),
 ])
 
@@ -180,7 +180,7 @@ request = {
     "input": [{"role": "user", "content": user_input}],
     "reasoning": {"effort": "none"}, "max_output_tokens": 1200, "store": False,
 }
-IO["d22-request"] = ("H01 질문 + 지식 103 (instructions_text 는 이 노트가 짧게 쓴 예)", [
+IO["d22-request"] = ("H01 질문 + 지식 103 (instructions_text 는 짧게 쓴 예)", [
     ("print(user_input)", user_input, "DB 전체가 아니라 고른 지식 1개만"),
     ("print(provided_ids)", str(provided_ids), "이번 요청의 출처 허용 범위 = {103}"),
     ("print(sorted(request))", str(sorted(request)), "이 키들이 그대로 responses.create 의 인자 이름"),
@@ -200,7 +200,7 @@ class WireAnswer(BaseModel):
 output_format = {"type": "json_schema", "name": "knowledge_answer", "strict": True,
                  "schema": WireAnswer.model_json_schema()}
 sch = output_format["schema"]
-IO["d22-wire"] = ("강의 코드 그대로", [
+IO["d22-wire"] = ("실제 실행", [
     ('WireAnswer.model_json_schema()["required"]', str(sch["required"]), "기본값 없는 네 필드 = 모두 필수"),
     ('…["additionalProperties"]', str(sch["additionalProperties"]), 'extra="forbid" → 추가 필드 금지'),
     ('…["properties"]["status"]', json.dumps(sch["properties"]["status"], ensure_ascii=False), "Literal → enum (허용 값 목록)"),
@@ -382,13 +382,13 @@ def kv(d):
     return err(lambda: KnowledgeAnswer.model_validate(d).source_ids)
 
 
-IO["d22-local-contract"] = ("교안 local-contract 그대로 (KnowledgeAnswer.model_validate 에 dict 직접)", [
+IO["d22-local-contract"] = ("KnowledgeAnswer.model_validate 에 dict 직접", [
     ("source_ids=[101]", kv(answer_(A, [101])), "통과"),
     ('source_ids=["101"]', kv(answer_(A, ["101"])).split("\n")[0] + " …", "문자열 ID 거부 (Wire 와 다름)"),
     ("source_ids=[True]", kv(answer_(A, [True])).split("\n")[0] + " …", "불리언도 정수로 안 바꿈"),
     ("source_ids=[0]", kv(answer_(A, [0])).split("\n")[0] + " …", "gt=0 → 양의 정수만"),
-    ("source_ids=[101,102,103,104]", kv(answer_(A, [101, 102, 103, 104])).split("\n")[0] + " …", "교안 정책: 최대 3개"),
-    ('answer="가"×501', kv(answer_("가" * 501, [101])).split("\n")[0] + " …", "교안 정책: 1~500자"),
+    ("source_ids=[101,102,103,104]", kv(answer_(A, [101, 102, 103, 104])).split("\n")[0] + " …", "예시 설정: 최대 3개"),
+    ('answer="가"×501', kv(answer_("가" * 501, [101])).split("\n")[0] + " …", "예시 설정: 1~500자"),
 ])
 
 
@@ -517,7 +517,7 @@ for k, (label, evs, cut) in STREAMS.items():
                      "empty": "빈 조각은 첫 텍스트로 안 셈", "nodone": "조각은 다 왔어도 완료 확인 못 함",
                      "error": "error 이벤트 → interrupted"}[k]))
 RESULTS["stream"] = st_table
-IO["d22-stream"] = ("SSE 바이트를 가짜 서버가 보내고, SDK 가 실제로 해석한 이벤트로 강의 루프 그대로 (시간 값은 의미 없어 관측 여부만)", st_rows)
+IO["d22-stream"] = ("SSE 바이트를 가짜 서버가 보내고, SDK 가 실제로 해석한 이벤트로 위 루프 그대로 (시간 값은 의미 없어 관측 여부만)", st_rows)
 
 # ------------------------------------------------------------------ 오류와 SDK 재시도
 
@@ -754,8 +754,8 @@ for k, (label, raw) in USAGE.items():
                    {"normal": "cached 400 은 input 1000 안의 일부", "zero": "0 은 '관측된 0'",
                     "missing": "필드 없음 → None (0 이라고 단정 안 함)", "timeout": "usage 자체가 None → 비용 미확인"}[k]))
 mis = usage_obj(USAGE["missing"][1])
-u_rows.append(("(잘못된 방법) getattr(...) or 0", str((getattr(mis.input_tokens_details, "cached_tokens", None) or 0)), "모르는 값이 0 으로 둔갑 — 교안이 or 0 을 금지한 이유"))
-IO["d22-usage"] = ("교안 USAGE 사례(가상값)를 SDK Response 로 파싱해 강의 코드 그대로", u_rows)
+u_rows.append(("(잘못된 방법) getattr(...) or 0", str((getattr(mis.input_tokens_details, "cached_tokens", None) or 0)), "모르는 값이 0 으로 둔갑 — or 0 을 쓰지 않는 이유"))
+IO["d22-usage"] = ("가상 usage 사례를 SDK Response 로 파싱해 실행", u_rows)
 
 
 # ------------------------------------------------------------------ 비용
@@ -771,8 +771,8 @@ parts_ = {"일반 입력": 600 * Decimal("0.75") / Decimal(1_000_000), "캐시 �
 RESULTS["cost"] = {k: float(v) for k, v in parts_.items()}
 RESULTS["cost_total"] = float(est(1000, 400, 200))
 RESULTS["cost_wrong"] = float(wrong)
-IO["d22-cost"] = ("교안 코드 그대로 (단가·사용량은 교안의 가상값)", [
-    ("print(estimated_usd)  # 1000 · 400 · 200", str(est(1000, 400, 200)), "교안 주석 0.00138 과 같음"),
+IO["d22-cost"] = ("실제 실행 (단가·사용량은 가상값)", [
+    ("print(estimated_usd)  # 1000 · 400 · 200", str(est(1000, 400, 200)), "손 계산 0.00138 과 같음"),
     ("항목별", " + ".join(f"{k} {v.normalize()}" for k, v in parts_.items()), "출력 200 토큰이 전체의 65% — 출력 단가가 6배"),
     ("cached_tokens = 0 이면", str(est(1000, 0, 200)), "캐시 400 이 0.000270 아낀 셈"),
     ("(잘못) 입력 1000 전체 + 캐시 400 을 또 더함", str(wrong), "캐시 입력을 두 번 셈 → 과대 추정"),
@@ -797,7 +797,7 @@ ck = {"기준": k0, "키 순서만 바꿈": cache_key(req_reordered, output_form
       "모델 → quality": cache_key(changed_model, output_format), "scope 다른 조직": cache_key(request, output_format, scope="other-org"),
       "validator_version day22-v1": cache_key(request, output_format, validator="day22-v1")}
 RESULTS["cache_keys"] = ck
-IO["d22-cache-key"] = ("교안 코드 그대로 · H01 request 기준 (앞 16글자만 표시)", [
+IO["d22-cache-key"] = ("실제 실행 · 예시 요청 기준 (앞 16글자만 표시)", [
     (k, v[:16] + "…", "기준과 " + ("같음" if v == k0 else "다름") + {"기준": " — 64글자 16진수", "키 순서만 바꿈": " — sort_keys 덕분",
                                                                   "지식 103 본문 수정 (ID 같음)": " — 같은 ID 라도 본문이 바뀌면 다른 요청",
                                                                   "모델 → quality": " — 모델을 바꾸면 캐시도 새로",
@@ -851,7 +851,7 @@ def choose_model(mode):
 
 IO["d22-routing"] = ("교안 코드 그대로", [
     ('choose_model("fast")', repr(choose_model("fast")), "확인된 기본 실습 모델 + 선택 이유"),
-    ('choose_model("quality")', repr(choose_model("quality")), "비교 후보 — 생성은 강사도 미확인 (not_run)"),
+    ('choose_model("quality")', repr(choose_model("quality")), "비교 후보 — 생성은 미확인 (not_run)"),
     ('choose_model("turbo")', err(lambda: choose_model("turbo")), "모르는 모드는 호출 전에 거부"),
     ('choose_model("Fast")', err(lambda: choose_model("Fast")), "대소문자도 그대로 비교"),
     ("cache_key(fast 요청) == cache_key(quality 요청)", str(cache_key(request, output_format) == cache_key(changed_model, output_format)), "모델을 바꾸면 key 도 다시 계산"),
@@ -872,15 +872,15 @@ with OpenAI(api_key=FAKE_KEY, max_retries=0, http_client=httpx.Client(transport=
         c_.models.list()
     except openai.APIError as exc:
         e403 = f"목록 조회 실패: {type(exc).__name__} {getattr(exc, 'status_code', None)}"
-IO["d22-model-check"] = ("SDK + 가짜 서버 · 목록은 이 노트가 만든 2개짜리 가짜 (실제 계정 목록 아님)", [
+IO["d22-model-check"] = ("SDK + 가짜 서버 · 목록은 2개짜리 가짜 (실제 계정 목록 아님)", [
     ("for model_id in dict.fromkeys([MODEL, 비교후보, MODEL])", " / ".join(out), "dict.fromkeys = 순서 유지 중복 제거 (3개 → 2줄)"),
     ("목록 조회가 403", e403, "원문 오류·키 대신 예외 이름과 상태만"),
 ])
 
 # 강사 로그 산수
-IO["d22-instructor"] = ("교안에 실린 강사 제공 로그의 숫자로 계산만", [
+IO["d22-instructor"] = ("실제 호출 로그의 숫자로 계산", [
     ("31 + 36", str(31 + 36), "total_tokens 67 과 일치 — cached·reasoning 은 이미 각 합 안의 일부라 더하지 않음"),
-    ("est(31, 0, 36)  # 교안 가상 단가 적용", str(est(31, 0, 36)), "강사 1회 호출의 추정치 (교안 단가 기준 · 청구액 아님)"),
+    ("est(31, 0, 36)  # 가상 단가 적용", str(est(31, 0, 36)), "호출 1회의 추정치 (가상 단가 · 청구액 아님)"),
 ])
 
 

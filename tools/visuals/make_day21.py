@@ -52,9 +52,9 @@ def fig_flow():
         rbox(ax, x, 2.35, 1.85, 1.35, t, fc=fc, ec=ec, fs=9.2)
     for a, b in zip(xs[:-1], xs[1:]):
         arrow(ax, a + 1.85, 3.02, b, 3.02)
-    ax.text(2.25 + 2.95, 3.95, "입력 설계 (오늘 ①~④)", ha="center", fontsize=9, color=C["purple"])
-    ax.text(8.4 + 2.0, 3.95, "출력 확인 (⑥~⑦)", ha="center", fontsize=9, color=C["blue"])
-    ax.text(0.2, 1.55, "평가 흐름 — 여러 실행을 모아서 (⑤)", fontsize=10.5, fontweight="bold", color=C["ink"])
+    ax.text(2.25 + 2.95, 3.95, "입력 설계 (①~④)", ha="center", fontsize=9, color=C["purple"])
+    ax.text(8.4 + 2.0, 3.95, "출력 확인 (⑤~⑦)", ha="center", fontsize=9, color=C["blue"])
+    ax.text(0.2, 1.55, "평가 루프 — 여러 실행을 모아서 (⑧)", fontsize=10.5, fontweight="bold", color=C["ink"])
     rbox(ax, 4.3, 0.2, 4.0, 1.05, "A/B 평가\n여러 실행의 조건·응답·실패 기록을 모아 비교", fc="#fff9db", ec=C["yellow"], fs=9.2, ls="--")
     arrow(ax, 11.4, 2.35, 8.35, 0.75, color=C["yellow"], ls="--", text="기록 모으기", toff=(0.6, -0.05))
     arrow(ax, 4.3, 0.75, 5.2, 2.33, color=C["yellow"], ls="--", text="입력 개선 (새 버전)", toff=(-1.25, -0.1))
@@ -123,7 +123,7 @@ def fig_budget():
     ax.set_yticks([1, 0]); ax.set_yticklabels([b[0] for b in bars], fontsize=9.5)
     ax.set_xlim(0, total); ax.set_ylim(-0.55, 1.75); ax.grid(False)
     ax.set_xticks([0, 2048, 4096, 6144, 8192]); ax.tick_params(axis="x", labelsize=8.5)
-    ax.set_xlabel(f"Context Window {total:,} tokens (교안의 가상 예산 · 실제 측정값 아님)", fontsize=9)
+    ax.set_xlabel(f"Context Window {total:,} tokens (가상 예산 · 실제 측정값 아님)", fontsize=9)
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
     save(fig, 21, "budget")
@@ -158,7 +158,7 @@ def fig_validation():
             ax.add_patch(Rectangle((3.3 + j + 0.04, y + 0.08), 0.92, 0.84, fc=fc, ec="white", lw=1.5))
             ax.text(3.3 + j + 0.5, y + 0.5, txt, ha="center", va="center", fontsize=7.9 if len(txt) > 6 else 8.6, color=ec,
                     fontweight="bold" if txt not in ("—", "통과") else "normal")
-    ax.text(0.05, len(tab) + 1.75, "①~③: io_day21.py로 실제 실행 (엄격 파서) · ④: 교안이 정한 사람 검토 결과 · — = 앞 단계 실패로 미수행",
+    ax.text(0.05, len(tab) + 1.75, "①~③: io_day21.py로 실제 실행 (엄격 파서) · ④: 사람 검토 결과(예시) · — = 앞 단계 실패로 미수행",
             fontsize=8.4, color=MUTED, va="top")
     save(fig, 21, "validation_grid")
 

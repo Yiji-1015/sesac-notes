@@ -2,15 +2,17 @@
 <section class="cmd-overview" data-day="21">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day21.html#packages">📦 필요한 패키지</a></td><td><code>python -m pip install pydantic pytest</code></td></tr>
-        <tr><td><a href="notes/day21.html#spec">📋 명세</a></td><td>출력 계약 네 필드 · 상태 규칙 · 오류 코드 · 함수별 입력/출력</td></tr>
-        <tr><td><a href="notes/day21.html#prompt">① Prompt · Template</a></td><td><code>string.Template</code> · <code>$question</code> · <code>substitute()</code>, 여섯 요소 <code>"\n\n".join(...)</code></td></tr>
-        <tr><td><a href="notes/day21.html#shots">② Zero/Few-shot · 버전 · A/B</a></td><td>예제 구역 분리, <code>experiment = {...}</code> 버전 기록</td></tr>
-        <tr><td><a href="notes/day21.html#reason">③ 추론 근거 · 작업 분해</a></td><td>작업 지시 문자열 (최종 JSON만)</td></tr>
-        <tr><td><a href="notes/day21.html#context">④ Context Engineering</a></td><td><code>deepcopy</code>, <code>json.dumps(ensure_ascii=False)</code>, 예산 계산, <code>hashlib.sha256</code></td></tr>
-        <tr><td><a href="notes/day21.html#eval">⑤ 응답 비교 · 평가</a></td><td>실행 기록 <code>run = {...}</code>, 분모 · <code>None</code> 지표</td></tr>
-        <tr><td><a href="notes/day21.html#validate">⑥ 출력 검증</a></td><td><code>json.loads</code>, <code>KnowledgeAnswer(BaseModel)</code>, <code>model_json_schema()</code>, <code>model_validate</code> · <code>ValidationError</code>, <code>json.loads(parse_constant=, object_pairs_hook=)</code>, <code>pytest.mark.parametrize</code></td></tr>
+        <tr><td><a href="notes/day21.html#prompt">① Prompt 구성</a></td><td><code>string.Template</code> · <code>$question</code> · <code>substitute()</code>, 여섯 요소 <code>"
+
+".join(...)</code></td></tr>
+        <tr><td><a href="notes/day21.html#shots">② 예제 — Zero/Few-shot</a></td><td>예제 구역 분리</td></tr>
+        <tr><td><a href="notes/day21.html#reason">③ 작업 분해 · 정보 부족</a></td><td>작업 지시 문자열 (최종 JSON만)</td></tr>
+        <tr><td><a href="notes/day21.html#context">④ Context 선택</a></td><td><code>json.dumps(ensure_ascii=False)</code> ↔ <code>json.loads</code>, 예산 계산</td></tr>
+        <tr><td><a href="notes/day21.html#contract">⑤ 출력 계약</a></td><td><code>json.loads</code>, <code>KnowledgeAnswer(BaseModel)</code>, <code>model_json_schema()</code></td></tr>
+        <tr><td><a href="notes/day21.html#validate">⑥ 검사 네 단계</a></td><td><code>model_validate</code> · <code>ValidationError</code>, <code>json.loads(parse_constant=, object_pairs_hook=)</code>, <code>pytest.mark.parametrize</code></td></tr>
         <tr><td><a href="notes/day21.html#retry">⑦ 재시도 · 중단</a></td><td><code>repair_instruction</code> 문자열, 시도별 <code>history</code></td></tr>
+        <tr><td><a href="notes/day21.html#eval">⑧ 버전 · A/B · 평가 세트</a></td><td><code>experiment = {...}</code>, <code>deepcopy</code>, <code>hashlib.sha256</code>, 실행 기록 <code>run = {...}</code>, 분모 · <code>None</code> 지표</td></tr>
+        <tr><td><a href="notes/day21.html#packages">📦 패키지</a></td><td><code>python -m pip install pydantic pytest</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d21-pip-install" data-topic="Prompt · Context Engineering" data-sub="설치" data-day="21" data-theory="notes/day21.html#packages">
@@ -18,7 +20,7 @@
 <pre><code>python -m pip install pydantic pytest     # FastAPI를 설치했다면 pydantic은 이미 있음
 python -c "import pydantic, pytest; print(pydantic.VERSION, pytest.__version__)"</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>이 노트를 만든 가상환경에서 실제로 확인</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 가상환경에서 확인</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>import pydantic, pytest</code></td><td><code>pydantic 2.14.3 · pytest 9.2.0</code></td><td>string · json · hashlib · copy 는 Python 표준 라이브러리라 설치 없음</td></tr>
@@ -26,12 +28,12 @@ python -c "import pydantic, pytest; print(pydantic.VERSION, pytest.__version__)"
   </table>
 </div>
       <table>
-        <tr><th>패키지</th><th>오늘 쓰는 곳</th></tr>
+        <tr><th>패키지</th><th>쓰는 곳</th></tr>
         <tr><td><code>pydantic</code> (v2)</td><td>출력 계약 <code>KnowledgeAnswer</code> 선언 · 검사 · JSON Schema 생성</td></tr>
         <tr><td><code>pytest</code> (선택)</td><td>검증기에 실패 입력을 여러 개 넣어 보는 테스트</td></tr>
         <tr><td>표준 라이브러리</td><td><code>string.Template</code> · <code>json</code> · <code>copy.deepcopy</code> · <code>hashlib</code> — 설치 없음</td></tr>
       </table>
-      <div class="callout">💡 오늘은 <b>모델을 부르지 않아요</b>. Prompt 문자열을 만들고, 받은 응답(교사가 미리 쓴 샘플)을 검사하는 코드만 다뤄요. 실제 API 호출은 11/17이에요.</div>
+      <div class="callout">💡 여기 코드는 <b>모델을 부르지 않아요</b>. Prompt 문자열을 만들고, 받은 응답(미리 쓴 샘플)을 검사하는 코드예요. 실제 API 호출은 <a href="notes/day22.html">LLM API 클라이언트</a>에서.</div>
 </section>
 <section class="cmd" id="d21-prompt-basic" data-topic="Prompt · Context Engineering" data-sub="Prompt 조립" data-day="21" data-theory="notes/day21.html#prompt">
   <h3>Prompt는 그냥 문자열 — 구역 제목으로 나누기</h3>
@@ -41,7 +43,7 @@ python -c "import pydantic, pytest; print(pydantic.VERSION, pytest.__version__)"
 [조건] 자료에 없는 사실은 추측하지 마세요."""
 print(prompt)   # 확인만 — 모델에 요청하지 않음</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(prompt)</code></td><td><code>[작업] 제공된 자료로 질문에 답하세요. ⏎ [질문] 파일은 어디에 보관하나요? ⏎ [자료] 101: 실습 파일은 개인 폴더에 보관합니다. ⏎ [조건] 자료에 없는 사실은 추측하지 마세요.</code></td><td>줄바꿈(⏎)까지 그대로 — 모델에 보낼 입력 문자열일 뿐</td></tr>
@@ -52,7 +54,7 @@ print(prompt)   # 확인만 — 모델에 요청하지 않음</code></pre>
         <tr><th>부분</th><th>뜻</th></tr>
         <tr><td><code>"""…"""</code></td><td>여러 줄 문자열 — 줄바꿈까지 그대로 담겨요</td></tr>
         <tr><td><code>[작업]</code> · <code>[자료]</code></td><td>사람과 모델이 읽기 쉽게 나눈 <b>구역 제목</b>. 문법이나 권한 장치가 아니에요</td></tr>
-        <tr><td><code>101</code></td><td>교안이 정한 지식 ID — 자료를 가리키는 이름표</td></tr>
+        <tr><td><code>101</code></td><td>예시 지식의 ID — 자료를 가리키는 이름표</td></tr>
       </table>
 </section>
 <section class="cmd" id="d21-placeholder" data-topic="Prompt · Context Engineering" data-sub="Prompt 조립" data-day="21" data-theory="notes/day21.html#template">
@@ -64,7 +66,7 @@ prompt = template.substitute(question=question)
 print(prompt)                                   # 질문: 파일은 어디에 보관하나요?
 print(Template("기호: $$").substitute())        # 기호: $</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 + 빠진 값 확인</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 + 빠진 값 확인</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>Template(&quot;질문: $question&quot;).substitute(question=question)</code></td><td><code>질문: 파일은 어디에 보관하나요?</code></td><td>$question 자리에 값이 들어감</td></tr>
@@ -103,7 +105,7 @@ prompt = T.substitute(question=question, context_json=context_json,
                       contract=contract_text)
 print(prompt)</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(prompt)</code></td><td><code>[작업] ⏎ 제공 지식을 참고해 질문에 답하세요. ⏎ [질문] ⏎ 파일은 어디에 보관하나요? ⏎ [지식 데이터] ⏎ [{&quot;id&quot;:101,&quot;content&quot;:&quot;실습 파일은 개인 폴더에 보관합니다.&quot;}] ⏎ [출력] ⏎ status, answer, source_ids, missing_information의 JSON</code></td><td>고정 문장은 그대로, $ 세 곳만 바뀜</td></tr>
@@ -122,7 +124,7 @@ print(prompt)</code></pre>
 <section class="cmd" id="d21-prompt-six" data-topic="Prompt · Context Engineering" data-sub="Prompt 조립" data-day="21" data-theory="notes/day21.html#six">
   <h3>여섯 요소를 구역으로 이어 붙이기</h3>
 <pre><code>parts = {
-    "역할": "초보 수강생의 실습 도움말 작성자",
+    "역할": "초보자의 실습 도움말 작성자",
     "작업": "질문에 한국어 2문장 이내로 답하기",
     "입력": "사용자 질문과 선택된 지식",
     "제약": "제공한 근거 범위에서만 답하기",
@@ -132,10 +134,10 @@ print(prompt)</code></pre>
 instruction = "\n\n".join(f"[{name}]\n{text}" for name, text in parts.items())
 print(instruction)</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
-    <tr><td><code>print(instruction)  # 처음 두 구역</code></td><td><code>[역할] ⏎ 초보 수강생의 실습 도움말 작성자 ⏎  ⏎ [작업] ⏎ 질문에 한국어 2문장 이내로 답하기</code></td><td>구역 제목 + 내용, 빈 줄로 구분</td></tr>
+    <tr><td><code>print(instruction)  # 처음 두 구역</code></td><td><code>[역할] ⏎ 초보자의 실습 도움말 작성자 ⏎  ⏎ [작업] ⏎ 질문에 한국어 2문장 이내로 답하기</code></td><td>구역 제목 + 내용, 빈 줄로 구분</td></tr>
     <tr><td><code>len(parts), instruction.count(&#x27;[&#x27;)</code></td><td><code>6, 6</code></td><td>여섯 구역</td></tr>
   </table>
 </div>
@@ -162,7 +164,7 @@ current_request = """[현재 자료] 101: 실습 파일은 개인 폴더에 보�
 [현재 질문] 파일은 어디에 보관하나요?"""
 few_shot = examples + "\n\n" + current_request</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>zero_shot.count(&#x27;[예제&#x27;)</code></td><td><code>0</code></td><td>Zero-shot = 입력→출력 예제 0개 (자료·지시는 있음)</td></tr>
@@ -231,7 +233,7 @@ rows = [{"id": 101, "content": "실습 파일은 개인 폴더에 보관합니�
 snapshot = deepcopy(rows)          # 안쪽 dict까지 통째로 복사
 context_version = "knowledge_v1"   # A와 B가 같은 스냅샷을 읽게</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 + 원본을 바꿔 보기</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 + 원본을 바꿔 보기</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>rows[0][&quot;content&quot;] = &quot;(DB가 나중에 바뀜)&quot; 후 snapshot[0][&quot;content&quot;]</code></td><td><code>실습 파일은 개인 폴더에 보관합니다.</code></td><td>deepcopy 스냅샷은 그대로</td></tr>
@@ -254,7 +256,7 @@ print(type(context_json).__name__)                             # str
 restored = json.loads(context_json)                            # str → list
 assert restored == selected_rows</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>type(context_json).__name__</code></td><td><code>str</code></td><td>직렬화 결과는 문자열</td></tr>
@@ -283,7 +285,7 @@ print(remaining)
 if remaining &lt; 0:
     print("예산 초과: 불필요한 입력을 줄이거나 배정을 다시 확인하세요.")</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 · 숫자는 강의의 가상 예산 (실제 Tokenizer 측정값 아님)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 · 숫자는 가상 예산 (실제 Tokenizer 측정값 아님)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(remaining)</code></td><td><code>4936</code></td><td>8192 − 800 − 600 − 1600 − 256</td></tr>
@@ -308,7 +310,7 @@ snapshot_text = json.dumps(
 )
 context_sha256 = hashlib.sha256(snapshot_text.encode("utf-8")).hexdigest()</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 + 바꿔 보기</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 + 바꿔 보기</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>snapshot_text</code></td><td><code>[{&quot;content&quot;:&quot;실습 파일은 개인 폴더에 보관합니다.&quot;,&quot;id&quot;:101}]</code></td><td>sort_keys · 공백 없는 구분자 → 표현을 하나로 고정</td></tr>
@@ -348,7 +350,7 @@ context_sha256 = hashlib.sha256(snapshot_text.encode("utf-8")).hexdigest()</code
         <tr><td><code>source_mode</code></td><td>응답을 어디서 얻었나 — <code>manual_chat</code>=실제 관찰 · <code>fixture</code>=직접 쓴 샘플</td></tr>
         <tr><td><code>*_ok</code></td><td><code>True</code> 통과 · <code>False</code> 실패 · <code>None</code> 아직 안 봄</td></tr>
       </table>
-      <div class="callout">⚠️ 관찰하지 않았다면 <b>가짜 응답으로 이 기록을 채우지 않아요</b>. 이 노트가 실제 실행 결과만 쓰는 것과 같은 원칙이에요.</div>
+      <div class="callout">⚠️ 관찰하지 않았다면 <b>가짜 응답으로 이 기록을 채우지 않아요</b>. 모르는 값은 비워 두는 게 원칙이에요.</div>
 </section>
 <section class="cmd" id="d21-metrics" data-topic="Prompt · Context Engineering" data-sub="평가 기록" data-day="21" data-theory="notes/day21.html#metrics">
   <h3>지표 — 분모와 미평가를 숨기지 않기</h3>
@@ -364,7 +366,7 @@ human_rate = human_ok / human_judged if human_judged else None
 print("JSON:", json_rate, "미실행:", planned - executed)
 print("근거 적합률:", human_rate, "근거 미평가:", executed - human_judged)</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 · 분모 설명용 가상 기록 (실제 모델 성능 아님)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 · 분모 설명용 가상 기록 (실제 모델 성능 아님)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(&quot;JSON:&quot;, json_rate, &quot;미실행:&quot;, planned - executed)</code></td><td><code>JSON: 0.6666666666666666 미실행: 1</code></td><td>분모는 계획한 3건 — 2/3</td></tr>
@@ -387,7 +389,7 @@ data = json.loads(raw)                        # dict
 print(data["answer"])
 print(type(data["source_ids"][0]).__name__)   # int</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 + 자료형 비교</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 + 자료형 비교</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(data[&quot;answer&quot;])</code></td><td><code>개인 폴더에 보관합니다.</code></td><td>JSON 텍스트 → dict</td></tr>
@@ -420,7 +422,7 @@ print(type(data["source_ids"][0]).__name__)   # int</code></pre>
   "additionalProperties": false
 }</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로 · model_json_schema() 실제 출력</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 · model_json_schema() 실제 출력</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>schema[&#x27;required&#x27;]</code></td><td><code>[&#x27;status&#x27;, &#x27;answer&#x27;, &#x27;source_ids&#x27;, &#x27;missing_information&#x27;]</code></td><td>네 필드 모두 필수</td></tr>
@@ -456,7 +458,7 @@ class KnowledgeAnswer(BaseModel):
 schema = KnowledgeAnswer.model_json_schema()   # 명세 생성
 obj = KnowledgeAnswer.model_validate(data)     # 데이터 검사</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 KnowledgeAnswer 그대로 · model_validate 실제 결과</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>KnowledgeAnswer · model_validate 실제 결과</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>KnowledgeAnswer.model_validate(정상 dict)</code></td><td><code>KnowledgeAnswer(status=&#x27;answered&#x27;, source_ids=[101])</code></td><td>객체가 만들어짐</td></tr>
@@ -479,12 +481,12 @@ obj = KnowledgeAnswer.model_validate(data)     # 데이터 검사</code></pre>
         <tr><td><code>strict=True</code></td><td>자동 형 변환 금지 — <code>"101"</code> → <code>101</code>로 바꿔 주지 않음</td></tr>
         <tr><td><code>Literal[…]</code></td><td>허용 값 목록 (Schema의 <code>enum</code>)</td></tr>
         <tr><td><code>Field(gt=0)</code></td><td>greater than 0 — 양수만</td></tr>
-        <tr><td><code>Field(min_length / max_length)</code></td><td>문자열 길이 · 목록 개수 한도 (500자 · 3개 · 200자는 수업 계약)</td></tr>
+        <tr><td><code>Field(min_length / max_length)</code></td><td>문자열 길이 · 목록 개수 한도 (500자 · 3개 · 200자는 예시 계약 한도)</td></tr>
         <tr><td><code>model_validate(data)</code></td><td>검사 통과 → 객체 / 실패 → <code>ValidationError</code></td></tr>
         <tr><td><code>model_json_schema()</code></td><td>같은 정의에서 JSON Schema(dict) 생성</td></tr>
       </table>
-      <div class="callout">🤔 <strong>Day17 FastAPI 요청 검사에 쓴 그 Pydantic?</strong> — 네, 같은 도구예요. Day17엔 <b>사용자가 보낸 요청</b>을 검사했고, 오늘은 <b>모델이 돌려준 응답</b>을 검사해요. 둘 다 "밖에서 온 데이터는 믿기 전에 검사"라는 같은 생각이에요.</div>
-      <div class="callout">⚠️ 모델을 선언해도 <b>생성 중인 LLM 출력이 자동으로 제한되진 않아요</b>. 이건 받은 뒤 로컬에서 검사하는 도구예요. API의 생성 제약(구조화 출력)은 공급자 기능이라 11/17에 따로 봐요.</div>
+      <div class="callout">🤔 <strong>FastAPI 요청 검사에 쓰는 그 Pydantic?</strong> — 네, 같은 도구예요. FastAPI에선 <b>사용자가 보낸 요청</b>을, 여기선 <b>모델이 돌려준 응답</b>을 검사해요. 둘 다 "밖에서 온 데이터는 믿기 전에 검사"라는 같은 생각이에요.</div>
+      <div class="callout">⚠️ 모델을 선언해도 <b>생성 중인 LLM 출력이 자동으로 제한되진 않아요</b>. 이건 받은 뒤 로컬에서 검사하는 도구예요. API의 생성 제약(구조화 출력)은 공급자 기능이에요 → <a href="notes/day22.html#structured">Structured Outputs</a>.</div>
 </section>
 <section class="cmd" id="d21-schema-file" data-topic="Prompt · Context Engineering" data-sub="출력 검증" data-day="21" data-theory="notes/day21.html#contract">
   <h3>Schema 파일로 저장</h3>
@@ -498,7 +500,7 @@ Path("answer_schema.json").write_text(
         <tr><td>자료형 · 필수 · 추가 필드</td><td><code>type</code> · <code>required</code> · <code>additionalProperties</code></td></tr>
         <tr><td>길이 · 개수 · 양수</td><td><code>maxLength</code> · <code>maxItems</code> · <code>exclusiveMinimum</code></td></tr>
       </table>
-      <div class="callout">💡 특정 LLM API가 이 Schema를 그대로 지원하는지는 공급자마다 달라요. 내일(11/17) 확인할 일이에요.</div>
+      <div class="callout">💡 특정 LLM API가 이 Schema를 그대로 지원하는지는 공급자마다 달라요. → <a href="notes/day22.html#structured">Structured Outputs</a></div>
 </section>
 <section class="cmd" id="d21-parse-answer" data-topic="Prompt · Context Engineering" data-sub="출력 검증" data-day="21" data-theory="notes/day21.html#steps">
   <h3><code>json.loads</code> → <code>model_validate</code> — 문법 실패와 구조 실패 나누기</h3>
@@ -517,7 +519,7 @@ else:
         error = "schema_error"
 # error가 None이어도 출처 · 내용은 아직</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>json.loads → model_validate 두 단계 · 입력은 교안 데모의 샘플 응답(fixture) 14개</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>json.loads → model_validate 두 단계 · 입력은 샘플 응답(fixture) 14개</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>정상 답변</code></td><td><code>obj, None</code></td><td>문법·구조 통과 (근거는 아직)</td></tr>
@@ -563,7 +565,7 @@ def unique_object(pairs):
 data = json.loads(raw, parse_constant=reject_constant,
                   object_pairs_hook=unique_object)</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 콜백 두 개를 json.loads에 지정 · 같은 fixture</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>콜백 두 개를 json.loads에 지정 · 같은 fixture</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>JSON 키 중복 — json.loads</code></td><td><code>&#x27;개인 폴더에 보관합니다.&#x27;</code></td><td>앞의 값이 조용히 사라짐</td></tr>
@@ -594,7 +596,7 @@ def test_invalid_outputs(raw, expected):
     with pytest.raises(expected):
         KnowledgeAnswer.model_validate(json.loads(raw))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 테스트 그대로 실제 pytest 실행</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 pytest 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>python -m pytest -q test_answer.py</code></td><td><code>2 passed in …s</code></td><td>같은 함수에 실패 입력 2개를 대조</td></tr>
@@ -623,7 +625,7 @@ repair_instruction = """[수정 요청]
 출처는 이번에 제공한 ID만 사용하세요.
 """</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(repair_instruction)  # 줄 수</code></td><td><code>9줄</code></td><td>오류 요약 한 줄 + 고정 문구</td></tr>
@@ -646,7 +648,7 @@ repair_attempts = history[1:]
 print("첫 응답:", first_attempt["error"])
 print("수정 시도 수:", len(repair_attempts))</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(&quot;첫 응답:&quot;, first_attempt[&quot;error&quot;])</code></td><td><code>첫 응답: json_error</code></td><td>첫 실패를 지우지 않음</td></tr>

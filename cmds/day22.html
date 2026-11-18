@@ -2,14 +2,14 @@
 <section class="cmd-overview" data-day="22">
 <table>
         <tr><th>이론</th><th>대응 명령어</th></tr>
-        <tr><td><a href="notes/day22.html#packages">📦 필요한 패키지</a></td><td><code>python -m pip show openai pydantic python-dotenv</code></td></tr>
-        <tr><td><a href="notes/day22.html#spec">📋 명세</a></td><td>실행 결과 구조 · 실패별 다음 행동 · 전송 상한 · 기록 필드</td></tr>
-        <tr><td><a href="notes/day22.html#api">① LLM API · 인증</a></td><td><code>dotenv_values</code>, <code>OpenAI(timeout, max_retries=0)</code>, <code>responses.create</code>, <code>models.list()</code></td></tr>
-        <tr><td><a href="notes/day22.html#request">② 메시지 · Structured Outputs</a></td><td><code>json.dumps</code> 요청 dict, <code>WireAnswer(BaseModel)</code> · <code>model_json_schema()</code>, <code>text={"format": …}</code>, <code>KnowledgeAnswer</code> strict</td></tr>
-        <tr><td><a href="notes/day22.html#stream">③ Streaming</a></td><td><code>stream=True</code>, <code>event.type</code>, <code>event.delta</code>, <code>perf_counter()</code></td></tr>
-        <tr><td><a href="notes/day22.html#retry">④ Rate Limit · 재시도</a></td><td><code>OpenAI(max_retries=0)</code>, <code>RateLimitError</code> · <code>e.code</code>, <code>APITimeoutError</code></td></tr>
-        <tr><td><a href="notes/day22.html#metrics">⑤ Usage · 비용 · Latency</a></td><td><code>response.usage</code>, <code>getattr(…, None)</code>, <code>Decimal</code> 비용식</td></tr>
-        <tr><td><a href="notes/day22.html#cache">⑥ Cache</a></td><td><code>json.dumps(sort_keys=True)</code> + <code>hashlib.sha256</code> cache key</td></tr>
+        <tr><td><a href="notes/day22.html#api">① 준비 — API · 인증 · 모델</a></td><td><code>dotenv_values</code>, <code>OpenAI(timeout, max_retries=0)</code>, <code>models.list()</code></td></tr>
+        <tr><td><a href="notes/day22.html#request">② 요청 · Structured Outputs</a></td><td><code>responses.create</code>, <code>json.dumps</code> 요청 dict, <code>WireAnswer(BaseModel)</code> · <code>model_json_schema()</code>, <code>text={"format": …}</code></td></tr>
+        <tr><td><a href="notes/day22.html#stream">③ 수신 · Streaming</a></td><td><code>stream=True</code>, <code>event.type</code>, <code>event.delta</code>, <code>perf_counter()</code></td></tr>
+        <tr><td><a href="notes/day22.html#validate">④ 판정</a></td><td><code>response.status</code> · <code>output_text</code>, <code>KnowledgeAnswer</code> strict</td></tr>
+        <tr><td><a href="notes/day22.html#retry">⑤ 실패 처리</a></td><td><code>RateLimitError</code> · <code>e.code</code>, <code>APITimeoutError</code>, <code>APIStatusError</code></td></tr>
+        <tr><td><a href="notes/day22.html#metrics">⑥ 기록</a></td><td><code>response.usage</code>, <code>getattr(…, None)</code>, <code>Decimal</code> 비용식</td></tr>
+        <tr><td><a href="notes/day22.html#cache">⑦ 재사용 · Cache</a></td><td><code>json.dumps(sort_keys=True)</code> + <code>hashlib.sha256</code> cache key</td></tr>
+        <tr><td><a href="notes/day22.html#packages">📦 패키지</a></td><td><code>python -m pip show openai pydantic python-dotenv</code></td></tr>
       </table>
 </section>
 <section class="cmd" id="d22-env-shell" data-topic="LLM API 클라이언트" data-sub="환경 · 설정" data-day="22" data-theory="notes/day22.html#env">
@@ -34,7 +34,7 @@ python -m pip show openai pydantic python-dotenv
 # python -m pip install python-dotenv
 # 기존 실습의 버전 조건을 우선하며, 일괄 --upgrade는 하지 않습니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>이 노트를 만든 가상환경에서 실제로 확인 (python -m pip show 대신 import)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 가상환경에서 확인 (python -m pip show 대신 import)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>import openai, pydantic, dotenv, httpx</code></td><td><code>openai 3.52.0 · pydantic 2.14.3 · python-dotenv 1.2.4 · httpx 0.28.1</code></td><td>없는 패키지만 추가 — 일괄 --upgrade 하지 않음</td></tr>
@@ -56,8 +56,7 @@ python -m pip show openai pydantic python-dotenv
 # .env는 설정 파일입니다. Git·화면 캡처·제출물에서 제외합니다.
 OPENAI_API_KEY=본인_키
 
-# 이 과정의 기본 모델: 강사 환경에서 일반 텍스트 호출 확인
-# 수강생도 각자의 승인된 키·기존 가상환경에서 첫 호출을 확인합니다.
+# 기본 모델 (일반 텍스트 호출 확인됨)
 OPENAI_MODEL=gpt-5.4-mini-2026-03-17</code></pre>
       <table>
         <tr><th>부분</th><th>뜻</th></tr>
@@ -93,7 +92,7 @@ for name in (&quot;OPENAI_API_KEY&quot;, &quot;OPENAI_MODEL&quot;):
 MODEL = os.environ[&quot;OPENAI_MODEL&quot;]
 # OpenAI()는 위에서 설정한 OPENAI_API_KEY를 읽습니다. 키는 출력하지 않습니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 폴더에 가짜 키로 .env 를 만들어 강의 코드 그대로 실행 (키 값은 출력하지 않음)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>임시 폴더에 가짜 키로 .env 를 만들어 그대로 실행 (키 값은 출력하지 않음)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>.env 정상 (UTF-8)</code></td><td><code>MODEL = gpt-5.4-mini-2026-03-17 · 키 설정됨 = True</code></td><td>키는 &#x27;설정됐는지&#x27;만 확인 — 값은 화면에 안 냄</td></tr>
@@ -142,7 +141,7 @@ with OpenAI(
 # 이어지는 첫 호출 → Structured Outputs → Streaming에서 실제 사용을 확인합니다.
 # 실제 생성 호출에는 비용이 발생할 수 있습니다. 키를 HTML이나 채팅에 넣지 않습니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>SDK + 가짜 서버 · 목록은 이 노트가 만든 2개짜리 가짜 (실제 계정 목록 아님)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>SDK + 가짜 서버 · 목록은 2개짜리 가짜 (실제 계정 목록 아님)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>for model_id in dict.fromkeys([MODEL, 비교후보, MODEL])</code></td><td><code>gpt-5.4-mini-2026-03-17 목록에 있음 / gpt-5.4-2026-03-05 목록에서 확인되지 않음</code></td><td>dict.fromkeys = 순서 유지 중복 제거 (3개 → 2줄)</td></tr>
@@ -160,7 +159,7 @@ with OpenAI(
 </section>
 <section class="cmd" id="d22-env-direct" data-topic="LLM API 클라이언트" data-sub="환경 · 설정" data-day="22" data-theory="notes/day22.html#env">
   <h3>Git Bash · 기존 Python 경로로 다른 실습 실행</h3>
-<pre><code># Windows에서 이미 만든 수업용 가상환경의 Python을 지정합니다.
+<pre><code># Windows에서 이미 만든 기존 가상환경의 Python을 지정합니다.
 # 아래 경로는 예시입니다. 기존 환경의 실제 위치를 사용합니다.
 PYTHON=&quot;./.venv/Scripts/python.exe&quot;
 &quot;$PYTHON&quot; -c &quot;import sys; print(sys.executable)&quot;
@@ -210,15 +209,15 @@ print(&quot;답변:&quot;, response.output_text)
 print(&quot;토큰 사용량:&quot;, response.usage.model_dump() if response.usage is not None else None)
 client.close()  # 이 독립 연결 예제의 클라이언트를 닫습니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>openai SDK + 가짜 서버 · 위쪽 2줄은 SDK 가 실제로 보낸 요청, 아래는 강사 제공 로그 값을 넣은 응답</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>openai SDK + 가짜 서버 · 위쪽 2줄은 SDK 가 실제로 보낸 요청, 아래는 실제 호출 로그 값을 넣은 응답</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>(SDK가 보낸 주소)</code></td><td><code>POST https://api.openai.com/v1/responses</code></td><td>responses.create = POST /v1/responses</td></tr>
     <tr><td><code>(SDK가 보낸 JSON 본문)</code></td><td><code>{&quot;model&quot;: &quot;gpt-5.4-mini-2026-03-17&quot;, &quot;input&quot;: &quot;API의 역할을 쉽게 설명해 주세요.&quot;, &quot;instructions&quot;: &quot;한국어 한 문장으로 답하세요.&quot;, &quot;max_output_tokens&quot;: 1200, &quot;reasoning&quot;: {&quot;effort&quot;: &quot;none&quot;}, &quot;store&quot;: false}</code></td><td>키는 본문이 아니라 Authorization 헤더(Bearer …)로 감</td></tr>
     <tr><td><code>print(&quot;응답의 모델:&quot;, response.model)</code></td><td><code>응답의 모델: gpt-5.4-mini-2026-03-17</code></td><td>요청한 모델과 같은지 따로 확인</td></tr>
     <tr><td><code>print(&quot;생성 상태:&quot;, response.status)</code></td><td><code>생성 상태: completed</code></td><td>생성 완료 — 내용이 맞다는 뜻은 아님</td></tr>
-    <tr><td><code>print(&quot;답변:&quot;, response.output_text)</code></td><td><code>답변: API는 서로 다른 프로그램들이 정해진 규칙으로 데이터를 주고받고 기능을 이용하게 해 주는 “중간 다리”입니다.</code></td><td>강사 제공 로그의 문장 (이 노트가 호출한 결과 아님)</td></tr>
-    <tr><td><code>print(&quot;토큰 사용량:&quot;, response.usage.model_dump())</code></td><td><code>토큰 사용량: {&#x27;input_tokens&#x27;: 31, &#x27;input_tokens_details&#x27;: {&#x27;cache_write_tokens&#x27;: None, &#x27;cached_tokens&#x27;: 0, &#x27;cache_write_tokens_details&#x27;: None}, &#x27;output_tokens&#x27;: 36, &#x27;output_tokens_details&#x27;: {&#x27;reasoning_tokens&#x27;: 0}, &#x27;total_tokens&#x27;: 67}</code></td><td>31 + 36 = 67 · 가짜 응답에 없던 칸은 SDK 가 None 으로 채움 (강사 로그에는 cache_write_tokens 0 이 실제로 있었음)</td></tr>
+    <tr><td><code>print(&quot;답변:&quot;, response.output_text)</code></td><td><code>답변: API는 서로 다른 프로그램들이 정해진 규칙으로 데이터를 주고받고 기능을 이용하게 해 주는 “중간 다리”입니다.</code></td><td>원본 자료에 실린 실제 호출 로그의 문장</td></tr>
+    <tr><td><code>print(&quot;토큰 사용량:&quot;, response.usage.model_dump())</code></td><td><code>토큰 사용량: {&#x27;input_tokens&#x27;: 31, &#x27;input_tokens_details&#x27;: {&#x27;cache_write_tokens&#x27;: None, &#x27;cached_tokens&#x27;: 0, &#x27;cache_write_tokens_details&#x27;: None}, &#x27;output_tokens&#x27;: 36, &#x27;output_tokens_details&#x27;: {&#x27;reasoning_tokens&#x27;: 0}, &#x27;total_tokens&#x27;: 67}</code></td><td>31 + 36 = 67 · 가짜 응답에 없던 칸은 SDK 가 None 으로 채움 (실제 호출 로그에는 cache_write_tokens 0 이 있었음)</td></tr>
     <tr><td><code>response.id · response._request_id</code></td><td><code>resp_demo01 · req_demo01</code></td><td>생성 응답 ID ≠ HTTP 요청 추적 ID ≠ 우리 run_id</td></tr>
   </table>
 </div>
@@ -230,7 +229,7 @@ client.close()  # 이 독립 연결 예제의 클라이언트를 닫습니다.</
         <tr><td><code>instructions=</code></td><td>앱이 정한 지시(역할·제약·형식)</td></tr>
         <tr><td><code>input=</code></td><td>이번 요청에서 처리할 내용 (문자열 또는 메시지 목록)</td></tr>
         <tr><td><code>reasoning={&quot;effort&quot;: &quot;none&quot;}</code></td><td>추론 단계 최소화 — 이 모델이 지원하는 설정에서만</td></tr>
-        <tr><td><code>max_output_tokens=1200</code></td><td>한 응답의 출력 토큰 상한 (교안 정책값)</td></tr>
+        <tr><td><code>max_output_tokens=1200</code></td><td>한 응답의 출력 토큰 상한 (예시 설정값)</td></tr>
         <tr><td><code>store=False</code></td><td>응답을 서버에 저장해 두지 않는 옵션. <b>모든 로그·보존이 0</b>이라는 뜻은 아님</td></tr>
         <tr><td><code>response.output_text</code></td><td>출력 중 텍스트를 모아 주는 편의 속성. <code>output[0]</code>이 항상 답이라고 가정하지 않기</td></tr>
         <tr><td><code>response.usage</code></td><td>관측된 토큰 수. 없으면 <code>None</code> 그대로</td></tr>
@@ -238,8 +237,8 @@ client.close()  # 이 독립 연결 예제의 클라이언트를 닫습니다.</
       <div class="callout">💡 HTTP 200 → <code>response.status="completed"</code> → 답 내용이 맞음 — 이 셋은 <b>서로 다른 단계</b>예요. 첫 호출은 '연결 확인'까지만이에요.</div>
 </section>
 <section class="cmd" id="d22-instructor" data-topic="LLM API 클라이언트" data-sub="첫 호출" data-day="22" data-theory="notes/day22.html#first">
-  <h3>강사 제공 로그 읽기 — usage 포함 관계</h3>
-<pre><code># 교안에 실린 강사 콘솔 출력 (일반 텍스트 1회 · 스트리밍 아님)
+  <h3>실제 호출 로그 읽기 — usage 포함 관계</h3>
+<pre><code># 실제 호출 1회의 콘솔 출력 (일반 텍스트 · 스트리밍 아님)
 # requested_model = returned_model = gpt-5.4-mini-2026-03-17
 # status = completed
 usage = {&quot;input_tokens&quot;: 31,
@@ -248,11 +247,11 @@ usage = {&quot;input_tokens&quot;: 31,
          &quot;output_tokens_details&quot;: {&quot;reasoning_tokens&quot;: 0},
          &quot;total_tokens&quot;: 67}</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>교안에 실린 강사 제공 로그의 숫자로 계산만</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 호출 로그의 숫자로 계산</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>31 + 36</code></td><td><code>67</code></td><td>total_tokens 67 과 일치 — cached·reasoning 은 이미 각 합 안의 일부라 더하지 않음</td></tr>
-    <tr><td><code>est(31, 0, 36)  # 교안 가상 단가 적용</code></td><td><code>0.00018525</code></td><td>강사 1회 호출의 추정치 (교안 단가 기준 · 청구액 아님)</td></tr>
+    <tr><td><code>est(31, 0, 36)  # 가상 단가 적용</code></td><td><code>0.00018525</code></td><td>호출 1회의 추정치 (가상 단가 · 청구액 아님)</td></tr>
   </table>
 </div>
       <table>
@@ -262,14 +261,14 @@ usage = {&quot;input_tokens&quot;: 31,
         <tr><td><code>total_tokens</code></td><td>입력 + 출력. 부분 항목을 다시 더하지 않아요</td></tr>
         <tr><td>빠진 값</td><td>실행 시각·SDK 버전·응답 시간·청구액은 로그에 없음 → 기록할 때도 <code>None</code></td></tr>
       </table>
-      <div class="callout">⚠️ 강사 환경에서 확인된 건 <b>일반 텍스트 생성 1회</b>뿐이에요. Structured Outputs·Streaming·비교 모델 생성은 '미확인'으로 남아 있어요.</div>
+      <div class="callout">⚠️ 실제로 확인된 건 <b>일반 텍스트 생성 1회</b>뿐이에요. Structured Outputs·Streaming·비교 모델 생성은 '미확인'으로 남아 있어요.</div>
 </section>
 <section class="cmd" id="d22-request" data-topic="LLM API 클라이언트" data-sub="요청 · Structured Outputs" data-day="22" data-theory="notes/day22.html#request">
   <h3>질문 + 선택 지식 → Responses 요청 dict</h3>
 <pre><code># question·selected·instructions_text·MODEL은 먼저 준비합니다.
 import json
 
-# instructions_text: 16일에 고정한 Prompt
+# instructions_text: 고정한 Prompt
 # selected: 이번 요청에 포함할 지식만
 payload = {
     &quot;question&quot;: question,
@@ -290,7 +289,7 @@ request = {
     &quot;max_output_tokens&quot;: 1200, &quot;store&quot;: False,
 }</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>H01 질문 + 지식 103 (instructions_text 는 이 노트가 짧게 쓴 예)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>H01 질문 + 지식 103 (instructions_text 는 짧게 쓴 예)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>print(user_input)</code></td><td><code>{&quot;question&quot;: &quot;오류 질문에 무엇을 적나요?&quot;, &quot;knowledge&quot;: [{&quot;id&quot;: 103, &quot;title&quot;: &quot;질문 작성&quot;, &quot;content&quot;: &quot;오류 메시지와 시도한 작업을 함께 적습니다.&quot;}]}</code></td><td>DB 전체가 아니라 고른 지식 1개만</td></tr>
@@ -331,7 +330,7 @@ output_format = {
     &quot;schema&quot;: WireAnswer.model_json_schema(),
 }</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>WireAnswer.model_json_schema()[&quot;required&quot;]</code></td><td><code>[&#x27;status&#x27;, &#x27;answer&#x27;, &#x27;source_ids&#x27;, &#x27;missing_information&#x27;]</code></td><td>기본값 없는 네 필드 = 모두 필수</td></tr>
@@ -392,7 +391,7 @@ SourceID = Annotated[int, Field(strict=True, gt=0)]
 class KnowledgeAnswer(BaseModel):
     model_config = ConfigDict(extra=&quot;forbid&quot;, strict=True)
     status: Literal[&quot;answered&quot;, &quot;insufficient_context&quot;]
-    # 길이 제한은 이 수업의 정책값입니다. 모델의 보편적 한도가 아닙니다.
+    # 길이 제한은 예시 설정값입니다. 모델의 보편적 한도가 아닙니다.
     answer: str = Field(min_length=1, max_length=500)
     source_ids: list[SourceID] = Field(max_length=3)
     missing_information: str = Field(max_length=200)
@@ -401,22 +400,22 @@ class KnowledgeAnswer(BaseModel):
 # &quot;101&quot;·true를 정수 ID로 자동 변환하지 않습니다.
 # 제공 ID의 범위와 실제 근거는 다음 단계에서 검사합니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>교안 local-contract 그대로 (KnowledgeAnswer.model_validate 에 dict 직접)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>KnowledgeAnswer.model_validate 에 dict 직접</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>source_ids=[101]</code></td><td><code>[101]</code></td><td>통과</td></tr>
     <tr><td><code>source_ids=[&quot;101&quot;]</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>문자열 ID 거부 (Wire 와 다름)</td></tr>
     <tr><td><code>source_ids=[True]</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>불리언도 정수로 안 바꿈</td></tr>
     <tr><td><code>source_ids=[0]</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>gt=0 → 양의 정수만</td></tr>
-    <tr><td><code>source_ids=[101,102,103,104]</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>교안 정책: 최대 3개</td></tr>
-    <tr><td><code>answer=&quot;가&quot;×501</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>교안 정책: 1~500자</td></tr>
+    <tr><td><code>source_ids=[101,102,103,104]</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>예시 설정: 최대 3개</td></tr>
+    <tr><td><code>answer=&quot;가&quot;×501</code></td><td><code>ValidationError: 1 validation error for KnowledgeAnswer …</code></td><td>예시 설정: 1~500자</td></tr>
   </table>
 </div>
       <table>
         <tr><th>부분</th><th>뜻</th></tr>
         <tr><td><code>Annotated[int, Field(strict=True, gt=0)]</code></td><td>타입 + 제약을 묶은 별칭 — 양의 정수만, 자동 변환 없음</td></tr>
         <tr><td><code>ConfigDict(extra=&quot;forbid&quot;, strict=True)</code></td><td>추가 필드 금지 + 전체 strict</td></tr>
-        <tr><td><code>Field(min_length=1, max_length=500)</code></td><td>문자열 길이 (교안 정책값)</td></tr>
+        <tr><td><code>Field(min_length=1, max_length=500)</code></td><td>문자열 길이 (예시 설정값)</td></tr>
         <tr><td><code>list[SourceID] = Field(max_length=3)</code></td><td>목록의 <b>항목 수</b> 상한</td></tr>
       </table>
 </section>
@@ -453,7 +452,7 @@ else:
     raw = final.output_text   # 검사는 조각(parts)이 아니라 최종 Response로
 # 수신 중 예외(연결 끊김 등)는 바깥 try/except에서 잡습니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>SSE 바이트를 가짜 서버가 보내고, SDK 가 실제로 해석한 이벤트로 강의 루프 그대로 (시간 값은 의미 없어 관측 여부만)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>SSE 바이트를 가짜 서버가 보내고, SDK 가 실제로 해석한 이벤트로 위 루프 그대로 (시간 값은 의미 없어 관측 여부만)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>delta 여러 개 → completed</code></td><td><code>조각 4개 · first_ms 관측=True · final.status=&#x27;completed&#x27; · output_text 104자 · usage 합계=67</code></td><td>완료 + 원문 있음 → json.loads → model_validate 로</td></tr>
@@ -478,7 +477,7 @@ else:
       </table>
       <div class="callout">⚠️ 부분 JSON을 보고 도구 실행·DB 변경·캐시 저장을 하지 않아요. 연결이 끊기면 SDK가 예외를 던지니 바깥에서 잡아 <code>interrupted</code>로 기록해요.</div>
 </section>
-<section class="cmd" id="d22-ownership" data-topic="LLM API 클라이언트" data-sub="오류 · 재시도" data-day="22" data-theory="notes/day22.html#retry">
+<section class="cmd" id="d22-ownership" data-topic="LLM API 클라이언트" data-sub="오류 · 재시도" data-day="22" data-theory="notes/day22.html#sdkretry">
   <h3><code>OpenAI(max_retries=0)</code> · SDK 예외 읽기</h3>
 <pre><code>import openai
 from openai import OpenAI
@@ -541,14 +540,14 @@ usage = None if u is None else {
 # stream은 완료 Response에서 읽습니다.
 # 없는 값에 `or 0`을 사용하지 않습니다.</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>교안 USAGE 사례(가상값)를 SDK Response 로 파싱해 강의 코드 그대로</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>가상 usage 사례를 SDK Response 로 파싱해 실행</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>일반 응답</code></td><td><code>{&#x27;input_tokens&#x27;: 1000, &#x27;output_tokens&#x27;: 200, &#x27;cached_tokens&#x27;: 400, &#x27;reasoning_tokens&#x27;: 0}</code></td><td>cached 400 은 input 1000 안의 일부</td></tr>
     <tr><td><code>cached_tokens 가 실제 0</code></td><td><code>{&#x27;input_tokens&#x27;: 1000, &#x27;output_tokens&#x27;: 200, &#x27;cached_tokens&#x27;: 0, &#x27;reasoning_tokens&#x27;: 0}</code></td><td>0 은 &#x27;관측된 0&#x27;</td></tr>
     <tr><td><code>캐시 세부 필드가 없음</code></td><td><code>{&#x27;input_tokens&#x27;: 1000, &#x27;output_tokens&#x27;: 200, &#x27;cached_tokens&#x27;: None, &#x27;reasoning_tokens&#x27;: None}</code></td><td>필드 없음 → None (0 이라고 단정 안 함)</td></tr>
     <tr><td><code>Timeout 으로 usage 미수신</code></td><td><code>None</code></td><td>usage 자체가 None → 비용 미확인</td></tr>
-    <tr><td><code>(잘못된 방법) getattr(...) or 0</code></td><td><code>0</code></td><td>모르는 값이 0 으로 둔갑 — 교안이 or 0 을 금지한 이유</td></tr>
+    <tr><td><code>(잘못된 방법) getattr(...) or 0</code></td><td><code>0</code></td><td>모르는 값이 0 으로 둔갑 — or 0 을 쓰지 않는 이유</td></tr>
   </table>
 </div>
       <table>
@@ -575,10 +574,10 @@ estimated_usd = (
 ) / Decimal(1_000_000)
 print(estimated_usd)   # 0.00138</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>교안 코드 그대로 (단가·사용량은 교안의 가상값)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 (단가·사용량은 가상값)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
-    <tr><td><code>print(estimated_usd)  # 1000 · 400 · 200</code></td><td><code>0.00138</code></td><td>교안 주석 0.00138 과 같음</td></tr>
+    <tr><td><code>print(estimated_usd)  # 1000 · 400 · 200</code></td><td><code>0.00138</code></td><td>손 계산 0.00138 과 같음</td></tr>
     <tr><td><code>항목별</code></td><td><code>일반 입력 0.00045 + 캐시 입력 0.00003 + 출력 0.0009</code></td><td>출력 200 토큰이 전체의 65% — 출력 단가가 6배</td></tr>
     <tr><td><code>cached_tokens = 0 이면</code></td><td><code>0.00165</code></td><td>캐시 400 이 0.000270 아낀 셈</td></tr>
     <tr><td><code>(잘못) 입력 1000 전체 + 캐시 400 을 또 더함</code></td><td><code>0.00168</code></td><td>캐시 입력을 두 번 셈 → 과대 추정</td></tr>
@@ -592,7 +591,7 @@ print(estimated_usd)   # 0.00138</code></pre>
         <tr><td><code>Decimal(&quot;0.75&quot;)</code></td><td>십진수 — 문자열로 만들어야 0.1 같은 값이 정확</td></tr>
         <tr><td><code>input_tokens - cached_tokens</code></td><td>캐시 입력을 일반 입력에서 빼야 <b>두 번 세지 않음</b></td></tr>
         <tr><td><code>/ Decimal(1_000_000)</code></td><td>단가가 '100만 토큰당 USD'라서. <code>1_000_000</code>의 _는 자릿수 구분</td></tr>
-        <tr><td>단가 0.75 / 0.075 / 4.50</td><td>교안의 <b>계산용 값</b> — 현재 공식 단가는 수업 전에 다시 확인</td></tr>
+        <tr><td>단가 0.75 / 0.075 / 4.50</td><td><b>계산용 가상 값</b> — 실제 단가는 공식 Pricing 문서에서 확인</td></tr>
       </table>
       <div class="callout">💡 비용 기록에는 price_version · checked_at · currency · service_tier를 함께 남겨요. 실행별 추정 ≠ 최종 청구서.</div>
 </section>
@@ -618,7 +617,7 @@ cache_key = hashlib.sha256(
     canonical.encode(&quot;utf-8&quot;)
 ).hexdigest()</code></pre>
 <div class="io">
-  <div class="io-title">▶ 실제로 돌려 보면 <small>교안 코드 그대로 · H01 request 기준 (앞 16글자만 표시)</small></div>
+  <div class="io-title">▶ 실제로 돌려 보면 <small>실제 실행 · 예시 요청 기준 (앞 16글자만 표시)</small></div>
   <table class="io-table">
     <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
     <tr><td><code>기준</code></td><td><code>a14ed63e72e25c6b…</code></td><td>기준과 같음 — 64글자 16진수</td></tr>

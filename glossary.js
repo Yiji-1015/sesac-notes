@@ -8335,7 +8335,7 @@ window.GLOSSARY = [
    "생각의 사슬"
   ],
   "full": "Chain-of-Thought Prompting",
-  "short": "중간 풀이가 이어진 예제를 보여 주는 고전적인 Prompt 기법. 긴 풀이가 곧 정답의 증거는 아니라서, 오늘은 풀이 대신 검사할 수 있는 결과를 봐요.",
+  "short": "중간 풀이가 이어진 예제를 보여 주는 고전적인 Prompt 기법. 긴 풀이가 곧 정답의 증거는 아니라서, 풀이 대신 검사할 수 있는 결과를 봐요.",
   "analogy": "풀이 과정을 쓰라는 수학 시험 — 풀이가 길다고 답이 맞는 건 아님.",
   "first": 21,
   "days": [
@@ -8460,7 +8460,7 @@ window.GLOSSARY = [
    "fixture"
   ],
   "full": "Fixture",
-  "short": "검사기·제어 흐름이 제대로 동작하는지 보려고 미리 만든 고정 입력. 오늘은 교사가 쓴 정상·실패 응답 샘플이에요. 모델 성능의 증거가 아니에요.",
+  "short": "검사기·제어 흐름이 제대로 동작하는지 보려고 미리 만든 고정 입력. 예: 미리 써 둔 정상·실패 응답 샘플. 모델 성능의 증거가 아니에요.",
   "analogy": "화재경보기 시험용 연기 스프레이.",
   "first": 21,
   "days": [
@@ -8511,7 +8511,7 @@ window.GLOSSARY = [
    "KnowledgeAnswer"
   ],
   "full": "Output Contract",
-  "short": "응답이 따라야 할 필드·자료형·상태별 규칙. 오늘은 status · answer · source_ids · missing_information 네 필드로, 답변 가능과 정보 부족을 같은 틀로 받아요.",
+  "short": "응답이 따라야 할 필드·자료형·상태별 규칙. 예: status · answer · source_ids · missing_information 네 필드로, 답변 가능과 정보 부족을 같은 틀로 받아요.",
   "analogy": "납품 규격서 — 상자 크기·라벨 위치까지.",
   "first": 21,
   "days": [
@@ -8611,7 +8611,7 @@ window.GLOSSARY = [
    "Retry"
   ],
   "full": "Retry",
-  "short": "실패 원인을 확인한 뒤 정해 둔 조건·횟수 안에서 다시 요청하는 제어. 오늘 정책은 형식 오류만 1회 수정(최대 2회), 규칙 위반은 바로 중단.",
+  "short": "실패 원인을 확인한 뒤 정해 둔 조건·횟수 안에서 다시 요청하는 제어. 예시 정책: 형식 오류만 1회 수정(최대 2회), 규칙 위반은 바로 중단.",
   "analogy": "주소 오타는 다시 보내지만, 받는 사람이 없으면 몇 번을 보내도 소용없음.",
   "first": 21,
   "days": [
@@ -8746,7 +8746,7 @@ window.GLOSSARY = [
   ],
   "full": "instructions / input",
   "short": "instructions는 앱이 고정한 작업·제약·형식, input은 이번 질문과 고른 지식. input 안의 메시지는 role(역할)과 content(내용)로 구성돼요.",
-  "analogy": "업무 매뉴얼(instructions)과 오늘 들어온 민원 서류(input).",
+  "analogy": "업무 매뉴얼(instructions)과 이번에 들어온 민원 서류(input).",
   "first": 22,
   "days": [
    22
@@ -8926,7 +8926,7 @@ window.GLOSSARY = [
    "지수 백오프"
   ],
   "full": "Exponential Backoff",
-  "short": "실패가 반복될수록 대기 시간을 1·2·4·8초처럼 늘리는 재시도 정책. 교안 본문은 상한 8초.",
+  "short": "실패가 반복될수록 대기 시간을 1·2·4·8초처럼 늘리는 재시도 정책. 예: 상한 8초.",
   "analogy": "전화가 안 되면 1분, 2분, 4분 간격으로 다시 걸기.",
   "first": 22,
   "days": [
@@ -8941,7 +8941,7 @@ window.GLOSSARY = [
   ],
   "full": "Jitter",
   "short": "재시도 시점을 흩뜨리는 작은 무작위 지연. 모두가 정확히 2초 뒤 재전송하면 요청이 다시 한꺼번에 몰리기 때문이에요.",
-  "analogy": "수업 끝나고 매점에 몇 초씩 다르게 출발하기.",
+  "analogy": "종이 울린 뒤 매점에 몇 초씩 다르게 출발하기.",
   "first": 22,
   "days": [
    22
@@ -8955,7 +8955,7 @@ window.GLOSSARY = [
    "타임아웃"
   ],
   "full": "Timeout",
-  "short": "클라이언트가 정한 대기 조건을 넘었다는 뜻. 서버는 이미 생성했을 수도 있어 비용을 0으로 확정하지 않고, 이 수업은 자동 재전송하지 않아요.",
+  "short": "클라이언트가 정한 대기 조건을 넘었다는 뜻. 서버는 이미 생성했을 수도 있어 비용을 0으로 확정하지 않고, 자동 재전송하지 않는 게 안전해요.",
   "analogy": "보낸 편지 답장이 안 온다고 상대가 안 읽었다는 뜻은 아님.",
   "first": 22,
   "days": [
@@ -8970,7 +8970,7 @@ window.GLOSSARY = [
    "max_retries=0"
   ],
   "full": "max_retries (SDK automatic retry)",
-  "short": "openai SDK가 연결 오류·408·409·429·5xx를 스스로 다시 보내는 횟수(기본 2). 이 수업은 0으로 끄고 앱이 원인을 보고 결정해요 — 둘 다 켜면 전송이 곱으로 늘어요.",
+  "short": "openai SDK가 연결 오류·408·409·429·5xx를 스스로 다시 보내는 횟수(기본 2). 0으로 끄고 앱이 원인을 보고 결정해요 — 둘 다 켜면 전송이 곱으로 늘어요.",
   "analogy": "비서도 다시 걸고 나도 다시 걸면 상대는 전화를 네 번 받음.",
   "first": 22,
   "days": [
@@ -8989,7 +8989,7 @@ window.GLOSSARY = [
    "전송 시도"
   ],
   "full": "Generation number / Send attempt",
-  "short": "generation_no는 최초(1)·형식 수정(2) 생성의 번호, send_attempt는 그 생성 요청의 통신 전송 번호. 교안 상한: 생성 2 × 전송 2, 전체 4회.",
+  "short": "generation_no는 최초(1)·형식 수정(2) 생성의 번호, send_attempt는 그 생성 요청의 통신 전송 번호. 예시 상한: 생성 2 × 전송 2, 전체 4회.",
   "analogy": "원고 1차·2차 수정본(생성)과, 각 원고를 팩스로 몇 번 보냈는지(전송).",
   "first": 22,
   "days": [

@@ -50,7 +50,7 @@ OKC, BADC, SKIPC, WARN, HUMAN = "#d3f9d8", "#ffe3e3", "#f1f3f5", "#fff3bf", "#ff
 def fig_flow():
     fig, ax = canvas(12.6, 4.4, 12.6, 4.4)
     xs = [0.2, 2.75, 5.3, 7.85, 10.4]
-    items = [("질문 · 선택 지식\n+ 고정 Prompt\n(11/16 그대로)", "#f8f9fa", C["gray"]),
+    items = [("질문 · 선택 지식\n+ 고정 Prompt\n(Prompt·Context 설계)", "#f8f9fa", C["gray"]),
              ("LLM Client\n인증 · 모델 선택\n캐시 · 전송 · 재시도", "#f3f0ff", C["purple"]),
              ("외부 LLM API\nResponses\n(Streaming 가능)", "#fff0f6", C["pink"]),
              ("응답 검증\n완료 판정 → JSON·Schema\n→ 출처·상태 규칙", "#e7f5ff", C["blue"]),
@@ -59,10 +59,10 @@ def fig_flow():
         rbox(ax, x, 2.0, 2.05, 1.5, t, fc=fc, ec=ec, fs=9.1)
     for a, b in zip(xs[:-1], xs[1:]):
         arrow(ax, a + 2.05, 2.75, b, 2.75)
-    ax.text(6.3, 4.05, "오늘 바뀌는 건 '응답을 받는 방법' — 사람이 복사하던 응답 → Python이 API로 수신", ha="center",
+    ax.text(6.3, 4.05, "LLM Client — 입력 설계와 출력 검증 사이에서 실제 API 호출을 맡는 층", ha="center",
             fontsize=10.2, fontweight="bold", color=C["ink"])
-    ax.text(3.78, 3.65, "오늘 새로: ③ Streaming ④ 재시도 ⑤ 측정 ⑥ 캐시 ⑦ 라우팅", ha="center", fontsize=8.6, color=C["purple"])
-    rbox(ax, 2.75, 0.3, 7.15, 0.95, "검색(RAG) · 도구 실행(Agent)은 이후 — 모델의 JSON 응답은 도구를 실행해도 된다는 권한이 아님",
+    ax.text(3.78, 3.65, "맡는 일: 모델 선택 · 캐시 · 전송 · 재시도 · 측정", ha="center", fontsize=8.6, color=C["purple"])
+    rbox(ax, 2.75, 0.3, 7.15, 0.95, "검색(RAG) · 도구 실행(Agent)이 붙어도 같은 층 — 모델의 JSON 응답은 도구를 실행해도 된다는 권한이 아님",
          fc="#fff9db", ec=C["yellow"], fs=9, ls="--")
     save(fig, 22, "flow")
 
@@ -71,7 +71,7 @@ def fig_flow():
 def fig_layers():
     g = R["gate"]
     fig, ax = canvas(12.4, 5.6, 12.4, 5.6)
-    ax.text(0.1, 5.3, "같은 'status'라도 세 층 — 교안 GATE_CASES 8개를 SDK Response로 만들어 실제로 판정", fontsize=10.2,
+    ax.text(0.1, 5.3, "같은 'status'라도 세 층 — 8가지 사례를 SDK Response로 만들어 실제로 판정", fontsize=10.2,
             fontweight="bold", color=C["ink"])
     cols = ["사례", "HTTP", "response.status", "완료 판정\n오류", "run_status\n(앱 실행 결과)", "answer.status\n(업무)", "근거"]
     ws = [2.9, 0.9, 1.6, 1.7, 2.0, 1.8, 1.3]
@@ -142,7 +142,7 @@ def fig_sdk_retry():
     fig, ax = plt.subplots(figsize=(10.5, 4.0))
     import numpy as np
     xx = np.arange(len(labels))
-    b1 = ax.bar(xx - 0.2, s0, 0.38, color=C["purple"], label="max_retries=0 (수업 설정)")
+    b1 = ax.bar(xx - 0.2, s0, 0.38, color=C["purple"], label="max_retries=0 (앱이 재시도 관리)")
     b2 = ax.bar(xx + 0.2, s2, 0.38, color=C["pink"], label="max_retries 기본값 2")
     for bars in (b1, b2):
         for b in bars:
@@ -161,7 +161,7 @@ def fig_sdk_retry():
 def fig_bounded():
     b = R["bounded"]
     fig, ax = canvas(12.6, 5.2, 12.6, 5.2)
-    ax.text(0.1, 4.9, "생성 × 전송 — 각본대로 응답하는 가짜 서버로 강의 재시도 흐름 실행 (생성 ≤ 2 · 생성당 전송 ≤ 2 · 전체 ≤ 4)",
+    ax.text(0.1, 4.9, "생성 × 전송 — 각본대로 응답하는 가짜 서버로 상한 재시도 흐름 실행 (생성 ≤ 2 · 생성당 전송 ≤ 2 · 전체 ≤ 4)",
             fontsize=10, fontweight="bold", color=C["ink"])
     h = 0.66
     for i, r in enumerate(b):
@@ -204,7 +204,7 @@ def fig_backoff():
     for a, v in zip(att, main_lo):
         ax.text(a + 0.12, v - 2.2, f"{v:g}", ha="center", fontsize=8.5, color=C["purple"])
     ax.set_xlabel("attempt (첫 실패 = 1)"); ax.set_ylabel("대기 초 (Retry-After 없음)")
-    ax.set_title("Exponential backoff — 실패가 반복될수록 대기를 늘림 (강의 두 함수 실제 계산)")
+    ax.set_title("Exponential backoff — 실패가 반복될수록 대기를 늘림 (두 대기식 실제 계산)")
     ax.set_ylim(-3, 37); ax.legend(fontsize=8.6, loc="upper left")
     save(fig, 22, "backoff")
 
@@ -227,7 +227,7 @@ def fig_cost():
     ax.barh([0], [w], color=C["gray"], height=0.55, alpha=0.6)
     ax.text(w + 15, 0, f"= ${R['cost_wrong']:.5f}  ← 캐시 400을 일반 입력에도 포함", va="center", fontsize=9, color=C["red"])
     ax.set_yticks([1, 0]); ax.set_yticklabels(["올바른 계산\n(1000-400)·0.75 + 400·0.075 + 200·4.5", "잘못된 계산\n1000·0.75 + 400·0.075 + 200·4.5"], fontsize=8.6)
-    ax.set_xlim(0, 2400); ax.set_xlabel("× 1/1,000,000 USD  (교안 가상 단가 · 입력 1000 · 캐시 400 · 출력 200)")
+    ax.set_xlim(0, 2400); ax.set_xlabel("× 1/1,000,000 USD  (가상 단가 · 입력 1000 · 캐시 400 · 출력 200)")
     ax.grid(axis="y", visible=False)
     ax.set_title("비용 추정 — 출력 200 토큰이 전체의 65%")
     save(fig, 22, "cost")

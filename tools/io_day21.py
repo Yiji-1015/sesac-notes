@@ -41,7 +41,7 @@ def err(fn):
 
 
 # ------------------------------------------------------------------ 버전
-IO["d21-pip-install"] = ("이 노트를 만든 가상환경에서 실제로 확인", [
+IO["d21-pip-install"] = ("실제 가상환경에서 확인", [
     ("import pydantic, pytest", f"pydantic {pydantic.VERSION} · pytest {pytest.__version__}",
      "string · json · hashlib · copy 는 Python 표준 라이브러리라 설치 없음"),
     ("python --version", sys.version.split()[0], "이 버전 기준 결과"),
@@ -59,7 +59,7 @@ prompt = """[작업] 제공된 자료로 질문에 답하세요.
 [질문] 파일은 어디에 보관하나요?
 [자료] 101: 실습 파일은 개인 폴더에 보관합니다.
 [조건] 자료에 없는 사실은 추측하지 마세요."""
-IO["d21-prompt-basic"] = ("강의 코드 그대로", [
+IO["d21-prompt-basic"] = ("실제 실행", [
     ("print(prompt)", prompt.replace("\n", " ⏎ "), "줄바꿈(⏎)까지 그대로 — 모델에 보낼 입력 문자열일 뿐"),
     ("type(prompt).__name__, len(prompt)", f"{type(prompt).__name__}, {len(prompt)}",
      "그냥 str — print는 모델을 부르지 않아요"),
@@ -69,7 +69,7 @@ IO["d21-prompt-basic"] = ("강의 코드 그대로", [
 question = "파일은 어디에 보관하나요?"
 template = Template("질문: $question")
 p1 = template.substitute(question=question)
-IO["d21-placeholder"] = ("강의 코드 + 빠진 값 확인", [
+IO["d21-placeholder"] = ("실제 실행 + 빠진 값 확인", [
     ('Template("질문: $question").substitute(question=question)', p1, "$question 자리에 값이 들어감"),
     ('Template("기호: $$").substitute()', Template("기호: $$").substitute(), "$ 글자 자체는 $$ 로"),
     ('Template("질문: ${question}입니다").substitute(question="위치")',
@@ -92,7 +92,7 @@ $context_json
 $contract
 """)
 p20 = T.substitute(question=question, context_json=context_json, contract=contract_text)
-IO["d21-template"] = ("강의 코드 그대로", [
+IO["d21-template"] = ("실제 실행", [
     ("print(prompt)", p20.strip().replace("\n", " ⏎ "), "고정 문장은 그대로, $ 세 곳만 바뀜"),
     ("T.substitute(question=question, context_json=context_json)",
      err(lambda: T.substitute(question=question, context_json=context_json)), "contract를 빼면 KeyError: 'contract'"),
@@ -103,7 +103,7 @@ IO["d21-template"] = ("강의 코드 그대로", [
 
 # ------------------------------------------------------------------ 여섯 요소
 parts = {
-    "역할": "초보 수강생의 실습 도움말 작성자",
+    "역할": "초보자의 실습 도움말 작성자",
     "작업": "질문에 한국어 2문장 이내로 답하기",
     "입력": "사용자 질문과 선택된 지식",
     "제약": "제공한 근거 범위에서만 답하기",
@@ -111,7 +111,7 @@ parts = {
     "출력": "status, answer, source_ids, missing_information의 JSON",
 }
 instruction = "\n\n".join(f"[{name}]\n{text}" for name, text in parts.items())
-IO["d21-prompt-six"] = ("강의 코드 그대로", [
+IO["d21-prompt-six"] = ("실제 실행", [
     ("print(instruction)  # 처음 두 구역", " ⏎ ".join(instruction.split("\n")[:5]), "구역 제목 + 내용, 빈 줄로 구분"),
     ("len(parts), instruction.count('[')", f"{len(parts)}, {instruction.count('[')}", "여섯 구역"),
 ])
@@ -129,7 +129,7 @@ examples = """[예제 자료] 901: 대여 장소는 안내 데스크입니다.
 current_request = """[현재 자료] 101: 실습 파일은 개인 폴더에 보관합니다.
 [현재 질문] 파일은 어디에 보관하나요?"""
 few_shot = examples + "\n\n" + current_request
-IO["d21-zero-few-shot"] = ("강의 코드 그대로", [
+IO["d21-zero-few-shot"] = ("실제 실행", [
     ("zero_shot.count('[예제')", str(zero_shot.count("[예제")), "Zero-shot = 입력→출력 예제 0개 (자료·지시는 있음)"),
     ("few_shot.count('[예제 질문')", str(few_shot.count("[예제 질문")), "예제 2개: 답변 가능 1 · 정보 부족 1"),
     ("len(zero_shot), len(few_shot)", f"{len(zero_shot)}, {len(few_shot)}", "예제만큼 입력이 길어짐 = Context 공간을 씀"),
@@ -141,7 +141,7 @@ rows = [{"id": 101, "content": "실습 파일은 개인 폴더에 보관합니�
 snapshot = deepcopy(rows)
 shallow = list(rows)
 rows[0]["content"] = "(DB가 나중에 바뀜)"
-IO["d21-snapshot"] = ("강의 코드 + 원본을 바꿔 보기", [
+IO["d21-snapshot"] = ("실제 실행 + 원본을 바꿔 보기", [
     ('rows[0]["content"] = "(DB가 나중에 바뀜)" 후 snapshot[0]["content"]', snapshot[0]["content"], "deepcopy 스냅샷은 그대로"),
     ("같은 조건에서 shallow = list(rows) 였다면", shallow[0]["content"], "얕은 복사는 안쪽 dict를 공유 → 같이 바뀜"),
     ("snapshot is rows", str(snapshot is rows), "다른 객체"),
@@ -151,7 +151,7 @@ IO["d21-snapshot"] = ("강의 코드 + 원본을 바꿔 보기", [
 selected_rows = [{"id": 101, "content": "실습 파일은 개인 폴더에 보관합니다."}]
 cj = json.dumps(selected_rows, ensure_ascii=False)
 restored = json.loads(cj)
-IO["d21-serialization"] = ("강의 코드 그대로", [
+IO["d21-serialization"] = ("실제 실행", [
     ("type(context_json).__name__", type(cj).__name__, "직렬화 결과는 문자열"),
     ("print(context_json)", cj, "한글이 그대로 보임"),
     ("json.dumps(selected_rows)  # ensure_ascii 기본값", json.dumps(selected_rows)[:60] + "…", "기본은 \\uXXXX로 바뀜 — 사람이 읽기 어려움"),
@@ -190,7 +190,7 @@ total, instruction_and_question, examples_tok, reserved_output, margin = 8192, 8
 remaining = total - instruction_and_question - examples_tok - reserved_output - margin
 rem2 = total - instruction_and_question - (examples_tok + 1000) - reserved_output - margin
 rem3 = total - instruction_and_question - 6000 - reserved_output - margin
-IO["d21-budget"] = ("강의 코드 · 숫자는 강의의 가상 예산 (실제 Tokenizer 측정값 아님)", [
+IO["d21-budget"] = ("실제 실행 · 숫자는 가상 예산 (실제 Tokenizer 측정값 아님)", [
     ("print(remaining)", str(remaining), "8192 − 800 − 600 − 1600 − 256"),
     ("examples = 1600 (예제 +1000)", str(rem2), "예제를 늘린 만큼 근거 공간이 줄어요"),
     ("examples = 6000", f"{rem3} → 예산 초과 메시지", "음수 = 근거를 하나도 못 넣음"),
@@ -210,7 +210,7 @@ _, h_keys = sha([{"content": "실습 파일은 개인 폴더에 보관합니다.
 _, h_order = sha([small[1], small[0]])
 _, h_order2 = sha([small[0], small[1]])
 _, h_edit = sha([{"id": 101, "content": "실습 파일은 개인 폴더에 보관합니다!"}])
-IO["d21-hash"] = ("강의 코드 그대로 + 바꿔 보기", [
+IO["d21-hash"] = ("실제 실행 + 바꿔 보기", [
     ("snapshot_text", st, "sort_keys · 공백 없는 구분자 → 표현을 하나로 고정"),
     ("context_sha256", h1, "16진수 64글자"),
     ("dict 키 순서만 바꾼 같은 내용", f"{h_keys[:16]}… 같음={h_keys == h1}", "sort_keys=True 덕분에 같은 해시"),
@@ -222,7 +222,7 @@ IO["d21-hash"] = ("강의 코드 그대로 + 바꿔 보기", [
 planned, executed, json_passed, human_judged, human_ok = 3, 2, 2, 1, 1
 json_rate = json_passed / planned
 human_rate = human_ok / human_judged if human_judged else None
-IO["d21-metrics"] = ("강의 코드 그대로 · 분모 설명용 가상 기록 (실제 모델 성능 아님)", [
+IO["d21-metrics"] = ("실제 실행 · 분모 설명용 가상 기록 (실제 모델 성능 아님)", [
     ('print("JSON:", json_rate, "미실행:", planned - executed)', f"JSON: {json_rate} 미실행: {planned - executed}", "분모는 계획한 3건 — 2/3"),
     ('print("근거 적합률:", human_rate, "근거 미평가:", executed - human_judged)',
      f"근거 적합률: {human_rate} 근거 미평가: {executed - human_judged}", "1/1 = 100%지만 3건 중 1건만 본 결과"),
@@ -232,7 +232,7 @@ IO["d21-metrics"] = ("강의 코드 그대로 · 분모 설명용 가상 기록 
 # ------------------------------------------------------------------ JSON
 raw = '{"answer": "개인 폴더에 보관합니다.", "source_ids": [101]}'
 data = json.loads(raw)
-IO["d21-json"] = ("강의 코드 그대로 + 자료형 비교", [
+IO["d21-json"] = ("실제 실행 + 자료형 비교", [
     ('print(data["answer"])', data["answer"], "JSON 텍스트 → dict"),
     ('type(data["source_ids"][0]).__name__', type(data["source_ids"][0]).__name__, "101 → int"),
     ("json.loads('[\"101\", true, 101.0]')  # 각 자료형",
@@ -256,7 +256,7 @@ class KnowledgeAnswer(BaseModel):
 schema = KnowledgeAnswer.model_json_schema()
 good = {"status": "answered", "answer": "개인 폴더에 보관합니다.", "source_ids": [101], "missing_information": ""}
 obj = KnowledgeAnswer.model_validate(good)
-IO["d21-schema"] = ("강의 코드 그대로 · model_json_schema() 실제 출력", [
+IO["d21-schema"] = ("실제 실행 · model_json_schema() 실제 출력", [
     ("schema['required']", str(schema["required"]), "네 필드 모두 필수"),
     ("schema['additionalProperties']", str(schema["additionalProperties"]), 'extra="forbid" → 추가 필드 금지'),
     ("schema['properties']['status']", json.dumps(schema["properties"]["status"], ensure_ascii=False), "Literal → enum"),
@@ -275,7 +275,7 @@ def vfail(d):
         return f"{x['type']} @ {'.'.join(map(str, x['loc']))}"
 
 
-IO["d21-pydantic"] = ("강의 KnowledgeAnswer 그대로 · model_validate 실제 결과", [
+IO["d21-pydantic"] = ("KnowledgeAnswer · model_validate 실제 결과", [
     ("KnowledgeAnswer.model_validate(정상 dict)", f"{type(obj).__name__}(status='{obj.status}', source_ids={obj.source_ids})", "객체가 만들어짐"),
     ('source_ids = ["101"]', vfail({**good, "source_ids": ["101"]}), "strict — 문자열을 정수로 바꿔 주지 않음"),
     ("source_ids = [True]", vfail({**good, "source_ids": [True]}), "bool도 int로 안 받음"),
@@ -416,11 +416,11 @@ note_parse = {
     "blank": "공백도 길이 3", "false_evidence": "구조 완벽", "dupkey": "기본 json.loads는 마지막 값으로 덮어씀 → 통과",
     "nan": "기본 json.loads는 NaN을 float로 읽음 → 구조 단계에서 거부",
 }
-IO["d21-parse-answer"] = ("json.loads → model_validate 두 단계 · 입력은 교안 데모의 샘플 응답(fixture) 14개", [
+IO["d21-parse-answer"] = ("json.loads → model_validate 두 단계 · 입력은 샘플 응답(fixture) 14개", [
     (lab, f"{obj_s}", note_parse[k]) for (lab, obj_s, _), k in zip(rows_parse, FIXTURES)
 ])
 
-IO["d21-strict-json"] = ("강의 콜백 두 개를 json.loads에 지정 · 같은 fixture", [
+IO["d21-strict-json"] = ("콜백 두 개를 json.loads에 지정 · 같은 fixture", [
     ("JSON 키 중복 — json.loads", repr(json.loads(FIXTURES["dupkey"][2])["answer"]), "앞의 값이 조용히 사라짐"),
     ("JSON 키 중복 — 콜백 지정", err(lambda: load_json_strict(FIXTURES["dupkey"][2])), "중복을 오류로"),
     ("NaN — json.loads", repr(json.loads(FIXTURES["nan"][2])["source_ids"]), "Python 기본 파서는 NaN을 받아 줌(표준 JSON 아님)"),
@@ -482,7 +482,7 @@ with tempfile.TemporaryDirectory() as td:
     ids_out = subprocess.run([sys.executable, "-m", "pytest", "-q", "--collect-only", "-p", "no:cacheprovider", str(tp)],
                              capture_output=True, text=True, encoding="utf-8", cwd=td).stdout
     ids_list = [ln.split("::")[-1] for ln in ids_out.splitlines() if "::" in ln]
-IO["d21-pytest"] = ("강의 테스트 그대로 실제 pytest 실행", [
+IO["d21-pytest"] = ("실제 pytest 실행", [
     ("python -m pytest -q test_answer.py", re.sub(r" in [\d.]+s", " in …s", last), "같은 함수에 실패 입력 2개를 대조"),
     ("--collect-only", ", ".join(ids_list), "parametrize가 케이스마다 테스트를 하나씩 만듦"),
 ])
@@ -499,7 +499,7 @@ repair_instruction = """[수정 요청]
 코드 블록 없이 JSON 객체 하나만 반환하세요.
 출처는 이번에 제공한 ID만 사용하세요.
 """
-IO["d21-repair"] = ("강의 코드 그대로", [
+IO["d21-repair"] = ("실제 실행", [
     ("print(repair_instruction)  # 줄 수", f"{len(repair_instruction.strip().splitlines())}줄", "오류 요약 한 줄 + 고정 문구"),
     ("'Traceback' in repair_instruction", str("Traceback" in repair_instruction), "전체 오류 기록·경로·비밀 값은 넣지 않음"),
 ])
@@ -564,7 +564,7 @@ IO["d21-retry"] = ("강의 run_with_retry 그대로 · generate = fixture를 차
 ])
 
 history = [{"attempt": 1, "error": "json_error"}, {"attempt": 2, "error": None}]
-IO["d21-retry-log"] = ("강의 코드 그대로", [
+IO["d21-retry-log"] = ("실제 실행", [
     ('print("첫 응답:", first_attempt["error"])', f'첫 응답: {history[0]["error"]}', "첫 실패를 지우지 않음"),
     ('print("수정 시도 수:", len(repair_attempts))', f"수정 시도 수: {len(history[1:])}", "수정 성공과 첫 응답 품질을 따로 셈"),
 ])
