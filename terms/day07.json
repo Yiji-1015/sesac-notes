@@ -516,5 +516,66 @@
   "analogy": "",
   "day": 7,
   "key": false
+ },
+ {
+  "term": "엔트로피",
+  "aliases": [
+   "Entropy",
+   "criterion=\"entropy\""
+  ],
+  "full": "Entropy (엔트로피)",
+  "short": "칸 안 답 비율로 잰 불확실성. −Σ p log₂ p. 한 가지 답뿐이면 0, 반반이면 1(bit). 트리가 나눌 질문을 고를 때 Gini 대신 쓸 수 있어요.",
+  "analogy": "정답을 알아내려면 평균 몇 번의 예/아니오 질문이 더 필요한가.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "정보 이득",
+  "aliases": [
+   "Information Gain",
+   "정보 이득 비율",
+   "Gain Ratio"
+  ],
+  "full": "Information Gain (정보 이득)",
+  "short": "나누기 전 불순도에서 나눈 뒤 불순도(칸 크기로 가중 평균)를 뺀 값. 트리는 이게 가장 큰 질문을 골라요. C4.5는 갈래 수로 나눈 '정보 이득 비율'을 써요.",
+  "analogy": "질문 하나로 스무고개의 남은 질문 수가 얼마나 줄었나.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "AdaBoost",
+  "aliases": [
+   "Adaptive Boosting",
+   "AdaBoostClassifier"
+  ],
+  "full": "AdaBoost (Adaptive Boosting)",
+  "short": "앞 모델이 틀린 행의 가중치를 키워서, 다음 모델이 그 행을 더 신경 쓰게 하는 부스팅. 모델마다 잘한 만큼 무게를 줘서 합쳐요.",
+  "analogy": "오답 노트에 틀린 문제를 크게 써 두고 다음엔 그것부터 보는 것.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "스태킹",
+  "aliases": [
+   "Stacking",
+   "StackingClassifier"
+  ],
+  "full": "Stacking (스태킹)",
+  "short": "서로 다른 모델들의 예측을 입력으로 받아, 마지막 모델이 '누구 말을 얼마나 믿을지'를 배우는 앙상블. 누수를 막으려고 교차검증 예측을 써요.",
+  "analogy": "여러 전문가 의견을 듣고 최종 판단하는 심사위원장.",
+  "day": 7,
+  "key": false
+ },
+ {
+  "term": "LightGBM",
+  "aliases": [
+   "LGBMClassifier",
+   "lightgbm"
+  ],
+  "full": "LightGBM",
+  "short": "Gradient Boosting 구현. 비용을 가장 많이 줄이는 끝 노드 하나만 골라 깊게 키우고(leaf-wise), 잔차가 작은 행은 일부만 써서(GOSS) 빨라요. 데이터가 적으면 과적합 조심.",
+  "analogy": "",
+  "day": 7,
+  "key": false
  }
 ]

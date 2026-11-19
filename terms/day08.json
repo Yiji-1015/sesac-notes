@@ -397,5 +397,174 @@
   "analogy": "",
   "day": 8,
   "key": false
+ },
+ {
+  "term": "엘보 방법",
+  "aliases": [
+   "Elbow Method",
+   "inertia_",
+   "SSE"
+  ],
+  "full": "Elbow Method (엘보 방법)",
+  "short": "K-Means의 k를 늘려 가며 묶음 안 거리 제곱 합(SSE)을 그리고, 줄어드는 폭이 확 작아지는 '팔꿈치'를 k로 고르는 방법.",
+  "analogy": "가방에 칸막이를 하나씩 더 넣다가, 더 넣어도 별로 정리가 안 되는 지점에서 멈추기.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "계층적 군집",
+  "aliases": [
+   "Hierarchical Clustering",
+   "덴드로그램",
+   "Dendrogram",
+   "Ward",
+   "linkage"
+  ],
+  "full": "Hierarchical Clustering (계층적 군집)",
+  "short": "한 점씩으로 시작해 가장 가까운 두 묶음을 합치기를 반복하는 군집. 합친 순서를 그린 나무가 덴드로그램이고, 원하는 높이에서 잘라 묶음 수를 정해요. k를 미리 정하지 않아요.",
+  "analogy": "족보를 아래에서부터 이어 붙인 뒤, 원하는 세대에서 가지를 자르는 것.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "DBSCAN",
+  "aliases": [
+   "밀도 기반 군집",
+   "핵심점",
+   "eps",
+   "min_samples"
+  ],
+  "full": "DBSCAN (Density-Based Spatial Clustering of Applications with Noise)",
+  "short": "반경 eps 안에 이웃이 min_samples개 이상인 점(핵심점)들을 이어 묶음으로 만들고, 어디에도 안 닿는 점은 잡음으로 빼는 군집. k가 필요 없고 아무 모양이나 찾아요.",
+  "analogy": "사람이 빽빽이 모인 곳을 한 무리로 보고, 혼자 떨어진 사람은 무리에 넣지 않기.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "SVM",
+  "aliases": [
+   "Support Vector Machine",
+   "SVC",
+   "서포트 벡터 머신",
+   "LinearSVC"
+  ],
+  "full": "Support Vector Machine (서포트 벡터 머신)",
+  "short": "두 무리 사이에 가장 넓은 도로(마진)를 내는 분류기. 도로 끝에 닿거나 넘어온 점(서포트 벡터)만 경계를 정해요. 커널을 쓰면 곡선 경계도 그어요.",
+  "analogy": "두 마을 사이에 집을 하나도 안 밀고 낼 수 있는 가장 넓은 도로.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "서포트 벡터",
+  "aliases": [
+   "Support Vector",
+   "n_support_"
+  ],
+  "full": "Support Vector (서포트 벡터)",
+  "short": "SVM에서 도로 끝선에 닿거나 도로 안, 반대편으로 넘어온 점. 이 점들만 경계를 정하고, 멀리 있는 점은 지워도 경계가 그대로예요.",
+  "analogy": "도로 폭을 정하는 건 도로에 바로 붙은 집들뿐이에요.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "마진",
+  "aliases": [
+   "Margin",
+   "최대 마진",
+   "힌지 손실",
+   "Hinge Loss"
+  ],
+  "full": "Margin (마진)",
+  "short": "SVM 경계 양쪽 도로의 폭, 2 ÷ ‖θ‖. SVM은 이걸 가장 크게 해요. 도로 안으로 넘어온 정도를 재는 max(0, 1 − y·f(x))를 힌지 손실이라고 해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "커널 트릭",
+  "aliases": [
+   "Kernel Trick",
+   "RBF 커널",
+   "RBF",
+   "gamma"
+  ],
+  "full": "Kernel Trick (커널 트릭)",
+  "short": "점들을 더 높은 차원으로 옮긴 좌표를 만들지 않고, 그 공간에서의 내적만 바로 계산하는 함수(커널)로 SVM을 푸는 방법. RBF 커널 exp(−γ‖x − z‖²)를 가장 많이 써요. gamma가 크면 점 하나의 영향이 좁아져 과적합 쪽이에요.",
+  "analogy": "지도를 3D로 다시 그리지 않고도, 3D에서 두 곳이 얼마나 가까운지만 바로 계산하는 공식.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "LDA",
+  "aliases": [
+   "Linear Discriminant Analysis",
+   "선형 판별분석",
+   "판별분석",
+   "LinearDiscriminantAnalysis"
+  ],
+  "full": "Linear Discriminant Analysis (선형 판별분석)",
+  "short": "무리마다 정규분포로 퍼져 있고 퍼짐 모양(공분산)이 같다고 가정한 뒤, 베이즈 정리로 어느 무리일 확률이 큰지 판단하는 분류기. 경계가 직선이고, 두 무리가 가장 잘 갈리는 방향으로의 차원 축소도 돼요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "QDA",
+  "aliases": [
+   "Quadratic Discriminant Analysis",
+   "이차 판별분석",
+   "QuadraticDiscriminantAnalysis"
+  ],
+  "full": "Quadratic Discriminant Analysis (이차 판별분석)",
+  "short": "LDA에서 '퍼짐 모양이 같다'는 가정을 빼고 무리마다 공분산을 따로 배우는 판별분석. 경계가 곡선이지만 배울 값이 많아 데이터가 많이 필요해요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "베이즈 정리",
+  "aliases": [
+   "Bayes' theorem",
+   "Bayes Rule",
+   "사전 확률",
+   "사후 확률",
+   "prior",
+   "posterior"
+  ],
+  "full": "Bayes' Theorem (베이즈 정리)",
+  "short": "P(A | B) = P(B | A) × P(A) ÷ P(B). 데이터를 보기 전 믿음(사전 확률)에 가능도를 곱해, 보고 난 뒤 믿음(사후 확률)으로 바꾸는 식. LDA, QDA가 이걸로 분류해요.",
+  "analogy": "검사 양성이 나왔을 때 진짜 병일 확률은, 검사 정확도뿐 아니라 그 병이 원래 얼마나 흔한지에도 달려요.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "주성분",
+  "aliases": [
+   "Principal Component",
+   "explained_variance_ratio_",
+   "설명 분산 비율",
+   "고유값",
+   "고유벡터",
+   "Eigenvalue",
+   "Eigenvector"
+  ],
+  "full": "Principal Component (주성분)",
+  "short": "PCA가 찾은 새 축. 데이터를 내렸을 때 분산이 가장 큰 방향부터 차례로, 서로 직각이에요. 공분산 행렬의 고유벡터이고, 고유값이 그 방향의 분산이에요. 담은 비율은 고유값 ÷ 고유값 합.",
+  "analogy": "길쭉한 럭비공을 가장 길게 잴 수 있는 방향이 1번 주성분.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "class_weight",
+  "aliases": [
+   "balanced",
+   "class_weight=\"balanced\"",
+   "클래스 가중치"
+  ],
+  "full": "class_weight (종류별 가중치)",
+  "short": "드문 종류를 틀릴 때의 값을 키우는 설정. \"balanced\"는 종류마다 건수에 반비례하는 무게를 줘요. 실패가 드문 데이터에서 recall을 올려요.",
+  "analogy": "",
+  "day": 8,
+  "key": false
  }
 ]

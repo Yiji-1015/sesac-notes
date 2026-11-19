@@ -843,5 +843,83 @@
   "analogy": "",
   "day": 6,
   "key": false
+ },
+ {
+  "term": "최소제곱법",
+  "aliases": [
+   "Least Squares",
+   "정규방정식",
+   "Normal Equation"
+  ],
+  "full": "Least Squares (최소제곱법)",
+  "short": "제곱 오차의 합이 가장 작아지는 가중치를 공식 하나로 바로 구하는 방법. LinearRegression이 쓰는 방법이에요. 열이 아주 많으면 계산이 무거워서 경사하강법을 써요.",
+  "analogy": "그릇의 바닥을 더듬어 찾지 않고, 그릇 모양을 보고 바닥 위치를 바로 계산하는 것.",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "Ridge",
+  "aliases": [
+   "Ridge 회귀",
+   "L2 규제",
+   "L2 Regularization"
+  ],
+  "full": "Ridge Regression (L2 규제)",
+  "short": "비용에 '가중치 제곱의 합 × alpha'를 벌점으로 더한 선형 회귀. 모든 가중치를 조금씩 0 쪽으로 줄이지만 정확히 0으로 만들지는 않아요.",
+  "analogy": "모든 직원의 발언 시간을 똑같은 비율로 줄이는 것.",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "Lasso",
+  "aliases": [
+   "Lasso 회귀",
+   "L1 규제",
+   "L1 Regularization"
+  ],
+  "full": "Lasso Regression (L1 규제)",
+  "short": "비용에 '가중치 절댓값의 합 × alpha'를 벌점으로 더한 선형 회귀. 덜 쓸모 있는 가중치부터 정확히 0으로 만들어서 열을 골라 주는 효과가 있어요.",
+  "analogy": "회의에서 덜 중요한 사람부터 아예 빠지게 하는 것.",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "odds",
+  "aliases": [
+   "오즈",
+   "Odds",
+   "odds ratio",
+   "오즈비"
+  ],
+  "full": "Odds (오즈)",
+  "short": "확률 p를 p ÷ (1 − p)로 바꾼 값. 0.2면 0.25(1:4), 0.5면 1. 로지스틱 회귀의 점수는 log(odds)라서, 가중치 θ는 'odds가 e^θ배'로 읽어요.",
+  "analogy": "\"이길 확률 20%\" 대신 \"1번 이길 때 4번 진다\"라고 말하는 것.",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "차원의 저주",
+  "aliases": [
+   "Curse of Dimensionality"
+  ],
+  "full": "Curse of Dimensionality (차원의 저주)",
+  "short": "열(차원)이 많아질수록 데이터가 공간에 듬성듬성해지고, 모든 점이 서로 비슷하게 멀어지는 현상. 거리로 판단하는 KNN이 특히 약해져요.",
+  "analogy": "운동장에서는 옆 사람이 가깝지만, 같은 인원을 거대한 빌딩 전체에 흩어 놓으면 모두가 서로 멀어지는 것.",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "편향과 분산",
+  "aliases": [
+   "Bias-Variance",
+   "편향-분산",
+   "Bias",
+   "Variance"
+  ],
+  "full": "Bias-Variance Trade-off (편향과 분산)",
+  "short": "처음 보는 데이터에서의 오차를 '평균적으로 비껴 있는 정도(편향)'와 'train이 바뀌면 흔들리는 정도(분산)'로 나눠 보는 생각. 단순한 모델은 편향이, 복잡한 모델은 분산이 커요.",
+  "analogy": "늘 같은 곳을 빗맞히는 궁수(편향)와, 평균은 맞지만 여기저기 흩어지는 궁수(분산).",
+  "day": 6,
+  "key": false
  }
 ]

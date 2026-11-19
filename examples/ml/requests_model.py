@@ -14,9 +14,10 @@ from sklearn.impute import SimpleImputer                                        
 from sklearn.pipeline import Pipeline                                           #@3
 from sklearn.preprocessing import OneHotEncoder, StandardScaler                 #@3
 from sklearn.linear_model import LinearRegression                               #@4
-from sklearn.metrics import r2_score                                            #@4
+from sklearn.metrics import r2_score, root_mean_squared_error                   #@4
 from sklearn.linear_model import LogisticRegression                             #@5
 from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score  #@5
+from sklearn.metrics import log_loss                                            #@5
 from sklearn.neighbors import KNeighborsClassifier                              #@6
 from sklearn.tree import DecisionTreeClassifier                                 #@8
 from sklearn.ensemble import RandomForestClassifier                             #@9
@@ -63,6 +64,9 @@ reg = build(LinearRegression()).fit(X_train, train["elapsed_ms"])
 reg_pred = reg.predict(X_valid)
 reg_mae = mean_absolute_error(valid["elapsed_ms"], reg_pred)
 reg_r2 = r2_score(valid["elapsed_ms"], reg_pred)
+reg_rmse = root_mean_squared_error(valid["elapsed_ms"], reg_pred)
+reg_coef = pd.Series(reg.named_steps["model"].coef_,                    # 배운 가중치(열마다 하나)
+                     index=reg.named_steps["pre"].get_feature_names_out())
 
 # ⑤ 분류: 실패 여부 예측
 logit = build(LogisticRegression(max_iter=1000)).fit(X_train, y_train)
@@ -70,6 +74,11 @@ pred = logit.predict(X_valid)
 scores = {"accuracy": accuracy_score(y_valid, pred), "precision": precision_score(y_valid, pred, zero_division=0),
           "recall": recall_score(y_valid, pred), "f1": f1_score(y_valid, pred)}
 cm = confusion_matrix(y_valid, pred, labels=[0, 1])
+z = logit.decision_function(X_valid)        # 가중치를 곱해 더한 점수 (아무 실수)
+p_fail = 1 / (1 + np.exp(-z))               # 시그모이드로 0~1 확률로
+loss = log_loss(y_valid, p_fail)            # 학습이 줄이려는 비용 (로그 손실)
+odds = pd.Series(np.exp(logit.named_steps["model"].coef_[0]),
+                 index=logit.named_steps["pre"].get_feature_names_out())  # 열이 1 커질 때 odds가 몇 배
 
 # ⑥ KNN: 거리로 판단하는 모델과 스케일
 knn_scaled = build(KNeighborsClassifier(n_neighbors=5)).fit(X_train, y_train)

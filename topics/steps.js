@@ -49,7 +49,7 @@
       }).join("\n")}</code></pre>`;
     }
     if (o.cols) h += tbl(o.cols, o.rows);
-    if (o.images) h += `<div class="imgrow">${o.images.map(im => `<figure><img src="${im[0]}" alt="${esc(im[1])}"><figcaption>${im[1]}</figcaption></figure>`).join("")}</div>`;
+    if (o.images) h += `<div class="imgrow${o.chart ? " chart" : ""}">${o.images.map(im => `<figure><img src="${im[0]}" alt="${esc(im[1])}"><figcaption>${im[1]}</figcaption></figure>`).join("")}</div>`;
     if (o.notes && o.notes.length) h += `<ol class="ann">${o.notes.map(n => `<li>${n}</li>`).join("")}</ol>`;
     el.innerHTML = h;
   }

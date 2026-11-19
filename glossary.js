@@ -1162,6 +1162,102 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "최소제곱법",
+  "aliases": [
+   "Least Squares",
+   "정규방정식",
+   "Normal Equation"
+  ],
+  "full": "Least Squares (최소제곱법)",
+  "short": "제곱 오차의 합이 가장 작아지는 가중치를 공식 하나로 바로 구하는 방법. LinearRegression이 쓰는 방법이에요. 열이 아주 많으면 계산이 무거워서 경사하강법을 써요.",
+  "analogy": "그릇의 바닥을 더듬어 찾지 않고, 그릇 모양을 보고 바닥 위치를 바로 계산하는 것.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Ridge",
+  "aliases": [
+   "Ridge 회귀",
+   "L2 규제",
+   "L2 Regularization"
+  ],
+  "full": "Ridge Regression (L2 규제)",
+  "short": "비용에 '가중치 제곱의 합 × alpha'를 벌점으로 더한 선형 회귀. 모든 가중치를 조금씩 0 쪽으로 줄이지만 정확히 0으로 만들지는 않아요.",
+  "analogy": "모든 직원의 발언 시간을 똑같은 비율로 줄이는 것.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Lasso",
+  "aliases": [
+   "Lasso 회귀",
+   "L1 규제",
+   "L1 Regularization"
+  ],
+  "full": "Lasso Regression (L1 규제)",
+  "short": "비용에 '가중치 절댓값의 합 × alpha'를 벌점으로 더한 선형 회귀. 덜 쓸모 있는 가중치부터 정확히 0으로 만들어서 열을 골라 주는 효과가 있어요.",
+  "analogy": "회의에서 덜 중요한 사람부터 아예 빠지게 하는 것.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "odds",
+  "aliases": [
+   "오즈",
+   "Odds",
+   "odds ratio",
+   "오즈비"
+  ],
+  "full": "Odds (오즈)",
+  "short": "확률 p를 p ÷ (1 − p)로 바꾼 값. 0.2면 0.25(1:4), 0.5면 1. 로지스틱 회귀의 점수는 log(odds)라서, 가중치 θ는 'odds가 e^θ배'로 읽어요.",
+  "analogy": "\"이길 확률 20%\" 대신 \"1번 이길 때 4번 진다\"라고 말하는 것.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "차원의 저주",
+  "aliases": [
+   "Curse of Dimensionality"
+  ],
+  "full": "Curse of Dimensionality (차원의 저주)",
+  "short": "열(차원)이 많아질수록 데이터가 공간에 듬성듬성해지고, 모든 점이 서로 비슷하게 멀어지는 현상. 거리로 판단하는 KNN이 특히 약해져요.",
+  "analogy": "운동장에서는 옆 사람이 가깝지만, 같은 인원을 거대한 빌딩 전체에 흩어 놓으면 모두가 서로 멀어지는 것.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "편향과 분산",
+  "aliases": [
+   "Bias-Variance",
+   "편향-분산",
+   "Bias",
+   "Variance"
+  ],
+  "full": "Bias-Variance Trade-off (편향과 분산)",
+  "short": "처음 보는 데이터에서의 오차를 '평균적으로 비껴 있는 정도(편향)'와 'train이 바뀌면 흔들리는 정도(분산)'로 나눠 보는 생각. 단순한 모델은 편향이, 복잡한 모델은 분산이 커요.",
+  "analogy": "늘 같은 곳을 빗맞히는 궁수(편향)와, 평균은 맞지만 여기저기 흩어지는 궁수(분산).",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
   "term": "Decision Tree",
   "aliases": [
    "결정트리",
@@ -1847,6 +1943,82 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "엔트로피",
+  "aliases": [
+   "Entropy",
+   "criterion=\"entropy\""
+  ],
+  "full": "Entropy (엔트로피)",
+  "short": "칸 안 답 비율로 잰 불확실성. −Σ p log₂ p. 한 가지 답뿐이면 0, 반반이면 1(bit). 트리가 나눌 질문을 고를 때 Gini 대신 쓸 수 있어요.",
+  "analogy": "정답을 알아내려면 평균 몇 번의 예/아니오 질문이 더 필요한가.",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "정보 이득",
+  "aliases": [
+   "Information Gain",
+   "정보 이득 비율",
+   "Gain Ratio"
+  ],
+  "full": "Information Gain (정보 이득)",
+  "short": "나누기 전 불순도에서 나눈 뒤 불순도(칸 크기로 가중 평균)를 뺀 값. 트리는 이게 가장 큰 질문을 골라요. C4.5는 갈래 수로 나눈 '정보 이득 비율'을 써요.",
+  "analogy": "질문 하나로 스무고개의 남은 질문 수가 얼마나 줄었나.",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "AdaBoost",
+  "aliases": [
+   "Adaptive Boosting",
+   "AdaBoostClassifier"
+  ],
+  "full": "AdaBoost (Adaptive Boosting)",
+  "short": "앞 모델이 틀린 행의 가중치를 키워서, 다음 모델이 그 행을 더 신경 쓰게 하는 부스팅. 모델마다 잘한 만큼 무게를 줘서 합쳐요.",
+  "analogy": "오답 노트에 틀린 문제를 크게 써 두고 다음엔 그것부터 보는 것.",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "스태킹",
+  "aliases": [
+   "Stacking",
+   "StackingClassifier"
+  ],
+  "full": "Stacking (스태킹)",
+  "short": "서로 다른 모델들의 예측을 입력으로 받아, 마지막 모델이 '누구 말을 얼마나 믿을지'를 배우는 앙상블. 누수를 막으려고 교차검증 예측을 써요.",
+  "analogy": "여러 전문가 의견을 듣고 최종 판단하는 심사위원장.",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LightGBM",
+  "aliases": [
+   "LGBMClassifier",
+   "lightgbm"
+  ],
+  "full": "LightGBM",
+  "short": "Gradient Boosting 구현. 비용을 가장 많이 줄이는 끝 노드 하나만 골라 깊게 키우고(leaf-wise), 잔차가 작은 행은 일부만 써서(GOSS) 빨라요. 데이터가 적으면 과적합 조심.",
+  "analogy": "",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
   "term": "조화평균",
   "aliases": [
    "Harmonic mean"
@@ -2328,6 +2500,211 @@ window.GLOSSARY = [
   "aliases": [],
   "full": "Matplotlib (그래프 라이브러리)",
   "short": "ROC 곡선, 군집 그림 같은 그래프를 그리는 파이썬 라이브러리.",
+  "analogy": "",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "엘보 방법",
+  "aliases": [
+   "Elbow Method",
+   "inertia_",
+   "SSE"
+  ],
+  "full": "Elbow Method (엘보 방법)",
+  "short": "K-Means의 k를 늘려 가며 묶음 안 거리 제곱 합(SSE)을 그리고, 줄어드는 폭이 확 작아지는 '팔꿈치'를 k로 고르는 방법.",
+  "analogy": "가방에 칸막이를 하나씩 더 넣다가, 더 넣어도 별로 정리가 안 되는 지점에서 멈추기.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "계층적 군집",
+  "aliases": [
+   "Hierarchical Clustering",
+   "덴드로그램",
+   "Dendrogram",
+   "Ward",
+   "linkage"
+  ],
+  "full": "Hierarchical Clustering (계층적 군집)",
+  "short": "한 점씩으로 시작해 가장 가까운 두 묶음을 합치기를 반복하는 군집. 합친 순서를 그린 나무가 덴드로그램이고, 원하는 높이에서 잘라 묶음 수를 정해요. k를 미리 정하지 않아요.",
+  "analogy": "족보를 아래에서부터 이어 붙인 뒤, 원하는 세대에서 가지를 자르는 것.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "DBSCAN",
+  "aliases": [
+   "밀도 기반 군집",
+   "핵심점",
+   "eps",
+   "min_samples"
+  ],
+  "full": "DBSCAN (Density-Based Spatial Clustering of Applications with Noise)",
+  "short": "반경 eps 안에 이웃이 min_samples개 이상인 점(핵심점)들을 이어 묶음으로 만들고, 어디에도 안 닿는 점은 잡음으로 빼는 군집. k가 필요 없고 아무 모양이나 찾아요.",
+  "analogy": "사람이 빽빽이 모인 곳을 한 무리로 보고, 혼자 떨어진 사람은 무리에 넣지 않기.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "SVM",
+  "aliases": [
+   "Support Vector Machine",
+   "SVC",
+   "서포트 벡터 머신",
+   "LinearSVC"
+  ],
+  "full": "Support Vector Machine (서포트 벡터 머신)",
+  "short": "두 무리 사이에 가장 넓은 도로(마진)를 내는 분류기. 도로 끝에 닿거나 넘어온 점(서포트 벡터)만 경계를 정해요. 커널을 쓰면 곡선 경계도 그어요.",
+  "analogy": "두 마을 사이에 집을 하나도 안 밀고 낼 수 있는 가장 넓은 도로.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "서포트 벡터",
+  "aliases": [
+   "Support Vector",
+   "n_support_"
+  ],
+  "full": "Support Vector (서포트 벡터)",
+  "short": "SVM에서 도로 끝선에 닿거나 도로 안, 반대편으로 넘어온 점. 이 점들만 경계를 정하고, 멀리 있는 점은 지워도 경계가 그대로예요.",
+  "analogy": "도로 폭을 정하는 건 도로에 바로 붙은 집들뿐이에요.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "마진",
+  "aliases": [
+   "Margin",
+   "최대 마진",
+   "힌지 손실",
+   "Hinge Loss"
+  ],
+  "full": "Margin (마진)",
+  "short": "SVM 경계 양쪽 도로의 폭, 2 ÷ ‖θ‖. SVM은 이걸 가장 크게 해요. 도로 안으로 넘어온 정도를 재는 max(0, 1 − y·f(x))를 힌지 손실이라고 해요.",
+  "analogy": "",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "커널 트릭",
+  "aliases": [
+   "Kernel Trick",
+   "RBF 커널",
+   "RBF",
+   "gamma"
+  ],
+  "full": "Kernel Trick (커널 트릭)",
+  "short": "점들을 더 높은 차원으로 옮긴 좌표를 만들지 않고, 그 공간에서의 내적만 바로 계산하는 함수(커널)로 SVM을 푸는 방법. RBF 커널 exp(−γ‖x − z‖²)를 가장 많이 써요. gamma가 크면 점 하나의 영향이 좁아져 과적합 쪽이에요.",
+  "analogy": "지도를 3D로 다시 그리지 않고도, 3D에서 두 곳이 얼마나 가까운지만 바로 계산하는 공식.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LDA",
+  "aliases": [
+   "Linear Discriminant Analysis",
+   "선형 판별분석",
+   "판별분석",
+   "LinearDiscriminantAnalysis"
+  ],
+  "full": "Linear Discriminant Analysis (선형 판별분석)",
+  "short": "무리마다 정규분포로 퍼져 있고 퍼짐 모양(공분산)이 같다고 가정한 뒤, 베이즈 정리로 어느 무리일 확률이 큰지 판단하는 분류기. 경계가 직선이고, 두 무리가 가장 잘 갈리는 방향으로의 차원 축소도 돼요.",
+  "analogy": "",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "QDA",
+  "aliases": [
+   "Quadratic Discriminant Analysis",
+   "이차 판별분석",
+   "QuadraticDiscriminantAnalysis"
+  ],
+  "full": "Quadratic Discriminant Analysis (이차 판별분석)",
+  "short": "LDA에서 '퍼짐 모양이 같다'는 가정을 빼고 무리마다 공분산을 따로 배우는 판별분석. 경계가 곡선이지만 배울 값이 많아 데이터가 많이 필요해요.",
+  "analogy": "",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "베이즈 정리",
+  "aliases": [
+   "Bayes' theorem",
+   "Bayes Rule",
+   "사전 확률",
+   "사후 확률",
+   "prior",
+   "posterior"
+  ],
+  "full": "Bayes' Theorem (베이즈 정리)",
+  "short": "P(A | B) = P(B | A) × P(A) ÷ P(B). 데이터를 보기 전 믿음(사전 확률)에 가능도를 곱해, 보고 난 뒤 믿음(사후 확률)으로 바꾸는 식. LDA, QDA가 이걸로 분류해요.",
+  "analogy": "검사 양성이 나왔을 때 진짜 병일 확률은, 검사 정확도뿐 아니라 그 병이 원래 얼마나 흔한지에도 달려요.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "주성분",
+  "aliases": [
+   "Principal Component",
+   "explained_variance_ratio_",
+   "설명 분산 비율",
+   "고유값",
+   "고유벡터",
+   "Eigenvalue",
+   "Eigenvector"
+  ],
+  "full": "Principal Component (주성분)",
+  "short": "PCA가 찾은 새 축. 데이터를 내렸을 때 분산이 가장 큰 방향부터 차례로, 서로 직각이에요. 공분산 행렬의 고유벡터이고, 고유값이 그 방향의 분산이에요. 담은 비율은 고유값 ÷ 고유값 합.",
+  "analogy": "길쭉한 럭비공을 가장 길게 잴 수 있는 방향이 1번 주성분.",
+  "first": 8,
+  "days": [
+   8
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "class_weight",
+  "aliases": [
+   "balanced",
+   "class_weight=\"balanced\"",
+   "클래스 가중치"
+  ],
+  "full": "class_weight (종류별 가중치)",
+  "short": "드문 종류를 틀릴 때의 값을 키우는 설정. \"balanced\"는 종류마다 건수에 반비례하는 무게를 줘요. 실패가 드문 데이터에서 recall을 올려요.",
   "analogy": "",
   "first": 8,
   "days": [
