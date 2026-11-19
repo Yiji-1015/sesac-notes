@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>견본: Chunking, 문서를 검색할 조각으로 나누기 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    .container.wide { max-width: 1320px; }
+    .proto-banner { background: #fff8db; border: 1px dashed #f0b400; color: #5c4400; border-radius: 12px; padding: 10px 14px; font-size: .9rem; margin-bottom: 16px; }
+    .one-line { font-size: 1.15rem; line-height: 1.7; background: var(--surface); border-left: 6px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+    .one-line b { color: var(--accent); }
+
+    /* 통째로 한 번: 흐름 상자 */
+    .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 14px 0; }
+    .flow .box { flex: 1 1 140px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); cursor: pointer; transition: transform .15s; }
+    .flow .box:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .flow .box .n { font-weight: 800; color: var(--accent); }
+    .flow .box .big { font-size: 1.35rem; font-weight: 800; display: block; margin: 2px 0; }
+    .flow .box small { color: var(--muted); }
+    .flow .arrow { align-self: center; color: var(--muted); font-weight: 700; }
+
+    /* 단계별 따라가기: 왼쪽 설명, 오른쪽 고정 코드 */
+    .scrolly { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
+    .steps .step { min-height: 70vh; padding: 6px 0 40px; border-bottom: 1px dashed var(--line); opacity: .45; transition: opacity .25s; }
+    .steps .step.on { opacity: 1; }
+    .steps .step:last-child { border-bottom: none; min-height: 40vh; }
+    .label { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 10px; }
+    .step h3 { margin: 8px 0 6px !important; font-size: 1.3rem !important; color: var(--text) !important; }
+    .step .does { font-weight: 600; margin: 4px 0 12px; }
+    .kicker { font-weight: 800; color: var(--accent2); margin: 14px 0 4px; font-size: .92rem; }
+
+    .codepanel { position: sticky; top: 14px; max-height: calc(100vh - 28px); display: flex; flex-direction: column; background: var(--code-bg); color: var(--code-text); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .codepanel .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; background: rgba(255,255,255,.06); font-size: .82rem; }
+    .codepanel .file { font-family: var(--font-code); opacity: .8; margin-right: auto; }
+    .pill { border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: 999px; padding: 1px 9px; font-size: .85rem; cursor: pointer; font-family: inherit; }
+    .pill.on { background: #3ddc84; color: #10291b; border-color: #3ddc84; font-weight: 800; }
+    .pill.done { opacity: .75; }
+    .codepanel .now { padding: 6px 14px; font-size: .85rem; background: rgba(61,220,132,.12); border-bottom: 1px solid rgba(255,255,255,.08); }
+    .codepanel .legend { padding: 4px 14px 8px; font-size: .75rem; opacity: .75; }
+    .codepanel .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+    .codewrap { overflow: auto; padding: 6px 0 14px; }
+    .code { font-family: var(--font-code); font-size: .8rem; line-height: 1.55; margin: 0; }
+    .code .ln { display: block; white-space: pre; padding: 0 14px 0 0; border-left: 4px solid transparent; }
+    .code .ln .no { display: inline-block; width: 2.6em; text-align: right; padding-right: 1em; opacity: .35; user-select: none; }
+    .code .ln.old { opacity: .5; }
+    .code .ln.new { background: rgba(61,220,132,.16); border-left-color: #3ddc84; opacity: 1; }
+    .code .ln.new .no::before { content: "+"; color: #3ddc84; margin-right: 2px; opacity: 1; }
+    .code .ln.hide { display: none; }
+    .code .ln.labelln { font-weight: 800; }
+    .code .ln.labelln .cm { color: #ffd166; font-style: normal; }
+    .code .more { display: block; padding: 4px 0 0 3.6em; opacity: .45; font-style: italic; }
+    .cm { color: #8fa3bf; font-style: italic; }
+    .st { color: #ffcf8a; }
+    .kw { color: #ff9ad5; font-weight: 600; }
+    .nb { color: #9ce8ff; }
+
+    /* 출력 상자 (번호 주석) */
+    .out { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; overflow: hidden; }
+    .out .ttl { font-size: .82rem; font-weight: 700; padding: 6px 12px; background: var(--accent-soft); color: var(--accent); }
+    .out pre { margin: 0 !important; border-radius: 0 !important; font-size: .8rem !important; white-space: pre-wrap; word-break: break-all; }
+    .out .mk { display: inline-block; min-width: 1.4em; margin-left: 6px; color: #3ddc84; font-weight: 800; }
+    .out ol.ann { margin: 0; padding: 8px 12px 10px 34px; font-size: .9rem; }
+    .out ol.ann li { margin: 3px 0; }
+    .out ol.ann li::marker { color: var(--accent); font-weight: 800; }
+    .newf { background: rgba(61,220,132,.28); color: #c9ffe0; border-radius: 3px; padding: 0 2px; font-weight: 700; }
+    .cut { background: #ffd8d8; color: #a10000; border-radius: 3px; padding: 0 2px; font-weight: 800; }
+    .tokchips span { display: inline-block; font-family: var(--font-code); font-size: .8rem; background: var(--accent-soft); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; margin: 2px; }
+    td.over { color: #c92a2a; font-weight: 800; }
+
+    /* 바꿔 보기 */
+    details.try { border-color: var(--accent2) !important; }
+    details.try summary { color: var(--accent2) !important; }
+    details.try .hint { color: var(--muted); font-size: .85rem; margin: 6px 0; }
+
+    .inline-code { display: none; }
+    @media (max-width: 1000px) {
+      .scrolly { grid-template-columns: 1fr; }
+      .codepanel { display: none; }
+      .steps .step { min-height: 0; opacity: 1; }
+      .inline-code { display: block; }
+      .inline-code .codepanel-mini { background: var(--code-bg); color: var(--code-text); border-radius: 12px; padding: 8px 0; margin: 10px 0; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>Chunking: 문서를 검색할 조각으로 나누기</h1>
+      <div class="meta">견본 페이지: 개념 단계와 코드 단계를 나란히 따라가는 형식 시험</div>
+    </header>
+
+    <article class="note">
+      <div class="proto-banner">🧪 <b>견본</b>입니다. 내용보다 <b>보여 주는 방식</b>을 확인하는 페이지예요. 예제 문서는 이 노트용으로 직접 만든 가상 문서이고, 아래 모든 출력은 실제로 실행한 값이에요.</div>
+
+      <!-- ===================== 0. 한 문장 ===================== -->
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line"><b>Chunking</b>은 긴 문서를 <b>질문 하나에 답할 수 있는 짧은 조각</b>으로 미리 나눠 두는 일이에요. 검색은 문서 통째가 아니라 이 조각 단위로 일어나요. 그래서 조각을 어떻게 나누느냐가 검색 품질을 좌우해요.</p>
+
+      <!-- ===================== 0.5 왜 ===================== -->
+      <h2 id="why">🤔 왜 나눠야 할까?</h2>
+      <p>RAG는 질문이 오면 관련 문서를 찾아서 LLM에게 근거로 붙여 주는 방식이에요. 여기서 검색은 "질문과 가장 비슷한 텍스트를 찾는 일"이고, 비슷한지는 보통 텍스트를 숫자 목록(<b>벡터</b>)으로 바꿔서 비교해요.</p>
+      <p>그런데 찾아서 넘기는 <b>단위</b>를 문서 통째로 하면 문제가 세 가지 생겨요. 아래 문서 하나로 확인해 볼게요. 이 페이지는 끝까지 이 문서로 설명해요.</p>
+      <div class="out" id="w-doc"></div>
+      <p>이 문서는 <code>##</code> 제목 세 개로 <b>대출과 반납, 열람실, 분실과 훼손</b>이라는 세 가지 주제를 다뤄요.</p>
+
+      <h3>이유 1. 모델이 한 번에 읽을 수 있는 길이에 한도가 있어요</h3>
+      <p>텍스트를 벡터로 바꾸는 모델을 <b>Embedding 모델</b>이라고 해요. 이 모델은 입력 길이에 상한이 있고, 길이는 글자가 아니라 <b>토큰</b>으로 세요. 토큰은 모델이 글을 읽는 단위로, 단어를 더 잘게 쪼갠 조각이에요 (③에서 실제로 쪼개 봐요). 예를 들어 한국어를 지원하는 Embedding 모델 multilingual-e5-small은 <b>512토큰</b>을 넘는 부분을 잘라 버려요 (공식 문서 값).</p>
+      <table id="w-len"></table>
+      <p>예제 문서는 짧아서 한 번에 들어가지만, 실제 문서는 한도의 수십 배예요. 통째로 넣으면 앞부분만 벡터에 반영되고 나머지는 <b>검색에서 아예 사라져요</b>.</p>
+
+      <h3>이유 2. 여러 주제가 섞이면 질문과 덜 비슷해져요</h3>
+      <p>문서 하나를 벡터 하나로 만들면 세 주제가 한 벡터에 섞여요. 질문은 보통 한 주제만 묻기 때문에, 섞인 벡터와는 덜 비슷하게 나와요. 질문 세 개를 "문서 전체"와 "조각 4개"에 각각 대 보면:</p>
+      <table id="w-sim"></table>
+      <p>어떤 질문이든 <b>맞는 조각 하나</b>의 점수가 문서 전체의 두 배쯤 돼요. 문서 전체는 질문과 상관없는 두 주제의 글자 때문에 점수가 깎여요.</p>
+      <div class="callout">📏 여기서 유사도는 "글자 2개 묶음이 얼마나 겹치나"(TF-IDF)로 쟀어요. 의미를 보는 Embedding 모델과는 숫자가 다르지만, <b>여러 주제가 섞이면 점수가 흐려진다</b>는 현상은 같아요.</div>
+
+      <h3>이유 3. LLM에 넘기는 근거가 짧고 정확해져요</h3>
+      <p id="w-ctx"></p>
+
+      <p><b>그래서 Chunking의 목표는 "한 조각에 한 주제, 그리고 모델 한도 안"</b>이에요. 아래는 이 목표대로 문서를 나누는 과정이에요.</p>
+
+      <!-- ===================== 1. 통째로 한 번 ===================== -->
+      <h2 id="whole">🗺️ 통째로 한 번: 문서 하나가 조각 4개가 되기까지</h2>
+      <p>위 문서를 끝까지 돌리면 이렇게 돼요. 상자를 누르면 그 단계로 이동해요. 여기서 <b>섹션</b>은 <code>##</code> 제목 하나와 그 아래 본문을 말해요.</p>
+      <p>한도는 512가 아니라 <b>64토큰</b>으로 잡았어요. 예제 문서가 짧아서, 512로 두면 아무것도 다시 자를 일이 없어 과정이 보이지 않거든요. 실제로는 모델 한도 안에서 검색이 잘 되는 크기를 실험해서 정해요.</p>
+      <div class="flow" id="flow"></div>
+      <table id="final-table"></table>
+      <p>아래에서 이 흐름을 <b>①부터 ⑥까지 한 단계씩</b> 따라가요. 왼쪽 설명의 번호와 오른쪽 코드의 번호는 같은 단계예요. 스크롤하면 오른쪽 코드가 <b>그 단계에서 새로 추가된 줄</b>을 초록색으로 보여 줘요.</p>
+
+      <!-- ===================== 2. 단계별 ===================== -->
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+
+          <section class="step" data-step="1" id="s1">
+            <span class="label">코드의 ① 부분</span>
+            <h3>① 원문 읽기</h3>
+            <p class="does">파일을 글자열(str) 하나로 읽어요.</p>
+            <p><code>read_text()</code>에 <code>encoding="utf-8"</code>을 꼭 적어요. 적지 않으면 운영체제 기본 인코딩으로 읽는데, 한국어 Windows는 기본값이 UTF-8이 아니라서 한글 파일이 깨지거나 오류가 날 수 있어요.</p>
+            <div class="out" id="o1"></div>
+          </section>
+
+          <section class="step" data-step="2" id="s2">
+            <span class="label">코드의 ② 부분</span>
+            <h3>② 제목으로 나누기</h3>
+            <p class="does"><code>## 제목</code> 줄을 찾아서, 제목과 제목 사이를 한 덩어리로 묶어요.</p>
+            <p class="kicker">왜 글자 수로 자르지 않고 제목으로?</p>
+            <p>가장 단순한 방법은 "60자마다 자르기"예요. 실제로 해 보면 이렇게 돼요. 줄 앞의 <code>[0, 60)</code>은 "0번째 글자부터 60번째 글자 <b>앞</b>까지"라는 뜻이고 파이썬 <code>text[0:60]</code>과 같아요. <code>⏎</code>는 줄바꿈, <span class="cut">✂</span>는 잘린 자리예요.</p>
+            <div class="out" id="o2a"></div>
+            <p>"대출 기간은"과 "14일이며"가 다른 조각으로 갈라졌어요. 누가 "대출 기간이 며칠이야?"라고 물으면, 답이 두 조각에 반씩 들어 있어서 어느 쪽도 제대로 답하지 못해요. 두 번째 조각에는 대출 이야기 끝과 "## 열" 까지 섞여 있어요.</p>
+            <p>반대로 <a href="#why">맨 위 원문</a>을 다시 보면, <code>##</code> 제목 세 개가 이미 주제를 나누고 있어요. 이 제목 경계에서 자르면 저절로 <b>한 조각에 한 주제</b>가 돼요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>r"^## (.+)$"</code></td><td>줄 시작(<code>^</code>)에 <code>## </code>가 있고, 그 뒤 글자들(<code>(.+)</code>)이 줄 끝(<code>$</code>)까지 이어지는 줄. 괄호 안이 제목 글자예요.</td></tr>
+              <tr><td><code>flags=re.M</code></td><td><code>^</code>와 <code>$</code>를 "문서 전체의 처음과 끝"이 아니라 "<b>각 줄</b>의 처음과 끝"으로 보게 해요. 이게 없으면 첫 줄만 검사해요.</td></tr>
+              <tr><td><code>h.group(1)</code></td><td>괄호 <code>(.+)</code>에 걸린 글자, 즉 제목만 꺼내요.</td></tr>
+              <tr><td><code>h.end() + 1</code></td><td>제목 줄이 끝난 위치에서 줄바꿈 한 글자를 건너뛴 곳. 본문이 여기서 시작해요.</td></tr>
+              <tr><td><code>heads[i + 1].start()</code></td><td>다음 제목이 시작하는 위치. 지금 섹션은 거기 앞에서 끝나요.</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o2"></div>
+          </section>
+
+          <section class="step" data-step="3" id="s3">
+            <span class="label">코드의 ③ 부분</span>
+            <h3>③ 토큰 세기</h3>
+            <p class="does">섹션마다 "모델이 읽는 단위(토큰)"로 몇 개인지 세요.</p>
+            <p class="kicker">왜 글자 수가 아니라 토큰 수?</p>
+            <p>조각은 나중에 Embedding 모델에 들어가요. 모델은 글자가 아니라 <b>토큰</b> 단위로 읽고, 한 번에 읽을 수 있는 토큰 수에 한도가 있어요. 한 줄을 실제로 토큰으로 나눠 보면 이래요.</p>
+            <div class="out" id="o3a"></div>
+            <p>글자 수와 토큰 수는 1:1이 아니에요. 글을 토큰으로 쪼개는 도구를 <b>Tokenizer</b>라고 하는데, 모델마다 쪼개는 방식이 달라요. 그래서 길이 검사는 <b>실제로 쓸 모델의 Tokenizer</b>로 해야 해요.</p>
+            <p>원래는 이유 1의 multilingual-e5-small 같은 Embedding 모델의 Tokenizer를 써야 하지만, 이 예제는 이 PC에 받아 둔 <code>bert-base-multilingual-cased</code>의 Tokenizer로 대신 셌어요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>AutoTokenizer.from_pretrained(이름)</code></td><td>모델 이름으로 그 모델의 Tokenizer를 불러와요.</td></tr>
+              <tr><td><code>tok(t)["input_ids"]</code></td><td>글 <code>t</code>를 토큰 번호 목록으로 바꿔요. <code>len()</code>을 하면 토큰 수예요.</td></tr>
+              <tr><td><code>add_special_tokens=False</code></td><td id="sp-row"></td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o3"></div>
+          </section>
+
+          <section class="step" data-step="4" id="s4">
+            <span class="label">코드의 ④ 부분</span>
+            <h3>④ 긴 섹션만 줄 단위로 다시 묶기</h3>
+            <p class="does">한도를 넘은 섹션만, 줄을 하나씩 담다가 한도에 닿으면 새 조각을 시작해요.</p>
+            <p>짧은 섹션은 그대로 둬요. 쪼갤 이유가 없는 걸 쪼개면 오히려 문맥이 끊겨요. 다시 자를 때도 <b>줄(문장) 경계</b>에서만 잘라서, 문장 중간이 갈라지지 않게 해요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>r"[^\n]+"</code></td><td>줄바꿈이 아닌 글자(<code>[^\n]</code>)가 1개 이상(<code>+</code>) 이어진 것, 즉 <b>한 줄</b>이에요.</td></tr>
+              <tr><td><code>a, b</code></td><td>그 줄의 시작과 끝을 <b>원문 전체 기준</b> 위치로 바꾼 값. 섹션 안에서 찾았으니 섹션 시작 위치를 더해요.</td></tr>
+              <tr><td><code>count(text[cur["start"]:b])</code></td><td>지금 조각에 이 줄까지 붙였을 때의 토큰 수. 한도 이하면 붙이고, 넘으면 이 줄로 새 조각을 시작해요.</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면 (한도를 넘은 「분실과 훼손」 섹션)</p>
+            <div class="out" id="o4"></div>
+            <details class="try" id="t4">
+              <summary>🔁 바꿔 보기: <code>MAX_TOKENS</code>를 64에서 40으로 줄이면 조각은 몇 개가 될까?</summary>
+              <p class="hint">먼저 예상해 보고 펼쳐 보세요. 힌트: ③의 섹션별 토큰 수를 보세요.</p>
+              <div id="t4a"></div>
+            </details>
+          </section>
+
+          <section class="step" data-step="5" id="s5">
+            <span class="label">코드의 ⑤ 부분</span>
+            <h3>⑤ 조각 기록 만들기</h3>
+            <p class="does">조각마다 ID, 출처 제목, 원문 위치, 토큰 수, 본문을 한 기록(dict)으로 묶어요.</p>
+            <p>검색 결과로 조각이 나왔을 때 "이게 원문 어디서 왔지?"를 되짚으려면 <b>위치</b>가 있어야 하고, 같은 조각을 두 번 저장하지 않으려면 <b>내용으로 정해지는 ID</b>가 있어야 해요.</p>
+            <p>ID는 <b>SHA-256</b>으로 만들어요. SHA-256은 어떤 글을 넣든 64자리 16진수 "지문"을 돌려주는 함수예요. 같은 글을 넣으면 언제나 같은 지문이 나오고, 한 글자만 달라도 완전히 다른 지문이 나와요. 여기에 문서 이름, 위치, 본문을 합친 글을 넣어요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>json.dumps(..., sort_keys=True)</code></td><td>dict를 글로 바꿀 때 키를 이름순으로 정렬해요. 키 순서가 달라지면 글이 달라져서 지문도 달라지거든요.</td></tr>
+              <tr><td><code>ensure_ascii=False</code></td><td>한글을 <code>한</code> 같은 코드로 바꾸지 않고 그대로 둬요.</td></tr>
+              <tr><td><code>.encode("utf-8")</code></td><td>SHA-256은 글자가 아니라 바이트를 받아서, 바이트로 바꿔 넣어요.</td></tr>
+              <tr><td><code>hexdigest()[:12]</code></td><td>64자리 지문 중 앞 12자리만 써요. 사람이 보기 짧게 하려는 것이고, 조각이 아주 많아지면 더 길게 써요.</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면 (첫 번째 조각)</p>
+            <div class="out" id="o5"></div>
+            <details class="try" id="t5">
+              <summary>🔁 바꿔 보기: 원문의 "14일"을 "21일"로 고치면 조각 4개의 ID는 어떻게 될까?</summary>
+              <p class="hint">먼저 예상해 보고 펼쳐 보세요.</p>
+              <div id="t5a"></div>
+            </details>
+          </section>
+
+          <section class="step" data-step="6" id="s6">
+            <span class="label">코드의 ⑥ 부분</span>
+            <h3>⑥ 검사하고 저장하기</h3>
+            <p class="does">저장하기 전에 두 가지를 확인하고, 통과하면 <code>chunks.json</code>으로 써요.</p>
+            <ul>
+              <li><b>위치로 원문을 되찾을 수 있나</b>: <code>text[char_start:char_end]</code>가 본문과 똑같아야 해요.</li>
+              <li><b>모델 한도 안인가</b>: 모든 조각이 <code>MAX_TOKENS</code> 이하여야 해요.</li>
+            </ul>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o6"></div>
+            <details class="try" id="t6">
+              <summary>🔁 바꿔 보기: 위치를 글자 대신 <b>바이트</b>로 세면 검사가 통과할까?</summary>
+              <p class="hint">먼저 예상해 보고 펼쳐 보세요. 힌트: 한글 한 글자는 UTF-8에서 3바이트예요.</p>
+              <div id="t6a"></div>
+            </details>
+          </section>
+
+        </div>
+
+        <aside class="codepanel" id="panel">
+          <div class="bar">
+            <span class="file">examples/chunking/chunk_pipeline.py</span>
+            <span id="pills"></span>
+            <button class="pill" id="showall" type="button">전체 보기</button>
+          </div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+
+      <!-- ===================== 3. 실제로 할 때 ===================== -->
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table>
+        <tr><th>상황</th><th>어떻게</th></tr>
+        <tr><td>Embedding 모델이 정해졌다</td><td>③의 Tokenizer를 <b>그 모델의 것</b>으로 바꿔요. 모델마다 토큰 나누는 방식과 한도가 달라요.</td></tr>
+        <tr><td>제목이 없는 문서 (TXT 등)</td><td>②에서 <code>## 제목</code> 대신 빈 줄로 나뉜 문단을 경계로 써요.</td></tr>
+        <tr><td>줄 하나가 한도보다 길다</td><td>④는 그 줄을 혼자 한 조각으로 두기 때문에 ⑥ 검사에서 걸려요. 그 줄만 문장 단위로, 그래도 길면 ②의 대조처럼 글자 수로 한 번 더 잘라요.</td></tr>
+        <tr><td>문서 앞부분 글자 수가 바뀌었다</td><td>ID에 위치가 들어가서, 뒤쪽 조각의 ID도 같이 바뀌어요 (아래 실제 결과). 바뀐 ID만 다시 Embedding하면 돼요.</td></tr>
+      </table>
+      <div class="out" id="o-len"></div>
+
+      <!-- ===================== 4. 진짜 명령어 ===================== -->
+      <h2 id="cmds">📦 이 코드에 쓴 라이브러리</h2>
+      <table>
+        <tr><th>단계</th><th>함수</th><th>하는 일</th></tr>
+        <tr><td>①</td><td><code>Path.read_text(encoding="utf-8")</code></td><td>파일을 str로 읽기 (표준 라이브러리 pathlib)</td></tr>
+        <tr><td>②</td><td><code>re.finditer(pattern, text, flags=re.M)</code>, <code>m.start()</code>, <code>m.end()</code>, <code>m.group(1)</code></td><td>패턴이 나오는 위치를 모두 찾기 (표준 라이브러리 re)</td></tr>
+        <tr><td>③</td><td><code>AutoTokenizer.from_pretrained(name)</code>, <code>tok(text, add_special_tokens=False)["input_ids"]</code></td><td>모델의 Tokenizer 불러오기, 토큰 ID 목록 얻기 (transformers)</td></tr>
+        <tr><td>⑤</td><td><code>json.dumps(..., ensure_ascii=False, sort_keys=True)</code>, <code>hashlib.sha256(b).hexdigest()</code></td><td>키 순서를 고정한 문자열 만들기, 그 문자열로 ID 만들기</td></tr>
+        <tr><td>⑥</td><td><code>Path.write_text(..., encoding="utf-8")</code></td><td>결과를 파일로 쓰기</td></tr>
+      </table>
+      <p><code>count</code>와 <code>split_long</code>은 이 파일 안에서 정의한 함수예요.</p>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>예제 문서: <code>examples/chunking/library_guide.md</code> (이 노트용으로 직접 만든 가상 문서)</li>
+        <li>전체 코드: <code>examples/chunking/chunk_pipeline.py</code> (그대로 실행 가능)</li>
+        <li>결과 값: <code>tools/io_proto_chunking.py</code>가 코드를 단계별로 실제 실행해 만든 <code>notes/proto-chunking-data.js</code>. 실행 환경 <span id="env"></span>. "왜 나눠야 할까?"의 유사도는 scikit-learn <code>TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 2))</code>와 코사인 유사도, 강의 PDF 토큰 수는 pypdf로 글자를 뽑아 같은 Tokenizer로 센 값.</li>
+        <li>공식 문서: <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a> (512토큰 한도)</li>
+      </ul>
+    </article>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script src="proto-chunking-data.js"></script>
+  <script>
+  (() => {
+    const P = window.PROTO, S = P.steps, X = P.exp, N = P.nstep;
+    const C = "①②③④⑤⑥⑦⑧⑨";
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const q = s => JSON.stringify(s);
+
+    /* ---------- 아주 작은 Python 색칠 ---------- */
+    const KW = new Set("from import for in if else def return assert and or not None True False".split(" "));
+    const NB = new Set("len list enumerate print open".split(" "));
+    function hl(line) {
+      let out = "", i = 0;
+      while (i < line.length) {
+        const ch = line[i];
+        if (ch === "#") { out += `<span class="cm">${esc(line.slice(i))}</span>`; break; }
+        const pre = /^[rfbRFB]{0,2}["']/.exec(line.slice(i));
+        if (pre && (i === 0 || !/[A-Za-z0-9_]/.test(line[i - 1]))) {
+          const quote = pre[0].slice(-1); let j = i + pre[0].length;
+          while (j < line.length && line[j] !== quote) { if (line[j] === "\\") j++; j++; }
+          out += `<span class="st">${esc(line.slice(i, j + 1))}</span>`; i = j + 1; continue;
+        }
+        const w = /^[A-Za-z_][A-Za-z0-9_]*/.exec(line.slice(i));
+        if (w) { const t = w[0]; out += KW.has(t) ? `<span class="kw">${t}</span>` : NB.has(t) ? `<span class="nb">${t}</span>` : t; i += t.length; continue; }
+        out += esc(ch); i++;
+      }
+      return out;
+    }
+
+    /* ---------- 오른쪽 코드 패널 ---------- */
+    const codeEl = $("code");
+    codeEl.innerHTML = P.code.map((c, i) => {
+      const lab = /^# [①-⑨] /.test(c.t) ? " labelln" : "";
+      return `<span class="ln${lab}" data-s="${c.s}"><span class="no">${i + 1}</span>${hl(c.t) || " "}</span>`;
+    }).join("") + `<span class="more" id="more"></span>`;
+    const lines = [...codeEl.querySelectorAll(".ln")];
+    const names = {};
+    P.code.forEach(c => { const m = /^# ([①-⑨]) (.+)$/.exec(c.t); if (m) names[C.indexOf(m[1]) + 1] = m[2]; });
+    $("pills").innerHTML = Array.from({ length: N }, (_, k) => `<button class="pill" type="button" data-go="${k + 1}">${C[k]}</button>`).join(" ");
+    let showAll = false, current = 1;
+    function paint(k) {
+      current = k;
+      lines.forEach(l => {
+        const s = +l.dataset.s;
+        l.className = l.className.replace(/ ?(old|new|hide)/g, "");
+        l.classList.add(s === k ? "new" : s < k ? "old" : (showAll ? "old" : "hide"));
+      });
+      const left = lines.filter(l => +l.dataset.s > k).length;
+      $("more").textContent = !showAll && left ? `… 다음 단계에서 ${left}줄이 더 붙어요` : "";
+      const added = lines.filter(l => +l.dataset.s === k && l.textContent.trim().length > 2);
+      const label = lines.find(l => +l.dataset.s === k && l.classList.contains("labelln"));
+      const above = label ? added.filter(l => lines.indexOf(l) < lines.indexOf(label)).length : 0;
+      $("now").innerHTML = `지금: <b>${C[k - 1]} ${esc(names[k] || "")}</b> &nbsp;<span style="opacity:.75">(+${added.length}줄${above ? `, 그중 ${above}줄은 파일 위쪽` : ""})</span>`;
+      document.querySelectorAll("#pills .pill").forEach(b => { const g = +b.dataset.go; b.classList.toggle("on", g === k); b.classList.toggle("done", g < k); });
+      document.querySelectorAll(".step").forEach(st => st.classList.toggle("on", +st.dataset.step === k));
+      const target = label || lines.find(l => +l.dataset.s === k);
+      if (target) { const wrap = codeEl.parentElement; wrap.scrollTo({ top: Math.max(0, target.offsetTop - 60), behavior: "smooth" }); }
+    }
+    $("showall").addEventListener("click", e => { showAll = !showAll; e.target.classList.toggle("on", showAll); paint(current); });
+    document.addEventListener("click", e => { const g = e.target.closest("[data-go]"); if (g) { $("s" + g.dataset.go).scrollIntoView({ behavior: "smooth", block: "start" }); } });
+    const io = new IntersectionObserver(es => {
+      es.forEach(en => { if (en.isIntersecting) paint(+en.target.dataset.step); });
+    }, { rootMargin: "-40% 0px -55% 0px" });
+    document.querySelectorAll(".step").forEach(st => io.observe(st));
+
+    /* 좁은 화면: 단계마다 새 줄만 직접 보여 주기 */
+    document.querySelectorAll(".step").forEach(st => {
+      const k = +st.dataset.step;
+      const nw = P.code.map((c, i) => ({ ...c, i })).filter(c => c.s === k);
+      const box = document.createElement("div"); box.className = "inline-code";
+      box.innerHTML = `<div class="codepanel-mini"><pre class="code">${nw.map(c => `<span class="ln new"><span class="no">${c.i + 1}</span>${hl(c.t) || " "}</span>`).join("")}</pre></div>`;
+      st.querySelector(".does").after(box);
+    });
+
+    /* ---------- 출력 상자 (번호 주석) ---------- */
+    function outBox(el, title, rows, notes) {
+      const body = rows.map(r => typeof r === "string" ? esc(r) : esc(r[0]) + (r[1] ? `<span class="mk">${C[r[1] - 1]}</span>` : "")).join("\n");
+      $(el).innerHTML = `<div class="ttl">▶ ${title}</div><pre><code>${body}</code></pre>` + (notes ? `<ol class="ann">${notes.map(n => `<li>${n}</li>`).join("")}</ol>` : "");
+    }
+
+    // ①
+    outBox("o1", "① 실행 결과", [
+      [`len(text)              → ${S[1].len}`, 1],
+      [`len(text.splitlines()) → ${S[1].lines}`, 2],
+      `text.splitlines()[:4]  →`,
+      ...S[1].head.map(h => "   " + q(h)),
+    ], [`글자 수예요. 바이트 수가 아니에요 (한글은 UTF-8로 3바이트지만 str에서는 1글자).`,
+        `줄 수. 빈 줄도 한 줄로 세요.`]);
+
+    // ② 대조
+    const cutAt = s => esc(s.text).replace(/\n/g, "⏎");
+    $("o2a").innerHTML = `<div class="ttl">▶ 대조: 60자마다 자르면 (text[0:60], text[60:120], …)</div><pre><code>${X.fixed60.map(w => `[${w.start}, ${w.end})  ${cutAt(w)}`).join("\n").replace("대출 기간은 ", '대출 기간은 <span class="cut">✂</span>').replace("[60, 120)  14일이며", '[60, 120)  <span class="cut">✂</span>14일이며')}</code></pre>`;
+    // ②
+    outBox("o2", "② 실행 결과: sections", [
+      "[",
+      ...S[2].sections.map((s, i) => [`  {"heading": ${q(s.heading)}, "start": ${s.start}, "end": ${s.end}},`, i === 0 ? 1 : 0]),
+      "]",
+      "",
+      [`text[${S[2].sections[0].start}:${S[2].sections[0].end}] →`, 2],
+      ...S[2].bodies[0].split("\n").map(l => "   " + l),
+    ], [`섹션 하나 = 제목, 시작 위치, 끝 위치. 본문은 아직 따로 저장하지 않고 <b>위치만</b> 기억해요.`,
+        `위치로 잘라 보면 제목 줄은 빠지고 본문만 나와요. <code>end</code> 위치의 글자는 포함하지 않아요 (파이썬 슬라이스 규칙).`]);
+
+    // ③
+    $("sp-row").innerHTML = `Tokenizer는 기본으로 문장 앞뒤에 ${X.tokline.special.map(s => `<code>${esc(s)}</code>`).join(", ")} 같은 표시용 토큰을 붙여요. 본문 길이만 보려고 이걸 빼요. 빼지 않으면 위 줄이 ${X.tokline.tokens}개가 아니라 ${X.tokline.tokens_special}개로 세져요.`;
+    $("o3a").innerHTML = `<div class="ttl">▶ 한 줄을 토큰으로 나누면</div><pre><code>${esc(X.tokline.line)}
+글자 ${X.tokline.chars}개 → 토큰 ${X.tokline.tokens}개</code></pre><div class="tokchips" style="padding:8px 10px">${X.tokline.pieces.map(p => `<span>${esc(p)}</span>`).join("")}</div><ol class="ann"><li><code>##</code>으로 시작하는 토큰은 "앞 토큰에 붙는 조각"이라는 뜻이에요. "사람은"이 <code>사</code>, <code>##람</code>, <code>##은</code> 세 개가 됐어요.</li></ol>`;
+    $("o3").innerHTML = `<div class="ttl">▶ ③ 실행 결과: sections (한도 MAX_TOKENS = ${S[3].max})</div><pre><code>[\n${S[2].sections.map((s, i) => {
+        const t = S[3].sections[i].tokens, over = t > S[3].max;
+        return `  {"heading": ${esc(q(s.heading))}, "start": ${s.start}, "end": ${s.end}, <span class="newf">"tokens": ${t}</span>},` + (i === 0 ? `<span class="mk">①</span>` : "") + (over ? `  <span class="cut">← ${S[3].max} 넘음</span><span class="mk">②</span>` : "");
+      }).join("\n")}\n]</code></pre><ol class="ann"><li>②의 결과와 같은 섹션에 <b>초록색 <code>tokens</code> 필드만 새로 붙었어요</b>. 나머지는 그대로예요.</li><li>「분실과 훼손」은 ${S[3].sections[2].chars}자, ${S[3].sections[2].tokens}토큰으로 한도를 넘어요. ④에서 이 섹션만 다시 잘라요.</li></ol>`;
+
+    // ④
+    outBox("o4", `④ 실행 결과: split_long(「${S[4].heading}」) (원래 ${S[4].tokens}토큰)`,
+      S[4].pieces.flatMap((p, i) => [[`조각 ${i + 1}  [${p.start}, ${p.end})  ${p.tokens}토큰`, i + 1], ...p.text.split("\n").map(l => "   " + l), ""]).slice(0, -1),
+      S[4].pieces.map((p, i) => `${p.tokens}토큰. ${i === 0 ? "줄을 담다가 다음 줄까지 넣으면 64를 넘어서 여기서 끊었어요." : "남은 줄로 새 조각을 시작했어요."}`));
+    const tbl = (rows, cols) => `<table style="margin:6px 0">${"<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr>"}${rows.join("")}</table>`;
+    $("t4a").innerHTML = `<p><b>${X.max40.length}개</b>예요 (64일 때는 ${S[5].n}개). ③에서 세 섹션 모두 40을 넘었기 때문에 전부 다시 잘렸어요.</p>` +
+      tbl(X.max40.map(c => `<tr><td>${esc(c.heading)}</td><td>${c.tokens}</td></tr>`), ["섹션", "조각 토큰 수"]) +
+      `<p>반대로 200으로 키우면 <b>${X.max200.length}개</b>, 섹션당 하나씩이에요 (${X.max200.map(c => c.tokens).join(", ")}토큰). 한도가 작을수록 조각이 잘게 쪼개져 문맥이 줄고, 클수록 한 조각에 여러 이야기가 섞여요.</p>`;
+
+    // ⑤
+    const f = S[5].first;
+    outBox("o5", "⑤ 실행 결과: chunks[0]", [
+      "{",
+      [`  "chunk_id": ${q(f.chunk_id)},`, 1],
+      [`  "heading": ${q(f.heading)},`, 2],
+      [`  "char_start": ${f.char_start},`, 3],
+      [`  "char_end": ${f.char_end},`, 3],
+      [`  "tokens": ${f.tokens},`, 4],
+      [`  "body": ${q(f.body.slice(0, 26))}…`, 5],
+      "}",
+    ], [`문서 이름, 위치, 본문으로 만든 SHA-256의 앞 12자리. 같은 입력이면 언제나 같은 값이에요.`,
+        `이 조각이 속한 섹션 제목. 검색 결과를 보여 줄 때 "어느 항목에서 왔는지" 표시하는 데 써요.`,
+        `원문 <code>text</code>에서의 글자 위치. ②에서 기억해 둔 그 위치예요.`,
+        `③의 Tokenizer로 센 이 조각의 토큰 수.`,
+        `실제 본문. <code>text[char_start:char_end]</code>와 똑같아야 해요 (⑥에서 검사).`]);
+    $("t5a").innerHTML = `<p><b>첫 조각만 바뀌고, 나머지 3개는 그대로</b>예요. "14"와 "21"은 글자 수가 같아서 뒤쪽 조각의 위치가 밀리지 않았어요.</p>` +
+      tbl(X.edit.map(e => `<tr><td>${esc(e.heading)}</td><td><code>${e.before}</code></td><td><code>${e.after}</code></td><td>${e.before === e.after ? "그대로" : "<b>바뀜</b>"}</td></tr>`), ["섹션", "고치기 전", "고친 뒤", ""]) +
+      `<p>그래서 원문이 조금 바뀌어도 <b>ID가 바뀐 조각만</b> 다시 Embedding하면 돼요.</p>`;
+
+    // ⑥
+    outBox("o6", "⑥ 실행 결과", [
+      [S[6].printed, 1],
+      [`chunks.json 크기 → ${S[6].bytes} 바이트`, 2],
+    ], [`assert 두 개를 모두 통과해야 이 줄이 출력돼요. 하나라도 틀리면 여기까지 오지 못하고 AssertionError로 멈춰요.`,
+        `조각 ${S[6].n}개의 기록이 JSON 배열로 저장됐어요. 이 파일이 다음 단계(Embedding, 벡터 DB 저장)의 입력이에요.`]);
+    const B = X.bytes;
+    $("t6a").innerHTML = `<p><b>통과하지 못해요.</b> 첫 조각의 위치를 비교하면 이래요.</p>` +
+      tbl([`<tr><td>글자로 센 위치</td><td>[${B.char[0]}, ${B.char[1]})</td></tr>`, `<tr><td>바이트로 센 위치</td><td>[${B.byte[0]}, ${B.byte[1]})</td></tr>`], ["", "위치"]) +
+      `<p>바이트 위치로 <code>text[${B.byte[0]}:${B.byte[1]}]</code>를 자르면 <code>${esc(B.wrong_head)}…</code>처럼 엉뚱한 곳이 나오고, 검사는 <b>${B.error}</b>로 멈춰요. <code>str</code>을 자를 때는 언제나 <b>글자 위치</b>를 써야 해요.</p>`;
+
+    // 실제로 할 때: 글자 수가 바뀌는 수정
+    const L = X.edit_len;
+    $("o-len").innerHTML = `<div class="ttl">▶ 실제 결과: "14일"을 "140일"로 고치면 (한 글자 늘어남)</div>` +
+      tbl(L.map(e => `<tr><td>${esc(e.heading)}</td><td>${e.start_before} → ${e.start_after}</td><td>${e.before === e.after ? "그대로" : "<b>바뀜</b>"}</td></tr>`), ["조각", "char_start", "chunk_id"]);
+
+    /* ---------- 왜 나눠야 할까 ---------- */
+    const W = P.why;
+    $("w-doc").innerHTML = `<div class="ttl">▶ 예제 문서: library_guide.md (${W.doc.length}자, 직접 만든 가상 문서)</div><pre><code>${W.doc.trimEnd().split("\n").map(l => /^#{1,2} /.test(l) ? `<span style="color:#ffd166;font-weight:800">${esc(l)}</span>` : esc(l)).join("\n")}</code></pre>`;
+    const LIM = 512;
+    $("w-len").innerHTML = `<tr><th>문서</th><th>토큰 수</th><th>512토큰 한도와 비교</th></tr>` +
+      `<tr><td>위 예제 문서</td><td>${W.doc_tokens}</td><td>${(W.doc_tokens / LIM).toFixed(1)}배 (들어감)</td></tr>` +
+      (W.pdf ? `<tr><td>강의 PDF 한 개 (${W.pdf.pages}쪽, ${W.pdf.chars.toLocaleString()}자)</td><td>${W.pdf.tokens.toLocaleString()}</td><td class="over">${Math.round(W.pdf.tokens / LIM)}배 → 앞 512토큰만 반영</td></tr>` : "");
+    const heads = ["문서 전체", ...W.chunks.map((c, i) => `조각 ${i + 1}<br><small>${esc(c.heading)}</small>`)];
+    $("w-sim").innerHTML = `<tr><th>질문</th>${heads.map(h => `<th>${h}</th>`).join("")}</tr>` +
+      W.sims.map(r => { const mx = Math.max(...r.s); return `<tr><td>${esc(r.q)}</td>${r.s.map((x, i) => `<td style="${x === mx ? "font-weight:800;color:var(--accent)" : i === 0 ? "color:var(--muted)" : ""}">${x.toFixed(2)}${x === mx ? " ✅" : ""}</td>`).join("")}</tr>`; }).join("");
+    $("w-ctx").innerHTML = `"대출 기간은 며칠인가요?"에 문서 전체를 근거로 넘기면 <b>${W.doc.length}자</b> 중 대부분이 답과 상관없는 열람실, 분실 이야기예요. 조각 1을 넘기면 <b>${W.chunks[0].chars}자</b>이고 전부 대출 이야기예요. 근거가 짧을수록 LLM에 드는 비용이 줄고, 엉뚱한 부분을 섞어 답할 위험도 줄어요. 출처도 "몇 번째 글자부터 몇 번째 글자까지"처럼 정확히 가리킬 수 있어요.`;
+
+    /* ---------- 통째로 한 번 ---------- */
+    const s3 = S[3].sections, over = s3.filter(s => s.tokens > S[3].max).length;
+    const boxes = [
+      [1, "원문", `${S[1].len}자`, "library_guide.md"],
+      [2, "제목으로 나눔", `섹션 ${S[2].sections.length}개`, S[2].sections.map(s => s.heading).join(", ")],
+      [3, "토큰 세기", `${over}개 초과`, `한도 ${S[3].max}토큰`],
+      [4, "긴 것만 다시", `${S[4].pieces.length}조각으로`, `「${S[4].heading}」만`],
+      [5, "기록 만들기", `조각 ${S[5].n}개`, "ID, 위치, 본문"],
+      [6, "검사, 저장", "chunks.json", `${S[6].bytes} 바이트`],
+    ];
+    $("flow").innerHTML = boxes.map((b, i) => `${i ? '<span class="arrow">→</span>' : ""}<div class="box" data-go="${b[0]}"><span class="n">${C[b[0] - 1]} ${b[1]}</span><span class="big">${b[2]}</span><small>${esc(b[3])}</small></div>`).join("");
+    $("final-table").innerHTML = `<tr><th>최종 조각</th><th>섹션</th><th>글자 수</th><th>토큰 수</th></tr>` +
+      S[5].all.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(c.heading)}</td><td>${c.char_end - c.char_start}</td><td>${c.tokens}</td></tr>`).join("");
+    $("env").textContent = `Python ${P.meta.python}, transformers ${P.meta.transformers}, scikit-learn ${P.why.sklearn}, Tokenizer ${P.meta.tokenizer}`;
+
+    paint(1);
+  })();
+  </script>
+</body>
+</html>

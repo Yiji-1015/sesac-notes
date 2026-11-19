@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+
+# 원본 강의자료 (공개 저장소에 올리지 않음)
+강의자료-원본/
