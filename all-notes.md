@@ -20222,3 +20222,1316 @@ RESET hnsw.iterative_scan;
 - **retrieved · included · source ids** (retrieved / included / source IDs): retrieved = 검색이 가져온 후보 전체, included = 검토 후 이번 Context에 넣은 것, source = 모델 응답이 인용한 것. source ⊆ included ⊆ retrieved.
 - **정성평가** (Qualitative retrieval evaluation): 검색 결과 원문을 사람이 읽고 관련 / 부분 관련 / 무관과 이유를 적는 평가. 점수 · 순위만으로 판단하지 않아요. 정량 지표(Recall@k 등)의 기초 자료가 돼요.
 - **재임베딩** (Re-embedding): 원문이나 모델 · 전처리 계약이 바뀌면 관련 벡터를 다시 만드는 것. 모델이 바뀌면 문서와 질문을 모두 새 계약으로. 그래서 embedding_model · source_version을 행에 기록해요.
+
+---
+
+# Day24 · Document Parsing · Chunking · Indexing — 문서를 검색 데이터로
+_2026-11-19(목) · Ingestion Pipeline · Manifest · SHA-256 · TXT/Markdown/HTML/PDF Parsing · needs_ocr · Cleaning · NFC · Chunking · Overlap · Token 한도 · Span · Coverage · Metadata · chunk_id · Staging/Publish · citation_id_  ·  페이지: https://yiji-1015.github.io/sesac-notes/notes/day24.html
+
+📌 딱 3줄 요약
+
+- Document Ingestion = 원본 파일을 수집 → 읽기(Parsing) → 정리(Cleaning) → 나누기(Chunking) → 검사 → 출처 붙이기 → 저장 · 공개해서 "검색할 수 있는 조각"으로 만드는 전체 과정. 단계마다 결과를 따로 남겨, 문제가 생기면 어느 단계 탓인지 되짚을 수 있게 해요.
+
+- Chunk는 답이 들어 있는 단위로 나눠요. 고정 글자 수로 자르면 "10분을 초과하면 | 결석"처럼 조건과 결과가 갈라져요. 제목 · 문단 같은 구조를 먼저 따르고, 길이는 그 모델의 Tokenizer로 센 최종 입력으로 검사해요.
+
+- 검색 대상은 검증이 끝난 현재 공개 버전만. 새 버전은 다 적재 · 확인한 뒤 한 트랜잭션으로 공개 포인터를 바꿔요. 실패하면 이전 판이 그대로 검색돼요.
+
+## 🗺️ 큰 그림 — 원본 파일이 검색 가능한 Chunk가 되기까지
+
+[그림: ① 수집 → ② Parsing → ③ Cleaning → ④ Chunking → ⑤ 검증 → ⑥ Metadata → ⑦ 저장·공개, 아래로 unsupported · needs_ocr · span_mismatch · ROLLBACK 같은 보류·실패 가지] 무엇을 보나: 단계마다 남기는 결과물이 달라요(Raw File → raw_text → clean_text → Span → Chunk 행). 아래 점선은 보류 · 실패도 상태로 기록한다는 뜻이에요. 🤔 왜 단계를 쪼개 남겨? 검색이 이상할 때 "모델이 나빠서"로 결론 내리기 전에, 원문이 제대로 읽혔는지 · 정제에서 숫자가 지워졌는지 · 조각이 조건을 잘랐는지를 단계별로 되짚을 수 있어서요.
+
+Embedding · Vector Search는 이미 정리된 짧은 지식 문장을 벡터로 바꿔 찾았어요. 실제 자료는 PDF · Markdown · HTML 같은 파일이라, 그 사이를 잇는 과정이 필요해요.
+
+| 단계 | 하는 일 | 핵심 질문 |
+|---|---|---|
+| ① 수집 | 파일 목록 · 원본 바이트 · SHA-256 | 무엇을 처리했고, 원문이 바뀌었나? |
+| ② Parsing | 형식별로 텍스트와 구조 꺼내기 | 글자만이 아니라 제목 · 표 · 페이지가 살아 있나? |
+| ③ Cleaning | 줄바꿈 · 공백 · 유니코드 정리 | 잡음만 지웠고 의미는 그대로인가? |
+| ④ Chunking | 검색 단위로 나누기 | 조건과 결과가 한 조각에 있나? 모델 한도 안인가? |
+| ⑤ 검증 | Span · Coverage · 중복 · 빈 조각 | 조각이 원문과 정확히 대응하고, 빠진 곳이 없나? |
+| ⑥ Metadata | 출처 · 버전 · 위치 · 결정적 ID | 이 조각은 어느 문서 어느 판의 어디서 왔나? |
+| ⑦ 저장 · 공개 | staging → 확인 → 공개 포인터 전환 | 반쯤 적재된 판이 검색되지 않나? |
+| ⑧ 전체 연결 | 문서 하나 끝까지 · 실패 범위 · 인용 ID | 다음 단계(RAG)가 받을 결과는 무엇인가? |
+
+```
+원본 파일 (data/raw)            ← 절대 덮어쓰지 않음
+  → ParsedUnit  raw_text          (페이지 · 절 단위, source_locator)
+  → CleanUnit   clean_text        (cleaner_version · clean_hash)
+  → Chunk       body = clean_text[start:end]  + Metadata + chunk_id
+  → 벡터(E5 384차원) → PostgreSQL + pgvector  (staging → ready → current)
+```
+
+### 예제 문서 6건
+
+아래 설명과 실행 결과에 쓰는 가상 안내 문서예요(실제 기관 규정 아님). 크기는 실제 파일 바이트.
+
+| doc_id | 파일 (바이트) | 형식에서 볼 것 | 처리 결과 |
+|---|---|---|---|
+| DOC-ATTEND | attendance.md (328) | 제목 · 문단 · 숫자 · 예외("단,") | parsed |
+| DOC-ASSIGN | assignment.txt (267) | UTF-8 · 줄바꿈 | parsed |
+| DOC-FACILITY | facility.html (728) | main 영역 · 메뉴 · 스크립트 · 표 | parsed |
+| DOC-CAREER | career.pdf (36,195) | 페이지 · 쪽번호 | parsed (2페이지) |
+| DOC-SCAN | scan.pdf (34,629) | 글자가 이미지 | needs_ocr 보류 |
+| DOC-UNSUPPORTED | unsupported.xyz (62) | 지원하지 않는 형식 | unsupported |
+
+개정본 attendance_v2.md는 "10분" 기준을 "15분"으로 바꾼 같은 문서의 v2예요(⑦ 공개 전환에서 사용).
+
+## ① 수집 — 원본을 보존하고, 무엇을 처리했는지 기록
+
+### Raw File과 Derived Data는 따로
+
+| 단계 결과 | 남기는 것 | 왜 |
+|---|---|---|
+| Raw File | 원본 바이트 · 경로 · 확보 시점 · raw_sha256 | 원문이 바뀌었는지 판단하는 기준 |
+| ParsedUnit | 페이지 · 절에서 꺼낸 raw_text · source_locator | 파서를 바꿨을 때 비교 |
+| CleanUnit | clean_text · cleaner_version · clean_hash | 정제 규칙을 바꿨을 때 비교 |
+| Chunk | 본문 · 문자 위치 · Metadata · 벡터 | 검색 · 인용 단위 |
+
+정제 결과로 원본을 덮어쓰면, 나중에 파서나 규칙이 바뀌었을 때 무엇이 원래 내용이었는지 알 수 없어요.
+
+### Manifest — 원본 기록표
+
+🔧 read_bytes() · hashlib.sha256().hexdigest() 명령어 사전에서 자세히 →
+
+```
+raw = path.read_bytes()
+record = {"doc_id": "DOC-ASSIGN", "source_version": "v1", "source_uri": path.as_uri(),
+          "size_bytes": len(raw), "raw_sha256": sha256(raw).hexdigest(), "status": "collected"}
+```
+
+실제 실행: assignment.txt는 267바이트(한글 113자), 해시 722ed29e5256a35c…. 끝에 공백 1바이트만 더해도 f9ef6f5b571b1ff9…로 완전히 달라져요.
+
+- SHA-256은 "바이트가 같은가"만 알려 줘요. 의미가 비슷한지, 같은 출처인지는 몰라요.
+
+- doc_id · source_version은 파일 이름이나 해시로 자동으로 정해지지 않아요 — 원문 관리 규칙으로 정해요.
+
+- 파일 이름이 같아도 같은 원문이라는 보장이 없어요 → 버전 · 해시로 비교.
+
+### 수집 성공 ≠ 파싱 성공 — 상태를 한 번씩 집계
+
+| 상황 | 상태 | 다음 동작 |
+|---|---|---|
+| 파일 없음 | not_found | 경로 · 수집 목록 확인 |
+| 권한 없음 | read_error | 접근 권한 확인 (자격 증명은 로그에 남기지 않음) |
+| 지원 외 형식 | unsupported | 원본 보존 · 지원 여부 검토 |
+| 0바이트 | empty_file | 본문 없음 · 보류 |
+| 스캔 PDF | collected → needs_ocr | 수집은 정상, Parsing만 보류 |
+
+입력 수 = 완료 + 보류 + 실패 + 건너뜀이 맞아야 해요. 예제 6건이면 parsed 4 · needs_ocr 1 · unsupported 1. 빠진 파일이 조용히 사라지면 "검색에 없는 이유"를 아무도 설명할 수 없어요.
+
+## ② Parsing — 글자만이 아니라 구조까지
+
+Parsing은 파일 형식을 해석해 텍스트와 함께 제목 · 문단 · 표 · 페이지 같은 구조를 꺼내는 일이에요. 문자열이 나왔다고 원문의 순서 · 관계가 보존됐다는 뜻은 아니에요.
+
+```
+원문:        [지각과 결석]  10분 초과 → 결석
+잘못 추출:   10분 / 결석 / (다른 행의 값)     ← 조건 관계가 사라짐
+```
+
+### 형식마다 지킬 구조가 달라요
+
+| 형식 | 도구 | 지킬 것 · 주의 |
+|---|---|---|
+| TXT | bytes.decode("utf-8") | 인코딩 오류 · 줄바꿈 |
+| Markdown | Markdown 파서 (markdown-it-py) | 제목 경계 · 목록 · 코드 블록 |
+| HTML | Beautiful Soup — main 선택 | 메뉴 · 스크립트 제외 · 표의 행 · 열 |
+| PDF | pypdf — 페이지별 추출 | 읽기 순서 · 이미지 글자 · 표 |
+| DOCX (참고) | python-docx | 문단만 돌면 표가 빠짐 |
+
+### TXT — 인코딩을 명시하고, 실패를 숨기지 않기
+
+🔧 bytes.decode("utf-8") 명령어 사전에서 자세히 →
+
+```
+try: text = raw.decode("utf-8")
+except UnicodeDecodeError: status = "decode_error"
+```
+
+| 입력 (실제 실행) | 결과 |
+|---|---|
+| 잘린 UTF-8 바이트 .decode("utf-8") | UnicodeDecodeError → decode_error 기록 |
+| 같은 바이트 errors="ignore" | '과 ok' — 깨진 글자가 조용히 사라짐 |
+| 빈 바이트 | '' — 오류가 아니라 empty |
+
+TXT에는 페이지가 없어요. page_number=1을 억지로 넣지 않고 비워 둬요(None).
+
+### Markdown — 제목 경로(Heading Path)를 함께
+
+제목 다음의 문장은 그 절에 속하고, 다음 제목을 만나면 구역이 바뀌어요. 이 소속을 Heading Path로 남기면, 비슷한 문장이 여러 절에 있어도 어느 규정인지 설명할 수 있어요.
+
+🔧 MarkdownIt().parse() 명령어 사전에서 자세히 →
+
+```
+tokens = MarkdownIt().parse(md_text)      # heading_open → inline → heading_close …
+```
+
+실제 실행(attendance.md): 출석 안내 · 출석 안내 > 지각과 결석 · 출석 안내 > 출석 문의. 🤔 정규식으로 # 줄을 찾으면 안 돼? 코드 블록 안의 # 주석도 제목으로 잡혀요. 파서는 그 부분을 fence 토큰으로 따로 줘요(실제 실행: ('fence', 'code'), 진짜 제목만 ('heading_open', 'h1')).
+
+### HTML — 본문 영역만, 표는 행 · 열 관계를 살려서
+
+🔧 BeautifulSoup · select_one("main") · decompose() 명령어 사전에서 자세히 →
+
+```
+main = BeautifulSoup(html_text, "html.parser").select_one("main")
+for tag in main.select("script, style"): tag.decompose()
+text = main.get_text("\n", strip=True)
+```
+
+facility.html에는 <nav>홈 | 뉴스 | 로그인</nav>, <footer>, <script>가 섞여 있어요. 전체 get_text()를 쓰면 메뉴 글자까지 Embedding돼 검색을 흐려요. 그리고 get_text()는 표의 행 · 열 관계를 복원하지 않아요:
+
+| 원문 표 | 잘못된 텍스트 | 보존한 텍스트 |
+|---|---|---|
+| 시설 / 운영시간 | 09:00 18:00 | 도서관: 09:00~18:00 |
+| 요일 / 장소 | 월 화 2층 3층 | 월: 2층 / 화: 3층 |
+| 비고 / 예외 | 휴관 허용 | 일요일: 휴관 (예외 조건 보존) |
+
+(위 표는 구조 보존을 설명하는 가상 예시.) 표는 행 단위로 읽어 열 이름과 값을 붙여 문장화하거나 행을 그대로 보존해요.
+
+### PDF — 페이지별 추출과 위치, 그리고 한계
+
+🔧 PdfReader(path).pages · extract_text() 명령어 사전에서 자세히 →
+
+```
+for page_number, page in enumerate(PdfReader(str(path)).pages, start=1):
+    units.append({"unit_id": f"page-{page_number}", "source_locator": f"career.pdf#page={page_number}",
+                  "raw_text": page.extract_text() or ""})
+```
+
+| 파일 · 페이지 (실제 실행) | 추출 결과 | 상태 |
+|---|---|---|
+| career.pdf p.1 | 93자 · 첫 줄 "진로 상담 안내" | page-1 unit |
+| career.pdf p.2 | 98자 · 첫 줄 "진로 상담 안내 - 두 번째 페이지" | page-2 unit |
+| scan.pdf p.1 | 0자 | needs_ocr 보류 |
+
+| PDF 종류 | 주의 |
+|---|---|
+| 텍스트 PDF | 글자는 나와도 다단 순서 · 머리말 · 쪽번호(실제로 "1 / 2"가 본문에 섞여 나옴) · 표는 검수 필요 |
+| 스캔 PDF | 글자가 이미지 → pypdf는 못 읽음. OCR이 별도로 필요 (OCR) |
+| OCR 텍스트층 있는 PDF | 글자는 나와도 오인식 가능 |
+| 혼합 PDF | 페이지마다 상태가 다름 → 문서 전체를 한 번에 승인하지 않음 |
+
+🤔 빈 결과면 스캔 PDF라고 확정해도 돼? 아니요. 실제 빈 페이지 · 파일 손상 · 스캔 중 무엇인지 원본을 확인한 뒤 상태를 정해요. PDF는 화면에 "보이는" 배치가 중심이라, 화면 순서와 추출 순서가 다를 수 있어요.
+
+## ③ Cleaning — 잡음만 지우고 의미는 남기기
+
+### 짧게 만드는 작업이 아니에요
+
+| 정리해도 되는 것 | 반드시 남길 것 |
+|---|---|
+| CRLF · CR 줄바꿈, 지나친 가로 공백, 반복되는 머리말 일부 | 10분 · 초과 · "단," · 승인 시 · 제출 불가 같은 답을 바꾸는 정보, 문단 경계, 표 구조 |
+
+```
+원문:        "제출할 수 없습니다."
+잘못된 정제: "제출할 수 있습니다."   ← 부정어 하나로 의미가 뒤집힘
+```
+
+🔧 re.sub(r"[ \t]+", " ", …) · replace("\r\n", "\n") 명령어 사전에서 자세히 →
+
+```
+lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+clean_text = "\n".join(lines).strip()
+```
+
+| 입력 "출석 안내\r\n\r\n10분 초과" (실제 실행) | 결과 |
+|---|---|
+| 가로 공백만 정리 + 줄바꿈 통일 | '출석 안내\n\n10분 초과' — 문단 경계(빈 줄) 유지 |
+| re.sub(r"\s+", " ", …) | '출석 안내 10분 초과' — 줄바꿈까지 사라져 구조 손실 |
+
+표 · 코드 블록 · TSV에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기 자체가 의미). 정제 결과는 cleaner_version · clean_hash와 함께 남기고, 두 번 적용해도 같은지(멱등성)와 보존할 구절이 살아 있는지를 확인해요(실제 실행: attendance.md 139자 → 138자, 멱등 True, "10분" · "초과" 보존 True). 멱등성은 의미 보존의 증명이 아니에요.
+
+### 유니코드 정규화 — NFC와 NFKC는 다르다
+
+| 규칙 | 하는 일 | 실제 실행 |
+|---|---|---|
+| NFC | 같은 글자의 다른 표현을 완성형으로 합침 | 자모 분리형 "한"(3글자) → 1글자. 분리형은 눈엔 같아도 == "한"이 False |
+| NFKC | 호환 문자까지 변환 | '① x²' → '1 x2' — 번호 · 위첨자 의미가 사라짐 |
+| CRLF/CR → LF | 줄바꿈 통일 | 문단 사이 빈 줄은 유지 |
+
+🔧 unicodedata.normalize() 명령어 사전에서 자세히 →
+
+```
+unicodedata.normalize("NFC", text)       # 일반 본문 기본값
+```
+
+🤔 왜 NFC가 필요해? macOS 등에서 온 파일명 · 텍스트는 자모가 분리된 형태(NFD)일 수 있어요. 그대로 두면 같은 단어인데 검색 · 해시 · 비교가 어긋나요. NFC는 의미를 "교정"하는 기능이 아니라 표현만 맞춰요.
+
+### Offset은 문자 위치 — 바이트 위치가 아니에요
+
+```
+text = "가나다 라마바"
+text[4:7]  → '라마바'        len(text) = 7      len(text.encode("utf-8")) = 19   (실제 실행)
+```
+
+Chunk의 char_start · char_end는 그 CleanUnit의 clean_text에서 센 Python 문자 위치(끝 제외)예요. 원본 PDF의 바이트 위치도, 화면 좌표도 아니에요. 원문 위치(PDF 페이지 · Markdown 제목)는 source_locator로 따로 남겨요. 정제 전후 좌표를 정확히 되짚으려면 별도의 위치 대응표(span map)가 필요해요.
+
+## ④ Chunking — 답이 들어 있는 단위로 나누기
+
+### 왜 문서를 통째로 Embedding하지 않나
+
+| 말 | 뜻 |
+|---|---|
+| Document | 수집 · 버전 관리 대상 (파일 하나) |
+| ParsedUnit | 문서 안의 페이지 · 절 |
+| Chunk | ParsedUnit의 clean_text에서 만든 검색 · Embedding · 인용 단위 |
+| Token | 모델 Tokenizer가 만드는 입력 단위 — Python 글자 수와 다름 |
+
+문서 전체를 벡터 하나로 만들면 여러 주제가 섞이고 모델 입력 한도도 넘어요. 반대로 너무 잘게 자르면 조건과 결과가 다른 조각으로 갈라져요. Chunk Size가 작다고 항상 정확해지는 게 아니에요.
+
+```
+원문:      "10분을 초과하면 결석으로 기록합니다."
+잘못 분할: "10분을 초과하면" | "결석으로 기록합니다."     ← 어느 쪽만 검색돼도 답이 안 됨
+```
+
+### Chunking 전략
+
+| 전략 | 나누는 기준 | 먼저 확인할 것 |
+|---|---|---|
+| Fixed Character Window | 일정한 글자 수 | 문장 · 단어 · 조건의 중간 절단 |
+| Token-based | Tokenizer로 센 한도 | 모델 입력 전체 길이 |
+| Structure-aware | 제목 · 문단 · 목록 · 표 | 너무 긴 단위만 추가 분할 |
+| Semantic Chunking | 의미 변화 · 유사도 | 추가 계산 · 튜닝 · 검증 |
+
+실무에서는 보통 구조 경계 + 토큰 한도를 함께 써요.
+
+### 겹치는 글자 창 — 시작 · 끝 · Overlap
+
+🔧 text[start:end] + 종료 조건 명령어 사전에서 자세히 →
+
+```
+end = min(start + size, len(text)); spans.append((start, end))
+if end == len(text): break
+start = end - overlap
+```
+
+크기 40 · Overlap 10이면 보폭은 30. 71자 문자열은 실제 실행에서 [(0, 40), (30, 70), (60, 71)] — 저장 길이 합 91자, 고유 범위 71자. 끝에 닿으면 종료해야 겹친 꼬리 조각을 하나 더 만들지 않아요. overlap ≥ size면 앞으로 못 나아가니 거부해요.
+
+[그림: attendance.md clean_text 138자를 40/10 창으로 자른 5개 조각과 겹친 구간, 조건 문장을 온전히 담은 조각 표시] 무엇을 보나: 실제 attendance.md 정제본(138자)을 40/10 창으로 자른 5개 조각이에요. 분홍은 앞 조각과 겹친 10자. 고정 글자 창은 제목 · 문장 중간을 그냥 잘라요 — 두 번째 조각은 "까지 입실하면 지각으로…"처럼 앞 문장 중간에서 시작해요. 🤔 그럼 Overlap을 크게 하면? 경계 문맥은 더 붙지만 저장 · 인코딩량이 늘고, 비슷한 조각들이 Top-k 자리를 나눠 먹어요.
+
+## 🧪 Chunk 창 실험실
+
+attendance.md 정제본(138자)을 크기 · Overlap을 바꿔 잘라 보세요. Coverage · 저장량 · 조건 문장 보존을 바로 계산해요. (브라우저 안의 산수 · 40/10 결과는 위 실제 실행과 같아요)
+
+### 길이는 그 모델의 Tokenizer로, 최종 입력 전체를
+
+🔧 model.tokenizer(…, truncation=False)["input_ids"] 명령어 사전에서 자세히 →
+
+```
+ids = model.tokenizer("passage: " + chunk_text, add_special_tokens=True, truncation=False)["input_ids"]
+if len(ids) > model.max_seq_length: raise ValueError("rechunk_required")
+```
+
+| 입력 (다른 모델의 Tokenizer로 실제 실행 · E5 숫자 아님) | 값 |
+|---|---|
+| "10분을 초과하면 결석으로 기록합니다." 글자 수 | 21 |
+| 같은 문장 토큰 수 (특수 토큰 포함) | 15 |
+| "passage: " + 문장 | 17 |
+| "passage: " + Heading + 문장 | 27 |
+
+- 384차원은 출력 벡터 길이예요. 입력 상한(E5-small 모델 카드상 512토큰)과 다른 속성이에요. (입력 토큰 vs 출력 shape)
+
+- 접두어 · 제목도 토큰을 차지해요. 그래서 모델에 실제로 들어갈 최종 문자열로 세요.
+
+- 다른 모델의 한도 · 측정값을 빌려 쓰지 않아요. 한도를 넘으면 encode 때 뒤가 잘려 사라지니, 넘는 조각은 재분할하거나 이유를 남겨 격리해요 — 그냥 잘라 저장하지 않아요.
+
+### 구조를 먼저 따르는 분할
+
+| 원문 구조 | Chunk 설계 |
+|---|---|
+| Markdown 제목 | 절 단위로 먼저 나누고 Heading Path를 Metadata로 |
+| PDF 페이지 | 페이지 · 다단 순서를 대조, 다른 페이지를 무조건 이어 붙이지 않음 |
+| HTML 표 | 행 · 열 관계를 살린 뒤 분할 |
+| 한 문장이 한도 초과 | 추가 분할 또는 이유 기록 후 격리 |
+
+```
+Heading:          출석 안내 > 지각과 결석
+embedding_text:   "passage: 출석 안내 / 지각과 결석\n수업 시작 후 10분까지 …"
+body (Span):      "수업 시작 후 10분까지 …"     ← 제목은 입력에만 붙인 것, Span 길이에 더하지 않음
+```
+
+| 같이 남길 블록 | 함께 있어야 할 것 | 갈라지면 |
+|---|---|---|
+| 조건문 | 기준 시간 + 판정 결과 | "10분 초과"가 어느 상태인지 모름 |
+| 번호 목록 | 번호 + 항목 본문 | 설명이 다른 항목에 붙음 |
+| 표 | 열 제목 + 행 값 + 단위 | 값이 다른 행 · 열로 연결 |
+| 코드 블록 | 들여쓰기 + 줄 순서 | 실행 의미가 훼손 |
+
+| Overlap 설정 | 기대 | 주의 |
+|---|---|---|
+| 0 | 중복 적음 | 경계에서 조건이 갈라질 수 있음 |
+| 적당히 | 인접 문맥 포함 | 저장 · 인코딩량 증가 |
+| 크게 | 넓은 문맥 반복 | 비슷한 조각이 Top-k를 차지 |
+| Structure-aware | 문장 · 절 · 표 의미 유지 | 구조 추출이 실패하면 추가 검증 |
+
+한 문서의 Chunk가 겹침 때문에 다른 문서의 내용을 섞지 않도록 출처 경계를 지켜요.
+
+## ⑤ 검증 — 저장 전에 걸러내기
+
+| 계약 | 조건 |
+|---|---|
+| Span | 0 ≤ char_start < char_end ≤ len(clean_text), 그리고 body == clean_text[start:end] |
+| Token | 최종 입력이 모델 한도 안 · 영벡터 · NaN 벡터는 저장 안 함 (벡터 검사) |
+| Identity | doc_id · source_version · unit_id · chunk_id가 원문과 대응 |
+| Failure | 실패한 조각은 정상 검색 집합에 조용히 넣지 않고 이유와 함께 격리 |
+
+### Span — 길이가 같아도 글자가 달라야 실패
+
+🔧 clean_text[a:b] == body · type(a) is int 명령어 사전에서 자세히 →
+
+```
+if not 0 <= a < b <= len(clean_text): raise ValueError("invalid span")
+if chunk["body"] != clean_text[a:b]:    raise ValueError("span mismatch")
+```
+
+실제 실행: clean_text[22:40] = '시작 후 10분까지 입실하면 지각'. 같은 길이의 다른 문자열은 False → span_mismatch. 🤔 왜 isinstance가 아니라 type(a) is int? bool은 int의 하위 타입이라 isinstance(True, int)가 True예요. 위치 값에 True가 섞이는 실수를 거르려고요.
+
+### Coverage — 고유 위치로 센다
+
+🔧 sorted() 구간 병합 명령어 사전에서 자세히 →
+
+```
+for s, e in sorted(spans):
+    if merged and s <= merged[-1][1]: merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+    else: merged.append((s, e))
+```
+
+| 입력 (실제 실행) | 결과 | 뜻 |
+|---|---|---|
+| 길이 20, [(0,8), (6,14), (12,20)] | 1.0 · 병합 [(0, 20)] | 길이 합 24지만 고유 위치 20 → 100%, 반복 추가량 20% |
+| 길이 20, [(0,8), (12,20)] | 0.8 | Missing Span [8, 12) |
+| 길이 20, [(5,25)] | ValueError: invalid_span | 범위 밖 |
+
+- Overlap(설계상 겹침)과 Duplicate(같은 ID · 같은 Span이 두 번 생성된 오류)는 달라요. 중복 오류가 있어도 Coverage는 100%일 수 있어요.
+
+- 기준은 clean_text예요. 100%여도 Parsing에서 빠진 내용 · 정제에서 잃은 의미는 못 잡아요.
+
+- 다른 출처의 같은 문장을 무조건 지우지 않아요.
+
+### 실패를 원인별로
+
+| 검사 실패 | 원인 위치 | 조치 |
+|---|---|---|
+| empty_chunk | Parsing · Cleaning | 원문과 정제 규칙 확인 |
+| span_mismatch | 정제 버전 · Offset | 같은 기준 텍스트로 다시 계산 |
+| too_many_tokens | Chunker · 접두어 · 제목 | 재분할 또는 격리 |
+| duplicate_chunk_id | ID 생성 | 같은 ID 중복 원인 검토 |
+| missing_source | Metadata 전달 | 출처 연결 복구 전 저장 보류 |
+
+같은 재시도로 모든 오류가 풀리지 않아요. 검색 품질이 나쁘면 모델보다 먼저 파싱 · 분할 · 출처를 대조해요. 그리고 "검증 실패"는 "원본 삭제"가 아니에요 — 다른 사건으로 기록해요.
+
+### 숫자 검사 + 사람 검사
+
+| 정량 (코드로) | 정성 (사람이) |
+|---|---|
+| 길이 · 위치 · Coverage · 중복 · 토큰 수 | "15분 늦으면?"에 답하려면 "10분 초과"와 "결석"이 한 조각에서 함께 읽히는가 — 숫자 · 부정 · 예외 · 조건 대조 |
+
+검색 결과의 정식 평가 지표(Recall@k · MRR · nDCG)와 답변의 근거 충실도 평가는 그다음 주제예요.
+
+## ⑥ Metadata · ID — 이 조각은 어디서 왔나
+
+### 원문 연결 · 위치 · 처리 조건
+
+| 묶음 | 필드 | 용도 |
+|---|---|---|
+| 원문 연결 | doc_id · source_version · source_uri · source_locator | 사람이 원문을 다시 찾기 |
+| Chunk 위치 | unit_id · char_start · char_end · chunk_index | clean_text 안 위치 |
+| 처리 재현 | pipeline_version · cleaner_version · embedding 계약 | 어떤 설정으로 만들었나 |
+| 검색 조건 | category · 현재 공개 버전 | WHERE 필터 |
+
+```
+DOC-ATTEND / v1 / sec-1 / [0, 40)
+source_locator:   attendance.md#지각과-결석
+pipeline_version: ingest-e5-v1
+page_number:      None        ← Markdown엔 페이지가 없음
+```
+
+| 필드 | 무엇을 구분 | 예 |
+|---|---|---|
+| doc_id | 문서 자체 | DOC-ATTEND |
+| source_version | 원문 개정 | v1 / v2 |
+| pipeline_version | Parsing · Cleaning · Chunking · Embedding 설정 | ingest-e5-v1 |
+| unit_id | 절 · 페이지 | sec-1 / page-2 |
+| chunk_id | 한 버전 · 처리조건의 조각 | 결정적 SHA-256 |
+| content_hash | 본문 바이트가 같은지 | SHA-256(chunk 본문) |
+
+같은 본문이 다른 문서에 있으면 content_hash는 같을 수 있어요 — 출처가 다르니 자동으로 지우지 않아요.
+
+### 결정적 chunk_id — 같은 입력이면 언제나 같은 ID
+
+🔧 json.dumps(sort_keys=True, separators=(",", ":")) + sha256 명령어 사전에서 자세히 →
+
+```
+payload = json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+chunk_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+```
+
+| 입력 (실제 실행) | 결과 |
+|---|---|
+| DOC-ATTEND · v1 · ingest-e5-v1 · sec-1 · [0, 40] | f8290ff2d605009a… (몇 번을 돌려도 같음) |
+| source_version만 v2 | 2dcfe15c1f4037ab… — 다른 ID |
+| 두 프로세스에서 hash('DOC-ATTEND') | 서로 다른 정수 — Python 내장 hash()는 실행마다 바뀌어 저장용 ID로 못 씀 |
+
+🤔 왜 결정적이어야 해? 같은 문서를 다시 처리했을 때 같은 ID가 나와야 "이미 있는 조각"임을 알고 중복 적재를 막을 수 있어요(⑦ ON CONFLICT).
+
+### Metadata Filter는 Top-k보다 먼저
+
+| 필터 → Top-k | Top-k → 필터 |
+|---|---|
+| 조건에 맞는 조각들 안에서 거리 순위 | 전체 상위 k개를 고른 뒤 걸러서, 원래 대상 후보가 빠질 수 있음 |
+
+category는 콘텐츠 분류일 뿐 사용자 권한 검사가 아니에요 — 접근 권한은 서버에서 따로 검증해요. ANN 인덱스와 필터를 함께 쓸 때의 함정은 ANN + 필터.
+
+## ⑦ 저장 · 공개 · 검색 — 반쯤 바뀐 판이 보이지 않게
+
+### Indexing Pipeline ≠ DB Index
+
+|  | 문서 Indexing (Pipeline) | DB Index |
+|---|---|---|
+| 무엇 | 원본 → ParsedUnit → CleanUnit → Chunk → Embedding → 저장 · 공개 전체 | B-tree(일반 필터) · HNSW(벡터 근사 검색) 자료구조 |
+| 대신하지 못하는 것 | — | Parsing · Chunk 검증 |
+
+작은 자료는 Exact Search로 기능부터 확인하고, HNSW는 필요할 때 더해요 (인덱스).
+
+### 문서 · 버전 · 청크 세 테이블
+
+🔧 IDENTITY · CHECK · jsonb · 복합 외래키 명령어 사전에서 자세히 →
+
+```
+ingest_documents (doc_id PK, current_version, current_pipeline_version)    -- 공개 포인터
+ingest_versions  (doc_id, source_version, pipeline_version PK, status, expected_count)
+ingest_chunks    (citation_id IDENTITY PK, chunk_id UNIQUE, …, body, embedding vector(384), metadata jsonb)
+```
+
+| 잘못 넣으면 (실제 실행) | 결과 |
+|---|---|
+| status = 'done' | CheckViolation — 허용 상태(staging · ready · failed)만 |
+| char_start = char_end = 5 | CheckViolation — 빈 Span은 DB에서도 거부 |
+
+기존 데이터는 보존하고, 검색용 테이블은 별도 스키마 · 테이블에 둬요.
+
+### Staging — 같은 입력을 다시 돌려도 늘지 않게
+
+🔧 conn.transaction() · ON CONFLICT (chunk_id) DO NOTHING 명령어 사전에서 자세히 →
+
+```
+with conn.transaction():
+    for c, vec in zip(chunks, vectors, strict=True):
+        conn.execute("INSERT INTO ingest_chunks (…) VALUES (…) ON CONFLICT (chunk_id) DO NOTHING", …)
+```
+
+| attendance.md v1 (실제 실행 · 절 단위 2조각 · 벡터는 임의) | 결과 |
+|---|---|
+| 첫 적재 | 2행 삽입 |
+| 같은 입력으로 다시 | 0행 — 같은 chunk_id라 건너뜀 (멱등) |
+| citation_id | [2, 3] — 앞서 실패한 INSERT가 1번을 써 버려 빈 번호 |
+| metadata->>'heading_path' | '출석 안내 > 지각과 결석' |
+
+- Embedding 계산은 트랜잭션 밖에서 끝내고, DB 변경만 짧게 묶어요. 모델이 도는 동안 DB를 잡고 있지 않아요.
+
+- UPSERT · DO NOTHING은 새 입력에 없는 옛 조각을 지우지 않아요. v1에만 있던 조각을 검색에서 빼는 건 다음의 공개 포인터 몫이에요.
+
+- citation_id는 IDENTITY라 빈 번호가 생길 수 있어요(건너뛴 재실행도 번호를 소모). 연속 번호라고 가정하지 않아요.
+
+### 공개 — 확인과 전환을 한 트랜잭션으로
+
+🔧 SELECT … FOR UPDATE → 개수 확인 → UPDATE 명령어 사전에서 자세히 →
+
+```
+with conn.transaction():
+    expected = … FOR UPDATE ; actual = SELECT count(*) …
+    if actual != expected: raise ValueError("incomplete_version")
+    UPDATE ingest_versions SET status='ready' … ; UPDATE ingest_documents SET current_version=…
+```
+
+[그림: v1 staging(current None) → v1 publish(current v1) → v2 staging → v2 publish 실패(ROLLBACK, current v1) → 개수 맞춘 뒤 v2 publish(current v2)] 무엇을 보나: 노트 전용 DB에서 실제로 돌린 순서예요. v2를 일부러 expected_count 3(실제 2)으로 넣었더니 incomplete_version: expected 3, got 2로 실패하고, current는 'v1' 그대로, v2는 'staging'에 머물렀어요. 개수를 맞춘 뒤에야 'v2'로 바뀌었어요. 🤔 왜 ready 표시와 포인터 변경을 같이 묶어? 둘 중 하나만 바뀐 순간이 생기면, 검증 안 된 판이 보이거나 공개된 판이 ready가 아닌 이상한 상태가 돼요.
+
+| 상황 | 처리 |
+|---|---|
+| 같은 입력 재실행 | 같은 chunk_id → 늘지 않음 |
+| 원문 개정 | 새 source_version으로 v2 조각 · 벡터를 따로 준비 |
+| 처리 규칙 변경 | 새 pipeline_version — 옛 Offset · 벡터와 섞지 않음 |
+| 공개 판 선택 | 포인터가 v2를 가리키면 v1에만 있던 조각은 검색 제외 (행은 남음) |
+
+### 현재 공개된 조각만 검색
+
+🔧 WHERE c.source_version = d.current_version + <=> 명령어 사전에서 자세히 →
+
+```
+WHERE c.source_version = d.current_version AND c.pipeline_version = d.current_pipeline_version
+  AND v.status = 'ready' AND c.category = %s
+ORDER BY c.embedding <=> %s ASC, c.chunk_id ASC LIMIT %s
+```
+
+| v2 공개 후 (실제 실행 · 질의 벡터는 임의라 거리 값은 의미 없음) | 결과 |
+|---|---|
+| 테이블 전체 조각 | v1 2개 · v2 2개 — 모두 저장돼 있음 |
+| 현재 공개 + ready + '학사', k=3 | citation_id 7 · 6 (둘 다 v2) — v1은 WHERE에서 빠짐 |
+| category '시설' | [] — 정상 0건 |
+| 현재 공개 본문 중 "15분" 포함 | 1건 — 개정 내용이 검색 대상 |
+
+, c.chunk_id ASC는 거리가 같을 때 순서를 고정해 결과를 재현 가능하게 해요. 질문 벡터는 query: 접두어로, 같은 모델 · 같은 정규화로 만들어요.
+
+## ⑧ 전체 연결 — 문서 하나를 끝까지
+
+| 구간 | DOC-ATTEND가 거치는 것 |
+|---|---|
+| 입력 · 전처리 | Raw File → ParsedUnit(절) → CleanUnit → Chunk |
+| 품질 검사 | Span · 토큰 길이 · Coverage · Metadata · Embedding 계약 |
+| 저장 · 공개 | staging → ready → current 포인터 |
+| 검색 확인 | query Embedding → Top-k → 조각 · 출처 · 원문 위치 대조 |
+
+```
+DOC-ATTEND / v1 / sec-1 / [start, end)
+"passage: …" → E5-small → vector(384)
+pgvector → citation_id + chunk_id + body + source_locator
+```
+
+### 실패의 범위를 나눠 처리
+
+| 문제 | 범위 | 처리 |
+|---|---|---|
+| needs_ocr | 스캔 PDF 1건 | 그 문서만 보류 · 원문 유지 |
+| too_many_tokens | 긴 조각 | 재분할 또는 격리 후 나머지 진행 |
+| DB 인증 실패 | 전체 저장 작업 | 공개 전환 중단 · 비밀 값 로그 금지 |
+| 같은 입력 재실행 | 기존 문서 | 멱등성 확인 · 중복 방지 |
+| 문서 v2 실패 | 그 새 버전 | 현재 v1 공개 유지 |
+
+⚠️ 보안 · 삭제 요청은 일반 인덱싱 실패보다 우선할 수 있어요. 접근이 철회된 자료를 "이전 정상 버전"이라며 계속 노출하면 안 돼요.
+
+### 다음 단계(RAG)가 받을 결과 — 인용 ID 연결
+
+| Retriever 출력 | 뜻 |
+|---|---|
+| citation_id | 양의 정수 — 출력 계약의 source_ids: list[int]와 연결 |
+| chunk_id | 문자열 결정적 ID — source_ids에 그대로 넣지 않음 |
+| body · doc_id · source_locator · source_version · 거리 | 근거 본문과 원문 위치 |
+
+서버가 citation_id ↔ chunk_id · source_locator 대응을 들고 있고, 실제로 Context에 넣은 조각의 citation_id만 응답의 출처로 허용해요 (retrieved ⊇ included ⊇ source, 출력 계약).
+
+```
+검색 결과: {citation_id: 201, chunk_id: "…", body: "…"}
+Context에 201을 실제로 넣었을 때만 → source_ids: [201] 허용        (201은 설명용 번호)
+```
+
+## 🧩 설계 정리 — 각 단계가 만드는 것과 보장하지 않는 것
+
+| 단계 | 만드는 것 | 보장하지 않는 것 |
+|---|---|---|
+| 수집 · SHA-256 | 원본 기록 · 변경 감지 | 의미 유사도 · 같은 출처 |
+| Parsing | raw_text · 구조 · 위치 | 읽기 순서 · 표 관계 · 이미지 글자 |
+| Cleaning | clean_text · 버전 · 해시 | 의미 보존 (멱등성 ≠ 보존) |
+| Chunking | Span · 조각 | 조건 · 결과가 한 조각에 있음 |
+| Span · Coverage 검사 | 위치 정합 · 누락 구간 | Parsing 단계 누락 · 의미 |
+| chunk_id · Metadata | 재현 가능한 ID · 출처 | 권한 · 최신성 |
+| Staging · Publish | 완전 적재된 판만 공개 | 답의 정확성 |
+| Top-k 검색 | 현재 판의 가까운 후보 | 답할 근거 (사람 · 규칙이 검토) |
+
+## 📋 명세 — 한눈에 보는 참조표
+
+### 단계별 기록
+
+| 단위 | 필드 |
+|---|---|
+| Manifest | doc_id · file · category · source_version · source_uri · size_bytes · raw_sha256 · status |
+| ParsedUnit | unit_id · page_number(있을 때만) · source_locator · raw_text |
+| CleanUnit | clean_text · cleaner_version · clean_hash · chars_before · chars_after |
+| Chunk | chunk_id · unit_id · char_start · char_end · body · embedding_text · category · source_locator · source_version · pipeline_version · metadata |
+| 검색 결과 | citation_id · chunk_id · body · source_locator · doc_id · source_version · distance |
+
+### 상태 값
+
+| 단계 | 값 |
+|---|---|
+| 수집 · Parsing | collected · parsed · empty · decode_error · not_found · read_error · unsupported · empty_file · needs_ocr · main_not_found |
+| Chunk 검증 | empty_chunk · span_mismatch · invalid span · too_many_tokens · duplicate_chunk_id · missing_source |
+| 버전 | staging → ready (또는 failed), 공개 = current_version 포인터 |
+
+### 설정 — 예시
+
+| 항목 | 예시 값 | 비고 |
+|---|---|---|
+| 허용 형식 | .txt · .md · .html · .pdf | 그 외는 unsupported 기록 |
+| 정제 | CRLF→LF · NFC · 가로 공백 1칸 · 문단 유지 | cleaner_version = clean-v1 |
+| 글자 창 | 크기 40 · Overlap 10 (설명용) | 보폭 30 |
+| 토큰 기준 출발점 | 목표 160 · Overlap 32 | 실험 출발점일 뿐 최적값 아님 · 상한은 모델 max_seq_length |
+| Embedding | intfloat/multilingual-e5-small · 384차원 · passage:/query: · 정규화 | 벡터 계약 |
+| 처리 버전 | pipeline_version = ingest-e5-v1 | 설정이 바뀌면 새 값 |
+| 검색 | <=> · k=3 · category 필터 · 현재 공개 판 | 동점은 chunk_id 순 |
+
+## 📦 패키지 · 명령어
+
+| 패키지 (pip 이름) | 뭐 하는 애? | 코드에서 |
+|---|---|---|
+| 표준 라이브러리 | 파일 목록 · 해시 · 유니코드 정규화 · 정규식 · JSON | pathlib · hashlib · unicodedata · re · json |
+| markdown-it-py | CommonMark Markdown 파서 — 제목 · 코드 블록 토큰 | from markdown_it import MarkdownIt |
+| beautifulsoup4 | HTML 트리 · CSS 선택자 · 텍스트 추출 | from bs4 import BeautifulSoup |
+| pypdf | PDF 페이지별 텍스트층 추출 (OCR 아님) | from pypdf import PdfReader |
+| sentence-transformers | E5 모델 · Tokenizer — 토큰 수 검사 · Embedding | SentenceTransformer(…).tokenizer |
+| psycopg[binary] · pgvector | PostgreSQL 연결 · 트랜잭션 · vector 타입 | conn.transaction() · register_vector(conn) |
+
+🔧 설치 확인 명령어 사전에서 자세히 →
+
+```
+python -c "import sys; print(sys.executable)"
+python -m pip show pypdf beautifulsoup4 markdown-it-py sentence-transformers psycopg pgvector   # 없는 것만 install
+```
+
+🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
+
+결과값은 예제 문서 6건과 개정본으로 실제 실행한 값이에요(pathlib · hashlib · unicodedata · markdown-it-py · pypdf, PostgreSQL 18.6 + pgvector 0.8.7 노트 전용 DB). Beautiful Soup는 이 PC 환경에 없어 실행 결과를 싣지 않았고, E5 모델은 내려받지 않아 토큰 수는 다른 모델의 Tokenizer로만 확인했어요. 저장 · 검색의 벡터는 임의 단위 벡터예요.
+
+## 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| Embedding · Vector Search | 여기서 만든 조각을 벡터로 저장 · 검색하는 원리 · pgvector |
+| OCR | needs_ocr로 보류한 스캔 문서를 읽는 방법 |
+| 트랜잭션 · FastAPI–PostgreSQL 연동 | 공개 전환을 묶는 트랜잭션 · 서비스에 붙이기 |
+| Basic RAG | 검색한 조각 → Context → Prompt → LLM Client → 검증 · 인용 |
+| Hybrid Search · Reranking · 평가 지표 | Keyword + Dense 융합 · 재순위 · Recall@k · MRR · nDCG |
+
+## 원본 자료
+
+- 원본: Day24_20261119_v2.html (생성형 AI · LLM 및 RAG 엔지니어링 · Day24 Document Parsing · Chunking · Indexing 인터랙티브 교안). 예제 문서 6건 · 개정본 · 표 보존 예시 · 실패 분류표는 원본 자료와 함께 제공된 예제 데이터의 것.
+
+- 결과 값: 이 PC에서 실제 실행 (Python 3.13 · markdown-it-py 4.3.0 · pypdf 6.21.4 · numpy 2.3.5 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). DB는 노트 전용 DB를 만들어 쓰고 지웠음. Beautiful Soup 미설치로 HTML 항목은 실행 결과 없음. E5 모델은 내려받지 않음 — 토큰 수는 로컬 캐시의 bert-base-multilingual-cased Tokenizer로 확인. 스크립트 tools/io_day24.py, 그림 tools/visuals/make_day24.py
+
+- 공식 문서: pathlib · hashlib · unicodedata · pypdf 텍스트 추출 · Beautiful Soup · CommonMark · multilingual-e5-small · Sentence Transformers · pgvector · pgvector-python · Psycopg 트랜잭션 · PostgreSQL JSONB · INSERT / ON CONFLICT · LangChain Text Splitter
+
+## 🔧 Day24 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day24)
+| 이론 | 대응 명령어 |
+|---|---|
+| ① 수집 — 원본 · Manifest | Path.iterdir() · suffix · stat().st_size, read_bytes(), hashlib.sha256().hexdigest(), as_uri() |
+| ② Parsing — 형식별 읽기 | bytes.decode("utf-8"), MarkdownIt().parse(), BeautifulSoup · select_one · get_text, PdfReader · extract_text() |
+| ③ Cleaning — 의미는 남기고 잡음만 | unicodedata.normalize("NFC"), re.sub(r"[ \t]+", " ", …), sha256(text.encode()) |
+| ④ Chunking — 검색 단위로 나누기 | text[start:end] 창, tokenizer(…, truncation=False)["input_ids"] |
+| ⑤ 검증 — Span · Coverage | clean_text[a:b] == body, sorted() 구간 병합, type(x) is int |
+| ⑥ Metadata · ID | json.dumps(sort_keys=True, separators=(",", ":")) + sha256 |
+| ⑦ 저장 · 공개 · 검색 | GENERATED ALWAYS AS IDENTITY, CHECK, jsonb, ON CONFLICT DO NOTHING, conn.transaction(), SELECT … FOR UPDATE, WHERE c.source_version = d.current_version |
+| 📦 패키지 | python -m pip show pypdf beautifulsoup4 markdown-it-py |
+
+### 원문 파일 열거 — Path.iterdir() · suffix · stat().st_size
+
+```
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+source_dir = ROOT / "data" / "raw"
+if not source_dir.is_dir():
+    raise FileNotFoundError(source_dir)
+
+allowed = {".txt", ".md", ".html", ".pdf"}
+files = sorted(p for p in source_dir.iterdir()
+               if p.is_file() and p.suffix.lower() in allowed)
+for path in files:
+    print(path.name, path.stat().st_size)
+```
+
+▶ 실제로 돌려 보면 예제 원문 폴더에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| sorted(p for p in source_dir.iterdir() if p.is_file() and p.suffix.lower() in allowed) | assignment.txt(267), attendance.md(328), career.pdf(36195), facility.html(728), scan.pdf(34629) | 파일명(바이트) — 이름순 정렬 |
+| 허용 확장자 밖의 파일 | unsupported.xyz | 목록에서 빠짐 → Manifest에 unsupported 로 따로 기록 |
+
+| 부분 | 뜻 |
+|---|---|
+| Path(__file__).resolve().parent | 실행 파일이 있는 폴더 — 터미널 위치와 무관 |
+| iterdir() | 바로 아래 항목만 (하위 폴더 안은 안 봄). 재귀는 rglob("*") |
+| p.suffix.lower() | 확장자 ".PDF"도 ".pdf"로 |
+| sorted(...) | OS마다 다른 나열 순서를 고정 → 실행마다 같은 순서 |
+| stat().st_size | 파일 크기 (바이트) |
+
+💡 허용 밖 확장자는 목록에서 조용히 사라지지 않게, Manifest에 unsupported 상태로 따로 남겨요.
+
+### 원본 기록 — read_bytes() · hashlib.sha256().hexdigest() · as_uri()
+
+```
+from hashlib import sha256
+from pathlib import Path
+
+path = Path(__file__).resolve().parent / "data" / "raw" / "assignment.txt"
+raw = path.read_bytes()
+record = {
+    "doc_id": "DOC-ASSIGN",
+    "source_version": "v1",          # 원문 관리 규칙으로 정함 (해시로 자동 부여 아님)
+    "source_uri": path.as_uri(),
+    "size_bytes": len(raw),
+    "raw_sha256": sha256(raw).hexdigest(),
+    "status": "collected",
+}
+```
+
+▶ 실제로 돌려 보면 assignment.txt 로 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| len(raw) | 267 | size_bytes — 글자 수가 아니라 바이트 수 |
+| sha256(raw).hexdigest()[:16] | 722ed29e5256a35c… | raw_sha256 (64자리 16진수) |
+| 끝에 공백 1바이트 추가 후 sha256 | f9ef6f5b571b1ff9… | 1바이트만 달라도 완전히 다른 값 → 원문 변경 감지 |
+| path.as_uri() | file:///…/data/raw/assignment.txt | source_uri — file:// 형식 |
+
+| 부분 | 뜻 |
+|---|---|
+| read_bytes() | 디코딩 전 원본 그대로 — 해시는 바이트로 계산 |
+| sha256(raw).hexdigest() | 64자리 16진수. 1바이트만 달라도 전혀 다른 값 → 원문 변경 감지 |
+| path.as_uri() | file:///C:/… 형식 경로 (절대 경로여야 함) |
+| len(raw) | 바이트 수 — 글자 수와 다름 |
+
+⚠️ SHA-256은 "바이트가 같은가"만 알려 줘요. 의미가 비슷한지, 같은 출처인지는 알려 주지 않아요.
+
+### TXT — bytes.decode("utf-8") · UnicodeDecodeError
+
+```
+raw = path.read_bytes()
+try:
+    text = raw.decode("utf-8")
+except UnicodeDecodeError:
+    status, text = "decode_error", None
+else:
+    status = "parsed" if text.strip() else "empty"
+```
+
+▶ 실제로 돌려 보면 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| assignment.txt bytes.decode('utf-8') | parsed · 113자 / 267바이트 | 한글 1자 = UTF-8 3바이트 |
+| 잘린 바이트 .decode('utf-8') | UnicodeDecodeError: 'utf-8' codec can't decode bytes in position 3-4: invalid continuation byte | decode_error 로 기록 |
+| 같은 바이트 .decode('utf-8', errors='ignore') | '과 ok' | 깨진 글자가 조용히 사라짐 — 누락을 숨김 |
+| b''.decode('utf-8').strip() | '' | 오류는 아니지만 본문 없음 → empty |
+
+| 부분 | 뜻 |
+|---|---|
+| decode("utf-8") | 인코딩을 명시. 잘못된 바이트면 UnicodeDecodeError |
+| errors="ignore" | 쓰지 않음 — 깨진 글자를 조용히 지워 원문 누락을 숨김 |
+| text.strip() | 공백뿐인 파일 = 오류가 아니라 empty 상태 |
+
+### Markdown 구조 — MarkdownIt().parse() · heading_open
+
+```
+from markdown_it import MarkdownIt
+
+tokens = MarkdownIt().parse(md_text)
+path, sections = [], []
+for i, t in enumerate(tokens):
+    if t.type == "heading_open":
+        level = int(t.tag[1])               # "h2" → 2
+        title = tokens[i + 1].content       # 다음 inline 토큰이 제목 글자
+        path = path[: level - 1] + [title]
+        sections.append(" > ".join(path))
+```
+
+▶ 실제로 돌려 보면 markdown-it-py 실제 실행 · attendance.md
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| [t.type for t in tokens][:4] | ['heading_open', 'inline', 'heading_close', 'heading_open'] | 제목은 heading_open → inline → heading_close |
+| heading 마다 Heading Path | 출석 안내 \| 출석 안내 > 지각과 결석 \| 출석 안내 > 출석 문의 | 절의 소속을 Metadata 로 |
+| 코드 블록 안의 '# …' | [('fence', 'code'), ('heading_open', 'h1')] | fence 안의 # 는 제목이 아님 |
+
+| 부분 | 뜻 |
+|---|---|
+| MarkdownIt().parse(text) | CommonMark 규칙으로 토큰 목록 생성 (markdown-it-py) |
+| t.type | heading_open · inline · paragraph_open · fence(코드 블록) … |
+| t.tag | HTML 태그 이름 — 제목 수준 h1~h6 |
+| path[: level - 1] + [title] | Heading Path — 상위 제목을 이어 절의 소속을 기록 |
+
+💡 정규식으로 #로 시작하는 줄을 찾으면 코드 블록 안의 # 주석도 제목으로 잘못 잡아요. 파서는 fence 토큰으로 구분해 줘요.
+
+### HTML 본문 — BeautifulSoup · select_one("main") · decompose() · get_text()
+
+```
+from bs4 import BeautifulSoup
+
+html_text = path.read_text(encoding="utf-8")
+soup = BeautifulSoup(html_text, "html.parser")
+main = soup.select_one("main")
+if main is None:
+    raise ValueError("main_not_found")
+for tag in main.select("script, style"):
+    tag.decompose()
+text = main.get_text("\n", strip=True)
+
+# 표는 행 단위로 따로 — 열 이름과 값을 붙여 문장화
+for tr in main.select("table tr"):
+    cells = [c.get_text(strip=True) for c in tr.select("th, td")]
+```
+
+| 부분 | 뜻 |
+|---|---|
+| BeautifulSoup(html, "html.parser") | HTML을 태그 트리로. "html.parser"는 표준 라이브러리 파서 (추가 설치 없음) |
+| select_one("main") | CSS 선택자로 첫 요소 — 메뉴(nav) · 꼬리말(footer) 제외 |
+| tag.decompose() | 트리에서 완전히 삭제 — script · style 글자가 본문에 섞이지 않게 |
+| get_text("\n", strip=True) | 태그 사이를 줄바꿈으로 이어 텍스트만. 표의 행 · 열 관계는 복원하지 않음 |
+
+### PDF 페이지별 — PdfReader(path).pages · page.extract_text()
+
+```
+from pypdf import PdfReader
+
+reader = PdfReader(str(path))
+units = []
+for page_number, page in enumerate(reader.pages, start=1):
+    text = page.extract_text() or ""
+    units.append({
+        "doc_id": "DOC-CAREER", "source_version": "v1",
+        "unit_id": f"page-{page_number}",
+        "page_number": page_number,
+        "source_locator": f"career.pdf#page={page_number}",
+        "raw_text": text,
+    })
+```
+
+▶ 실제로 돌려 보면 pypdf 실제 실행 · 예제 PDF 2건
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| career.pdf page 1 | 93자 · 첫 줄 '진로 상담 안내' | 텍스트층 있음 → page-N unit |
+| career.pdf page 2 | 98자 · 첫 줄 '진로 상담 안내 - 두 번째 페이지' | 텍스트층 있음 → page-N unit |
+| scan.pdf page 1 | 0자 (빈 문자열) | 글자가 이미지 → needs_ocr 로 보류 |
+| career.pdf 페이지 끝의 '1 / 2' | 추출 텍스트에 그대로 포함 | 머리말·쪽번호도 본문처럼 섞임 → 정제 · 검수 대상 |
+
+| 부분 | 뜻 |
+|---|---|
+| reader.pages | 페이지 목록 — 페이지마다 unit 하나로 출처 위치(#page=N) 기록 |
+| page.extract_text() | PDF 안의 텍스트층만 추출. 이미지 속 글자는 못 읽음 (OCR 아님) |
+| or "" | 결과가 None이어도 문자열로 |
+| enumerate(…, start=1) | 사람이 읽는 페이지 번호는 1부터 |
+
+⚠️ 빈 결과 = 스캔 · 빈 페이지 · 손상 중 무엇인지 아직 몰라요. 확인 후 needs_ocr 등으로 상태를 정해요. 쪽번호 · 머리말도 본문처럼 섞여 나와요.
+
+### 유니코드 정규화 — unicodedata.normalize("NFC" | "NFKC", s)
+
+```
+import unicodedata
+
+nfd = unicodedata.normalize("NFD", "한")       # 자모 분리형
+print(len(nfd), nfd == "한")
+print(len(unicodedata.normalize("NFC", nfd)))   # 완성형으로 합침
+print(unicodedata.normalize("NFKC", "① x²"))    # 호환 문자까지 바꿈
+
+text = "가나다 라마바"
+print(text[4:7], len(text), len(text.encode("utf-8")))
+```
+
+▶ 실제로 돌려 보면 unicodedata 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| len(NFD('한')), len(NFC(NFD('한'))) | 3, 1 | 자모 분리형 3글자 → 완성형 1글자 (macOS 파일명 등에서 흔함) |
+| NFD('한') == '한' | False | 눈엔 같아도 문자열 비교는 다름 → 검색 · 해시가 어긋남 |
+| NFC('① x²') | '① x²' | NFC 는 모양을 유지 |
+| NFKC('① x²') | '1 x2' | NFKC 는 호환 문자를 바꿈 — 번호 · 위첨자 의미가 사라질 수 있음 |
+| '가나다 라마바'[4:7] · len · len(encode) | '라마바' · 7 · 19 | Offset 은 문자 위치, 바이트 위치가 아님 |
+
+| 형식 | 하는 일 | 주의 |
+|---|---|---|
+| NFC | 같은 글자의 다른 표현(자모 분리 · 완성형)을 하나로 | 일반 본문 기본값. 모양 · 의미는 유지 |
+| NFD | 분해형 — macOS 파일명 등에서 나옴 | 눈엔 같아도 == · 해시가 달라짐 |
+| NFKC | 호환 문자 변환 (①→1, ²→2, 전각→반각) | 번호 · 위첨자 의미가 사라질 수 있음 |
+| text[a:b] | 문자 위치 슬라이스 (끝 제외) | 바이트 위치가 아님 — 한글은 UTF-8 3바이트 |
+
+### 본문 정제 — str.replace · re.sub(r"[ \t]+", " ", …) · strip
+
+```
+import re
+import unicodedata
+
+text = raw_text.replace("\r\n", "\n").replace("\r", "\n")   # 줄바꿈 통일
+text = unicodedata.normalize("NFC", text)
+lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+clean_text = "\n".join(lines).strip()                       # 빈 줄(문단 경계)은 유지
+```
+
+▶ 실제로 돌려 보면 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| re.sub(r'[ \t]+', ' ', …) + replace('\r\n', '\n') + NFC | '출석 안내\n\n10분 초과' | 연속 공백 1칸 · 줄바꿈 통일 · 빈 줄(문단 경계)은 남김 |
+| re.sub(r'\s+', ' ', 같은 입력) | '출석 안내 10분 초과' | \s 는 줄바꿈까지 지워 문단이 사라짐 |
+
+| 부분 | 뜻 |
+|---|---|
+| replace("\r\n", "\n") | Windows 줄바꿈(CRLF) · 옛 Mac(CR)을 LF로 |
+| re.sub(r"[ \t]+", " ", line) | 가로 공백 · 탭 여러 개를 1칸으로 — 줄바꿈은 안 건드림 |
+| r"\s+" | 쓰지 않음 — 줄바꿈까지 지워 문단 · 목록 구조가 사라짐 |
+| "\n".join(lines) | 빈 줄이 그대로 남아 문단 경계 보존 |
+
+⚠️ 표 · 코드 블록 · TSV에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기가 의미). 숫자 · 부정어 · "단," 같은 조건을 지우는 규칙은 의미를 바꿔요.
+
+### 정제 기록 — sha256(clean_text.encode("utf-8")) · 멱등성 확인
+
+```
+from hashlib import sha256
+
+clean_record = {
+    "cleaner_version": "clean-v1",
+    "clean_text": clean_text,
+    "clean_hash": sha256(clean_text.encode("utf-8")).hexdigest(),
+    "chars_before": len(raw_text),
+    "chars_after": len(clean_text),
+}
+# 같은 정제를 한 번 더 해도 그대로여야 함
+assert clean(clean_text) == clean_text
+# 답을 바꾸는 구절이 살아 있는지
+assert "10분" in clean_text and "초과" in clean_text
+```
+
+▶ 실제로 돌려 보면 attendance.md 로 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| chars_before, chars_after | 139, 138 | 끝 줄바꿈 등 형식 잡음만 줄어듦 |
+| clean_hash[:16] | 1759911c7901545f… | 정제 결과가 바뀌었는지 비교용 |
+| clean_prose(clean_text) == clean_text | True | 멱등성 — 두 번 적용해도 같음 (의미 보존 증명은 아님) |
+| '10분' in clean_text and '초과' in clean_text | True | 보존할 구절 검사 |
+
+| 필드 | 왜 |
+|---|---|
+| cleaner_version | 규칙을 바꾸면 버전도 바꿔 이전 결과와 섞지 않음 |
+| clean_hash | 정제 결과가 달라졌는지 비교 (원본 raw_sha256과 별개) |
+| chars_before/after | 크게 줄었다면 무엇이 지워졌는지 확인 — 짧아졌다고 좋아진 게 아님 |
+| clean(x) == x | 멱등성 — 의미 보존 증명은 아님 |
+
+### 겹치는 글자 창 — text[start:end] + 종료 조건
+
+```
+size, overlap = 40, 10
+if not (size > 0 and 0 <= overlap < size):
+    raise ValueError("invalid chunk window")
+
+spans, start = [], 0
+while start < len(text):
+    end = min(start + size, len(text))
+    spans.append((start, end, text[start:end]))
+    if end == len(text):          # 끝에 닿으면 종료 — 겹친 꼬리를 또 만들지 않음
+        break
+    start = end - overlap         # 다음 시작 = 보폭 size - overlap
+```
+
+▶ 실제로 돌려 보면 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| windows('a'*71, 40, 10) | [(0, 40), (30, 70), (60, 71)] | 보폭 30 · 끝(71)에 닿으면 종료 |
+| 저장 길이 합 · 고유 범위 | 91 · 71 | Overlap 만큼 중복 저장 |
+| windows(attendance clean_text, 40, 10) 개수 | 5개 (전체 138자) |  |
+| 두 번째 조각 | '까지 입실하면 지각으로 기록합니다.\n10분을 초과하면 결석으로 기록합니다' | 고정 글자 창은 문장 · 조건 중간을 자름 |
+| windows(text, 40, 40) | ValueError: invalid chunk window | overlap ≥ size 면 영원히 못 나아감 → 거부 |
+
+| 부분 | 뜻 |
+|---|---|
+| min(start + size, len(text)) | 마지막 조각은 남은 만큼만 |
+| end == len(text) 에서 break | 없으면 마지막 몇 글자짜리 겹친 꼬리가 하나 더 생김 |
+| overlap < size | 같거나 크면 start가 앞으로 못 가서 무한 반복 |
+| (start, end) | 반열린 구간 [start, end) — 나중에 Span 검증에 그대로 씀 |
+
+### 최종 입력의 토큰 수 — tokenizer(…, add_special_tokens=True, truncation=False)["input_ids"]
+
+```
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("intfloat/multilingual-e5-small", device="cpu")
+embedding_text = "passage: " + chunk_text          # 접두어(+ Heading)까지 포함한 최종 입력
+ids = model.tokenizer(embedding_text, add_special_tokens=True,
+                      truncation=False)["input_ids"]
+limit = model.max_seq_length
+if len(ids) > limit:
+    raise ValueError("rechunk_required")
+```
+
+▶ 실제로 돌려 보면 실제 실행 · 이 PC에 캐시된 bert-base-multilingual-cased Tokenizer (E5 아님 · 숫자는 E5와 다름)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| len(chunk_text) | 21 | Python 글자 수 |
+| len(tokenizer(chunk_text)['input_ids']) | 15 | 토큰 수 (특수 토큰 [CLS] · [SEP] 포함) — 글자 수와 다름 |
+| 'passage: ' + chunk_text | 17 | 접두어도 토큰을 차지 |
+| 'passage: ' + Heading + chunk_text | 27 | 최종 입력 전체로 한도를 검사해야 하는 이유 |
+| tokenizer.model_max_length | 512 | 이 Tokenizer 의 상한 (E5-small 은 모델 카드상 512) |
+
+| 부분 | 뜻 |
+|---|---|
+| model.tokenizer | 그 모델이 쓰는 Tokenizer — 다른 모델 숫자를 빌려 쓰지 않음 |
+| add_special_tokens=True | [CLS] · [SEP] 같은 특수 토큰까지 셈 (실제 입력과 같게) |
+| truncation=False | 자르지 말고 원래 길이를 보여 줌 — 초과를 감지하려고 |
+| model.max_seq_length | 모델이 받는 최대 토큰 수 — 넘는 부분은 encode 때 잘려 사라짐 |
+
+### Span 검증 — 0 <= a < b <= len(text) · clean_text[a:b] == body
+
+```
+a, b = chunk["char_start"], chunk["char_end"]
+if type(a) is not int or type(b) is not int:     # bool(True/False)도 걸러냄
+    raise ValueError("invalid span")
+if not 0 <= a < b <= len(clean_text):
+    raise ValueError("invalid span")
+if chunk["body"] != clean_text[a:b]:
+    raise ValueError("span mismatch")
+if not chunk["body"].strip():
+    raise ValueError("empty chunk")
+```
+
+▶ 실제로 돌려 보면 attendance clean_text 로 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| clean_text[22:40] | '시작 후 10분까지 입실하면 지각' | Span 이 가리키는 원문 |
+| chunk['body'] == clean_text[a:b] (같은 길이 다른 글자) | False | 길이가 같아도 본문 불일치 → span_mismatch |
+| 0 <= a < b <= len(clean_text) | True | 범위 검사 |
+| type(True) is int | False | type() is int 로 bool 을 걸러냄 (isinstance(True, int) 는 True) |
+
+| 검사 | 잡는 것 |
+|---|---|
+| type(a) is int | 문자열 · 실수 · bool — isinstance(True, int)는 True라서 type() is를 씀 |
+| 0 <= a < b <= len | 음수 · 빈 구간 · 범위 밖 |
+| body == clean_text[a:b] | 길이가 같아도 글자가 다른 경우 (다른 정제 버전의 Offset 등) |
+
+### Coverage — sorted(spans)로 구간 병합
+
+```
+merged = []
+for start, end in sorted(spans):
+    if not (0 <= start < end <= length):
+        raise ValueError("invalid_span")
+    if merged and start <= merged[-1][1]:            # 앞 구간과 겹치거나 맞닿음
+        merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+    else:
+        merged.append((start, end))
+covered = sum(e - s for s, e in merged)
+ratio = covered / length if length else None
+missing = [(merged[i][1], merged[i + 1][0]) for i in range(len(merged) - 1)]
+```
+
+▶ 실제로 돌려 보면 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| coverage(20, [(0,8),(6,14),(12,20)]) | 1.0 · 병합 [(0, 20)] | 길이 합 24 지만 고유 위치는 20 → 100% |
+| coverage(20, [(0,8),(12,20)]) | 0.8 · 병합 [(0, 8), (12, 20)] | Missing Span [8,12) |
+| coverage(20, [(5,25)]) | ValueError: invalid_span | 범위를 벗어난 Span |
+| coverage(len(clean_md), windows 결과) | 1.0 | Character Window 는 구조상 빈틈 없음 |
+
+| 부분 | 뜻 |
+|---|---|
+| sorted(spans) | 시작 위치 순 — 한 번 훑으며 병합 |
+| max(…, end) | Overlap을 한 번만 셈 (길이를 그냥 더하면 중복 계산) |
+| missing | 병합된 구간 사이 빈틈 = 어떤 Chunk에도 안 들어간 글자 |
+| length == 0 → None | 0으로 나누지 않고 "계산 불가"로 |
+
+💡 모든 글자 위치를 set에 넣는 방식보다 메모리를 거의 안 써요. 그래도 기준은 clean_text라서, Parsing 단계에서 빠진 내용은 못 잡아요.
+
+### 결정적 ID — json.dumps(sort_keys=True, separators=(",", ":")) + sha256
+
+```
+import hashlib
+import json
+
+identity = {
+    "doc_id": "DOC-ATTEND", "source_version": "v1",
+    "pipeline_version": "ingest-e5-v1", "unit_id": "sec-1",
+    "span": [0, 40],
+}
+payload = json.dumps(identity, sort_keys=True, separators=(",", ":"),
+                     ensure_ascii=False).encode("utf-8")
+chunk_id = hashlib.sha256(payload).hexdigest()
+```
+
+▶ 실제로 돌려 보면 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| json.dumps(identity, sort_keys=True, separators=(',', ':'), ensure_ascii=False) | {"doc_id":"DOC-ATTEND","pipeline_version":"ingest-e5-v1","source_version":"v1","span":[0,40],"unit_id":"sec-1"} | 키 순서 · 공백이 고정된 직렬화 |
+| sha256(payload).hexdigest()[:16] | f8290ff2d605009a… | 같은 입력 → 언제 돌려도 같은 chunk_id |
+| source_version 만 v2 로 | 2dcfe15c1f4037ab… | 버전이 다르면 다른 ID |
+| 두 프로세스에서 hash('DOC-ATTEND') | -6668765536654053889 / 5869132473351698419 | Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀 |
+
+| 부분 | 뜻 |
+|---|---|
+| sort_keys=True | dict 키 순서가 달라도 같은 문자열 |
+| separators=(",", ":") | 공백 없이 — 공백 하나 차이로 해시가 바뀌지 않게 고정 |
+| ensure_ascii=False | 한글을 \uXXXX 대신 그대로 (어느 쪽이든 일관되게) |
+| hash(...) | 쓰지 않음 — 문자열 hash는 Python 프로세스마다 달라짐 |
+
+### 문서 · 버전 · 청크 테이블 — IDENTITY · CHECK · jsonb · 복합 외래키
+
+```
+CREATE TABLE ingest_documents (
+  doc_id text PRIMARY KEY,
+  source_uri text NOT NULL,
+  current_version text,                 -- 공개 포인터 (NULL = 아직 공개 안 함)
+  current_pipeline_version text
+);
+CREATE TABLE ingest_versions (
+  doc_id text NOT NULL REFERENCES ingest_documents(doc_id),
+  source_version text NOT NULL,
+  pipeline_version text NOT NULL,
+  status text NOT NULL CHECK (status IN ('staging','ready','failed')),
+  expected_count integer NOT NULL CHECK (expected_count >= 1),
+  PRIMARY KEY (doc_id, source_version, pipeline_version)
+);
+CREATE TABLE ingest_chunks (
+  citation_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  chunk_id text NOT NULL UNIQUE,
+  doc_id text NOT NULL, source_version text NOT NULL, pipeline_version text NOT NULL,
+  unit_id text NOT NULL, category text NOT NULL, source_locator text NOT NULL,
+  char_start integer NOT NULL, char_end integer NOT NULL,
+  body text NOT NULL CHECK (length(body) > 0),
+  embedding vector(384) NOT NULL,
+  metadata jsonb NOT NULL,
+  CHECK (char_start >= 0 AND char_end > char_start),
+  FOREIGN KEY (doc_id, source_version, pipeline_version)
+    REFERENCES ingest_versions (doc_id, source_version, pipeline_version)
+);
+CREATE INDEX ingest_chunks_category_idx ON ingest_chunks (category);
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| information_schema.tables | ingest_chunks, ingest_documents, ingest_versions | 문서 · 버전 · 청크 세 테이블 |
+| status = 'done' 으로 INSERT | CheckViolation: 새 자료가 "ingest_versions" 릴레이션의 "ingest_versions_status_check" 체크 제약 조건을 위반했습니다 | CHECK 제약이 허용 상태만 받음 |
+| char_start = char_end = 5 로 INSERT | CheckViolation: 새 자료가 "ingest_chunks" 릴레이션의 "ingest_chunks_check" 체크 제약 조건을 위반했습니다 | 빈 Span 은 DB 단계에서도 거부 |
+
+| 부분 | 뜻 |
+|---|---|
+| GENERATED ALWAYS AS IDENTITY | DB가 붙이는 정수 번호 = 인용용 citation_id. 실패한 INSERT도 번호를 소모해 빈 번호가 생길 수 있음 |
+| chunk_id text UNIQUE | 앱이 만든 결정적 ID — 같은 Chunk 재적재 방지 |
+| CHECK (status IN (…)) | 허용한 상태 외 값은 DB가 거부 |
+| jsonb | Heading Path 등 추가 Metadata — metadata->>'키'로 꺼냄 |
+| 복합 FOREIGN KEY | 등록 안 된 (문서, 버전, 처리버전) 조합의 Chunk는 못 들어감 |
+| ingest_chunks_category_idx | 필터용 일반 B-tree 인덱스 (벡터 인덱스와 별개) |
+
+### Staging 적재 — conn.transaction() · INSERT … ON CONFLICT (chunk_id) DO NOTHING
+
+```
+with conn.transaction():
+    conn.execute("""INSERT INTO ingest_versions VALUES (%s, %s, %s, 'staging', %s)
+                    ON CONFLICT (doc_id, source_version, pipeline_version) DO NOTHING""",
+                 (doc_id, source_version, pipeline_version, len(chunks)))
+    for c, vec in zip(chunks, vectors, strict=True):
+        conn.execute("""INSERT INTO ingest_chunks
+              (chunk_id, doc_id, source_version, pipeline_version, unit_id, category,
+               source_locator, char_start, char_end, body, embedding, metadata)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (chunk_id) DO NOTHING""",
+            (c["chunk_id"], doc_id, source_version, pipeline_version, c["unit_id"],
+             c["category"], c["source_locator"], c["char_start"], c["char_end"],
+             c["body"], vec, json.dumps(c["metadata"], ensure_ascii=False)))
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · attendance.md v1 · 절 단위 Chunk · 벡터는 임의 단위 벡터
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| v1 첫 적재 · 삽입된 행 수 | 2 | ## 절 두 개 = Chunk 2개 |
+| 같은 입력으로 다시 실행 · 삽입된 행 수 | 0 | 같은 chunk_id → ON CONFLICT DO NOTHING · 늘지 않음 (멱등) |
+| SELECT count(*) · citation_id | 2 · [2, 3] | 정수 citation_id 는 DB 가 붙임 — 앞의 실패한 INSERT 도 번호를 써서 1이 비어 있음 |
+| metadata->>'heading_path' · jsonb_typeof | '출석 안내 > 지각과 결석' · object | JSONB 안의 값을 SQL 로 꺼냄 |
+
+| 부분 | 뜻 |
+|---|---|
+| conn.transaction() | psycopg 3 — 블록이 끝나면 COMMIT, 예외면 ROLLBACK (중첩 시 SAVEPOINT) |
+| ON CONFLICT (chunk_id) DO NOTHING | 같은 입력 재실행 → 행이 늘지 않음 (멱등) |
+| 'staging' | 적재만 됨 — 아직 검색 대상 아님 |
+| zip(…, strict=True) | Chunk 수 ≠ 벡터 수면 바로 오류 (짝 어긋남 방지) |
+
+⚠️ UPSERT/DO NOTHING은 새 입력에 없는 옛 Chunk를 지우지 않아요. 옛 버전을 검색에서 빼는 건 공개 포인터(다음 항목)의 몫이에요. 모델 Embedding 계산은 트랜잭션 밖에서 끝내고, DB 변경만 짧게 묶어요.
+
+### 공개 전환 — SELECT … FOR UPDATE → 개수 확인 → UPDATE 포인터 (한 트랜잭션)
+
+```
+with conn.transaction():
+    expected = conn.execute("""SELECT expected_count FROM ingest_versions
+        WHERE doc_id=%s AND source_version=%s AND pipeline_version=%s
+        FOR UPDATE""", (doc_id, source_version, pipeline_version)).fetchone()[0]
+    actual = conn.execute("""SELECT count(*) FROM ingest_chunks
+        WHERE doc_id=%s AND source_version=%s AND pipeline_version=%s""",
+        (doc_id, source_version, pipeline_version)).fetchone()[0]
+    if actual != expected:
+        raise ValueError(f"incomplete_version: expected {expected}, got {actual}")
+    conn.execute("""UPDATE ingest_versions SET status='ready'
+        WHERE doc_id=%s AND source_version=%s AND pipeline_version=%s""",
+        (doc_id, source_version, pipeline_version))
+    conn.execute("""UPDATE ingest_documents
+        SET current_version=%s, current_pipeline_version=%s WHERE doc_id=%s""",
+        (source_version, pipeline_version, doc_id))
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · v1 → v2 공개 전환
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 공개 전 current_version | None | staging 만 됐을 뿐 아직 검색 대상 아님 |
+| v1 publish (FOR UPDATE · 개수 확인 · ready · 포인터) | ('v1', 'ingest-e5-v1') | 한 트랜잭션으로 공개 |
+| v2 publish · expected_count 3 인데 실제 2 | ValueError: incomplete_version: expected 3, got 2 | 검증 실패 → 트랜잭션 ROLLBACK |
+| 실패 직후 current_version · v2 status | 'v1' · 'staging' | 기존 v1 공개 유지 · v2 는 staging 그대로 |
+| 개수 맞춘 뒤 v2 publish → current_version | 'v2' | 전환 완료 |
+| ingest_versions 상태 | [('v1', 'ready'), ('v2', 'ready')] | v1 행 · Chunk 는 지우지 않고 남음 |
+
+| 부분 | 뜻 |
+|---|---|
+| FOR UPDATE | 그 버전 행을 잠가 동시에 다른 공개 작업이 끼어들지 못하게 |
+| actual != expected → raise | 덜 적재된 버전은 공개 안 함 — 블록 전체 ROLLBACK |
+| status='ready' + 포인터 변경 | 둘이 같은 트랜잭션 — 한쪽만 바뀐 상태가 생기지 않음 |
+
+### 현재 공개 Chunk만 검색 — JOIN + WHERE c.source_version = d.current_version + <=>
+
+```
+SELECT c.citation_id, c.chunk_id, c.body, c.source_locator,
+       c.doc_id, c.source_version,
+       c.embedding <=> %s AS cosine_distance
+FROM ingest_chunks AS c
+JOIN ingest_documents AS d ON d.doc_id = c.doc_id
+JOIN ingest_versions AS v
+  ON v.doc_id = c.doc_id
+ AND v.source_version = c.source_version
+ AND v.pipeline_version = c.pipeline_version
+WHERE c.source_version = d.current_version
+  AND c.pipeline_version = d.current_pipeline_version
+  AND v.status = 'ready'
+  AND c.category = %s
+ORDER BY c.embedding <=> %s ASC, c.chunk_id ASC
+LIMIT %s;
+-- psycopg 파라미터: (query_vector, category, query_vector, k)
+```
+
+▶ 실제로 돌려 보면 노트 전용 DB에서 실제 실행 · 질의 벡터는 임의 (모델 출력 아님 → 거리 값은 의미 없음)
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| 테이블 전체 Chunk (버전별) | [('v1', 2), ('v2', 2)] | v1 · v2 Chunk 가 모두 저장돼 있음 |
+| 현재 공개 + ready + category='학사', k=3 | [(7, 'v2', 'sec-2'), (6, 'v2', 'sec-1')] | v2 만 나옴 — 옛 v1 은 WHERE 에서 빠짐 · ON CONFLICT 로 건너뛴 재실행도 번호(4·5)를 써서 6·7 |
+| category='시설' | [] | 정상 0건 |
+| 현재 공개 본문 중 '15분' 포함 | 1건 | 개정 내용(10분 → 15분)이 검색 대상 |
+
+| 부분 | 뜻 |
+|---|---|
+| c.source_version = d.current_version | 공개 포인터가 가리키는 버전만 — 옛 버전 Chunk는 남아 있어도 빠짐 |
+| v.status = 'ready' | 검증이 끝난 버전만 |
+| c.category = %s | Metadata Filter — Top-k 전에 범위를 정함 (권한 검사는 아님) |
+| , c.chunk_id ASC | 거리가 같을 때 순서를 고정 (재현성) |
+| %s | psycopg 자리표시 — pgAdmin에 이 모양 그대로 실행하는 SQL은 아님 |
+
+## 📖 Day24 용어 (21개)
+- **Document Ingestion** (Document Ingestion (Indexing) Pipeline): 원본 파일을 모아 읽고(Parsing) 정리하고(Cleaning) 나누고(Chunking) 검사해서, 벡터와 출처를 붙여 검색 가능한 상태로 공개하기까지의 전체 과정. DB의 HNSW 인덱스 하나를 만드는 일과는 다른 말이에요.
+- **Manifest** (Collection Manifest): 이번에 처리할 원본 파일의 목록과 기록(doc_id · source_version · 경로 · 바이트 크기 · SHA-256 · 상태). 처리되지 않은 파일도 상태와 함께 빠짐없이 남겨요.
+- **Raw · Derived Data** (Raw file / Derived data): 원본 파일(Raw)과 거기서 만든 결과(파싱 텍스트 · 정제 텍스트 · Chunk)를 따로 보관하는 원칙. 원본을 덮어쓰면 규칙이 바뀌었을 때 무엇이 달라졌는지 추적할 수 없어요.
+- **Document Parsing**: 파일 형식(TXT · Markdown · HTML · PDF)을 해석해 텍스트와 구조(제목 · 문단 · 표 · 페이지)를 꺼내는 일. 글자만 나왔다고 원문의 순서 · 의미가 보존됐다는 뜻은 아니에요.
+- **needs_ocr** (needs_ocr (status)): PDF에 텍스트층이 없어 extract_text()가 빈 결과를 내는 경우의 보류 상태. pypdf는 이미지 속 글자를 읽지 않아요. 수집 실패와는 다른 상태예요.
+- **Heading Path**: 본문이 속한 제목들을 위에서부터 이은 경로(예: 출석 안내 > 지각과 결석). Chunk의 Metadata로 남겨 비슷한 문장이 다른 절에 있어도 출처를 설명할 수 있게 해요.
+- **Text Cleaning**: 줄바꿈 · 공백 · 유니코드 표현 같은 형식 잡음만 정리하고, 숫자 · 조건 · 부정어 · 문단 구조는 남기는 작업. 짧아졌다고 좋아진 게 아니에요.
+- **NFC · NFKC** (Unicode Normalization Forms): 같은 글자의 다른 유니코드 표현을 하나로 맞추는 규칙. NFC는 자모 분리형을 완성형으로 합치고 모양은 유지, NFKC는 ①→1, ²→2처럼 호환 문자까지 바꿔 의미가 달라질 수 있어요.
+- **멱등성** (Idempotency): 같은 작업을 여러 번 해도 결과가 한 번 한 것과 같은 성질. 정제 함수를 두 번 적용해도 그대로, 같은 입력으로 적재를 다시 돌려도 행이 늘지 않음. 멱등이라고 의미가 보존됐다는 뜻은 아니에요.
+- **Chunk**: 검색 · Embedding · 인용의 단위가 되는 본문 조각. 너무 작으면 조건과 결과가 갈라지고, 너무 크면 모델 입력 한도를 넘거나 주제가 섞여요.
+- **Overlap** (Chunk Overlap): 이웃 Chunk끼리 일부 글자를 겹치게 두는 것. 경계에서 문맥이 끊기는 걸 줄이지만 저장 · 인코딩 양이 늘고, 비슷한 Chunk가 Top-k를 차지할 수 있어요. 다음 시작 = 끝 − Overlap.
+- **Structure-aware Chunking**: 제목 · 문단 · 목록 · 표 경계를 먼저 따라 나누고, 그래도 긴 부분만 토큰 한도에 맞춰 더 나누는 방식. 고정 글자 창이 문장 중간을 자르는 문제를 줄여요.
+- **Span** (Character Span): Chunk가 clean_text의 어디서 왔는지 나타내는 [start, end) 문자 위치(끝 제외). 원본 파일의 바이트 위치나 PDF 화면 좌표가 아니에요. body == clean_text[start:end]로 검증해요.
+- **Coverage** (Chunk Coverage): Chunk들이 덮은 고유 문자 위치 ÷ 전체 길이. 구간을 병합해 Overlap을 한 번만 셉니다. 100%여도 Parsing 단계에서 빠진 내용은 잡지 못해요.
+- **source_locator** (Source Locator): 사람이 원문을 다시 찾아갈 수 있는 위치 표시(예: career.pdf#page=2, attendance.md#지각과-결석). 페이지가 없는 형식에는 page_number를 비워 둬요.
+- **source_version · pipeline_version** (Source version / Pipeline version): source_version은 원문이 개정됐는지, pipeline_version은 Parsing · Cleaning · Chunking · Embedding 설정이 바뀌었는지를 구분해요. 둘 중 하나라도 다르면 다른 Chunk 집합으로 다뤄요.
+- **결정적 ID** (Deterministic ID): 같은 입력이면 언제 어디서 만들어도 같은 ID. 키를 정렬하고 공백을 고정한 JSON을 SHA-256으로 해시해 만들어요. Python 내장 hash()는 실행마다 달라 쓰지 않아요.
+- **citation_id** (Citation ID): DB가 Chunk 행에 붙이는 양의 정수 번호. 출력 계약의 source_ids(정수 목록)와 문자열 chunk_id를 잇는 다리예요. 실패한 INSERT도 번호를 소모해 빈 번호가 생길 수 있어요.
+- **공개 포인터** (Publish pointer (staging → ready → current)): 새 버전 Chunk를 먼저 staging으로 다 적재하고, 개수를 확인한 뒤 한 트랜잭션에서 ready + current_version 변경으로 공개하는 방식. 실패하면 이전 버전이 그대로 검색돼요.
+- **SELECT … FOR UPDATE**: 읽은 행을 트랜잭션이 끝날 때까지 잠가, 다른 트랜잭션이 같은 행을 동시에 고치지 못하게 하는 SQL. 공개 전환처럼 '확인 후 변경'을 안전하게 묶을 때 써요.
+- **JSONB** (PostgreSQL JSONB): JSON을 이진 형식으로 저장하는 PostgreSQL 타입. 정해진 열 외의 Metadata를 담고, metadata->>'키'로 값을 텍스트로 꺼내요.

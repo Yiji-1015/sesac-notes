@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day24 · Document Parsing · Chunking · Indexing — 문서를 검색 데이터로 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag llm">LLM·RAG</span>
+      <h1>Day24 · Document Parsing · Chunking · Indexing — 문서를 검색 데이터로</h1>
+      <div class="meta">2026-11-19(목) · Ingestion Pipeline · Manifest · SHA-256 · TXT/Markdown/HTML/PDF Parsing · needs_ocr · Cleaning · NFC · Chunking · Overlap · Token 한도 · Span · Coverage · Metadata · chunk_id · Staging/Publish · citation_id</div>
+    </header>
+
+    <article class="note">
+
+      <div class="tldr">
+        <strong>📌 딱 3줄 요약</strong>
+        <ol>
+          <li><b>Document Ingestion</b> = 원본 파일을 <b>수집 → 읽기(Parsing) → 정리(Cleaning) → 나누기(Chunking) → 검사 → 출처 붙이기 → 저장 · 공개</b>해서 "검색할 수 있는 조각"으로 만드는 전체 과정. 단계마다 결과를 따로 남겨, 문제가 생기면 어느 단계 탓인지 되짚을 수 있게 해요.</li>
+          <li>Chunk는 <b>답이 들어 있는 단위</b>로 나눠요. 고정 글자 수로 자르면 "10분을 초과하면 | 결석"처럼 조건과 결과가 갈라져요. 제목 · 문단 같은 구조를 먼저 따르고, 길이는 <b>그 모델의 Tokenizer로 센 최종 입력</b>으로 검사해요.</li>
+          <li>검색 대상은 <b>검증이 끝난 현재 공개 버전</b>만. 새 버전은 다 적재 · 확인한 뒤 <b>한 트랜잭션으로 공개 포인터를 바꿔요</b>. 실패하면 이전 판이 그대로 검색돼요.</li>
+        </ol>
+      </div>
+
+      <!-- ============================================================ -->
+      <h2 id="map">🗺️ 큰 그림 — 원본 파일이 검색 가능한 Chunk가 되기까지</h2>
+      <figure id="fig-flow"><img class="smooth" src="img/day24/flow.png" alt="① 수집 → ② Parsing → ③ Cleaning → ④ Chunking → ⑤ 검증 → ⑥ Metadata → ⑦ 저장·공개, 아래로 unsupported · needs_ocr · span_mismatch · ROLLBACK 같은 보류·실패 가지"><figcaption><b>무엇을 보나:</b> 단계마다 남기는 결과물이 달라요(Raw File → raw_text → clean_text → Span → Chunk 행). 아래 점선은 <b>보류 · 실패도 상태로 기록</b>한다는 뜻이에요. 🤔 <b>왜 단계를 쪼개 남겨?</b> 검색이 이상할 때 "모델이 나빠서"로 결론 내리기 전에, 원문이 제대로 읽혔는지 · 정제에서 숫자가 지워졌는지 · 조각이 조건을 잘랐는지를 단계별로 되짚을 수 있어서요.</figcaption></figure>
+      <p><a href="day23.html">Embedding · Vector Search</a>는 이미 정리된 짧은 지식 문장을 벡터로 바꿔 찾았어요. 실제 자료는 PDF · Markdown · HTML 같은 <b>파일</b>이라, 그 사이를 잇는 과정이 필요해요.</p>
+      <table>
+        <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
+        <tr><td><a href="#collect">① 수집</a></td><td>파일 목록 · 원본 바이트 · SHA-256</td><td>무엇을 처리했고, 원문이 바뀌었나?</td></tr>
+        <tr><td><a href="#parse">② Parsing</a></td><td>형식별로 텍스트와 구조 꺼내기</td><td>글자만이 아니라 제목 · 표 · 페이지가 살아 있나?</td></tr>
+        <tr><td><a href="#clean">③ Cleaning</a></td><td>줄바꿈 · 공백 · 유니코드 정리</td><td>잡음만 지웠고 의미는 그대로인가?</td></tr>
+        <tr><td><a href="#chunk">④ Chunking</a></td><td>검색 단위로 나누기</td><td>조건과 결과가 한 조각에 있나? 모델 한도 안인가?</td></tr>
+        <tr><td><a href="#validate">⑤ 검증</a></td><td>Span · Coverage · 중복 · 빈 조각</td><td>조각이 원문과 정확히 대응하고, 빠진 곳이 없나?</td></tr>
+        <tr><td><a href="#metadata">⑥ Metadata</a></td><td>출처 · 버전 · 위치 · 결정적 ID</td><td>이 조각은 어느 문서 어느 판의 어디서 왔나?</td></tr>
+        <tr><td><a href="#index">⑦ 저장 · 공개</a></td><td>staging → 확인 → 공개 포인터 전환</td><td>반쯤 적재된 판이 검색되지 않나?</td></tr>
+        <tr><td><a href="#pipeline">⑧ 전체 연결</a></td><td>문서 하나 끝까지 · 실패 범위 · 인용 ID</td><td>다음 단계(RAG)가 받을 결과는 무엇인가?</td></tr>
+      </table>
+<pre><code>원본 파일 (data/raw)            ← 절대 덮어쓰지 않음
+  → ParsedUnit  raw_text          (페이지 · 절 단위, source_locator)
+  → CleanUnit   clean_text        (cleaner_version · clean_hash)
+  → Chunk       body = clean_text[start:end]  + Metadata + chunk_id
+  → 벡터(E5 384차원) → PostgreSQL + pgvector  (staging → ready → current)</code></pre>
+
+      <h3 id="docs">예제 문서 6건</h3>
+      <p>아래 설명과 실행 결과에 쓰는 가상 안내 문서예요(실제 기관 규정 아님). 크기는 실제 파일 바이트.</p>
+      <table>
+        <tr><th>doc_id</th><th>파일 (바이트)</th><th>형식에서 볼 것</th><th>처리 결과</th></tr>
+        <tr><td>DOC-ATTEND</td><td>attendance.md (328)</td><td>제목 · 문단 · 숫자 · 예외("단,")</td><td>parsed</td></tr>
+        <tr><td>DOC-ASSIGN</td><td>assignment.txt (267)</td><td>UTF-8 · 줄바꿈</td><td>parsed</td></tr>
+        <tr><td>DOC-FACILITY</td><td>facility.html (728)</td><td>main 영역 · 메뉴 · 스크립트 · 표</td><td>parsed</td></tr>
+        <tr><td>DOC-CAREER</td><td>career.pdf (36,195)</td><td>페이지 · 쪽번호</td><td>parsed (2페이지)</td></tr>
+        <tr><td>DOC-SCAN</td><td>scan.pdf (34,629)</td><td>글자가 이미지</td><td><code>needs_ocr</code> 보류</td></tr>
+        <tr><td>DOC-UNSUPPORTED</td><td>unsupported.xyz (62)</td><td>지원하지 않는 형식</td><td><code>unsupported</code></td></tr>
+      </table>
+      <p>개정본 <code>attendance_v2.md</code>는 "10분" 기준을 "15분"으로 바꾼 같은 문서의 v2예요(⑦ 공개 전환에서 사용).</p>
+
+      <!-- ============================================================ -->
+      <h2 id="collect">① 수집 — 원본을 보존하고, 무엇을 처리했는지 기록</h2>
+      <h3 id="raw">Raw File과 Derived Data는 따로</h3>
+      <table>
+        <tr><th>단계 결과</th><th>남기는 것</th><th>왜</th></tr>
+        <tr><td><b>Raw File</b></td><td>원본 바이트 · 경로 · 확보 시점 · <code>raw_sha256</code></td><td>원문이 바뀌었는지 판단하는 기준</td></tr>
+        <tr><td><b>ParsedUnit</b></td><td>페이지 · 절에서 꺼낸 <code>raw_text</code> · <code>source_locator</code></td><td>파서를 바꿨을 때 비교</td></tr>
+        <tr><td><b>CleanUnit</b></td><td><code>clean_text</code> · <code>cleaner_version</code> · <code>clean_hash</code></td><td>정제 규칙을 바꿨을 때 비교</td></tr>
+        <tr><td><b>Chunk</b></td><td>본문 · 문자 위치 · Metadata · 벡터</td><td>검색 · 인용 단위</td></tr>
+      </table>
+      <p>정제 결과로 원본을 덮어쓰면, 나중에 파서나 규칙이 바뀌었을 때 <b>무엇이 원래 내용이었는지</b> 알 수 없어요.</p>
+
+      <h3 id="manifest">Manifest — 원본 기록표</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>read_bytes()</code> · <code>hashlib.sha256().hexdigest()</code> <a href="../commands.html#d24-manifest">명령어 사전에서 자세히 →</a></div>
+<pre><code>raw = path.read_bytes()
+record = {"doc_id": "DOC-ASSIGN", "source_version": "v1", "source_uri": path.as_uri(),
+          "size_bytes": len(raw), "raw_sha256": sha256(raw).hexdigest(), "status": "collected"}</code></pre>
+      </div>
+      <p>실제 실행: assignment.txt는 267바이트(한글 113자), 해시 <code>722ed29e5256a35c…</code>. 끝에 공백 1바이트만 더해도 <code>f9ef6f5b571b1ff9…</code>로 완전히 달라져요.</p>
+      <ul>
+        <li><b>SHA-256</b>은 "바이트가 같은가"만 알려 줘요. 의미가 비슷한지, 같은 출처인지는 몰라요.</li>
+        <li><code>doc_id</code> · <code>source_version</code>은 파일 이름이나 해시로 자동으로 정해지지 않아요 — 원문 관리 규칙으로 정해요.</li>
+        <li>파일 이름이 같아도 같은 원문이라는 보장이 없어요 → 버전 · 해시로 비교.</li>
+      </ul>
+
+      <h3 id="status">수집 성공 ≠ 파싱 성공 — 상태를 한 번씩 집계</h3>
+      <table>
+        <tr><th>상황</th><th>상태</th><th>다음 동작</th></tr>
+        <tr><td>파일 없음</td><td><code>not_found</code></td><td>경로 · 수집 목록 확인</td></tr>
+        <tr><td>권한 없음</td><td><code>read_error</code></td><td>접근 권한 확인 (자격 증명은 로그에 남기지 않음)</td></tr>
+        <tr><td>지원 외 형식</td><td><code>unsupported</code></td><td>원본 보존 · 지원 여부 검토</td></tr>
+        <tr><td>0바이트</td><td><code>empty_file</code></td><td>본문 없음 · 보류</td></tr>
+        <tr><td>스캔 PDF</td><td><code>collected</code> → <code>needs_ocr</code></td><td>수집은 정상, Parsing만 보류</td></tr>
+      </table>
+      <p><b>입력 수 = 완료 + 보류 + 실패 + 건너뜀</b>이 맞아야 해요. 예제 6건이면 parsed 4 · needs_ocr 1 · unsupported 1. 빠진 파일이 조용히 사라지면 "검색에 없는 이유"를 아무도 설명할 수 없어요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="parse">② Parsing — 글자만이 아니라 구조까지</h2>
+      <p><b>Parsing</b>은 파일 형식을 해석해 텍스트와 함께 <b>제목 · 문단 · 표 · 페이지</b> 같은 구조를 꺼내는 일이에요. 문자열이 나왔다고 원문의 순서 · 관계가 보존됐다는 뜻은 아니에요.</p>
+<pre><code>원문:        [지각과 결석]  10분 초과 → 결석
+잘못 추출:   10분 / 결석 / (다른 행의 값)     ← 조건 관계가 사라짐</code></pre>
+
+      <h3 id="formats">형식마다 지킬 구조가 달라요</h3>
+      <table>
+        <tr><th>형식</th><th>도구</th><th>지킬 것 · 주의</th></tr>
+        <tr><td>TXT</td><td><code>bytes.decode("utf-8")</code></td><td>인코딩 오류 · 줄바꿈</td></tr>
+        <tr><td>Markdown</td><td>Markdown 파서 (markdown-it-py)</td><td>제목 경계 · 목록 · 코드 블록</td></tr>
+        <tr><td>HTML</td><td>Beautiful Soup — <code>main</code> 선택</td><td>메뉴 · 스크립트 제외 · 표의 행 · 열</td></tr>
+        <tr><td>PDF</td><td>pypdf — 페이지별 추출</td><td>읽기 순서 · 이미지 글자 · 표</td></tr>
+        <tr><td>DOCX (참고)</td><td>python-docx</td><td>문단만 돌면 표가 빠짐</td></tr>
+      </table>
+
+      <h3 id="txt">TXT — 인코딩을 명시하고, 실패를 숨기지 않기</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>bytes.decode("utf-8")</code> <a href="../commands.html#d24-decode">명령어 사전에서 자세히 →</a></div>
+<pre><code>try: text = raw.decode("utf-8")
+except UnicodeDecodeError: status = "decode_error"</code></pre>
+      </div>
+      <table>
+        <tr><th>입력 (실제 실행)</th><th>결과</th></tr>
+        <tr><td>잘린 UTF-8 바이트 <code>.decode("utf-8")</code></td><td><code>UnicodeDecodeError</code> → <code>decode_error</code> 기록</td></tr>
+        <tr><td>같은 바이트 <code>errors="ignore"</code></td><td><code>'과 ok'</code> — 깨진 글자가 <b>조용히 사라짐</b></td></tr>
+        <tr><td>빈 바이트</td><td><code>''</code> — 오류가 아니라 <code>empty</code></td></tr>
+      </table>
+      <p>TXT에는 페이지가 없어요. <code>page_number=1</code>을 억지로 넣지 않고 비워 둬요(None).</p>
+
+      <h3 id="markdown">Markdown — 제목 경로(Heading Path)를 함께</h3>
+      <p>제목 다음의 문장은 그 절에 속하고, 다음 제목을 만나면 구역이 바뀌어요. 이 소속을 <b>Heading Path</b>로 남기면, 비슷한 문장이 여러 절에 있어도 어느 규정인지 설명할 수 있어요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>MarkdownIt().parse()</code> <a href="../commands.html#d24-markdown">명령어 사전에서 자세히 →</a></div>
+<pre><code>tokens = MarkdownIt().parse(md_text)      # heading_open → inline → heading_close …</code></pre>
+      </div>
+      <p>실제 실행(attendance.md): <code>출석 안내</code> · <code>출석 안내 &gt; 지각과 결석</code> · <code>출석 안내 &gt; 출석 문의</code>. 🤔 <b>정규식으로 <code>#</code> 줄을 찾으면 안 돼?</b> 코드 블록 안의 <code># 주석</code>도 제목으로 잡혀요. 파서는 그 부분을 <code>fence</code> 토큰으로 따로 줘요(실제 실행: <code>('fence', 'code')</code>, 진짜 제목만 <code>('heading_open', 'h1')</code>).</p>
+
+      <h3 id="html">HTML — 본문 영역만, 표는 행 · 열 관계를 살려서</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>BeautifulSoup</code> · <code>select_one("main")</code> · <code>decompose()</code> <a href="../commands.html#d24-html">명령어 사전에서 자세히 →</a></div>
+<pre><code>main = BeautifulSoup(html_text, "html.parser").select_one("main")
+for tag in main.select("script, style"): tag.decompose()
+text = main.get_text("\n", strip=True)</code></pre>
+      </div>
+      <p>facility.html에는 <code>&lt;nav&gt;홈 | 뉴스 | 로그인&lt;/nav&gt;</code>, <code>&lt;footer&gt;</code>, <code>&lt;script&gt;</code>가 섞여 있어요. 전체 <code>get_text()</code>를 쓰면 메뉴 글자까지 Embedding돼 검색을 흐려요. 그리고 <code>get_text()</code>는 <b>표의 행 · 열 관계를 복원하지 않아요</b>:</p>
+      <table>
+        <tr><th>원문 표</th><th>잘못된 텍스트</th><th>보존한 텍스트</th></tr>
+        <tr><td>시설 / 운영시간</td><td>09:00 18:00</td><td>도서관: 09:00~18:00</td></tr>
+        <tr><td>요일 / 장소</td><td>월 화 2층 3층</td><td>월: 2층 / 화: 3층</td></tr>
+        <tr><td>비고 / 예외</td><td>휴관 허용</td><td>일요일: 휴관 (예외 조건 보존)</td></tr>
+      </table>
+      <p>(위 표는 구조 보존을 설명하는 가상 예시.) 표는 행 단위로 읽어 <b>열 이름과 값을 붙여</b> 문장화하거나 행을 그대로 보존해요.</p>
+
+      <h3 id="pdf">PDF — 페이지별 추출과 위치, 그리고 한계</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>PdfReader(path).pages</code> · <code>extract_text()</code> <a href="../commands.html#d24-pdf">명령어 사전에서 자세히 →</a></div>
+<pre><code>for page_number, page in enumerate(PdfReader(str(path)).pages, start=1):
+    units.append({"unit_id": f"page-{page_number}", "source_locator": f"career.pdf#page={page_number}",
+                  "raw_text": page.extract_text() or ""})</code></pre>
+      </div>
+      <table>
+        <tr><th>파일 · 페이지 (실제 실행)</th><th>추출 결과</th><th>상태</th></tr>
+        <tr><td>career.pdf p.1</td><td>93자 · 첫 줄 "진로 상담 안내"</td><td>page-1 unit</td></tr>
+        <tr><td>career.pdf p.2</td><td>98자 · 첫 줄 "진로 상담 안내 - 두 번째 페이지"</td><td>page-2 unit</td></tr>
+        <tr><td>scan.pdf p.1</td><td><b>0자</b></td><td><code>needs_ocr</code> 보류</td></tr>
+      </table>
+      <table>
+        <tr><th>PDF 종류</th><th>주의</th></tr>
+        <tr><td>텍스트 PDF</td><td>글자는 나와도 다단 순서 · 머리말 · 쪽번호(실제로 "1 / 2"가 본문에 섞여 나옴) · 표는 검수 필요</td></tr>
+        <tr><td>스캔 PDF</td><td>글자가 이미지 → pypdf는 못 읽음. OCR이 별도로 필요 (<a href="day16.html#ocr">OCR</a>)</td></tr>
+        <tr><td>OCR 텍스트층 있는 PDF</td><td>글자는 나와도 오인식 가능</td></tr>
+        <tr><td>혼합 PDF</td><td>페이지마다 상태가 다름 → 문서 전체를 한 번에 승인하지 않음</td></tr>
+      </table>
+      <p>🤔 <b>빈 결과면 스캔 PDF라고 확정해도 돼?</b> 아니요. 실제 빈 페이지 · 파일 손상 · 스캔 중 무엇인지 원본을 확인한 뒤 상태를 정해요. PDF는 화면에 "보이는" 배치가 중심이라, 화면 순서와 추출 순서가 다를 수 있어요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="clean">③ Cleaning — 잡음만 지우고 의미는 남기기</h2>
+      <h3 id="cleanwhy">짧게 만드는 작업이 아니에요</h3>
+      <table>
+        <tr><th>정리해도 되는 것</th><th>반드시 남길 것</th></tr>
+        <tr><td>CRLF · CR 줄바꿈, 지나친 가로 공백, 반복되는 머리말 일부</td><td>10분 · 초과 · "단," · 승인 시 · 제출 불가 같은 <b>답을 바꾸는 정보</b>, 문단 경계, 표 구조</td></tr>
+      </table>
+<pre><code>원문:        "제출할 수 없습니다."
+잘못된 정제: "제출할 수 있습니다."   ← 부정어 하나로 의미가 뒤집힘</code></pre>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>re.sub(r"[ \t]+", " ", …)</code> · <code>replace("\r\n", "\n")</code> <a href="../commands.html#d24-clean">명령어 사전에서 자세히 →</a></div>
+<pre><code>lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+clean_text = "\n".join(lines).strip()</code></pre>
+      </div>
+      <table>
+        <tr><th>입력 <code>"출석   안내\r\n\r\n10분  초과"</code> (실제 실행)</th><th>결과</th></tr>
+        <tr><td>가로 공백만 정리 + 줄바꿈 통일</td><td><code>'출석 안내\n\n10분 초과'</code> — 문단 경계(빈 줄) 유지</td></tr>
+        <tr><td><code>re.sub(r"\s+", " ", …)</code></td><td><code>'출석 안내 10분 초과'</code> — 줄바꿈까지 사라져 구조 손실</td></tr>
+      </table>
+      <p>표 · 코드 블록 · TSV에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기 자체가 의미). 정제 결과는 <code>cleaner_version</code> · <code>clean_hash</code>와 함께 남기고, <b>두 번 적용해도 같은지(멱등성)</b>와 <b>보존할 구절이 살아 있는지</b>를 확인해요(실제 실행: attendance.md 139자 → 138자, 멱등 True, "10분" · "초과" 보존 True). 멱등성은 의미 보존의 증명이 아니에요.</p>
+
+      <h3 id="normalize">유니코드 정규화 — NFC와 NFKC는 다르다</h3>
+      <table>
+        <tr><th>규칙</th><th>하는 일</th><th>실제 실행</th></tr>
+        <tr><td><b>NFC</b></td><td>같은 글자의 다른 표현을 완성형으로 합침</td><td>자모 분리형 "한"(3글자) → 1글자. 분리형은 눈엔 같아도 <code>== "한"</code>이 False</td></tr>
+        <tr><td><b>NFKC</b></td><td>호환 문자까지 변환</td><td><code>'① x²'</code> → <code>'1 x2'</code> — 번호 · 위첨자 의미가 사라짐</td></tr>
+        <tr><td>CRLF/CR → LF</td><td>줄바꿈 통일</td><td>문단 사이 빈 줄은 유지</td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>unicodedata.normalize()</code> <a href="../commands.html#d24-normalize">명령어 사전에서 자세히 →</a></div>
+<pre><code>unicodedata.normalize("NFC", text)       # 일반 본문 기본값</code></pre>
+      </div>
+      <p>🤔 <b>왜 NFC가 필요해?</b> macOS 등에서 온 파일명 · 텍스트는 자모가 분리된 형태(NFD)일 수 있어요. 그대로 두면 같은 단어인데 검색 · 해시 · 비교가 어긋나요. NFC는 의미를 "교정"하는 기능이 아니라 표현만 맞춰요.</p>
+
+      <h3 id="offset">Offset은 문자 위치 — 바이트 위치가 아니에요</h3>
+<pre><code>text = "가나다 라마바"
+text[4:7]  → '라마바'        len(text) = 7      len(text.encode("utf-8")) = 19   (실제 실행)</code></pre>
+      <p>Chunk의 <code>char_start</code> · <code>char_end</code>는 <b>그 CleanUnit의 clean_text</b>에서 센 Python 문자 위치(끝 제외)예요. 원본 PDF의 바이트 위치도, 화면 좌표도 아니에요. 원문 위치(PDF 페이지 · Markdown 제목)는 <code>source_locator</code>로 따로 남겨요. 정제 전후 좌표를 정확히 되짚으려면 별도의 위치 대응표(span map)가 필요해요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="chunk">④ Chunking — 답이 들어 있는 단위로 나누기</h2>
+      <h3 id="unit">왜 문서를 통째로 Embedding하지 않나</h3>
+      <table>
+        <tr><th>말</th><th>뜻</th></tr>
+        <tr><td><b>Document</b></td><td>수집 · 버전 관리 대상 (파일 하나)</td></tr>
+        <tr><td><b>ParsedUnit</b></td><td>문서 안의 페이지 · 절</td></tr>
+        <tr><td><b>Chunk</b></td><td>ParsedUnit의 clean_text에서 만든 <b>검색 · Embedding · 인용 단위</b></td></tr>
+        <tr><td><b>Token</b></td><td>모델 Tokenizer가 만드는 입력 단위 — Python 글자 수와 다름</td></tr>
+      </table>
+      <p>문서 전체를 벡터 하나로 만들면 여러 주제가 섞이고 모델 입력 한도도 넘어요. 반대로 너무 잘게 자르면 <b>조건과 결과가 다른 조각으로 갈라져요</b>. Chunk Size가 작다고 항상 정확해지는 게 아니에요.</p>
+<pre><code>원문:      "10분을 초과하면 결석으로 기록합니다."
+잘못 분할: "10분을 초과하면" | "결석으로 기록합니다."     ← 어느 쪽만 검색돼도 답이 안 됨</code></pre>
+
+      <h3 id="strategies">Chunking 전략</h3>
+      <table>
+        <tr><th>전략</th><th>나누는 기준</th><th>먼저 확인할 것</th></tr>
+        <tr><td>Fixed Character Window</td><td>일정한 글자 수</td><td>문장 · 단어 · 조건의 중간 절단</td></tr>
+        <tr><td>Token-based</td><td>Tokenizer로 센 한도</td><td>모델 입력 전체 길이</td></tr>
+        <tr><td>Structure-aware</td><td>제목 · 문단 · 목록 · 표</td><td>너무 긴 단위만 추가 분할</td></tr>
+        <tr><td>Semantic Chunking</td><td>의미 변화 · 유사도</td><td>추가 계산 · 튜닝 · 검증</td></tr>
+      </table>
+      <p>실무에서는 보통 <b>구조 경계 + 토큰 한도</b>를 함께 써요.</p>
+
+      <h3 id="window">겹치는 글자 창 — 시작 · 끝 · Overlap</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>text[start:end]</code> + 종료 조건 <a href="../commands.html#d24-windows">명령어 사전에서 자세히 →</a></div>
+<pre><code>end = min(start + size, len(text)); spans.append((start, end))
+if end == len(text): break
+start = end - overlap</code></pre>
+      </div>
+      <p>크기 40 · Overlap 10이면 보폭은 30. 71자 문자열은 실제 실행에서 <code>[(0, 40), (30, 70), (60, 71)]</code> — 저장 길이 합 91자, 고유 범위 71자. <b>끝에 닿으면 종료</b>해야 겹친 꼬리 조각을 하나 더 만들지 않아요. <code>overlap ≥ size</code>면 앞으로 못 나아가니 거부해요.</p>
+      <figure id="fig-windows"><img class="smooth" src="img/day24/windows.png" alt="attendance.md clean_text 138자를 40/10 창으로 자른 5개 조각과 겹친 구간, 조건 문장을 온전히 담은 조각 표시"><figcaption><b>무엇을 보나:</b> 실제 attendance.md 정제본(138자)을 40/10 창으로 자른 5개 조각이에요. 분홍은 앞 조각과 겹친 10자. 고정 글자 창은 제목 · 문장 중간을 그냥 잘라요 — 두 번째 조각은 "까지 입실하면 지각으로…"처럼 앞 문장 중간에서 시작해요. 🤔 <b>그럼 Overlap을 크게 하면?</b> 경계 문맥은 더 붙지만 저장 · 인코딩량이 늘고, 비슷한 조각들이 Top-k 자리를 나눠 먹어요.</figcaption></figure>
+
+      <h2 id="lab-chunk">🧪 Chunk 창 실험실</h2>
+      <p>attendance.md 정제본(138자)을 크기 · Overlap을 바꿔 잘라 보세요. Coverage · 저장량 · 조건 문장 보존을 바로 계산해요. (브라우저 안의 산수 · 40/10 결과는 위 실제 실행과 같아요)</p>
+      <div class="lab" id="ck-lab">
+        <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+          <label>크기 <input type="range" id="ck-size" min="10" max="138" step="1" value="40"> <span id="ck-sizev">40</span>자</label>
+          <label>Overlap <input type="range" id="ck-ov" min="0" max="60" step="1" value="10"> <span id="ck-ovv">10</span>자</label>
+        </div>
+        <table id="ck-stats" style="margin-top:10px"></table>
+        <div id="ck-list" style="margin-top:8px"></div>
+        <p id="ck-why" style="margin:8px 0 0;font-weight:600"></p>
+      </div>
+
+      <h3 id="tokens">길이는 그 모델의 Tokenizer로, 최종 입력 전체를</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>model.tokenizer(…, truncation=False)["input_ids"]</code> <a href="../commands.html#d24-tokens">명령어 사전에서 자세히 →</a></div>
+<pre><code>ids = model.tokenizer("passage: " + chunk_text, add_special_tokens=True, truncation=False)["input_ids"]
+if len(ids) &gt; model.max_seq_length: raise ValueError("rechunk_required")</code></pre>
+      </div>
+      <table>
+        <tr><th>입력 (다른 모델의 Tokenizer로 실제 실행 · E5 숫자 아님)</th><th>값</th></tr>
+        <tr><td>"10분을 초과하면 결석으로 기록합니다." 글자 수</td><td>21</td></tr>
+        <tr><td>같은 문장 토큰 수 (특수 토큰 포함)</td><td>15</td></tr>
+        <tr><td><code>"passage: "</code> + 문장</td><td>17</td></tr>
+        <tr><td><code>"passage: "</code> + Heading + 문장</td><td>27</td></tr>
+      </table>
+      <ul>
+        <li>384차원은 <b>출력</b> 벡터 길이예요. 입력 상한(E5-small 모델 카드상 512토큰)과 다른 속성이에요. (<a href="day23.html#shape">입력 토큰 vs 출력 shape</a>)</li>
+        <li>접두어 · 제목도 토큰을 차지해요. 그래서 <b>모델에 실제로 들어갈 최종 문자열</b>로 세요.</li>
+        <li>다른 모델의 한도 · 측정값을 빌려 쓰지 않아요. 한도를 넘으면 encode 때 뒤가 <b>잘려 사라지니</b>, 넘는 조각은 재분할하거나 이유를 남겨 격리해요 — 그냥 잘라 저장하지 않아요.</li>
+      </ul>
+
+      <h3 id="structure">구조를 먼저 따르는 분할</h3>
+      <table>
+        <tr><th>원문 구조</th><th>Chunk 설계</th></tr>
+        <tr><td>Markdown 제목</td><td>절 단위로 먼저 나누고 Heading Path를 Metadata로</td></tr>
+        <tr><td>PDF 페이지</td><td>페이지 · 다단 순서를 대조, 다른 페이지를 무조건 이어 붙이지 않음</td></tr>
+        <tr><td>HTML 표</td><td>행 · 열 관계를 살린 뒤 분할</td></tr>
+        <tr><td>한 문장이 한도 초과</td><td>추가 분할 또는 이유 기록 후 격리</td></tr>
+      </table>
+<pre><code>Heading:          출석 안내 &gt; 지각과 결석
+embedding_text:   "passage: 출석 안내 / 지각과 결석\n수업 시작 후 10분까지 …"
+body (Span):      "수업 시작 후 10분까지 …"     ← 제목은 입력에만 붙인 것, Span 길이에 더하지 않음</code></pre>
+      <table>
+        <tr><th>같이 남길 블록</th><th>함께 있어야 할 것</th><th>갈라지면</th></tr>
+        <tr><td>조건문</td><td>기준 시간 + 판정 결과</td><td>"10분 초과"가 어느 상태인지 모름</td></tr>
+        <tr><td>번호 목록</td><td>번호 + 항목 본문</td><td>설명이 다른 항목에 붙음</td></tr>
+        <tr><td>표</td><td>열 제목 + 행 값 + 단위</td><td>값이 다른 행 · 열로 연결</td></tr>
+        <tr><td>코드 블록</td><td>들여쓰기 + 줄 순서</td><td>실행 의미가 훼손</td></tr>
+      </table>
+      <table>
+        <tr><th>Overlap 설정</th><th>기대</th><th>주의</th></tr>
+        <tr><td>0</td><td>중복 적음</td><td>경계에서 조건이 갈라질 수 있음</td></tr>
+        <tr><td>적당히</td><td>인접 문맥 포함</td><td>저장 · 인코딩량 증가</td></tr>
+        <tr><td>크게</td><td>넓은 문맥 반복</td><td>비슷한 조각이 Top-k를 차지</td></tr>
+        <tr><td>Structure-aware</td><td>문장 · 절 · 표 의미 유지</td><td>구조 추출이 실패하면 추가 검증</td></tr>
+      </table>
+      <p>한 문서의 Chunk가 겹침 때문에 <b>다른 문서의 내용을 섞지 않도록</b> 출처 경계를 지켜요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="validate">⑤ 검증 — 저장 전에 걸러내기</h2>
+      <table>
+        <tr><th>계약</th><th>조건</th></tr>
+        <tr><td><b>Span</b></td><td><code>0 ≤ char_start &lt; char_end ≤ len(clean_text)</code>, 그리고 <code>body == clean_text[start:end]</code></td></tr>
+        <tr><td><b>Token</b></td><td>최종 입력이 모델 한도 안 · 영벡터 · NaN 벡터는 저장 안 함 (<a href="day23.html#check">벡터 검사</a>)</td></tr>
+        <tr><td><b>Identity</b></td><td><code>doc_id · source_version · unit_id · chunk_id</code>가 원문과 대응</td></tr>
+        <tr><td><b>Failure</b></td><td>실패한 조각은 정상 검색 집합에 조용히 넣지 않고 이유와 함께 격리</td></tr>
+      </table>
+
+      <h3 id="span">Span — 길이가 같아도 글자가 달라야 실패</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>clean_text[a:b] == body</code> · <code>type(a) is int</code> <a href="../commands.html#d24-span">명령어 사전에서 자세히 →</a></div>
+<pre><code>if not 0 &lt;= a &lt; b &lt;= len(clean_text): raise ValueError("invalid span")
+if chunk["body"] != clean_text[a:b]:    raise ValueError("span mismatch")</code></pre>
+      </div>
+      <p>실제 실행: <code>clean_text[22:40]</code> = <code>'시작 후 10분까지 입실하면 지각'</code>. 같은 길이의 다른 문자열은 <code>False</code> → <code>span_mismatch</code>. 🤔 <b>왜 <code>isinstance</code>가 아니라 <code>type(a) is int</code>?</b> <code>bool</code>은 <code>int</code>의 하위 타입이라 <code>isinstance(True, int)</code>가 True예요. 위치 값에 True가 섞이는 실수를 거르려고요.</p>
+
+      <h3 id="coverage">Coverage — 고유 위치로 센다</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>sorted()</code> 구간 병합 <a href="../commands.html#d24-coverage">명령어 사전에서 자세히 →</a></div>
+<pre><code>for s, e in sorted(spans):
+    if merged and s &lt;= merged[-1][1]: merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+    else: merged.append((s, e))</code></pre>
+      </div>
+      <table>
+        <tr><th>입력 (실제 실행)</th><th>결과</th><th>뜻</th></tr>
+        <tr><td>길이 20, [(0,8), (6,14), (12,20)]</td><td>1.0 · 병합 [(0, 20)]</td><td>길이 합 24지만 고유 위치 20 → 100%, 반복 추가량 20%</td></tr>
+        <tr><td>길이 20, [(0,8), (12,20)]</td><td>0.8</td><td>Missing Span [8, 12)</td></tr>
+        <tr><td>길이 20, [(5,25)]</td><td><code>ValueError: invalid_span</code></td><td>범위 밖</td></tr>
+      </table>
+      <ul>
+        <li><b>Overlap</b>(설계상 겹침)과 <b>Duplicate</b>(같은 ID · 같은 Span이 두 번 생성된 오류)는 달라요. 중복 오류가 있어도 Coverage는 100%일 수 있어요.</li>
+        <li>기준은 <code>clean_text</code>예요. 100%여도 <b>Parsing에서 빠진 내용 · 정제에서 잃은 의미</b>는 못 잡아요.</li>
+        <li>다른 출처의 같은 문장을 무조건 지우지 않아요.</li>
+      </ul>
+
+      <h3 id="errors">실패를 원인별로</h3>
+      <table>
+        <tr><th>검사 실패</th><th>원인 위치</th><th>조치</th></tr>
+        <tr><td><code>empty_chunk</code></td><td>Parsing · Cleaning</td><td>원문과 정제 규칙 확인</td></tr>
+        <tr><td><code>span_mismatch</code></td><td>정제 버전 · Offset</td><td>같은 기준 텍스트로 다시 계산</td></tr>
+        <tr><td><code>too_many_tokens</code></td><td>Chunker · 접두어 · 제목</td><td>재분할 또는 격리</td></tr>
+        <tr><td><code>duplicate_chunk_id</code></td><td>ID 생성</td><td>같은 ID 중복 원인 검토</td></tr>
+        <tr><td><code>missing_source</code></td><td>Metadata 전달</td><td>출처 연결 복구 전 저장 보류</td></tr>
+      </table>
+      <p>같은 재시도로 모든 오류가 풀리지 않아요. 검색 품질이 나쁘면 모델보다 먼저 <b>파싱 · 분할 · 출처</b>를 대조해요. 그리고 "검증 실패"는 "원본 삭제"가 아니에요 — 다른 사건으로 기록해요.</p>
+
+      <h3 id="meaning">숫자 검사 + 사람 검사</h3>
+      <table>
+        <tr><th>정량 (코드로)</th><th>정성 (사람이)</th></tr>
+        <tr><td>길이 · 위치 · Coverage · 중복 · 토큰 수</td><td>"15분 늦으면?"에 답하려면 "10분 초과"와 "결석"이 한 조각에서 함께 읽히는가 — 숫자 · 부정 · 예외 · 조건 대조</td></tr>
+      </table>
+      <p>검색 결과의 정식 평가 지표(Recall@k · MRR · nDCG)와 답변의 근거 충실도 평가는 그다음 주제예요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="metadata">⑥ Metadata · ID — 이 조각은 어디서 왔나</h2>
+      <h3 id="fields">원문 연결 · 위치 · 처리 조건</h3>
+      <table>
+        <tr><th>묶음</th><th>필드</th><th>용도</th></tr>
+        <tr><td>원문 연결</td><td><code>doc_id · source_version · source_uri · source_locator</code></td><td>사람이 원문을 다시 찾기</td></tr>
+        <tr><td>Chunk 위치</td><td><code>unit_id · char_start · char_end · chunk_index</code></td><td>clean_text 안 위치</td></tr>
+        <tr><td>처리 재현</td><td><code>pipeline_version · cleaner_version · embedding 계약</code></td><td>어떤 설정으로 만들었나</td></tr>
+        <tr><td>검색 조건</td><td><code>category · 현재 공개 버전</code></td><td>WHERE 필터</td></tr>
+      </table>
+<pre><code>DOC-ATTEND / v1 / sec-1 / [0, 40)
+source_locator:   attendance.md#지각과-결석
+pipeline_version: ingest-e5-v1
+page_number:      None        ← Markdown엔 페이지가 없음</code></pre>
+      <table>
+        <tr><th>필드</th><th>무엇을 구분</th><th>예</th></tr>
+        <tr><td><code>doc_id</code></td><td>문서 자체</td><td>DOC-ATTEND</td></tr>
+        <tr><td><code>source_version</code></td><td>원문 개정</td><td>v1 / v2</td></tr>
+        <tr><td><code>pipeline_version</code></td><td>Parsing · Cleaning · Chunking · Embedding 설정</td><td>ingest-e5-v1</td></tr>
+        <tr><td><code>unit_id</code></td><td>절 · 페이지</td><td>sec-1 / page-2</td></tr>
+        <tr><td><code>chunk_id</code></td><td>한 버전 · 처리조건의 조각</td><td>결정적 SHA-256</td></tr>
+        <tr><td><code>content_hash</code></td><td>본문 바이트가 같은지</td><td>SHA-256(chunk 본문)</td></tr>
+      </table>
+      <p>같은 본문이 다른 문서에 있으면 <code>content_hash</code>는 같을 수 있어요 — 출처가 다르니 자동으로 지우지 않아요.</p>
+
+      <h3 id="chunkid">결정적 chunk_id — 같은 입력이면 언제나 같은 ID</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>json.dumps(sort_keys=True, separators=(",", ":"))</code> + <code>sha256</code> <a href="../commands.html#d24-chunk-id">명령어 사전에서 자세히 →</a></div>
+<pre><code>payload = json.dumps(identity, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+chunk_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()</code></pre>
+      </div>
+      <table>
+        <tr><th>입력 (실제 실행)</th><th>결과</th></tr>
+        <tr><td>DOC-ATTEND · v1 · ingest-e5-v1 · sec-1 · [0, 40]</td><td><code>f8290ff2d605009a…</code> (몇 번을 돌려도 같음)</td></tr>
+        <tr><td>source_version만 v2</td><td><code>2dcfe15c1f4037ab…</code> — 다른 ID</td></tr>
+        <tr><td>두 프로세스에서 <code>hash('DOC-ATTEND')</code></td><td>서로 다른 정수 — Python 내장 <code>hash()</code>는 실행마다 바뀌어 저장용 ID로 못 씀</td></tr>
+      </table>
+      <p>🤔 <b>왜 결정적이어야 해?</b> 같은 문서를 다시 처리했을 때 같은 ID가 나와야 "이미 있는 조각"임을 알고 중복 적재를 막을 수 있어요(⑦ <code>ON CONFLICT</code>).</p>
+
+      <h3 id="filter">Metadata Filter는 Top-k보다 먼저</h3>
+      <table>
+        <tr><th>필터 → Top-k</th><th>Top-k → 필터</th></tr>
+        <tr><td>조건에 맞는 조각들 안에서 거리 순위</td><td>전체 상위 k개를 고른 뒤 걸러서, 원래 대상 후보가 빠질 수 있음</td></tr>
+      </table>
+      <p><code>category</code>는 콘텐츠 분류일 뿐 <b>사용자 권한 검사가 아니에요</b> — 접근 권한은 서버에서 따로 검증해요. ANN 인덱스와 필터를 함께 쓸 때의 함정은 <a href="day23.html#annfilter">ANN + 필터</a>.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="index">⑦ 저장 · 공개 · 검색 — 반쯤 바뀐 판이 보이지 않게</h2>
+      <h3 id="vs-index">Indexing Pipeline ≠ DB Index</h3>
+      <table>
+        <tr><th></th><th>문서 Indexing (Pipeline)</th><th>DB Index</th></tr>
+        <tr><td>무엇</td><td>원본 → ParsedUnit → CleanUnit → Chunk → Embedding → 저장 · 공개 전체</td><td>B-tree(일반 필터) · HNSW(벡터 근사 검색) 자료구조</td></tr>
+        <tr><td>대신하지 못하는 것</td><td>—</td><td>Parsing · Chunk 검증</td></tr>
+      </table>
+      <p>작은 자료는 Exact Search로 기능부터 확인하고, HNSW는 필요할 때 더해요 (<a href="day23.html#index">인덱스</a>).</p>
+
+      <h3 id="schema">문서 · 버전 · 청크 세 테이블</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>IDENTITY</code> · <code>CHECK</code> · <code>jsonb</code> · 복합 외래키 <a href="../commands.html#d24-schema">명령어 사전에서 자세히 →</a></div>
+<pre><code>ingest_documents (doc_id PK, current_version, current_pipeline_version)    -- 공개 포인터
+ingest_versions  (doc_id, source_version, pipeline_version PK, status, expected_count)
+ingest_chunks    (citation_id IDENTITY PK, chunk_id UNIQUE, …, body, embedding vector(384), metadata jsonb)</code></pre>
+      </div>
+      <table>
+        <tr><th>잘못 넣으면 (실제 실행)</th><th>결과</th></tr>
+        <tr><td><code>status = 'done'</code></td><td><code>CheckViolation</code> — 허용 상태(staging · ready · failed)만</td></tr>
+        <tr><td><code>char_start = char_end = 5</code></td><td><code>CheckViolation</code> — 빈 Span은 DB에서도 거부</td></tr>
+      </table>
+      <p>기존 데이터는 보존하고, 검색용 테이블은 별도 스키마 · 테이블에 둬요.</p>
+
+      <h3 id="stage">Staging — 같은 입력을 다시 돌려도 늘지 않게</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>conn.transaction()</code> · <code>ON CONFLICT (chunk_id) DO NOTHING</code> <a href="../commands.html#d24-stage">명령어 사전에서 자세히 →</a></div>
+<pre><code>with conn.transaction():
+    for c, vec in zip(chunks, vectors, strict=True):
+        conn.execute("INSERT INTO ingest_chunks (…) VALUES (…) ON CONFLICT (chunk_id) DO NOTHING", …)</code></pre>
+      </div>
+      <table>
+        <tr><th>attendance.md v1 (실제 실행 · 절 단위 2조각 · 벡터는 임의)</th><th>결과</th></tr>
+        <tr><td>첫 적재</td><td>2행 삽입</td></tr>
+        <tr><td>같은 입력으로 다시</td><td>0행 — 같은 chunk_id라 건너뜀 (멱등)</td></tr>
+        <tr><td><code>citation_id</code></td><td><code>[2, 3]</code> — 앞서 실패한 INSERT가 1번을 써 버려 빈 번호</td></tr>
+        <tr><td><code>metadata-&gt;&gt;'heading_path'</code></td><td><code>'출석 안내 &gt; 지각과 결석'</code></td></tr>
+      </table>
+      <ul>
+        <li><b>Embedding 계산은 트랜잭션 밖에서</b> 끝내고, DB 변경만 짧게 묶어요. 모델이 도는 동안 DB를 잡고 있지 않아요.</li>
+        <li>UPSERT · <code>DO NOTHING</code>은 <b>새 입력에 없는 옛 조각을 지우지 않아요</b>. v1에만 있던 조각을 검색에서 빼는 건 다음의 공개 포인터 몫이에요.</li>
+        <li><code>citation_id</code>는 IDENTITY라 빈 번호가 생길 수 있어요(건너뛴 재실행도 번호를 소모). 연속 번호라고 가정하지 않아요.</li>
+      </ul>
+
+      <h3 id="publish">공개 — 확인과 전환을 한 트랜잭션으로</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>SELECT … FOR UPDATE</code> → 개수 확인 → <code>UPDATE</code> <a href="../commands.html#d24-publish">명령어 사전에서 자세히 →</a></div>
+<pre><code>with conn.transaction():
+    expected = … FOR UPDATE ; actual = SELECT count(*) …
+    if actual != expected: raise ValueError("incomplete_version")
+    UPDATE ingest_versions SET status='ready' … ; UPDATE ingest_documents SET current_version=…</code></pre>
+      </div>
+      <figure id="fig-publish"><img class="smooth" src="img/day24/publish.png" alt="v1 staging(current None) → v1 publish(current v1) → v2 staging → v2 publish 실패(ROLLBACK, current v1) → 개수 맞춘 뒤 v2 publish(current v2)"><figcaption><b>무엇을 보나:</b> 노트 전용 DB에서 실제로 돌린 순서예요. v2를 일부러 <code>expected_count 3</code>(실제 2)으로 넣었더니 <code>incomplete_version: expected 3, got 2</code>로 실패하고, <b>current는 'v1' 그대로</b>, v2는 'staging'에 머물렀어요. 개수를 맞춘 뒤에야 'v2'로 바뀌었어요. 🤔 <b>왜 ready 표시와 포인터 변경을 같이 묶어?</b> 둘 중 하나만 바뀐 순간이 생기면, 검증 안 된 판이 보이거나 공개된 판이 ready가 아닌 이상한 상태가 돼요.</figcaption></figure>
+      <table>
+        <tr><th>상황</th><th>처리</th></tr>
+        <tr><td>같은 입력 재실행</td><td>같은 chunk_id → 늘지 않음</td></tr>
+        <tr><td>원문 개정</td><td>새 <code>source_version</code>으로 v2 조각 · 벡터를 따로 준비</td></tr>
+        <tr><td>처리 규칙 변경</td><td>새 <code>pipeline_version</code> — 옛 Offset · 벡터와 섞지 않음</td></tr>
+        <tr><td>공개 판 선택</td><td>포인터가 v2를 가리키면 v1에만 있던 조각은 검색 제외 (행은 남음)</td></tr>
+      </table>
+
+      <h3 id="search">현재 공개된 조각만 검색</h3>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>WHERE c.source_version = d.current_version</code> + <code>&lt;=&gt;</code> <a href="../commands.html#d24-search">명령어 사전에서 자세히 →</a></div>
+<pre><code>WHERE c.source_version = d.current_version AND c.pipeline_version = d.current_pipeline_version
+  AND v.status = 'ready' AND c.category = %s
+ORDER BY c.embedding &lt;=&gt; %s ASC, c.chunk_id ASC LIMIT %s</code></pre>
+      </div>
+      <table>
+        <tr><th>v2 공개 후 (실제 실행 · 질의 벡터는 임의라 거리 값은 의미 없음)</th><th>결과</th></tr>
+        <tr><td>테이블 전체 조각</td><td>v1 2개 · v2 2개 — 모두 저장돼 있음</td></tr>
+        <tr><td>현재 공개 + ready + '학사', k=3</td><td>citation_id 7 · 6 (둘 다 v2) — v1은 WHERE에서 빠짐</td></tr>
+        <tr><td>category '시설'</td><td><code>[]</code> — 정상 0건</td></tr>
+        <tr><td>현재 공개 본문 중 "15분" 포함</td><td>1건 — 개정 내용이 검색 대상</td></tr>
+      </table>
+      <p><code>, c.chunk_id ASC</code>는 거리가 같을 때 순서를 고정해 결과를 재현 가능하게 해요. 질문 벡터는 <a href="day23.html#prefix"><code>query:</code> 접두어</a>로, 같은 모델 · 같은 정규화로 만들어요.</p>
+
+      <!-- ============================================================ -->
+      <h2 id="pipeline">⑧ 전체 연결 — 문서 하나를 끝까지</h2>
+      <table>
+        <tr><th>구간</th><th>DOC-ATTEND가 거치는 것</th></tr>
+        <tr><td>입력 · 전처리</td><td>Raw File → ParsedUnit(절) → CleanUnit → Chunk</td></tr>
+        <tr><td>품질 검사</td><td>Span · 토큰 길이 · Coverage · Metadata · Embedding 계약</td></tr>
+        <tr><td>저장 · 공개</td><td>staging → ready → current 포인터</td></tr>
+        <tr><td>검색 확인</td><td>query Embedding → Top-k → 조각 · 출처 · 원문 위치 대조</td></tr>
+      </table>
+<pre><code>DOC-ATTEND / v1 / sec-1 / [start, end)
+"passage: …" → E5-small → vector(384)
+pgvector → citation_id + chunk_id + body + source_locator</code></pre>
+
+      <h3 id="failure">실패의 범위를 나눠 처리</h3>
+      <table>
+        <tr><th>문제</th><th>범위</th><th>처리</th></tr>
+        <tr><td><code>needs_ocr</code></td><td>스캔 PDF 1건</td><td>그 문서만 보류 · 원문 유지</td></tr>
+        <tr><td><code>too_many_tokens</code></td><td>긴 조각</td><td>재분할 또는 격리 후 나머지 진행</td></tr>
+        <tr><td>DB 인증 실패</td><td>전체 저장 작업</td><td>공개 전환 중단 · 비밀 값 로그 금지</td></tr>
+        <tr><td>같은 입력 재실행</td><td>기존 문서</td><td>멱등성 확인 · 중복 방지</td></tr>
+        <tr><td>문서 v2 실패</td><td>그 새 버전</td><td>현재 v1 공개 유지</td></tr>
+      </table>
+      <p>⚠️ 보안 · 삭제 요청은 일반 인덱싱 실패보다 우선할 수 있어요. 접근이 철회된 자료를 "이전 정상 버전"이라며 계속 노출하면 안 돼요.</p>
+
+      <h3 id="citation">다음 단계(RAG)가 받을 결과 — 인용 ID 연결</h3>
+      <table>
+        <tr><th>Retriever 출력</th><th>뜻</th></tr>
+        <tr><td><code>citation_id</code></td><td>양의 정수 — 출력 계약의 <code>source_ids: list[int]</code>와 연결</td></tr>
+        <tr><td><code>chunk_id</code></td><td>문자열 결정적 ID — <code>source_ids</code>에 그대로 넣지 않음</td></tr>
+        <tr><td><code>body · doc_id · source_locator · source_version · 거리</code></td><td>근거 본문과 원문 위치</td></tr>
+      </table>
+      <p>서버가 <code>citation_id ↔ chunk_id · source_locator</code> 대응을 들고 있고, <b>실제로 Context에 넣은 조각의 citation_id만</b> 응답의 출처로 허용해요 (<a href="day23.html#ids">retrieved ⊇ included ⊇ source</a>, <a href="day21.html#contract">출력 계약</a>).</p>
+<pre><code>검색 결과: {citation_id: 201, chunk_id: "…", body: "…"}
+Context에 201을 실제로 넣었을 때만 → source_ids: [201] 허용        (201은 설명용 번호)</code></pre>
+
+      <!-- ============================================================ -->
+      <h2 id="whole">🧩 설계 정리 — 각 단계가 만드는 것과 보장하지 않는 것</h2>
+      <table>
+        <tr><th>단계</th><th>만드는 것</th><th>보장하지 않는 것</th></tr>
+        <tr><td>수집 · SHA-256</td><td>원본 기록 · 변경 감지</td><td>의미 유사도 · 같은 출처</td></tr>
+        <tr><td>Parsing</td><td>raw_text · 구조 · 위치</td><td>읽기 순서 · 표 관계 · 이미지 글자</td></tr>
+        <tr><td>Cleaning</td><td>clean_text · 버전 · 해시</td><td>의미 보존 (멱등성 ≠ 보존)</td></tr>
+        <tr><td>Chunking</td><td>Span · 조각</td><td>조건 · 결과가 한 조각에 있음</td></tr>
+        <tr><td>Span · Coverage 검사</td><td>위치 정합 · 누락 구간</td><td>Parsing 단계 누락 · 의미</td></tr>
+        <tr><td>chunk_id · Metadata</td><td>재현 가능한 ID · 출처</td><td>권한 · 최신성</td></tr>
+        <tr><td>Staging · Publish</td><td>완전 적재된 판만 공개</td><td>답의 정확성</td></tr>
+        <tr><td>Top-k 검색</td><td>현재 판의 가까운 후보</td><td>답할 근거 (사람 · 규칙이 검토)</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="spec">📋 명세 — 한눈에 보는 참조표</h2>
+      <h3 id="spec-record">단계별 기록</h3>
+      <table>
+        <tr><th>단위</th><th>필드</th></tr>
+        <tr><td>Manifest</td><td><code>doc_id · file · category · source_version · source_uri · size_bytes · raw_sha256 · status</code></td></tr>
+        <tr><td>ParsedUnit</td><td><code>unit_id · page_number(있을 때만) · source_locator · raw_text</code></td></tr>
+        <tr><td>CleanUnit</td><td><code>clean_text · cleaner_version · clean_hash · chars_before · chars_after</code></td></tr>
+        <tr><td>Chunk</td><td><code>chunk_id · unit_id · char_start · char_end · body · embedding_text · category · source_locator · source_version · pipeline_version · metadata</code></td></tr>
+        <tr><td>검색 결과</td><td><code>citation_id · chunk_id · body · source_locator · doc_id · source_version · distance</code></td></tr>
+      </table>
+      <h3 id="spec-status">상태 값</h3>
+      <table>
+        <tr><th>단계</th><th>값</th></tr>
+        <tr><td>수집 · Parsing</td><td><code>collected · parsed · empty · decode_error · not_found · read_error · unsupported · empty_file · needs_ocr · main_not_found</code></td></tr>
+        <tr><td>Chunk 검증</td><td><code>empty_chunk · span_mismatch · invalid span · too_many_tokens · duplicate_chunk_id · missing_source</code></td></tr>
+        <tr><td>버전</td><td><code>staging → ready</code> (또는 <code>failed</code>), 공개 = <code>current_version</code> 포인터</td></tr>
+      </table>
+      <h3 id="spec-setting">설정 — 예시</h3>
+      <table>
+        <tr><th>항목</th><th>예시 값</th><th>비고</th></tr>
+        <tr><td>허용 형식</td><td>.txt · .md · .html · .pdf</td><td>그 외는 unsupported 기록</td></tr>
+        <tr><td>정제</td><td>CRLF→LF · NFC · 가로 공백 1칸 · 문단 유지</td><td><code>cleaner_version = clean-v1</code></td></tr>
+        <tr><td>글자 창</td><td>크기 40 · Overlap 10 (설명용)</td><td>보폭 30</td></tr>
+        <tr><td>토큰 기준 출발점</td><td>목표 160 · Overlap 32</td><td>실험 출발점일 뿐 최적값 아님 · 상한은 모델 <code>max_seq_length</code></td></tr>
+        <tr><td>Embedding</td><td><code>intfloat/multilingual-e5-small</code> · 384차원 · <code>passage:</code>/<code>query:</code> · 정규화</td><td><a href="day23.html#spec-contract">벡터 계약</a></td></tr>
+        <tr><td>처리 버전</td><td><code>pipeline_version = ingest-e5-v1</code></td><td>설정이 바뀌면 새 값</td></tr>
+        <tr><td>검색</td><td><code>&lt;=&gt;</code> · k=3 · category 필터 · 현재 공개 판</td><td>동점은 chunk_id 순</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2 id="packages">📦 패키지 · 명령어</h2>
+      <table>
+        <tr><th>패키지 (pip 이름)</th><th>뭐 하는 애?</th><th>코드에서</th></tr>
+        <tr><td>표준 라이브러리</td><td>파일 목록 · 해시 · 유니코드 정규화 · 정규식 · JSON</td><td><code>pathlib</code> · <code>hashlib</code> · <code>unicodedata</code> · <code>re</code> · <code>json</code></td></tr>
+        <tr><td><code>markdown-it-py</code></td><td>CommonMark Markdown 파서 — 제목 · 코드 블록 토큰</td><td><code>from markdown_it import MarkdownIt</code></td></tr>
+        <tr><td><code>beautifulsoup4</code></td><td>HTML 트리 · CSS 선택자 · 텍스트 추출</td><td><code>from bs4 import BeautifulSoup</code></td></tr>
+        <tr><td><code>pypdf</code></td><td>PDF 페이지별 텍스트층 추출 (OCR 아님)</td><td><code>from pypdf import PdfReader</code></td></tr>
+        <tr><td><code>sentence-transformers</code></td><td>E5 모델 · Tokenizer — 토큰 수 검사 · Embedding</td><td><code>SentenceTransformer(…).tokenizer</code></td></tr>
+        <tr><td><code>psycopg[binary]</code> · <code>pgvector</code></td><td>PostgreSQL 연결 · 트랜잭션 · vector 타입</td><td><code>conn.transaction()</code> · <code>register_vector(conn)</code></td></tr>
+      </table>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 설치 확인 <a href="../commands.html#day24">명령어 사전에서 자세히 →</a></div>
+<pre><code>python -c "import sys; print(sys.executable)"
+python -m pip show pypdf beautifulsoup4 markdown-it-py sentence-transformers psycopg pgvector   # 없는 것만 install</code></pre>
+      </div>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day24">명령어 사전에서 보기 →</a></div>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">결과값은 예제 문서 6건과 개정본으로 실제 실행한 값이에요(pathlib · hashlib · unicodedata · markdown-it-py · pypdf, PostgreSQL 18.6 + pgvector 0.8.7 노트 전용 DB). Beautiful Soup는 이 PC 환경에 없어 실행 결과를 싣지 않았고, E5 모델은 내려받지 않아 토큰 수는 다른 모델의 Tokenizer로만 확인했어요. 저장 · 검색의 벡터는 임의 단위 벡터예요.</p>
+      </div>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="day23.html">Embedding · Vector Search</a></td><td>여기서 만든 조각을 벡터로 저장 · 검색하는 원리 · pgvector</td></tr>
+        <tr><td><a href="day16.html#ocr">OCR</a></td><td><code>needs_ocr</code>로 보류한 스캔 문서를 읽는 방법</td></tr>
+        <tr><td><a href="day18.html#tx">트랜잭션</a> · <a href="day19.html">FastAPI–PostgreSQL 연동</a></td><td>공개 전환을 묶는 트랜잭션 · 서비스에 붙이기</td></tr>
+        <tr><td>Basic RAG</td><td>검색한 조각 → Context → Prompt → <a href="day22.html">LLM Client</a> → 검증 · 인용</td></tr>
+        <tr><td>Hybrid Search · Reranking · 평가 지표</td><td>Keyword + Dense 융합 · 재순위 · Recall@k · MRR · nDCG</td></tr>
+      </table>
+
+      <!-- ============================================================ -->
+      <h2>원본 자료</h2>
+      <ul>
+        <li>원본: <code>Day24_20261119_v2.html</code> (생성형 AI · LLM 및 RAG 엔지니어링 · Day24 Document Parsing · Chunking · Indexing 인터랙티브 교안). 예제 문서 6건 · 개정본 · 표 보존 예시 · 실패 분류표는 원본 자료와 함께 제공된 예제 데이터의 것.</li>
+        <li>결과 값: 이 PC에서 실제 실행 (Python 3.13 · markdown-it-py 4.3.0 · pypdf 6.21.4 · numpy 2.3.5 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). DB는 노트 전용 DB를 만들어 쓰고 지웠음. Beautiful Soup 미설치로 HTML 항목은 실행 결과 없음. E5 모델은 내려받지 않음 — 토큰 수는 로컬 캐시의 bert-base-multilingual-cased Tokenizer로 확인. 스크립트 <code>tools/io_day24.py</code>, 그림 <code>tools/visuals/make_day24.py</code></li>
+        <li>공식 문서: <a href="https://docs.python.org/3/library/pathlib.html" target="_blank">pathlib</a> · <a href="https://docs.python.org/3/library/hashlib.html" target="_blank">hashlib</a> · <a href="https://docs.python.org/3/library/unicodedata.html" target="_blank">unicodedata</a> · <a href="https://pypdf.readthedocs.io/en/stable/user/extract-text.html" target="_blank">pypdf 텍스트 추출</a> · <a href="https://www.crummy.com/software/BeautifulSoup/bs4/doc/" target="_blank">Beautiful Soup</a> · <a href="https://spec.commonmark.org/0.31.2/" target="_blank">CommonMark</a> · <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a> · <a href="https://sbert.net/docs/package_reference/sentence_transformer/model.html" target="_blank">Sentence Transformers</a> · <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector</a> · <a href="https://github.com/pgvector/pgvector-python" target="_blank">pgvector-python</a> · <a href="https://www.psycopg.org/psycopg3/docs/basic/transactions.html" target="_blank">Psycopg 트랜잭션</a> · <a href="https://www.postgresql.org/docs/current/datatype-json.html" target="_blank">PostgreSQL JSONB</a> · <a href="https://www.postgresql.org/docs/current/sql-insert.html" target="_blank">INSERT / ON CONFLICT</a> · <a href="https://docs.langchain.com/oss/python/integrations/splitters/recursive_text_splitter" target="_blank">LangChain Text Splitter</a></li>
+      </ul>
+    </article>
+
+    <nav class="pager">
+      <a href="day23.html">← 이전: Day23</a>
+      <span></span>
+    </nav>
+  </main>
+  <script src="../glossary.js"></script>
+  <script src="../note.js"></script>
+  <script>
+  (() => {
+    const $ = id => document.getElementById(id);
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const TEXT = "# 출석 안내\n\n## 지각과 결석\n수업 시작 후 10분까지 입실하면 지각으로 기록합니다.\n10분을 초과하면 결석으로 기록합니다.\n단, 사전 승인을 받은 경우에는 운영실에 확인합니다.\n\n## 출석 문의\n출석 기록에 오류가 있다면 운영실에 문의하세요.";
+    const COND = "10분을 초과하면 결석으로 기록합니다";
+    const cs = TEXT.indexOf(COND), ce = cs + COND.length;
+    function run() {
+      const size = +$('ck-size').value; let ov = +$('ck-ov').value;
+      $('ck-sizev').textContent = size; $('ck-ovv').textContent = ov;
+      const stats = $('ck-stats'), list = $('ck-list');
+      if (ov >= size) {
+        stats.innerHTML = ''; list.innerHTML = '';
+        $('ck-why').textContent = `Overlap(${ov}) ≥ 크기(${size}) → 다음 시작이 앞으로 못 가요. ValueError("invalid chunk window")로 거부.`;
+        return;
+      }
+      const spans = []; let start = 0;
+      while (start < TEXT.length) {
+        const end = Math.min(start + size, TEXT.length);
+        spans.push([start, end]);
+        if (end === TEXT.length) break;
+        start = end - ov;
+      }
+      const stored = spans.reduce((s, [a, b]) => s + b - a, 0);
+      const holders = spans.filter(([a, b]) => a <= cs && ce <= b).length;
+      stats.innerHTML = `<tr><th>조각 수</th><th>저장 길이 합</th><th>고유 Coverage</th><th>반복 추가량</th><th>조건 문장을 온전히 담은 조각</th></tr>
+        <tr><td>${spans.length}</td><td>${stored}자</td><td>${TEXT.length}/${TEXT.length} = 100%</td><td>${((stored - TEXT.length) / TEXT.length * 100).toFixed(1)}%</td><td>${holders}개</td></tr>`;
+      list.innerHTML = spans.map(([a, b], i) => {
+        const keep = a <= cs && ce <= b;
+        return `<div style="font-family:var(--mono,monospace);font-size:.82rem;padding:3px 6px;margin:2px 0;border-left:4px solid ${keep ? '#0fb5a6' : '#ced4da'};background:${keep ? '#e6fcf5' : '#f8f9fa'}"><b>[${a}, ${b})</b> ${esc(TEXT.slice(a, b)).replace(/\n/g, ' ⏎ ')}</div>`;
+      }).join('');
+      let why;
+      if (holders === 0) why = `"${COND}"를 통째로 담은 조각이 없어요 — 조건과 결과가 갈라졌어요. 크기를 늘리거나 Overlap을 키우거나, 구조(문장 · 절) 경계로 나눠 보세요.`;
+      else why = `조건 문장이 ${holders}개 조각에 온전히 들어 있어요. 저장량은 원문보다 ${stored - TEXT.length}자 많아요(Overlap 비용).`;
+      $('ck-why').textContent = why;
+    }
+    ['ck-size', 'ck-ov'].forEach(id => $(id).addEventListener('input', run));
+    run();
+  })();
+  </script>
+</body>
+</html>

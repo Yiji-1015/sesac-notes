@@ -28,6 +28,7 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 - [Day21 · Prompt · Context Engineering — 지시 · 문맥 · 검증](https://yiji-1015.github.io/sesac-notes/notes/day21.html): 2026-11-16(월) · Prompt 여섯 요소 · Template · Zero/Few-shot · 버전 · A/B · Context 선택 · Token 예산 · 평가 세트 · 출력 계약 · Pydantic 검증 · 재시도
 - [Day22 · LLM API 클라이언트 — 호출 · 검증 · 기록](https://yiji-1015.github.io/sesac-notes/notes/day22.html): 2026-11-17(화) · API · SDK · 인증 · .env · Responses API · Structured Outputs · Streaming(SSE) · Rate Limit · 재시도 · Token Usage · 비용 · Latency · Cache · Model Routing
 - [Day23 · Embedding · Vector Search — pgvector로 근거 찾기](https://yiji-1015.github.io/sesac-notes/notes/day23.html): 2026-11-18(수) · Semantic Search · Dot · Cosine · L2 · 정규화 · Sentence Transformers · E5 query/passage · pgvector 설치 · vector(384) · Top-k · Metadata Filter · HNSW · EXPLAIN · 정성평가 · Retriever
+- [Day24 · Document Parsing · Chunking · Indexing — 문서를 검색 데이터로](https://yiji-1015.github.io/sesac-notes/notes/day24.html): 2026-11-19(목) · Ingestion Pipeline · Manifest · SHA-256 · TXT/Markdown/HTML/PDF Parsing · needs_ocr · Cleaning · NFC · Chunking · Overlap · Token 한도 · Span · Coverage · Metadata · chunk_id · Staging/Publish · citation_id
 
 ## 참고
 - 저장소(원본 HTML·그림 생성 스크립트): https://github.com/Yiji-1015/sesac-notes
