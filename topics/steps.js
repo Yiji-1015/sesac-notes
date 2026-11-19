@@ -36,6 +36,31 @@
   const tbl = (cols, rows) => `<table>${"<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr>"}${rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("")}</table>`;
   window.Steps = { esc, q, C, hl, outBox, tbl, $ };
 
+  /* PAGE.outs 의 상자를 data-out 자리에 자동으로 채우기 (도구: tools/stepcode.py 의 box, table) */
+  function renderOut(el, o) {
+    if (!o) { el.innerHTML = `<div class="ttl">▶ (값 없음)</div>`; return; }
+    let h = o.title ? `<div class="ttl">▶ ${esc(o.title)}</div>` : "";
+    if (o.lines) {
+      h += `<pre><code>${o.lines.map(l => {
+        if (typeof l === "string") return esc(l);
+        const [t, n, cls] = l;
+        const body = cls ? `<span class="${cls}">${esc(t)}</span>` : esc(t);
+        return body + (n ? `<span class="mk">${C[n - 1]}</span>` : "");
+      }).join("\n")}</code></pre>`;
+    }
+    if (o.cols) h += tbl(o.cols, o.rows);
+    if (o.images) h += `<div class="imgrow">${o.images.map(im => `<figure><img src="${im[0]}" alt="${esc(im[1])}"><figcaption>${im[1]}</figcaption></figure>`).join("")}</div>`;
+    if (o.notes && o.notes.length) h += `<ol class="ann">${o.notes.map(n => `<li>${n}</li>`).join("")}</ol>`;
+    el.innerHTML = h;
+  }
+  document.querySelectorAll("[data-out]").forEach(el => renderOut(el, (P.outs || {})[el.dataset.out]));
+
+  /* PAGE.flow 가 있으면 통째로 한 번 상자 그리기: [[단계, 이름, 큰 글, 작은 글], …] */
+  if (P.flow && $("flow")) {
+    $("flow").innerHTML = P.flow.map((b, i) => `${i ? '<span class="arrow">→</span>' : ""}<div class="box"${b[0] ? ` data-go="${b[0]}"` : ""}><span class="n">${b[0] ? C[b[0] - 1] + " " : ""}${esc(b[1])}</span><span class="big">${esc(b[2])}</span><small>${esc(b[3])}</small></div>`).join("");
+  }
+  if (P.env && $("env")) $("env").textContent = P.env;
+
   /* 오른쪽 코드 패널 */
   const [lo, hi] = P.range;
   const codeEl = $("code");

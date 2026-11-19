@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastAPI와 PostgreSQL 연동 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>FastAPI와 PostgreSQL 연동: API 요청을 DB 행으로</h1>
+      <div class="meta">백엔드 &gt; 데이터베이스</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">API가 받은 요청을 DB에 저장하려면 <b>연결(Session)</b>, <b>객체와 행의 변환(ORM)</b>, <b>DB 오류를 응답으로 바꾸기</b>를 정해야 해요. SQLAlchemy가 앞의 둘을 맡아요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      
+<p><a href="fastapi.html">API 서버</a>는 지식을 JSON 파일에 저장했고, <a href="postgres.html">PostgreSQL 기초</a>에서는 SQL로 DB를 다뤘어요. 이제 둘을 이어서, API가 받은 요청을 DB에 저장해요.</p>
+<p>파일 읽기, 쓰기를 SQL로 바꾸기만 하면 될 것 같지만, 실제로는 세 가지를 새로 정해야 해요.</p>
+<table><tr><th>무엇을</th><th>왜</th><th>어디서</th></tr><tr><td>DB 연결을 언제 열고 닫나</td><td>요청마다 연결을 새로 만들면 느리고, 닫는 걸 잊으면 연결이 바닥나요.</td><td>③ Session</td></tr><tr><td>파이썬 객체와 테이블 행을 어떻게 오가나</td><td>SQL 문자열과 결과 튜플을 손으로 다루면 실수가 잦아요.</td><td>② ORM</td></tr><tr><td>DB 오류를 어떤 응답으로 바꾸나</td><td>규칙 위반을 그냥 두면 모두 500(서버 고장)으로 보여요.</td><td>⑥ 오류 처리</td></tr></table>
+<p>여기서는 <b>SQLAlchemy</b>를 써요. 파이썬 클래스로 테이블을 적으면 SQL을 대신 만들어 주는 도구(<b>ORM</b>, Object Relational Mapping)이고, 연결과 트랜잭션도 관리해 줘요.</p>
+
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      
+<p>요청이 오면 FastAPI가 Session을 하나 열어 함수에 넘기고, 함수는 파이썬 객체로 DB를 다루고, SQLAlchemy가 그걸 SQL로 바꿔 보내요. 응답을 보내면 Session을 닫아요. 상자를 누르면 그 단계로 가요.</p>
+<div class="flow" id="flow"></div>
+<p>실제로 <code>POST /knowledge</code> 하나를 보냈을 때 DB로 간 SQL이에요. 파이썬 코드에는 SQL이 한 줄도 없는데, 이만큼이 오갔어요.</p>
+<div class="out" data-out="sql"></div>
+<p>결과는 모두 노트 전용 연습 DB를 새로 만들어 <code>app.py</code>를 단계별로 실행하고 <code>TestClient</code>로 요청을 보낸 값이에요.</p>
+
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① DB에 연결하기</h3><p class="does">접속 주소를 환경 변수에서 읽어 <b>Engine</b>(연결을 관리하는 객체)을 만들어요.</p><p>접속 주소는 <code>postgresql+psycopg://사용자:비밀번호@주소:포트/DB이름</code> 꼴이에요. <code>+psycopg</code>는 "psycopg로 접속하라"는 뜻이에요. 비밀번호가 들어 있어서 코드 대신 환경 변수 <code>DATABASE_URL</code>에 둬요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>os.environ[&quot;DATABASE_URL&quot;]</code></td><td>환경 변수. 없으면 <code>KeyError</code>로 바로 멈춰서, 엉뚱한 DB에 붙는 일을 막아요.</td></tr><tr><td><code>create_engine(url)</code></td><td>Engine을 만들어요. 이때는 아직 접속하지 않고, 필요할 때 연결을 빌려 줘요(연결 풀).</td></tr><tr><td><code>c.execute(text(&quot;SELECT 1&quot;)).scalar()</code></td><td>연결이 되는지 가장 간단한 SQL로 확인. <code>text()</code>는 SQL 글을 그대로 보낼 때 써요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 테이블을 파이썬 클래스로 (ORM)</h3><p class="does">클래스 하나가 테이블 하나, 속성 하나가 열 하나예요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>class Base(DeclarativeBase)</code></td><td>모든 테이블 클래스의 부모. 테이블 목록(<code>metadata</code>)을 모아 둬요.</td></tr><tr><td><code>__tablename__ = &quot;knowledge&quot;</code></td><td>DB의 테이블 이름</td></tr><tr><td><code>Mapped[int] = mapped_column(primary_key=True)</code></td><td>정수 열, 기본 키. 번호는 DB가 붙여요.</td></tr><tr><td><code>mapped_column(String(80), unique=True)</code></td><td>80자 글, 중복 금지</td></tr><tr><td><code>ForeignKey(&quot;categories.id&quot;)</code></td><td>외래 키. <code>categories</code>의 <code>id</code>만 가리킬 수 있어요.</td></tr><tr><td><code>Base.metadata.create_all(engine)</code></td><td>클래스대로 테이블을 만들어요. <b>이미 있으면 건드리지 않아서</b>, 열을 추가하는 것 같은 변경은 못 해요. 그래서 실제로는 Alembic을 써요 (실제로 할 때).</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 요청마다 Session 하나</h3><p class="does">요청 하나가 Session 하나를 쓰고, 요청이 끝나면 닫히게 해요.</p><p><b>Session</b>은 "이번 작업에서 읽고 바꾼 것"을 모아 두었다가 한 트랜잭션으로 DB에 보내는 작업 공간이에요. 요청끼리 Session을 같이 쓰면 한 요청의 실패가 다른 요청까지 취소해요. 그래서 요청마다 새로 만들어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>sessionmaker(engine)</code></td><td>Session을 찍어 내는 틀</td></tr><tr><td><code>def get_session(): with SessionLocal() as session: yield session</code></td><td><code>yield</code>로 Session을 넘겨주고, 요청이 끝나면 돌아와서 <code>with</code>를 나가며 닫아요.</td></tr><tr><td><code>session: Session = Depends(get_session)</code></td><td>FastAPI가 요청마다 <code>get_session()</code>을 불러 그 결과를 이 인자로 넣어 줘요 (의존성 주입).</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 조회하기</h3><p class="does"><code>select()</code>로 목록을, <code>session.get()</code>으로 번호 하나를 읽어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>select(Knowledge).order_by(Knowledge.id)</code></td><td><code>SELECT ... FROM knowledge ORDER BY id</code>를 파이썬으로 적은 것</td></tr><tr><td><code>session.scalars(...)</code></td><td>결과를 <code>Knowledge</code> 객체로 하나씩</td></tr><tr><td><code>session.get(Knowledge, knowledge_id)</code></td><td>기본 키로 하나 찾기. 없으면 <code>None</code> → 404</td></tr><tr><td><code>to_dict(k)</code></td><td>객체를 JSON으로 보낼 dict로 바꿔요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 등록하기</h3><p class="does">분류 이름을 번호로 바꾸고, 객체를 만들어 <code>add</code>, <code>commit</code>해요.</p><p>입력 모양 검사는 Pydantic(<code>KnowledgeCreate</code>)이, 저장 규칙은 DB가 맡아요. 둘은 다른 일이에요. Pydantic은 "제목이 글이고 1~80자인가"를 보고, DB는 "같은 제목이 이미 있나", "분류 번호가 있나"를 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>select(Category).where(Category.name == payload.category)</code></td><td>분류 이름으로 분류 찾기. 없으면 422</td></tr><tr><td><code>session.add(k)</code></td><td>새 객체를 Session에 올려요. 아직 DB에는 안 갔어요.</td></tr><tr><td><code>session.commit()</code></td><td>모아 둔 변경을 <code>INSERT</code>로 보내고 확정해요.</td></tr><tr><td><code>session.refresh(k)</code></td><td>DB가 붙인 번호 같은 값을 객체에 다시 읽어 와요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ DB 오류를 알맞은 응답으로</h3><p class="does"><code>IntegrityError</code>(DB 규칙 위반)가 나면 500 대신 409(충돌)로 답해요.</p><p>⑤에서 같은 제목을 두 번 보내면 500이 났어요. 500은 "서버가 고장 났다"는 뜻이라, 클라이언트는 다시 보내면 될지, 입력을 고쳐야 할지 알 수 없어요. 원인별로 다른 응답을 줘야 해요.</p><table><tr><th>원인</th><th>응답</th></tr><tr><td>입력 모양이 틀림 (Pydantic)</td><td>422</td></tr><tr><td>찾는 번호가 없음</td><td>404</td></tr><tr><td>DB 규칙과 충돌 (같은 제목)</td><td>409</td></tr><tr><td>진짜 서버 문제 (DB 꺼짐 등)</td><td>500</td></tr></table><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>@app.exception_handler(IntegrityError)</code></td><td>어느 주소에서든 이 오류가 나면 이 함수가 응답을 만들어요.</td></tr><tr><td><code>JSONResponse(status_code=409, content=...)</code></td><td>상태 코드와 본문을 직접 정한 응답</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 고치고 지우기</h3><p class="does">찾은 객체의 속성을 바꾸거나 <code>session.delete()</code>로 지우고 확정해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>k.title, k.content, k.category_id = ...</code></td><td>객체 속성만 바꾸면, <code>commit()</code> 때 바뀐 열만 <code>UPDATE</code>돼요.</td></tr><tr><td><code>session.delete(k)</code></td><td>지울 객체로 표시하고, <code>commit()</code> 때 <code>DELETE</code></td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/db_api/app.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>테이블 구조를 바꿔야 한다</td><td><code>create_all()</code>은 이미 있는 테이블을 고치지 않아요. <b>Alembic</b>으로 "무엇을 어떻게 바꿨는지"를 마이그레이션 파일로 남기고 <code>alembic upgrade head</code>로 적용해요. DB 구조의 Git 같은 거예요. 자세한 내용은 <a href="../../notes/day19.html">옛 Day19 노트</a>를 보세요.</td></tr><tr><td>응답이 이상하다</td><td>가장 먼저 <b>어느 DB에 붙었는지</b> 확인해요 (①의 <code>engine.url</code>). 연습 DB와 실제 DB를 헷갈리는 경우가 많아요.</td></tr><tr><td>ORM 모델과 Pydantic 모델</td><td>ORM 모델(<code>Knowledge</code>)은 DB 행의 모양, Pydantic 모델(<code>KnowledgeCreate</code>)은 요청의 모양이에요. 등록할 때는 <code>id</code>가 없고 분류를 이름으로 받는 것처럼 둘은 달라요. 하나로 합치지 않아요.</td></tr><tr><td>요청이 많아진다</td><td>Engine의 연결 풀 크기(<code>pool_size</code>)만큼만 동시에 DB를 써요. 요청이 끝나면 연결을 돌려주는 ③이 중요한 이유예요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>create_engine(url)</code>, <code>engine.connect()</code>, <code>text()</code></td><td>연결 (SQLAlchemy)</td></tr><tr><td>②</td><td><code>DeclarativeBase</code>, <code>Mapped</code>, <code>mapped_column()</code>, <code>ForeignKey</code>, <code>metadata.create_all()</code></td><td>ORM 모델과 테이블</td></tr><tr><td>③</td><td><code>sessionmaker()</code>, <code>Depends()</code></td><td>요청마다 Session (SQLAlchemy, FastAPI)</td></tr><tr><td>④~⑦</td><td><code>select()</code>, <code>session.scalars()</code>, <code>session.get()</code>, <code>add()</code>, <code>commit()</code>, <code>refresh()</code>, <code>delete()</code></td><td>읽고 쓰기 (SQLAlchemy)</td></tr><tr><td>⑥</td><td><code>IntegrityError</code>, <code>@app.exception_handler</code>, <code>JSONResponse</code></td><td>DB 오류를 응답으로</td></tr></table>
+      <p><code>get_session</code>, <code>to_dict</code>와 각 주소의 함수는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="fastapi.html">FastAPI로 지식 API 만들기</a></td><td>같은 API의 파일 버전</td></tr><tr><td><a href="postgres.html">PostgreSQL 기초</a></td><td>SQL과 제약 조건, 트랜잭션</td></tr><tr><td><a href="indexing.html">인덱싱</a></td><td>같은 DB에 벡터를 넣고 검색하기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day19 (2026-11-12) FastAPI와 PostgreSQL 연동 (Alembic은 실제로 할 때에만)</li><li>예제: <code>examples/db_api/app.py</code> (기존 노트의 분류, 지식 예제)</li><li>결과 값: <code>tools/pages/db_api.py</code>가 노트 전용 DB를 만들어 단계별로 실제 실행하고 지운 결과</li><li>공식 문서: <a href="https://docs.sqlalchemy.org/en/20/orm/quickstart.html" target="_blank">SQLAlchemy ORM Quick Start</a>, <a href="https://fastapi.tiangolo.com/tutorial/sql-databases/" target="_blank">FastAPI SQL Databases</a>, <a href="https://fastapi.tiangolo.com/tutorial/handling-errors/" target="_blank">Handling Errors</a>, <a href="https://alembic.sqlalchemy.org/en/latest/tutorial.html" target="_blank">Alembic Tutorial</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="fastapi-postgres-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

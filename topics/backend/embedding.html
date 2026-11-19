@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Embedding과 벡터 검색 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>Embedding과 벡터 검색: 글자가 아니라 뜻으로 찾기</h1>
+      <div class="meta">백엔드 &gt; 검색과 RAG</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line"><b>Embedding</b>은 글을 뜻이 담긴 벡터로 바꾸는 거예요. 뜻이 비슷하면 벡터가 가까워서, <b>글자가 하나도 겹치지 않아도</b> 질문에 맞는 자료를 찾을 수 있어요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      
+<p>"개발용 웹 서비스는 어디서 돌리나요?"라고 물었을 때 찾아야 할 자료는 "프로젝트 폴더에서 서버를 실행합니다"예요. 글자는 하나도 겹치지 않지만 뜻은 같아요. 실제로 자료 9개에 두 방식으로 찾아보면:</p>
+<div class="out" data-out="why"></div>
+<p><b>Embedding</b>은 글을 뜻이 담긴 숫자 목록(<b>벡터</b>)으로 바꾸는 거예요. 뜻이 비슷한 글은 비슷한 방향의 벡터가 돼서, 벡터끼리 가까운지만 재면 "뜻이 비슷한 자료"를 찾을 수 있어요. 이걸 <b>벡터 검색</b>(의미 검색)이라고 해요.</p>
+<p>여기서는 한국어를 지원하는 Embedding 모델 <code>intfloat/multilingual-e5-small</code>을 이 PC에서 직접 돌려요.</p>
+
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      
+<p>자료를 벡터로 바꿔 두고, 질문도 벡터로 바꿔 가까운 순으로 고르고, 필요하면 조건으로 먼저 거르고, 많아지면 DB와 인덱스에 맡겨요. 상자를 누르면 그 단계로 가요.</p>
+<div class="flow" id="flow"></div>
+
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 문장을 벡터로</h3><p class="does">자료마다 <code>passage: </code>를 붙여 Embedding 모델에 넣고, 길이를 1로 맞춘 벡터를 받아요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>SentenceTransformer(&quot;intfloat/multilingual-e5-small&quot;)</code></td><td>문장을 벡터로 바꾸는 모델을 불러와요. 한 번 받아 두면 이 PC에서 돌아가요.</td></tr><tr><td><code>f&quot;passage: {t} {c}&quot;</code></td><td>e5는 저장할 자료 앞에 <code>passage: </code>, 질문 앞에 <code>query: </code>를 붙이도록 학습됐어요.</td></tr><tr><td><code>model.encode(texts, normalize_embeddings=True)</code></td><td>글 목록을 벡터 목록(numpy 배열)으로. 길이를 1로 맞춰요.</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 같은 글에 접두어만 다르게 넣거나, 질문에서 <code>query: </code>를 빼면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t1"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 비슷한 정도 재기</h3><p class="does">질문 벡터와 자료 벡터 사이를 세 가지 방법으로 재 봐요.</p><table><tr><th>방법</th><th>뜻</th><th>가까우면</th></tr><tr><td>내적 (dot)</td><td>칸끼리 곱해서 더하기</td><td>큼</td></tr><tr><td>코사인 유사도</td><td>두 벡터의 방향이 얼마나 같은가. 길이와 상관없음</td><td>1에 가까움</td></tr><tr><td>L2 거리</td><td>두 점 사이의 직선 거리</td><td>0에 가까움</td></tr></table><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>docs @ q</code></td><td>모든 자료와 질문의 내적을 한 번에 (행렬 곱)</td></tr><tr><td><code>np.linalg.norm(x, axis=1)</code></td><td>각 벡터의 길이</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 정규화하지 않은 벡터로 내적 순위를 매기면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t2"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 가장 가까운 k개 (Top-k)</h3><p class="does">점수가 큰 순서로 k개를 골라요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.argsort(-scores)[:k]</code></td><td>점수를 큰 순서로 정렬한 위치 중 앞의 k개. <code>argsort</code>는 작은 순서라서 부호를 뒤집어요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 조건으로 먼저 거르기</h3><p class="does">분류 같은 조건이 있으면, 조건 밖의 자료는 점수를 −∞로 만들어 절대 뽑히지 않게 한 뒤 Top-k를 해요.</p><p>"개발 자료 안에서만", "최신 판만"처럼 조건이 붙는 경우가 많아요. 조건을 Top-k <b>다음</b>에 걸면 남는 게 거의 없을 수 있어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.where(allowed, scores, -np.inf)</code></td><td>조건에 맞으면 점수 그대로, 아니면 −∞</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ DB로 옮기기 (pgvector)</h3><p class="does">벡터를 PostgreSQL에 저장하고, 가까운 순 정렬을 DB가 하게 해요.</p><p>자료가 수십만 개가 되면 메모리에 다 올려 두기 어렵고, 출처나 판 번호 같은 정보도 함께 관리해야 해요. <b>pgvector</b>는 PostgreSQL에 벡터 타입과 거리 연산자를 더하는 확장이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>vector(384)</code></td><td>384칸 벡터 열</td></tr><tr><td><code>register_vector(conn)</code></td><td>numpy 배열과 DB의 vector를 서로 바꿔 주도록 등록</td></tr><tr><td><code>embedding &lt;=&gt; %s</code></td><td>코사인 거리. <code>&lt;-&gt;</code>는 L2 거리, <code>&lt;#&gt;</code>는 음의 내적</td></tr><tr><td><code>ORDER BY ... LIMIT 3</code></td><td>가까운 순으로 3개</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 많아지면: 근사 인덱스 (HNSW)</h3><p class="does">벡터용 인덱스를 만들어, 모든 자료와 비교하지 않고도 가까운 것을 빨리 찾아요.</p><p>인덱스가 없으면 질문마다 모든 벡터와 거리를 재요. <b>HNSW</b>는 벡터들을 "가까운 것끼리 이어진 여러 층의 그물"로 미리 엮어 두고, 그물을 따라가며 가까운 쪽으로만 찾아가는 인덱스예요. 대부분 맞게 찾지만 가끔 놓쳐서 <b>근사</b>라고 해요. 9개로는 차이가 안 보여서, 무작위 벡터 2만 개로 따로 재 봤어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)</code></td><td>코사인 거리용 HNSW 인덱스. 거리 연산자와 짝이 맞아야 쓰여요.</td></tr><tr><td><code>SET hnsw.ef_search = 10</code></td><td>검색 때 살펴볼 후보 수 (기본 40). 크면 정확하고 느리고, 작으면 빠르고 더 놓쳐요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/search/embed_search.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>모델을 바꾼다</td><td>벡터는 모델마다 다른 공간이라 섞어 쓸 수 없어요. 모델을 바꾸면 모든 자료의 벡터를 다시 만들어요.</td></tr><tr><td>긴 문서</td><td>모델은 입력 길이 한도가 있어요 (e5는 512토큰). 문서는 먼저 조각으로 나눠요 (<a href="chunking.html">Chunking</a>).</td></tr><tr><td>점수 기준선</td><td>"0.8 이상이면 맞다" 같은 고정 기준은 질문마다 잘 안 맞아요. 상위 몇 개를 보여 주고, 정말 맞는지는 원문과 대조해요.</td></tr><tr><td>글자 검색도 필요하다</td><td>제품 번호, 오류 코드처럼 정확한 글자가 중요하면 글자 검색이 더 잘 맞아요. 둘을 섞어 쓰기도 해요 (Hybrid Search).</td></tr><tr><td>HNSW 인덱스와 조건</td><td>④처럼 조건을 같이 걸면, 인덱스가 먼저 찾은 후보를 거른 뒤라 결과가 적게 나올 수 있어요. pgvector의 <code>hnsw.iterative_scan</code> 설정이나 조건별 인덱스로 보완해요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>SentenceTransformer(name)</code>, <code>model.encode(texts, normalize_embeddings=True)</code></td><td>Embedding (sentence-transformers)</td></tr><tr><td>②~④</td><td><code>@</code>(행렬 곱), <code>np.linalg.norm()</code>, <code>np.argsort()</code>, <code>np.where()</code></td><td>거리, Top-k, 조건 (numpy)</td></tr><tr><td>⑤</td><td><code>vector(n)</code>, <code>&lt;=&gt;</code>, <code>register_vector()</code></td><td>pgvector</td></tr><tr><td>⑥</td><td><code>USING hnsw (... vector_cosine_ops)</code>, <code>hnsw.ef_search</code></td><td>근사 인덱스 (pgvector)</td></tr></table>
+      <p><code>top_k</code>, <code>search</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="document-reading.html">문서 적재 1~3쪽</a></td><td>실제 문서를 조각으로 나눠 이 방식으로 넣고 검색하기</td></tr><tr><td><a href="postgres.html">PostgreSQL 기초</a></td><td>B-tree 인덱스와 실행 계획</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day23 (2026-11-18) Embedding, pgvector</li><li>예제: <code>examples/search/embed_search.py</code> (기존 노트의 자료 101~109)</li><li>결과 값: <code>tools/pages/embedding.py</code>가 단계별로 실제 실행한 결과. ⑥의 2만 개와 질문 50개는 주제 200개 근처에 흩어지도록 만든 무작위 벡터(seed 0)</li><li>공식 문서: <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a>, <a href="https://sbert.net/" target="_blank">Sentence Transformers</a>, <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="embedding-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

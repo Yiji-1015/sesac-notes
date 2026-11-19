@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>평가지표, 특성 설계, 군집 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>평가지표, 특성 설계, 군집: 기준을 정하고 마지막에 한 번 채점하기</h1>
+      <div class="meta">모델 &gt; 머신러닝 기초 3/3쪽 &nbsp;|&nbsp; 이전: <a href="ml-trees-cv.html" style="color:inherit">트리와 교차검증</a></div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">분류 모델은 사실 <b>확률</b>을 내고, "실패"라고 부를 <b>기준은 오류 비용으로</b> 정해요. 모델과 기준을 다 고른 뒤에 <b>test로 딱 한 번</b> 채점해요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>지금까지는 모델이 "실패" 또는 "성공"이라고 답하는 것만 봤어요. 그런데 그 답은 확률에 0.5라는 기준을 그어 만든 거예요.</p><div class="out" data-out="why"></div>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>기준을 비용으로 정하고, 확률 자체의 품질을 재고, 입력을 다듬어 보고, 정답 없이 묶어 보고, 마지막에 test로 한 번 채점해요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="13" id="s13"><span class="label">코드의 ⑬ 부분</span><h3>⑬ 임계값과 오류 비용</h3><p class="does">확률 기준을 여러 개 시험해서, 오류 비용이 가장 작은 기준을 찾아요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>logit.predict_proba(X_valid)[:, 1]</code></td><td>실패일 확률 (두 번째 열)</td></tr><tr><td><code>(proba &gt;= t).astype(int)</code></td><td>기준 t 이상이면 실패(1)</td></tr><tr><td><code>confusion_matrix(...).ravel()</code></td><td>2×2 표를 tn, fp, fn, tp 네 값으로 펴기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s13"></div></section><section class="step" data-step="14" id="s14"><span class="label">코드의 ⑭ 부분</span><h3>⑭ ROC-AUC</h3><p class="does">기준과 상관없이, 확률이 실패를 성공보다 높게 매기는지 재요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>roc_auc_score(y, proba)</code></td><td>예측 "답"이 아니라 "확률"을 넣어요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s14"></div></section><section class="step" data-step="15" id="s15"><span class="label">코드의 ⑮ 부분</span><h3>⑮ 특성 설계: 치우친 값 펴기</h3><p class="does">숫자 열에 log(1+x)를 씌워 큰 값을 줄여 본 뒤, 교차검증으로 나아졌는지 확인해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>FunctionTransformer(np.log1p)</code></td><td>아무 함수나 전처리 단계로. <code>log1p</code>는 log(1+x)로, 0도 처리돼요.</td></tr><tr><td><code>feature_names_out=&quot;one-to-one&quot;</code></td><td>열 이름을 그대로 유지</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s15"></div></section><section class="step" data-step="16" id="s16"><span class="label">코드의 ⑯ 부분</span><h3>⑯ K-Means: 정답 없이 묶어 보기</h3><p class="does">정답 없이 입력만으로 비슷한 요청끼리 k개 묶음을 만들고, 몇 개가 적당한지 봐요.</p><p>정답 없이 데이터의 구조를 찾는 걸 <b>비지도 학습</b>이라고 해요. 요청 종류를 나눠 보거나, 이상한 요청을 찾는 데 써요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>KMeans(n_clusters=k, n_init=10)</code></td><td>k개 중심을 찾아 가장 가까운 중심으로 묶어요. 시작점을 10번 바꿔 가장 좋은 것</td></tr><tr><td><code>silhouette_score(Z, labels)</code></td><td>묶음이 얼마나 잘 나뉘었나 (−1~1)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s16"></div></section><section class="step" data-step="17" id="s17"><span class="label">코드의 ⑰ 부분</span><h3>⑰ 마지막 한 번: test로 최종 평가</h3><p class="does">교차검증으로 고른 모델을 80건 전부로 다시 배우고, 아껴 둔 test로 한 번만 채점해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>max(cv_scores, key=...)</code></td><td>교차검증 평균이 가장 높은 후보의 이름</td></tr><tr><td><code>clone(candidates[best]).fit(dev...)</code></td><td>같은 설정의 새 모델을 80건 전부로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s17"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/ml/requests_model.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>기준을 정할 때</td><td>valid(또는 교차검증)로 정하고 test는 건드리지 않아요. 업무에서 FN, FP 비용을 먼저 물어요.</td></tr><tr><td>AUC는 높은데 F1이 낮다</td><td>확률의 순서는 맞지만 기준이 안 맞는 거예요. ⑬처럼 기준을 조정해요.</td></tr><tr><td>묶음(군집)에 이름 붙이기</td><td>K-Means는 숫자 번호만 줘요. 묶음마다 평균값을 보고 사람이 뜻을 붙여요. 크기 맞추기를 안 하면 큰 숫자 열로만 묶여요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>⑬</td><td><code>predict_proba()</code>, <code>confusion_matrix().ravel()</code></td><td>확률과 기준</td></tr><tr><td>⑭</td><td><code>roc_auc_score</code></td><td>확률의 순서 품질</td></tr><tr><td>⑮</td><td><code>FunctionTransformer</code>, <code>np.log1p</code></td><td>특성 변환</td></tr><tr><td>⑯</td><td><code>KMeans</code>, <code>silhouette_score</code></td><td>군집</td></tr><tr><td>⑰</td><td><code>clone()</code>, <code>fit()</code>, <code>predict()</code></td><td>최종 학습과 평가</td></tr></table>
+      <p><code>cost_at</code>, <code>build_fe</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="ml-trees-cv.html">트리와 앙상블, 교차검증</a></td><td>후보 모델과 교차검증</td></tr><tr><td><a href="../../notes/day09.html">딥러닝 기초</a></td><td>신경망으로 넘어가기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day08 (2026-10-28) 평가지표, 특성 설계, K-Means, 최종 평가</li><li>데이터: <code>examples/ml/data/requests.csv</code> (가상의 업무 요청 100건)와 <code>split_manifest.csv</code> (train 60, valid 20, test 20). 기존 노트와 같은 예제</li><li>결과 값: <code>tools/pages/ml_basics.py</code></li><li>공식 문서: <a href="https://scikit-learn.org/stable/modules/classification_threshold.html" target="_blank">Tuning the decision threshold</a>, <a href="https://scikit-learn.org/stable/modules/clustering.html#k-means" target="_blank">K-means</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="ml-metrics-clustering-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

@@ -18,8 +18,7 @@ from PIL import Image                                         #@5
 import pytesseract                                            #@5
 from transformers import AutoTokenizer                        #@9
 from collections import Counter                               #@17
-import numpy as np                                            #@14
-from sklearn.feature_extraction.text import HashingVectorizer #@14
+from sentence_transformers import SentenceTransformer         #@14
 import psycopg                                                #@15
 from pgvector.psycopg import register_vector                  #@15
 
@@ -148,7 +147,8 @@ for i, u in enumerate(units):
         sections.append({"u": i, **s})  # u: 몇 번째 글에서 나왔는지
 
 # ⑨ 토큰 세기
-tok = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
+MODEL = "intfloat/multilingual-e5-small"  # 3쪽에서 벡터를 만들 Embedding 모델
+tok = AutoTokenizer.from_pretrained(MODEL)
 MAX_TOKENS = 64  # 예시 설정
 
 def count(t):
@@ -210,17 +210,17 @@ chunks = kept
 print(f"글 {len(units)}개 → 조각 {len(chunks)}개 저장 (뺀 조각 {len(dropped)}개)")
 
 # ⑭ 벡터 만들기
-DIM = 256
-hasher = HashingVectorizer(analyzer="char_wb", ngram_range=(2, 2), n_features=DIM,
-                           alternate_sign=False, norm="l2")  # Embedding 모델 대신 쓰는 임시 벡터
+model = SentenceTransformer(MODEL)  # ⑨에서 토큰을 센 그 모델
+DIM = model.get_sentence_embedding_dimension()
 
-def embed(texts):
-    return hasher.transform(texts).toarray().astype(np.float32)
+def embed(texts, kind):
+    # e5 모델은 조각 앞에 "passage: ", 질문 앞에 "query: "를 붙여 쓰도록 학습됐어요
+    return model.encode([f"{kind}: {t}" for t in texts], normalize_embeddings=True)
 
 def embed_text(c):
     return f"{c['heading'] or ''}\n{c['body']}".strip()  # 제목을 붙여 문맥을 더해요
 
-vectors = embed([embed_text(c) for c in chunks])
+vectors = embed([embed_text(c) for c in chunks], "passage")
 
 # ⑮ 테이블 만들기
 conn = psycopg.connect()  # 접속 정보는 환경 변수에서
@@ -270,7 +270,7 @@ def search(question, k=3):
         FROM chunks c
         JOIN documents d ON d.file = c.file AND d.published = c.version
         ORDER BY distance
-        LIMIT %s""", (embed([question])[0], k)).fetchall()
+        LIMIT %s""", (embed([question], "query")[0], k)).fetchall()
 
 for row in search("대출 기간은 며칠인가요?"):
     print(row[0], row[1], round(row[4], 3), row[3].splitlines()[0])

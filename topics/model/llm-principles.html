@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM 원리 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>LLM 원리: Token, Embedding, Attention, 다음 토큰</h1>
+      <div class="meta">모델 &gt; 순서와 언어 모델</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">LLM은 글을 <b>토큰</b>으로 나누고, <b>벡터</b>로 바꾸고, <b>Attention</b>으로 다른 토큰을 참고해 문맥을 섞은 뒤, <b>다음 토큰의 확률</b>을 계산해 하나씩 이어 붙여요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>LLM(대규모 언어 모델)은 <b>지금까지의 글을 보고 다음 토큰을 맞히는</b> 모델이에요. 그걸 수없이 반복해서 문장을 만들어요. 똑똑해 보이는 답도 결국 "다음에 올 조각의 확률"을 고른 결과예요. 그래서 그럴듯하지만 틀린 답(환각)도 나와요.</p>
+<div class="out" data-out="why"></div>
+<p>이 쪽에서는 이 길을 한 단계씩, 이 PC에 있는 실제 Transformer 모델(<code>multilingual-e5-small</code>, 12층)로 따라가요. 다만 이 모델은 문장을 벡터로 바꾸는 인코더라 다음 토큰을 만들지는 않아요. ⑥은 원리만 예시 점수로 계산해요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>글 → 토큰 → 벡터 → Attention으로 문맥 섞기 → (미래 가리기) → 다음 토큰 확률. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 글을 토큰으로</h3><p class="does">Tokenizer가 글을 모델이 아는 조각(토큰)으로 나누고 번호를 붙여요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>AutoTokenizer.from_pretrained(MODEL)</code></td><td>그 모델의 Tokenizer</td></tr><tr><td><code>tok(text, return_tensors=&quot;pt&quot;)</code></td><td>글을 토큰 번호 Tensor로</td></tr><tr><td><code>convert_ids_to_tokens(ids)</code></td><td>번호를 다시 조각 글자로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 토큰을 벡터로 (Embedding)</h3><p class="does">토큰 번호마다 정해진 벡터를 표에서 찾아와요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>model.embeddings.word_embeddings</code></td><td>토큰 번호 → 벡터 표 (<code>nn.Embedding</code>)</td></tr><tr><td><code>table(ids)</code></td><td>번호들로 줄을 찾아 (토큰 수, 384)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ Attention을 손으로 계산하기</h3><p class="does">토큰마다 Query, Key, Value를 만들고, Query와 Key가 잘 맞을수록 그 토큰의 Value를 많이 섞어요.</p><p>도서관에 빗대면, <b>Query</b>는 "내가 찾는 것", <b>Key</b>는 "책 등의 제목", <b>Value</b>는 "책 내용"이에요. 찾는 것과 제목이 잘 맞는 책의 내용을 많이 가져와요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>Q, K, V = x @ Wq, x @ Wk, x @ Wv</code></td><td>같은 벡터를 세 행렬로 바꿔 세 역할로</td></tr><tr><td><code>Q @ K.T / d ** 0.5</code></td><td>모든 토큰 쌍의 맞음 점수. √d로 나눠 너무 커지지 않게</td></tr><tr><td><code>torch.softmax(scores, dim=-1)</code></td><td>줄마다 합이 1인 가중치</td></tr><tr><td><code>weights @ V</code></td><td>가중치만큼 내용을 섞은 새 표현</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 뒤를 못 보게 막기 (Mask)</h3><p class="does">자기보다 뒤의 토큰 점수를 −∞로 바꿔, softmax 뒤 가중치가 0이 되게 해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.triu(..., diagonal=1)</code></td><td>대각선 위쪽만 True. 미래 자리</td></tr><tr><td><code>scores.masked_fill(causal, float(&quot;-inf&quot;))</code></td><td>미래 자리 점수를 −∞로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 실제 모델의 Attention 보기</h3><p class="does">e5 모델에 문장을 넣고, 12개 층의 Attention 가중치를 꺼내 봐요.</p><p>Transformer는 ③의 Attention(과 작은 신경망)을 한 층으로 해서 여러 층 쌓은 모델이에요. 층마다 head 여러 개가 서로 다른 관계를 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>AutoModel.from_pretrained(MODEL, attn_implementation=&quot;eager&quot;)</code></td><td>가중치를 꺼낼 수 있는 계산 방식으로 모델 불러오기</td></tr><tr><td><code>model(**enc, output_attentions=True)</code></td><td>층마다 Attention 가중치도 돌려줘요.</td></tr><tr><td><code>torch.stack(out.attentions)</code></td><td>(층, 배치, head, 토큰, 토큰)</td></tr><tr><td><code>a.argmax(-1)</code></td><td>줄마다 가장 큰 가중치의 위치</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 다음 토큰 고르기</h3><p class="does">모델이 후보마다 준 점수를 softmax로 확률로 바꾸고, 그중 하나를 골라요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.softmax(logits / t, dim=-1)</code></td><td>temperature t로 나눈 뒤 확률로</td></tr><tr><td><code>logits.argmax()</code></td><td>가장 높은 것 (greedy)</td></tr><tr><td><code>torch.multinomial(probs, 1)</code></td><td>확률대로 하나 뽑기 (sampling)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/llm_theory/llm_parts.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>Context Window</td><td>모델이 한 번에 볼 수 있는 토큰 수의 한도예요. 대화가 길어지면 앞부분이 잘려서 "잊어버린" 것처럼 보여요. 그래서 필요한 자료만 골라 넣어요 (<a href="../backend/prompt-contract.html">Prompt와 출력 계약</a>).</td></tr><tr><td>한국어는 토큰이 많다</td><td>같은 뜻이라도 영어보다 토큰이 많이 나오는 편이라 비용과 한도에 영향을 줘요. 실제 토큰 수는 그 모델의 Tokenizer로 세요.</td></tr><tr><td>환각</td><td>모델은 "사실인가"가 아니라 "그럴듯한가"로 다음 토큰을 골라요. 근거 자료를 주고(RAG), 답을 검사하는 이유예요.</td></tr><tr><td>학습과 추론</td><td>학습은 엄청난 글로 가중치를 정하는 일이고, 우리가 API로 쓰는 건 정해진 가중치로 다음 토큰을 계산하는 추론이에요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>AutoTokenizer</code>, <code>convert_ids_to_tokens()</code></td><td>Tokenizer (transformers)</td></tr><tr><td>②⑤</td><td><code>AutoModel</code>, <code>word_embeddings</code>, <code>output_attentions=True</code></td><td>모델 안 들여다보기</td></tr><tr><td>③④⑥</td><td><code>torch.softmax</code>, <code>torch.triu</code>, <code>masked_fill</code>, <code>torch.multinomial</code></td><td>Attention과 고르기 계산 (torch)</td></tr></table>
+      <p><code>looks_at</code>은 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="sequence-models.html">순서 모델</a></td><td>RNN과 Attention의 출발점</td></tr><tr><td><a href="../backend/llm-client.html">LLM API 클라이언트</a></td><td>실제 LLM 부르기</td></tr><tr><td><a href="../backend/embedding.html">Embedding과 벡터 검색</a></td><td>같은 e5 모델로 뜻 검색</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day20 (2026-11-13) LLM 생태계, Token, Context, Transformer, Attention, 학습과 추론</li><li>모델: 이 PC에 받아 둔 <code>intfloat/multilingual-e5-small</code>. ③의 Q, K, V 행렬과 ⑥의 점수는 설명용 예시 값</li><li>결과 값: <code>tools/pages/llm_principles.py</code>가 단계별로 실제 실행한 결과</li><li>공식 문서: <a href="https://huggingface.co/docs/transformers/main_classes/tokenizer" target="_blank">Tokenizer</a>, <a href="https://arxiv.org/abs/1706.03762" target="_blank">Attention Is All You Need</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="llm-principles-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

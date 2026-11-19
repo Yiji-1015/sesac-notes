@@ -43,20 +43,41 @@ def names(code: list[dict]) -> dict[int, str]:
 
 
 def workdir(src_dir: Path, setup=None) -> Path:
-    """예제 폴더의 raw/ 를 임시 폴더로 복사한다 (원본은 건드리지 않음)."""
+    """예제 폴더를 임시 폴더로 복사한다 (원본은 건드리지 않음). out/, __pycache__ 는 빼고."""
     d = Path(tempfile.mkdtemp(prefix="stepcode_"))
-    shutil.copytree(src_dir / "raw", d / "raw")
+    shutil.copytree(src_dir, d, dirs_exist_ok=True, ignore=shutil.ignore_patterns("out", "__pycache__", "*.pyc"))
     if setup:
         setup(d)
     return d
 
 
-def run(code: list[dict], k: int, wd: Path, patch=None, filename="ingest.py") -> dict:
+def box(title, lines, notes=None):
+    """출력 상자. lines: 문자열 또는 (문자열, 번호) 또는 (문자열, 번호, "bad"|"newf")."""
+    return {"title": title, "lines": [l if isinstance(l, str) else list(l) for l in lines], "notes": notes or []}
+
+
+def table(title, cols, rows, notes=None):
+    """표 상자. 칸 안의 글은 HTML 로 그대로 들어가니, 필요하면 html.escape 해서 넘긴다."""
+    return {"title": title, "cols": cols, "rows": rows, "notes": notes or []}
+
+
+def images(title, items, notes=None, lines=None):
+    """그림 상자. items: [(그림 경로(페이지 기준), 설명), …]"""
+    return {"title": title, "images": [list(i) for i in items], "notes": notes or [], **({"lines": lines} if lines else {})}
+
+
+def save(dst: Path, page: dict):
+    import json
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_text("window.PAGE = " + json.dumps(page, ensure_ascii=False, indent=1, default=str) + ";\n", encoding="utf-8")
+
+
+def run(code: list[dict], k: int, wd: Path, patch=None, filename="ingest.py", env=None) -> dict:
     """단계 k 까지의 줄만 실행하고 namespace 를 돌려준다."""
     src = "\n".join(c["t"] for c in code if c["s"] <= k)
     for a, b in (patch or []):
         assert a in src, f"patch target not found: {a}"
         src = src.replace(a, b)
-    ns = {"__file__": str(wd / filename), "__name__": "__stepcode__"}
+    ns = {"__file__": str(wd / filename), "__name__": "__stepcode__", **(env or {})}
     exec(compile(src, filename, "exec"), ns)
     return ns

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학습을 안정시키기 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>학습을 안정시키기: 학습률, Optimizer, 과적합</h1>
+      <div class="meta">모델 &gt; 딥러닝 기초 2/2쪽 &nbsp;|&nbsp; 이전: <a href="dl-tensor-training.html" style="color:inherit">Tensor와 신경망 학습</a></div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">학습이 잘 내려가려면 <b>학습률과 Optimizer</b>가 맞아야 하고, 학습 데이터를 외우지 않으려면 <b>규제와 조기 종료</b>가 필요해요. 문제는 train과 valid 손실을 <b>같이</b> 봐야 보여요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p><a href="dl-tensor-training.html">1쪽</a>에서는 학습이 순조로웠어요. 하지만 조건이 조금만 달라도 학습은 쉽게 어긋나요.</p><div class="out" data-out="why"></div>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>학습률과 Optimizer로 "잘 내려가게" 하고, 과적합을 일부러 만든 뒤 규제와 조기 종료로 다스리고, 마지막에 test로 한 번 채점해요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>1쪽의 코드(①~⑤)에 이어서 같은 파일이 자라요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 학습률 비교</h3><p class="does">같은 모델을 학습률만 바꿔 학습해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>run(lr, opt_name=&quot;sgd&quot;)</code></td><td>seed를 같게 해서 학습률만 다른 조건을 만들어요.</td></tr><tr><td><code>torch.optim.SGD</code></td><td>기울기 × 학습률만큼 그대로 옮기는 가장 기본 방법</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ Optimizer 비교</h3><p class="does">같은 학습률로 SGD와 Adam을 비교해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.optim.Adam</code></td><td>기울기의 평균과 크기를 기억해서 가중치마다 보폭을 조절</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section><section class="step" data-step="8" id="s8"><span class="label">코드의 ⑧ 부분</span><h3>⑧ 과적합 만들기</h3><p class="does">데이터는 40개로 줄이고, 모델은 128칸 3층으로 크게 해서 300바퀴 돌려요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>X_train[:40]</code></td><td>학습 데이터를 앞 40개만</td></tr><tr><td><code>make_net(hidden=128, depth=3)</code></td><td>큰 모델</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s8"></div></section><section class="step" data-step="9" id="s9"><span class="label">코드의 ⑨ 부분</span><h3>⑨ 규제: Dropout과 weight decay</h3><p class="does">학습 중에 일부 칸을 무작위로 끄고(Dropout), 가중치가 커지지 않게 벌점을 줘요(weight decay).</p><p>둘 다 모델이 몇몇 가중치나 칸에 기대어 답을 외우지 못하게 해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nn.Dropout(0.3)</code></td><td>학습 때 칸의 30%를 무작위로 0으로. <code>eval()</code>에서는 꺼져요.</td></tr><tr><td><code>Adam(..., weight_decay=1e-3)</code></td><td>가중치를 조금씩 0 쪽으로 당겨요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s9"></div></section><section class="step" data-step="10" id="s10"><span class="label">코드의 ⑩ 부분</span><h3>⑩ 조기 종료</h3><p class="does">바퀴마다 valid 손실을 보고, 더 나아지지 않으면 멈춘 뒤 가장 좋았던 가중치로 되돌려요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>copy.deepcopy(model.state_dict())</code></td><td>그때의 가중치를 통째로 복사해 둬요.</td></tr><tr><td><code>patience</code></td><td>몇 번 연속 나아지지 않으면 멈출지</td></tr><tr><td><code>model.load_state_dict(best_state)</code></td><td>가장 좋았던 가중치로 되돌리기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s10"></div></section><section class="step" data-step="11" id="s11"><span class="label">코드의 ⑪ 부분</span><h3>⑪ 마지막 한 번: test</h3><p class="does">아껴 둔 test 80개로 모델들을 한 번 채점해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>tensors(&quot;test&quot;)</code></td><td>1쪽 ①의 함수로 test도 Tensor로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s11"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/dl/points_net.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>학습률을 정할 때</td><td>0.1, 0.01, 0.001처럼 10배씩 바꿔 몇 바퀴만 돌려 보고, 손실이 가장 잘 내려가는 쪽을 골라요. 학습 중에 점점 줄이는 방법(스케줄러)도 있어요.</td></tr><tr><td>BatchNorm</td><td>층마다 값의 평균과 크기를 맞춰 학습을 안정시키는 층이에요 (<code>nn.BatchNorm1d</code>). Dropout처럼 <code>train()</code>과 <code>eval()</code>에서 다르게 동작해요.</td></tr><tr><td>과적합이 의심될 때</td><td>train 손실과 valid 손실을 같이 그려 봐요. 둘이 벌어지기 시작하면 과적합이에요. 먼저 데이터를 늘릴 수 있는지 봐요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>⑥⑦</td><td><code>torch.optim.SGD</code>, <code>torch.optim.Adam</code></td><td>Optimizer</td></tr><tr><td>⑨</td><td><code>nn.Dropout</code>, <code>weight_decay=</code></td><td>규제</td></tr><tr><td>⑩</td><td><code>state_dict()</code>, <code>load_state_dict()</code>, <code>copy.deepcopy</code></td><td>가중치 저장과 복원</td></tr></table>
+      <p><code>run</code>, <code>train_early</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="dl-tensor-training.html">Tensor와 신경망 학습</a></td><td>학습 루프의 기본</td></tr><tr><td><a href="../../notes/day11.html">CNN과 이미지 분류</a></td><td>그림을 다루는 신경망</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day10 (2026-10-30) Optimizer, 학습률, Batch, Epoch, 과적합, Dropout, Early Stopping</li><li>데이터: <code>examples/dl/data/points.csv</code> (점 400개, 두 무리. 기존 노트와 같은 예제)</li><li>결과 값: <code>tools/pages/dl_basics.py</code> (seed 0)</li><li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/optim.html" target="_blank">torch.optim</a>, <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout.html" target="_blank">nn.Dropout</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="dl-training-stability-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

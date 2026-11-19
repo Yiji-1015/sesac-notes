@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>순서 모델 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>순서 모델: RNN, LSTM, Attention, Autoencoder</h1>
+      <div class="meta">모델 &gt; 순서와 언어 모델</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">순서가 있는 데이터는 <b>순서를 읽어야</b> 구분돼요. RNN과 LSTM은 <b>차례로 읽으며 기억</b>하고, Attention은 <b>중요한 시점을 골라</b> 보고, Autoencoder는 <b>잘 되살려지지 않는 구간</b>을 이상으로 찾아요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>센서 기록, 문장, 주가처럼 <b>순서가 있는 데이터</b>는 같은 값이라도 순서가 바뀌면 뜻이 달라요. "개가 사람을 물었다"와 "사람이 개를 물었다"처럼요.</p><div class="out" data-out="data"></div>
+<p>순서를 무시하는 모델과 순서를 읽는 모델로 실제로 맞혀 보면:</p><div class="out" data-out="why"></div>
+<p>그래서 순서를 읽는 모델이 따로 있어요. 차례로 읽는 <b>RNN</b>과 <b>LSTM</b>, 필요한 시점을 골라 보는 <b>Attention</b>(Transformer의 핵심), 그리고 순서 데이터의 이상을 찾는 <b>Autoencoder</b>까지 다뤄요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>길이가 다른 기록을 묶고 → 순서를 무시한 기준선 → 차례로 읽기 → 오래 기억하기 → 중요한 시점 고르기 → 정답 없이 이상 찾기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 길이가 다른 기록을 한 묶음으로</h3><p class="does">짧은 기록 뒤를 0으로 채워 길이를 맞추고, 진짜 값이 있는 자리를 표시해 둬요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>pad_sequence(seqs, batch_first=True)</code></td><td>가장 긴 길이에 맞춰 0으로 채워 하나의 Tensor로</td></tr><tr><td><code>torch.arange(n)[None, :] &lt; lengths[:, None]</code></td><td>자리 번호가 길이보다 작으면 True. 진짜 값 표시(mask)</td></tr><tr><td><code>fit(model)</code></td><td>모든 모델을 같은 조건(Adam, 200번)으로 학습하고 valid 정확도를 돌려주는 함수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 순서를 무시하면</h3><p class="does">진짜 값들의 평균 하나로 판단하는 기준선이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>(X * mask[..., None]).sum(1) / lengths[:, None]</code></td><td>채운 0은 빼고 평균</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ RNN: 차례로 읽기</h3><p class="does">시점마다 "이전 기억 + 지금 값"으로 새 기억을 만들어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nn.RNN(3, hidden, batch_first=True)</code></td><td>입력 3개, 기억 16칸</td></tr><tr><td><code>h, _ = self.rnn(X)</code></td><td>모든 시점의 기억 (batch, 길이, 16)</td></tr><tr><td><code>h[torch.arange(len(X)), lengths - 1]</code></td><td>기록마다 <b>진짜 마지막</b> 시점의 기억. 그냥 <code>h[:, -1]</code>이면 채운 0까지 읽은 뒤의 기억이에요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ LSTM: 오래 기억하는 RNN</h3><p class="does">무엇을 잊고 무엇을 남길지 정하는 문(gate)이 있어 긴 기록에 강해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nn.LSTM</code></td><td>RNN과 같은 자리에 바꿔 끼워요. ③의 클래스를 그대로 물려받았어요.</td></tr><tr><td><code>pack_padded_sequence(X, lengths, enforce_sorted=False)</code></td><td>채운 자리를 아예 읽지 않게 묶어서 넘겨요.</td></tr><tr><td><code>_, (h_n, _) = self.rnn(packed)</code></td><td>기록마다 진짜 마지막 기억</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ Attention: 중요한 시점 고르기</h3><p class="does">시점마다 점수를 매기고, softmax로 합이 1인 가중치를 만들어 기억을 섞어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>self.score(h)</code></td><td>시점마다 중요도 점수 하나</td></tr><tr><td><code>masked_fill(~mask, float(&quot;-inf&quot;))</code></td><td>채운 자리는 점수 −∞ → softmax 뒤 가중치 0</td></tr><tr><td><code>torch.softmax(s, dim=1)</code></td><td>점수를 합이 1인 가중치로</td></tr><tr><td><code>(w[..., None] * h).sum(1)</code></td><td>가중치만큼 섞은 요약</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ Autoencoder: 잘 복원되지 않으면 이상</h3><p class="does">정상 데이터를 "줄였다가 되살리기"로 배우고, 되살리기 오차가 큰 구간을 이상으로 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>v.unfold(0, 12, 1)</code></td><td>길이 12짜리 창을 한 칸씩 밀며 잘라내기</td></tr><tr><td><code>nn.Sequential(nn.Linear(12, 4), nn.Tanh(), nn.Linear(4, 12))</code></td><td>12 → 4로 압축(encoder) → 12로 복원(decoder)</td></tr><tr><td><code>((ae(W) - W) ** 2).mean(1)</code></td><td>창마다 복원 오차</td></tr><tr><td><code>err_train.mean() + 3 * err_train.std()</code></td><td>정상 데이터 오차의 범위 밖을 이상으로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/seq/seq_models.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>문장을 다룬다</td><td>글자를 숫자로 바꾸는 단계(Tokenizer, Embedding)가 앞에 붙어요. 요즘은 RNN보다 Attention을 쌓은 Transformer를 주로 써요 (<a href="llm-principles.html">LLM 원리</a>).</td></tr><tr><td>앞을 예측한다</td><td>지금까지의 창으로 다음 값을 맞히는 회귀로 바꾸면 돼요. 미래 값이 입력에 섞이지 않게, 시간 순서대로 train, valid, test를 나눠요.</td></tr><tr><td>이상 기준</td><td>평균 + 3σ는 출발점일 뿐이에요. 알람이 너무 많거나 적으면 업무 비용을 보고 조정해요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>pad_sequence</code>, <code>torch.arange</code></td><td>묶기 (torch)</td></tr><tr><td>③④</td><td><code>nn.RNN</code>, <code>nn.LSTM</code>, <code>pack_padded_sequence</code></td><td>순서 모델</td></tr><tr><td>⑤</td><td><code>torch.softmax</code>, <code>masked_fill</code></td><td>Attention</td></tr><tr><td>⑥</td><td><code>Tensor.unfold</code>, <code>nn.Sequential</code></td><td>Autoencoder</td></tr></table>
+      <p><code>batch</code>, <code>fit</code>, <code>windows</code>와 모델 클래스들은 이 파일 안에서 정의했어요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="llm-principles.html">LLM 원리</a></td><td>Attention을 쌓은 Transformer와 LLM</td></tr><tr><td><a href="dl-tensor-training.html">Tensor와 신경망 학습</a></td><td>학습 루프의 기본</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day12 (2026-11-02) Sequence Tensor, RNN, LSTM, Autoencoder, Transformer 입문</li><li>데이터: <code>examples/seq/data/</code> (기존 노트와 같은 센서 기록 예제). ⑥의 튀는 값은 확인을 위해 일부러 넣은 것</li><li>결과 값: <code>tools/pages/seq_models.py</code> (seed 0)</li><li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.LSTM.html" target="_blank">nn.LSTM</a>, <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.utils.rnn.pack_padded_sequence.html" target="_blank">pack_padded_sequence</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="sequence-models-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

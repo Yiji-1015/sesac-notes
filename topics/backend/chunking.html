@@ -45,7 +45,7 @@
       <p id="w-ctx"></p>
       <p><b>그래서 Chunking의 목표는 "한 조각에 한 주제, 그리고 모델 한도 안"</b>이에요.</p>
 
-      <h2 id="whole">🗺️ 통째로 한 번: 글 7개가 조각 13개가 되기까지</h2>
+      <h2 id="whole">🗺️ 통째로 한 번: 글 7개가 조각 12개가 되기까지</h2>
       <p>글 7개를 끝까지 돌리면 이렇게 돼요. 상자를 누르면 그 단계로 이동해요. 여기서 <b>섹션</b>은 제목 하나와 그 아래 본문을 말해요.</p>
       <p>한도는 512가 아니라 <b>64토큰</b>으로 잡았어요. 예제 글이 짧아서, 512로 두면 다시 자를 일이 없어 과정이 보이지 않거든요. 실제로는 모델 한도 안에서 검색이 잘 되는 크기를 실험해서 정해요.</p>
       <div class="flow" id="flow"></div>
@@ -90,7 +90,7 @@
             <p class="does">섹션마다 토큰이 몇 개인지 세요.</p>
             <p>한 줄을 실제로 토큰으로 나눠 보면 이래요.</p>
             <div class="out" id="o9a"></div>
-            <p>글자 수와 토큰 수는 1:1이 아니에요. 글을 토큰으로 쪼개는 도구를 <b>Tokenizer</b>라고 하는데, 모델마다 쪼개는 방식이 달라요. 그래서 길이 검사는 <b>실제로 쓸 모델의 Tokenizer</b>로 해야 해요. 원래는 multilingual-e5-small 같은 Embedding 모델의 Tokenizer를 써야 하지만, 이 예제는 이 PC에 받아 둔 <code>bert-base-multilingual-cased</code>의 Tokenizer로 대신 셌어요.</p>
+            <p>글자 수와 토큰 수는 1:1이 아니에요. 글을 토큰으로 쪼개는 도구를 <b>Tokenizer</b>라고 하는데, 모델마다 쪼개는 방식이 달라요. 그래서 길이 검사는 <b>실제로 쓸 모델의 Tokenizer</b>로 해야 해요. 여기서는 3쪽에서 벡터를 만들 Embedding 모델 <code>intfloat/multilingual-e5-small</code>의 Tokenizer로 세요.</p>
             <p class="kicker">코드 읽기</p>
             <table>
               <tr><th>코드</th><th>뜻</th></tr>
@@ -116,7 +116,7 @@
               <tr><td><code>count(text[cur["start"]:b])</code></td><td>지금 조각에 이 줄까지 붙였을 때의 토큰 수. 한도 이하면 붙이고, 넘으면 이 줄로 새 조각을 시작해요.</td></tr>
               <tr><td><code>{**s, "start": a, "end": b}</code></td><td>섹션의 정보(어느 글, 제목)는 그대로 두고 위치만 바꾼 새 조각</td></tr>
             </table>
-            <p class="kicker">이 단계까지 실행하면 (한도를 넘은 섹션 2개)</p>
+            <p class="kicker">이 단계까지 실행하면 (한도를 넘은 섹션)</p>
             <div class="out" id="o10"></div>
             <details class="try">
               <summary>🔁 바꿔 보기: <code>MAX_TOKENS</code>를 64에서 40으로 줄이면 조각은 몇 개가 될까?</summary>
@@ -198,7 +198,7 @@
       <h2 id="practice">🛠️ 실제로 할 때</h2>
       <table>
         <tr><th>상황</th><th>어떻게</th></tr>
-        <tr><td>Embedding 모델이 정해졌다</td><td>⑨의 Tokenizer를 <b>그 모델의 것</b>으로 바꿔요. 모델마다 토큰 나누는 방식과 한도가 달라요.</td></tr>
+        <tr><td>Embedding 모델을 바꾼다</td><td>⑨의 <code>MODEL</code>을 같이 바꿔요. 토큰 나누는 방식과 한도가 모델마다 달라서, 길이 검사는 언제나 벡터를 만들 그 모델로 해요.</td></tr>
         <tr><td>웹페이지의 제목</td><td>1쪽 ③에서 본문 글자만 꺼내면서 <code>&lt;h1&gt;</code>, <code>&lt;h2&gt;</code> 같은 제목 표시가 사라졌어요. 웹페이지가 길다면, 읽을 때 제목을 <code>## 제목</code>처럼 바꿔 두면 ⑧이 그대로 나눌 수 있어요.</td></tr>
         <tr><td>제목 없이 긴 글</td><td>⑧이 글 전체를 한 섹션으로 두고, ⑩이 줄 단위로 나눠요. 줄이 아주 길면 문장 단위로 한 번 더 잘라요.</td></tr>
         <tr><td>줄 하나가 한도보다 길다</td><td>⑩은 그 줄을 혼자 한 조각으로 두기 때문에 ⑫ 검사에서 멈춰요. 그 줄만 문장 단위로, 그래도 길면 글자 수로 잘라요.</td></tr>
@@ -279,20 +279,19 @@
 
     /* ---------- ⑨ ---------- */
     const T = X.tokline;
-    $("o9a").innerHTML = `<div class="ttl">▶ 한 줄을 토큰으로 나누면</div><pre><code>${esc(T.line)}\n글자 ${T.chars}개 → 토큰 ${T.tokens}개</code></pre><div class="tokchips" style="padding:8px 10px">${T.pieces.map(p => `<code style="margin:2px">${esc(p)}</code>`).join(" ")}</div><ol class="ann"><li><code>##</code>으로 시작하는 토큰은 "앞 토큰에 붙는 조각"이라는 뜻이에요. "사람은"이 <code>사</code>, <code>##람</code>, <code>##은</code> 세 개가 됐어요.</li></ol>`;
+    $("o9a").innerHTML = `<div class="ttl">▶ 한 줄을 토큰으로 나누면</div><pre><code>${esc(T.line)}\n글자 ${T.chars}개 → 토큰 ${T.tokens}개</code></pre><div class="tokchips" style="padding:8px 10px">${T.pieces.map(p => `<code style="margin:2px">${esc(p)}</code>`).join(" ")}</div><ol class="ann"><li><code>▁</code>로 시작하는 토큰은 "앞에 띄어쓰기가 있던 조각"이라는 뜻이에요. "사람은"은 <code>▁사람은</code> 하나가 됐지만, "번에"는 <code>▁번</code>과 <code>에</code> 두 개로 나뉘었어요. 자주 나오는 말일수록 한 토큰으로 묶여요.</li></ol>`;
     $("sp-row").innerHTML = `Tokenizer는 기본으로 글 앞뒤에 ${T.special.map(s => `<code>${esc(s)}</code>`).join(", ")} 같은 표시용 토큰을 붙여요. 본문 길이만 보려고 이걸 빼요. 빼지 않으면 위 줄이 ${T.tokens}개가 아니라 ${T.tokens_special}개로 세져요.`;
     $("o9").innerHTML = `<div class="ttl">▶ ⑨ 실행 결과: 섹션마다 tokens (한도 ${S[9].max})</div>` +
       tbl(["file", "heading", "글자 수", `<span class="newf">tokens</span>`, ""], S[9].sections.map(s => [`<code>${s.file}</code>`, hd(s.heading), s.chars,
         `<b>${s.tokens}</b>`, s.tokens > S[9].max ? `<span class="bad">${S[9].max} 넘음 → ⑩</span>` : "✅"])) +
-      `<ol class="ann"><li>⑧의 섹션에 <b><code>tokens</code> 필드만 새로 붙었어요</b>. 나머지는 그대로예요.</li><li>한도를 넘은 건 guide.md의 「분실과 훼손」과 hours.html 두 개예요.</li></ol>`;
+      `<ol class="ann"><li>⑧의 섹션에 <b><code>tokens</code> 필드만 새로 붙었어요</b>. 나머지는 그대로예요.</li><li>한도를 넘은 건 ${S[9].sections.filter(s => s.tokens > S[9].max).map(s => `${s.file}의 「${s.heading || "(제목 없음)"}」(${s.tokens}토큰)`).join(", ")}뿐이에요.</li></ol>`;
 
     /* ---------- ⑩ ---------- */
     outBox("o10", "⑩ 실행 결과: split_long()", S[10].longs.flatMap(l => [
       [`${l.file}  ${l.heading || "(제목 없음)"}  원래 ${l.tokens}토큰 →`, 0],
       ...l.pieces.flatMap((p, i) => [[`  조각 ${i + 1}  [${p.start}, ${p.end})  ${p.tokens}토큰`, 0], ...lines(p.text).map(t => "     " + t)]),
       "",
-    ]).slice(0, -1), [`둘 다 줄 경계에서 나뉘었어요. 줄을 담다가 다음 줄까지 넣으면 ${S[9].max}를 넘는 곳에서 끊었어요.`,
-      `hours.html은 표의 두 줄이 다른 조각으로 갈라졌어요. 그래도 괜찮아요. <a href="document-reading.html#s3">1쪽 ③</a>에서 표의 줄마다 "구분: 열람실, 평일: …, 주말: 휴실"처럼 열 이름을 붙여 둬서, 한 줄만으로도 뜻이 통해요.`]);
+    ]).slice(0, -1), [`줄 경계에서 나뉘었어요. 줄을 담다가 다음 줄까지 넣으면 ${S[9].max}를 넘는 곳에서 끊었어요.`]);
     $("t10").innerHTML = `<p><b>${X.max40.n}개</b>예요 (64일 때는 ${S[11].n}개). 아래 섹션들이 쪼개졌어요.</p>` +
       tbl(["file", "heading"], X.max40.split.map(([f, h]) => [`<code>${f}</code>`, h ? esc(h) : hd(null)])) +
       `<p>반대로 200으로 키우면 <b>${X.max200.n}개</b>, 섹션 하나가 그대로 조각 하나예요. 한도가 작을수록 조각이 잘게 쪼개져 문맥이 줄고, 클수록 한 조각에 여러 이야기가 섞여요.</p>`;

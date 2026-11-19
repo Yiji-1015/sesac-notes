@@ -75,7 +75,7 @@ ids = tok(line0, add_special_tokens=False)["input_ids"]
 ids_sp = tok(line0)["input_ids"]
 out["exp"]["tokline"] = {"line": line0, "chars": len(line0), "tokens": len(ids),
                          "pieces": tok.convert_ids_to_tokens(ids), "tokens_special": len(ids_sp),
-                         "special": [x for x in tok.convert_ids_to_tokens(ids_sp) if x.startswith("[")]}
+                         "special": tok.convert_ids_to_tokens([i for i in ids_sp if i in tok.all_special_ids])}
 
 # ---- ⑩ 다시 묶기 -------------------------------------------------------------
 ns = run(10)
@@ -143,7 +143,7 @@ out["code"] = [c for c in code if c["s"] <= RANGE[1]]
 out["names"] = stepcode.names(out["code"])
 out["range"] = RANGE
 out["meta"] = {"python": sys.version.split()[0], "transformers": transformers.__version__, "sklearn": sklearn.__version__,
-               "tokenizer": "bert-base-multilingual-cased"}
+               "tokenizer": ns["MODEL"]}
 dst = ROOT / "topics" / "backend" / "chunking-data.js"
 dst.write_text("window.PAGE = " + json.dumps(out, ensure_ascii=False, indent=1) + ";\n", encoding="utf-8")
 shutil.rmtree(W, ignore_errors=True)

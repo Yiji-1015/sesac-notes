@@ -129,91 +129,91 @@ window.PAGE = {
      "where": "전체",
      "heading": "대출과 반납",
      "chars": 88,
-     "tokens": 55
+     "tokens": 51
     },
     {
      "file": "guide.md",
      "where": "전체",
      "heading": "열람실",
      "chars": 99,
-     "tokens": 61
+     "tokens": 56
     },
     {
      "file": "guide.md",
      "where": "전체",
      "heading": "분실과 훼손",
      "chars": 200,
-     "tokens": 113
+     "tokens": 103
     },
     {
      "file": "notice.txt",
      "where": "전체",
      "heading": null,
      "chars": 82,
-     "tokens": 56
+     "tokens": 46
     },
     {
      "file": "old_notice.txt",
      "where": "전체",
      "heading": null,
      "chars": 54,
-     "tokens": 36
+     "tokens": 27
     },
     {
      "file": "hours.html",
      "where": "main",
      "heading": null,
      "chars": 105,
-     "tokens": 68
+     "tokens": 53
     },
     {
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": null,
      "chars": 12,
-     "tokens": 9
+     "tokens": 6
     },
     {
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": "제1조 회원 가입",
      "chars": 55,
-     "tokens": 35
+     "tokens": 27
     },
     {
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": "제2조 회원증",
      "chars": 29,
-     "tokens": 21
+     "tokens": 17
     },
     {
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": null,
      "chars": 12,
-     "tokens": 9
+     "tokens": 6
     },
     {
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": "제3조 회원 자격 정지",
      "chars": 81,
-     "tokens": 48
+     "tokens": 45
     },
     {
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": "제4조 탈퇴",
      "chars": 24,
-     "tokens": 16
+     "tokens": 12
     },
     {
      "file": "scan.pdf",
      "where": "1쪽 (OCR)",
      "heading": null,
      "chars": 96,
-     "tokens": 62
+     "tokens": 45
     }
    ]
   },
@@ -223,46 +223,26 @@ window.PAGE = {
      "file": "guide.md",
      "where": "전체",
      "heading": "분실과 훼손",
-     "tokens": 113,
+     "tokens": 103,
      "pieces": [
       {
        "start": 234,
        "end": 325,
-       "tokens": 51,
+       "tokens": 54,
        "text": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다."
       },
       {
        "start": 326,
        "end": 434,
-       "tokens": 62,
+       "tokens": 49,
        "text": "훼손 여부는 반납할 때 담당자가 직접 확인합니다.\n확인 결과에 이의가 있으면 7일 안에 다시 확인을 요청할 수 있습니다.\n요청서는 안내 데스크에 있으며, 결과는 3일 안에 문자로 알려 드립니다."
-      }
-     ]
-    },
-    {
-     "file": "hours.html",
-     "where": "main",
-     "heading": null,
-     "tokens": 68,
-     "pieces": [
-      {
-       "start": 0,
-       "end": 72,
-       "tokens": 45,
-       "text": "운영 시간\n\n가람 도서관은 아래 시간에 문을 엽니다.\n\n구분: 자료실, 평일: 09:00~22:00, 주말: 09:00~18:00"
-      },
-      {
-       "start": 73,
-       "end": 105,
-       "tokens": 23,
-       "text": "구분: 열람실, 평일: 09:00~22:00, 주말: 휴실"
       }
      ]
     }
    ]
   },
   "11": {
-   "n": 15,
+   "n": 14,
    "first": {
     "chunk_id": "068063fe6b85",
     "file": "guide.md",
@@ -270,7 +250,7 @@ window.PAGE = {
     "heading": "대출과 반납",
     "char_start": 26,
     "char_end": 114,
-    "tokens": 55,
+    "tokens": 51,
     "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다."
    },
    "all": [
@@ -279,110 +259,103 @@ window.PAGE = {
      "file": "guide.md",
      "where": "전체",
      "heading": "대출과 반납",
-     "tokens": 55
+     "tokens": 51
     },
     {
      "chunk_id": "cd8b53bf7e64",
      "file": "guide.md",
      "where": "전체",
      "heading": "열람실",
-     "tokens": 61
+     "tokens": 56
     },
     {
      "chunk_id": "4cb47977ea08",
      "file": "guide.md",
      "where": "전체",
      "heading": "분실과 훼손",
-     "tokens": 51
+     "tokens": 54
     },
     {
      "chunk_id": "39336f4f6e13",
      "file": "guide.md",
      "where": "전체",
      "heading": "분실과 훼손",
-     "tokens": 62
+     "tokens": 49
     },
     {
      "chunk_id": "d9539e704fa9",
      "file": "notice.txt",
      "where": "전체",
      "heading": null,
-     "tokens": 56
+     "tokens": 46
     },
     {
      "chunk_id": "1cb3efdebcc5",
      "file": "old_notice.txt",
      "where": "전체",
      "heading": null,
-     "tokens": 36
+     "tokens": 27
     },
     {
-     "chunk_id": "bed1dbcb4842",
+     "chunk_id": "4a8ef0cbcd9d",
      "file": "hours.html",
      "where": "main",
      "heading": null,
-     "tokens": 45
-    },
-    {
-     "chunk_id": "492cfd8e2e70",
-     "file": "hours.html",
-     "where": "main",
-     "heading": null,
-     "tokens": 23
+     "tokens": 53
     },
     {
      "chunk_id": "4e04c24fd8c9",
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": null,
-     "tokens": 9
+     "tokens": 6
     },
     {
      "chunk_id": "9bb1b798e34b",
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": "제1조 회원 가입",
-     "tokens": 35
+     "tokens": 27
     },
     {
      "chunk_id": "52a25d0a0449",
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": "제2조 회원증",
-     "tokens": 21
+     "tokens": 17
     },
     {
      "chunk_id": "ed3018163d5e",
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": null,
-     "tokens": 9
+     "tokens": 6
     },
     {
      "chunk_id": "fd2580e3c7f5",
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": "제3조 회원 자격 정지",
-     "tokens": 48
+     "tokens": 45
     },
     {
      "chunk_id": "6ab957388c75",
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": "제4조 탈퇴",
-     "tokens": 16
+     "tokens": 12
     },
     {
      "chunk_id": "777b5681e572",
      "file": "scan.pdf",
      "where": "1쪽 (OCR)",
      "heading": null,
-     "tokens": 62
+     "tokens": 45
     }
    ]
   },
   "12": {
-   "kept": 13,
+   "kept": 12,
    "min": 20,
    "dropped": [
     {
@@ -402,14 +375,14 @@ window.PAGE = {
    ]
   },
   "13": {
-   "printed": "글 7개 → 조각 13개 저장 (뺀 조각 2개)",
+   "printed": "글 7개 → 조각 12개 저장 (뺀 조각 2개)",
    "chunks": [
     {
      "chunk_id": "068063fe6b85",
      "file": "guide.md",
      "where": "전체",
      "heading": "대출과 반납",
-     "tokens": 55,
+     "tokens": 51,
      "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다."
     },
     {
@@ -417,7 +390,7 @@ window.PAGE = {
      "file": "guide.md",
      "where": "전체",
      "heading": "열람실",
-     "tokens": 61,
+     "tokens": 56,
      "body": "열람실은 평일 오전 9시부터 오후 10시까지 엽니다.\n자리는 도착한 순서대로 앉을 수 있으며, 예약은 받지 않습니다.\n자리를 2시간 넘게 비우면 다른 이용자가 앉을 수 있습니다."
     },
     {
@@ -425,7 +398,7 @@ window.PAGE = {
      "file": "guide.md",
      "where": "전체",
      "heading": "분실과 훼손",
-     "tokens": 51,
+     "tokens": 54,
      "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다."
     },
     {
@@ -433,7 +406,7 @@ window.PAGE = {
      "file": "guide.md",
      "where": "전체",
      "heading": "분실과 훼손",
-     "tokens": 62,
+     "tokens": 49,
      "body": "훼손 여부는 반납할 때 담당자가 직접 확인합니다.\n확인 결과에 이의가 있으면 7일 안에 다시 확인을 요청할 수 있습니다.\n요청서는 안내 데스크에 있으며, 결과는 3일 안에 문자로 알려 드립니다."
     },
     {
@@ -441,7 +414,7 @@ window.PAGE = {
      "file": "notice.txt",
      "where": "전체",
      "heading": null,
-     "tokens": 56,
+     "tokens": 46,
      "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다."
     },
     {
@@ -449,31 +422,23 @@ window.PAGE = {
      "file": "old_notice.txt",
      "where": "전체",
      "heading": null,
-     "tokens": 36,
+     "tokens": 27,
      "body": "시설 점검 안내\n\n3월 둘째 주에는 승강기 점검이 있습니다.\n점검 시간에는 계단을 이용해 주세요."
     },
     {
-     "chunk_id": "bed1dbcb4842",
+     "chunk_id": "4a8ef0cbcd9d",
      "file": "hours.html",
      "where": "main",
      "heading": null,
-     "tokens": 45,
-     "body": "운영 시간\n\n가람 도서관은 아래 시간에 문을 엽니다.\n\n구분: 자료실, 평일: 09:00~22:00, 주말: 09:00~18:00"
-    },
-    {
-     "chunk_id": "492cfd8e2e70",
-     "file": "hours.html",
-     "where": "main",
-     "heading": null,
-     "tokens": 23,
-     "body": "구분: 열람실, 평일: 09:00~22:00, 주말: 휴실"
+     "tokens": 53,
+     "body": "운영 시간\n\n가람 도서관은 아래 시간에 문을 엽니다.\n\n구분: 자료실, 평일: 09:00~22:00, 주말: 09:00~18:00\n구분: 열람실, 평일: 09:00~22:00, 주말: 휴실"
     },
     {
      "chunk_id": "9bb1b798e34b",
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": "제1조 회원 가입",
-     "tokens": 35,
+     "tokens": 27,
      "body": "도서관 회원은 신분증을 확인한 뒤 가입할 수 있습니다.\n가입한 날부터 바로 책을 빌릴 수 있습니다."
     },
     {
@@ -481,7 +446,7 @@ window.PAGE = {
      "file": "rules.pdf",
      "where": "1쪽",
      "heading": "제2조 회원증",
-     "tokens": 21,
+     "tokens": 17,
      "body": "회원증을 잃어버리면 안내 데스크에서 다시 발급합니다."
     },
     {
@@ -489,7 +454,7 @@ window.PAGE = {
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": "제3조 회원 자격 정지",
-     "tokens": 48,
+     "tokens": 45,
      "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.\n정지는 책을 모두 반납한 날부터 풀립니다.\n빌린 책의 1/2 이상이 연체되면 새 대출이 막힙니다."
     },
     {
@@ -497,7 +462,7 @@ window.PAGE = {
      "file": "rules.pdf",
      "where": "2쪽",
      "heading": "제4조 탈퇴",
-     "tokens": 16,
+     "tokens": 12,
      "body": "탈퇴하려면 빌린 책을 모두 반납해야 합니다."
     },
     {
@@ -505,11 +470,11 @@ window.PAGE = {
      "file": "scan.pdf",
      "where": "1쪽 (OCR)",
      "heading": null,
-     "tokens": 62,
+     "tokens": 45,
      "body": "자료실 배치 안내\n\n1층에는 어린이 자료실과 신문 코너가 있습니다.\n\n2층에는 일반 자료실과 복사기가 있습니다.\n\n3층 열람실은 노트북을 쓸 수 있는 자리가 따로 있습니다."
     }
    ],
-   "bytes": 4807
+   "bytes": 4615
   }
  },
  "exp": {
@@ -582,34 +547,30 @@ window.PAGE = {
   "tokline": {
    "line": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.",
    "chars": 26,
-   "tokens": 17,
+   "tokens": 13,
    "pieces": [
-    "한",
-    "사",
-    "##람",
-    "##은",
-    "한",
-    "번",
-    "##에",
-    "5",
-    "##권",
-    "##까지",
-    "빌",
-    "##릴",
-    "수",
-    "있",
-    "##습",
-    "##니다",
+    "▁한",
+    "▁사람은",
+    "▁한",
+    "▁번",
+    "에",
+    "▁5",
+    "권",
+    "까지",
+    "▁빌",
+    "릴",
+    "▁수",
+    "▁있습니다",
     "."
    ],
-   "tokens_special": 19,
+   "tokens_special": 15,
    "special": [
-    "[CLS]",
-    "[SEP]"
+    "<s>",
+    "</s>"
    ]
   },
   "max40": {
-   "n": 24,
+   "n": 21,
    "split": [
     [
      "guide.md",
@@ -735,7 +696,7 @@ window.PAGE = {
  },
  "why": {
   "guide": "# 가람 도서관 이용 안내\n\n## 대출과 반납\n한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.\n\n## 열람실\n열람실은 평일 오전 9시부터 오후 10시까지 엽니다.\n자리는 도착한 순서대로 앉을 수 있으며, 예약은 받지 않습니다.\n자리를 2시간 넘게 비우면 다른 이용자가 앉을 수 있습니다.\n\n## 분실과 훼손\n빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.\n훼손 여부는 반납할 때 담당자가 직접 확인합니다.\n확인 결과에 이의가 있으면 7일 안에 다시 확인을 요청할 수 있습니다.\n요청서는 안내 데스크에 있으며, 결과는 3일 안에 문자로 알려 드립니다.",
-  "guide_tokens": 258,
+  "guide_tokens": 232,
   "chunks": [
    {
     "heading": "대출과 반납",
@@ -789,7 +750,7 @@ window.PAGE = {
   "pdf": {
    "pages": 106,
    "chars": 35686,
-   "tokens": 18676
+   "tokens": 16637
   }
  },
  "units": [
@@ -1379,7 +1340,11 @@ window.PAGE = {
    "s": 9
   },
   {
-   "t": "tok = AutoTokenizer.from_pretrained(\"bert-base-multilingual-cased\")",
+   "t": "MODEL = \"intfloat/multilingual-e5-small\"  # 3쪽에서 벡터를 만들 Embedding 모델",
+   "s": 9
+  },
+  {
+   "t": "tok = AutoTokenizer.from_pretrained(MODEL)",
    "s": 9
   },
   {
@@ -1646,6 +1611,6 @@ window.PAGE = {
   "python": "3.13.16",
   "transformers": "5.22.2",
   "sklearn": "1.8.0",
-  "tokenizer": "bert-base-multilingual-cased"
+  "tokenizer": "intfloat/multilingual-e5-small"
  }
 };

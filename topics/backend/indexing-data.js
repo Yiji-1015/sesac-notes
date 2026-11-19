@@ -2,133 +2,122 @@ window.PAGE = {
  "steps": {
   "14": {
    "shape": [
-    13,
-    256
+    12,
+    384
    ],
    "dtype": "float32",
-   "nonzero": 64,
    "norm": 1.0,
-   "first5": [
-    0.0,
-    0.0,
-    0.0,
-    0.211,
-    0.0,
-    0.141,
-    0.0,
-    0.141,
-    0.0,
-    0.07,
-    0.0,
-    0.0
+   "first": [
+    0.023,
+    -0.0551,
+    -0.042,
+    -0.0805,
+    0.0755,
+    -0.0433
    ],
    "embed_text": "대출과 반납\n한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
+   "model": "intfloat/multilingual-e5-small",
+   "inputs": [
+    "passage: 대출과 반납\n한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
+    "query: 대출 기간은 며칠인가요?"
+   ],
    "q": "대출 기간은 며칠인가요?",
-   "q_nonzero": 14,
    "dist": [
     {
      "file": "guide.md",
      "heading": "대출과 반납",
      "where": "전체",
      "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.",
-     "cos": 0.357,
-     "dist": 0.643
+     "cos": 0.891,
+     "dist": 0.109
     },
     {
      "file": "guide.md",
      "heading": "열람실",
      "where": "전체",
      "body": "열람실은 평일 오전 9시부터 오후 10시까지 엽니다.",
-     "cos": 0.132,
-     "dist": 0.868
+     "cos": 0.791,
+     "dist": 0.209
     },
     {
      "file": "guide.md",
      "heading": "분실과 훼손",
      "where": "전체",
      "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.",
-     "cos": 0.222,
-     "dist": 0.778
+     "cos": 0.748,
+     "dist": 0.252
     },
     {
      "file": "guide.md",
      "heading": "분실과 훼손",
      "where": "전체",
      "body": "훼손 여부는 반납할 때 담당자가 직접 확인합니다.",
-     "cos": 0.05,
-     "dist": 0.95
+     "cos": 0.794,
+     "dist": 0.206
     },
     {
      "file": "notice.txt",
      "heading": null,
      "where": "전체",
      "body": "겨울방학 운영 안내",
-     "cos": 0.193,
-     "dist": 0.807
+     "cos": 0.839,
+     "dist": 0.161
     },
     {
      "file": "old_notice.txt",
      "heading": null,
      "where": "전체",
      "body": "시설 점검 안내",
-     "cos": 0.081,
-     "dist": 0.919
+     "cos": 0.787,
+     "dist": 0.213
     },
     {
      "file": "hours.html",
      "heading": null,
      "where": "main",
      "body": "운영 시간",
-     "cos": 0.023,
-     "dist": 0.977
-    },
-    {
-     "file": "hours.html",
-     "heading": null,
-     "where": "main",
-     "body": "구분: 열람실, 평일: 09:00~22:00, 주말: 휴실",
-     "cos": 0.0,
-     "dist": 1.0
+     "cos": 0.791,
+     "dist": 0.209
     },
     {
      "file": "rules.pdf",
      "heading": "제1조 회원 가입",
      "where": "1쪽",
      "body": "도서관 회원은 신분증을 확인한 뒤 가입할 수 있습니다.",
-     "cos": 0.099,
-     "dist": 0.901
+     "cos": 0.788,
+     "dist": 0.212
     },
     {
      "file": "rules.pdf",
      "heading": "제2조 회원증",
      "where": "1쪽",
      "body": "회원증을 잃어버리면 안내 데스크에서 다시 발급합니다.",
-     "cos": 0.0,
-     "dist": 1.0
+     "cos": 0.753,
+     "dist": 0.247
     },
     {
      "file": "rules.pdf",
      "heading": "제3조 회원 자격 정지",
      "where": "2쪽",
      "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.",
-     "cos": 0.095,
-     "dist": 0.905
+     "cos": 0.82,
+     "dist": 0.18
     },
     {
      "file": "rules.pdf",
      "heading": "제4조 탈퇴",
      "where": "2쪽",
      "body": "탈퇴하려면 빌린 책을 모두 반납해야 합니다.",
-     "cos": 0.089,
-     "dist": 0.911
+     "cos": 0.762,
+     "dist": 0.238
     },
     {
      "file": "scan.pdf",
      "heading": null,
      "where": "1쪽 (OCR)",
      "body": "자료실 배치 안내",
-     "cos": 0.077,
-     "dist": 0.923
+     "cos": 0.761,
+     "dist": 0.239
     }
    ]
   },
@@ -193,7 +182,7 @@ window.PAGE = {
    "pgvector": "0.8.7"
   },
   "16": {
-   "chunks": 13,
+   "chunks": 12,
    "docs": [
     [
      "guide.md",
@@ -223,7 +212,7 @@ window.PAGE = {
    "by_version": [
     [
      1,
-     13
+     12
     ]
    ]
   },
@@ -258,7 +247,7 @@ window.PAGE = {
     "guide.md": 4,
     "notice.txt": 1,
     "old_notice.txt": 1,
-    "hours.html": 2,
+    "hours.html": 1,
     "rules.pdf": 4,
     "scan.pdf": 1
    }
@@ -273,21 +262,21 @@ window.PAGE = {
        "location": "전체",
        "heading": "대출과 반납",
        "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
-       "distance": 0.643
-      },
-      {
-       "file": "guide.md",
-       "location": "전체",
-       "heading": "분실과 훼손",
-       "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.",
-       "distance": 0.778
+       "distance": 0.109
       },
       {
        "file": "notice.txt",
        "location": "전체",
        "heading": null,
        "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다.",
-       "distance": 0.807
+       "distance": 0.161
+      },
+      {
+       "file": "rules.pdf",
+       "location": "2쪽",
+       "heading": "제3조 회원 자격 정지",
+       "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.\n정지는 책을 모두 반납한 날부터 풀립니다.\n빌린 책의 1/2 이상이 연체되면 새 대출이 막힙니다.",
+       "distance": 0.18
       }
      ]
     },
@@ -299,21 +288,21 @@ window.PAGE = {
        "location": "1쪽",
        "heading": "제2조 회원증",
        "body": "회원증을 잃어버리면 안내 데스크에서 다시 발급합니다.",
-       "distance": 0.5
+       "distance": 0.114
       },
       {
        "file": "rules.pdf",
        "location": "1쪽",
        "heading": "제1조 회원 가입",
        "body": "도서관 회원은 신분증을 확인한 뒤 가입할 수 있습니다.\n가입한 날부터 바로 책을 빌릴 수 있습니다.",
-       "distance": 0.732
+       "distance": 0.166
       },
       {
-       "file": "guide.md",
-       "location": "전체",
-       "heading": "분실과 훼손",
-       "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.",
-       "distance": 0.8
+       "file": "rules.pdf",
+       "location": "2쪽",
+       "heading": "제3조 회원 자격 정지",
+       "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.\n정지는 책을 모두 반납한 날부터 풀립니다.\n빌린 책의 1/2 이상이 연체되면 새 대출이 막힙니다.",
+       "distance": 0.17
       }
      ]
     },
@@ -325,50 +314,108 @@ window.PAGE = {
        "location": "1쪽 (OCR)",
        "heading": null,
        "body": "자료실 배치 안내\n\n1층에는 어린이 자료실과 신문 코너가 있습니다.\n\n2층에는 일반 자료실과 복사기가 있습니다.\n\n3층 열람실은 노트북을 쓸 수 있는 자리가 따로 있습니다.",
-       "distance": 0.473
+       "distance": 0.147
       },
       {
        "file": "guide.md",
        "location": "전체",
        "heading": "열람실",
        "body": "열람실은 평일 오전 9시부터 오후 10시까지 엽니다.\n자리는 도착한 순서대로 앉을 수 있으며, 예약은 받지 않습니다.\n자리를 2시간 넘게 비우면 다른 이용자가 앉을 수 있습니다.",
-       "distance": 0.663
+       "distance": 0.192
       },
       {
        "file": "rules.pdf",
        "location": "1쪽",
        "heading": "제1조 회원 가입",
        "body": "도서관 회원은 신분증을 확인한 뒤 가입할 수 있습니다.\n가입한 날부터 바로 책을 빌릴 수 있습니다.",
-       "distance": 0.71
+       "distance": 0.195
       }
      ]
     }
    ],
    "printed": [
-    "guide.md 전체 0.643 한 사람은 한 번에 5권까지 빌릴 수 있습니다.",
-    "guide.md 전체 0.778 빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.",
-    "notice.txt 전체 0.807 겨울방학 운영 안내"
+    "guide.md 전체 0.109 한 사람은 한 번에 5권까지 빌릴 수 있습니다.",
+    "notice.txt 전체 0.161 겨울방학 운영 안내",
+    "rules.pdf 2쪽 0.18 연체가 30일을 넘으면 회원 자격이 정지됩니다."
    ]
   }
  },
  "exp": {
-  "bigrams": [
-   " 대",
-   "대출",
-   "출 ",
-   " 기",
-   "기간",
-   "간은",
-   "은 ",
-   " 며",
-   "며칠",
-   "칠인",
-   "인가",
-   "가요",
-   "요?",
-   "? "
+  "noprefix": [
+   {
+    "heading": "대출과 반납",
+    "file": "guide.md",
+    "with": 0.891,
+    "without": 0.896
+   },
+   {
+    "heading": "열람실",
+    "file": "guide.md",
+    "with": 0.791,
+    "without": 0.8
+   },
+   {
+    "heading": "분실과 훼손",
+    "file": "guide.md",
+    "with": 0.748,
+    "without": 0.764
+   },
+   {
+    "heading": "분실과 훼손",
+    "file": "guide.md",
+    "with": 0.794,
+    "without": 0.813
+   },
+   {
+    "heading": null,
+    "file": "notice.txt",
+    "with": 0.839,
+    "without": 0.85
+   },
+   {
+    "heading": null,
+    "file": "old_notice.txt",
+    "with": 0.787,
+    "without": 0.803
+   },
+   {
+    "heading": null,
+    "file": "hours.html",
+    "with": 0.791,
+    "without": 0.803
+   },
+   {
+    "heading": "제1조 회원 가입",
+    "file": "rules.pdf",
+    "with": 0.788,
+    "without": 0.803
+   },
+   {
+    "heading": "제2조 회원증",
+    "file": "rules.pdf",
+    "with": 0.753,
+    "without": 0.773
+   },
+   {
+    "heading": "제3조 회원 자격 정지",
+    "file": "rules.pdf",
+    "with": 0.82,
+    "without": 0.833
+   },
+   {
+    "heading": "제4조 탈퇴",
+    "file": "rules.pdf",
+    "with": 0.762,
+    "without": 0.782
+   },
+   {
+    "heading": null,
+    "file": "scan.pdf",
+    "with": 0.761,
+    "without": 0.777
+   }
   ],
-  "rerun": 13,
+  "rerun": 12,
   "noconflict": {
    "type": "UniqueViolation",
    "msg": "중복된 키 값이 \"chunks_pkey\" 고유 제약 조건을 위반함",
@@ -382,35 +429,35 @@ window.PAGE = {
      "location": "전체",
      "heading": "열람실",
      "body": "열람실은 평일 오전 9시부터 오후 10시까지 엽니다.\n자리는 도착한 순서대로 앉을 수 있으며, 예약은 받지 않습니다.\n자리를 2시간 넘게 비우면 다른 이용자가 앉을 수 있습니다.",
-     "distance": 0.613
+     "distance": 0.122
+    },
+    {
+     "file": "notice.txt",
+     "location": "전체",
+     "heading": null,
+     "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다.",
+     "distance": 0.145
+    },
+    {
+     "file": "hours.html",
+     "location": "main",
+     "heading": null,
+     "body": "운영 시간\n\n가람 도서관은 아래 시간에 문을 엽니다.\n\n구분: 자료실, 평일: 09:00~22:00, 주말: 09:00~18:00\n구분: 열람실, 평일: 09:00~22:00, 주말: 휴실",
+     "distance": 0.153
     },
     {
      "file": "scan.pdf",
      "location": "1쪽 (OCR)",
      "heading": null,
      "body": "자료실 배치 안내\n\n1층에는 어린이 자료실과 신문 코너가 있습니다.\n\n2층에는 일반 자료실과 복사기가 있습니다.\n\n3층 열람실은 노트북을 쓸 수 있는 자리가 따로 있습니다.",
-     "distance": 0.719
+     "distance": 0.16
     },
     {
      "file": "rules.pdf",
      "location": "1쪽",
-     "heading": "제1조 회원 가입",
-     "body": "도서관 회원은 신분증을 확인한 뒤 가입할 수 있습니다.\n가입한 날부터 바로 책을 빌릴 수 있습니다.",
-     "distance": 0.744
-    },
-    {
-     "file": "old_notice.txt",
-     "location": "전체",
-     "heading": null,
-     "body": "시설 점검 안내\n\n3월 둘째 주에는 승강기 점검이 있습니다.\n점검 시간에는 계단을 이용해 주세요.",
-     "distance": 0.791
-    },
-    {
-     "file": "hours.html",
-     "location": "main",
-     "heading": null,
-     "body": "구분: 열람실, 평일: 09:00~22:00, 주말: 휴실",
-     "distance": 0.814
+     "heading": "제2조 회원증",
+     "body": "회원증을 잃어버리면 안내 데스크에서 다시 발급합니다.",
+     "distance": 0.195
     }
    ]
   },
@@ -429,12 +476,12 @@ window.PAGE = {
     [
      "hours.html",
      1,
-     2
+     1
     ],
     [
      "hours.html",
      2,
-     2
+     1
     ],
     [
      "notice.txt",
@@ -483,21 +530,21 @@ window.PAGE = {
      "location": "전체",
      "heading": "대출과 반납",
      "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
-     "distance": 0.643
-    },
-    {
-     "file": "guide.md",
-     "location": "전체",
-     "heading": "분실과 훼손",
-     "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.",
-     "distance": 0.778
+     "distance": 0.109
     },
     {
      "file": "notice.txt",
      "location": "전체",
      "heading": null,
      "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다.",
-     "distance": 0.807
+     "distance": 0.161
+    },
+    {
+     "file": "rules.pdf",
+     "location": "2쪽",
+     "heading": "제3조 회원 자격 정지",
+     "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.\n정지는 책을 모두 반납한 날부터 풀립니다.\n빌린 책의 1/2 이상이 연체되면 새 대출이 막힙니다.",
+     "distance": 0.18
     }
    ],
    "after_publish": [
@@ -506,21 +553,21 @@ window.PAGE = {
      "location": "전체",
      "heading": "대출과 반납",
      "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 21일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
-     "distance": 0.644
-    },
-    {
-     "file": "guide.md",
-     "location": "전체",
-     "heading": "분실과 훼손",
-     "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.",
-     "distance": 0.778
+     "distance": 0.108
     },
     {
      "file": "notice.txt",
      "location": "전체",
      "heading": null,
      "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다.",
-     "distance": 0.807
+     "distance": 0.161
+    },
+    {
+     "file": "rules.pdf",
+     "location": "2쪽",
+     "heading": "제3조 회원 자격 정지",
+     "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.\n정지는 책을 모두 반납한 날부터 풀립니다.\n빌린 책의 1/2 이상이 연체되면 새 대출이 막힙니다.",
+     "distance": 0.18
     }
    ],
    "docs": [
@@ -584,45 +631,45 @@ window.PAGE = {
      "location": "전체",
      "heading": "대출과 반납",
      "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
-     "distance": 0.643
-    },
-    {
-     "file": "guide.md",
-     "location": "전체",
-     "heading": "분실과 훼손",
-     "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.",
-     "distance": 0.778
+     "distance": 0.109
     },
     {
      "file": "notice.txt",
      "location": "전체",
      "heading": null,
      "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다.",
-     "distance": 0.807
+     "distance": 0.161
+    },
+    {
+     "file": "rules.pdf",
+     "location": "2쪽",
+     "heading": "제3조 회원 자격 정지",
+     "body": "연체가 30일을 넘으면 회원 자격이 정지됩니다.\n정지는 책을 모두 반납한 날부터 풀립니다.\n빌린 책의 1/2 이상이 연체되면 새 대출이 막힙니다.",
+     "distance": 0.18
     }
    ],
-   "v2_rows": 12
+   "v2_rows": 11
   }
  },
  "why": {
   "mixed": [
    {
     "file": "guide.md",
-    "version": 1,
-    "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
-    "distance": 0.643
-   },
-   {
-    "file": "guide.md",
     "version": 2,
     "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 21일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
-    "distance": 0.644
+    "distance": 0.108
    },
    {
     "file": "guide.md",
     "version": 1,
-    "body": "빌린 책을 잃어버리면 같은 책으로 갚거나 책값을 냅니다.\n책이 젖거나 찢어진 경우에도 같은 기준을 따릅니다.\n절판된 책은 담당자와 상의해 비슷한 책으로 대신합니다.",
-    "distance": 0.778
+    "body": "한 사람은 한 번에 5권까지 빌릴 수 있습니다.\n대출 기간은 14일이며, 한 번 연장하면 7일이 늘어납니다.\n반납일을 넘기면 늦은 날수만큼 대출이 정지됩니다.",
+    "distance": 0.109
+   },
+   {
+    "file": "notice.txt",
+    "version": 1,
+    "body": "겨울방학 운영 안내\n\n겨울방학 동안 열람실은 오후 6시에 닫습니다.\n도서관 휴관일은 매주 월요일입니다.\n방학 중에도 대출과 반납은 평소와 같습니다.",
+    "distance": 0.161
    }
   ]
  },
@@ -676,11 +723,7 @@ window.PAGE = {
    "s": 17
   },
   {
-   "t": "import numpy as np",
-   "s": 14
-  },
-  {
-   "t": "from sklearn.feature_extraction.text import HashingVectorizer",
+   "t": "from sentence_transformers import SentenceTransformer",
    "s": 14
   },
   {
@@ -1196,7 +1239,11 @@ window.PAGE = {
    "s": 9
   },
   {
-   "t": "tok = AutoTokenizer.from_pretrained(\"bert-base-multilingual-cased\")",
+   "t": "MODEL = \"intfloat/multilingual-e5-small\"  # 3쪽에서 벡터를 만들 Embedding 모델",
+   "s": 9
+  },
+  {
+   "t": "tok = AutoTokenizer.from_pretrained(MODEL)",
    "s": 9
   },
   {
@@ -1444,15 +1491,11 @@ window.PAGE = {
    "s": 14
   },
   {
-   "t": "DIM = 256",
+   "t": "model = SentenceTransformer(MODEL)  # ⑨에서 토큰을 센 그 모델",
    "s": 14
   },
   {
-   "t": "hasher = HashingVectorizer(analyzer=\"char_wb\", ngram_range=(2, 2), n_features=DIM,",
-   "s": 14
-  },
-  {
-   "t": "                           alternate_sign=False, norm=\"l2\")  # Embedding 모델 대신 쓰는 임시 벡터",
+   "t": "DIM = model.get_sentence_embedding_dimension()",
    "s": 14
   },
   {
@@ -1460,11 +1503,15 @@ window.PAGE = {
    "s": 14
   },
   {
-   "t": "def embed(texts):",
+   "t": "def embed(texts, kind):",
    "s": 14
   },
   {
-   "t": "    return hasher.transform(texts).toarray().astype(np.float32)",
+   "t": "    # e5 모델은 조각 앞에 \"passage: \", 질문 앞에 \"query: \"를 붙여 쓰도록 학습됐어요",
+   "s": 14
+  },
+  {
+   "t": "    return model.encode([f\"{kind}: {t}\" for t in texts], normalize_embeddings=True)",
    "s": 14
   },
   {
@@ -1484,7 +1531,7 @@ window.PAGE = {
    "s": 14
   },
   {
-   "t": "vectors = embed([embed_text(c) for c in chunks])",
+   "t": "vectors = embed([embed_text(c) for c in chunks], \"passage\")",
    "s": 14
   },
   {
@@ -1684,7 +1731,7 @@ window.PAGE = {
    "s": 18
   },
   {
-   "t": "        LIMIT %s\"\"\", (embed([question])[0], k)).fetchall()",
+   "t": "        LIMIT %s\"\"\", (embed([question], \"query\")[0], k)).fetchall()",
    "s": 18
   },
   {
@@ -1728,6 +1775,6 @@ window.PAGE = {
   "python": "3.13.16",
   "psycopg": "3.3.8",
   "pgvector_py": "?",
-  "sklearn": "1.8.0"
+  "sentence_transformers": "6.3.0"
  }
 };

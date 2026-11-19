@@ -80,21 +80,21 @@
         <a class="node back" href="topics/backend/document-reading.html">문서 읽기</a><span class="arr">→</span>
         <a class="node back" href="topics/backend/chunking.html">Chunking</a><span class="arr">→</span>
         <a class="node back" href="topics/backend/indexing.html">인덱싱</a><span class="arr">→</span>
-        <a class="node back" href="notes/day18.html">PostgreSQL + pgvector</a>
+        <a class="node back" href="topics/backend/postgres.html">PostgreSQL + pgvector</a>
       </div>
       <div class="lane">
         <span class="lname">질문에 답할 때</span>
         <span class="node plain">질문</span><span class="arr">→</span>
-        <a class="node back" href="notes/day17.html">API 서버</a><span class="arr">→</span>
-        <a class="node back" href="notes/day23.html">벡터 검색</a><span class="arr">→</span>
-        <a class="node back" href="notes/day21.html">Prompt와 Context</a><span class="arr">→</span>
-        <a class="node back" href="notes/day22.html">LLM API 호출</a><span class="arr">→</span>
+        <a class="node back" href="topics/backend/fastapi.html">API 서버</a><span class="arr">→</span>
+        <a class="node back" href="topics/backend/embedding.html">벡터 검색</a><span class="arr">→</span>
+        <a class="node back" href="topics/backend/prompt-contract.html">Prompt와 Context</a><span class="arr">→</span>
+        <a class="node back" href="topics/backend/llm-client.html">LLM API 호출</a><span class="arr">→</span>
         <span class="node plain">답</span>
       </div>
       <div class="lane">
         <span class="lname">안에서 도는 것</span>
-        <a class="node model" href="notes/day23.html">Embedding 모델</a>
-        <a class="node model" href="notes/day20.html">LLM과 Transformer</a>
+        <a class="node model" href="topics/backend/embedding.html">Embedding 모델</a>
+        <a class="node model" href="topics/model/llm-principles.html">LLM과 Transformer</a>
       </div>
       <div class="legend2"><i style="border-color:var(--t-back);background:var(--t-back-soft)"></i>백엔드<i style="border-color:var(--t-model);background:var(--t-model-soft)"></i>모델<i style="border-color:var(--line);border-style:dashed"></i>입력과 출력</div>
     </section>
@@ -107,20 +107,20 @@
         <div class="cat">
           <h3>머신러닝 기초</h3>
           <p>표 데이터로 예측하고, 공정하게 평가하기</p>
-          <a class="item" href="notes/day06.html"><b>회귀, 분류, KNN, 모델 비교</b><span class="badge day">Day06</span><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
-          <a class="item" href="notes/day07.html"><b>트리, 앙상블, 교차검증</b><span class="badge day">Day07</span><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
-          <a class="item" href="notes/day08.html"><b>평가지표, 특성 설계, K-Means</b><span class="badge day">Day08</span><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
+          <a class="item" href="topics/model/ml-regression-classification.html"><b>회귀, 분류, KNN, 모델 비교</b><span class="badge new">새 형식</span><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
+          <a class="item" href="topics/model/ml-trees-cv.html"><b>트리, 앙상블, 교차검증</b><span class="badge new">새 형식</span><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
+          <a class="item" href="topics/model/ml-metrics-clustering.html"><b>평가지표, 특성 설계, K-Means</b><span class="badge new">새 형식</span><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
         </div>
         <div class="cat">
           <h3>딥러닝 기초</h3>
           <p>신경망이 배우는 원리와 학습을 안정시키는 방법</p>
-          <a class="item" href="notes/day09.html"><b>GPU, Tensor, ANN</b><span class="badge day">Day09</span><small>GPU 확인, Tensor 연산, 역전파, 학습 루프</small></a>
-          <a class="item" href="notes/day10.html"><b>Optimizer와 Regularization</b><span class="badge day">Day10</span><small>학습률, Batch와 Epoch, 과적합, Dropout, BatchNorm, 조기 종료</small></a>
+          <a class="item" href="topics/model/dl-tensor-training.html"><b>GPU, Tensor, ANN</b><span class="badge new">새 형식</span><small>GPU 확인, Tensor 연산, 역전파, 학습 루프</small></a>
+          <a class="item" href="topics/model/dl-training-stability.html"><b>Optimizer와 Regularization</b><span class="badge new">새 형식</span><small>학습률, Batch와 Epoch, 과적합, Dropout, BatchNorm, 조기 종료</small></a>
         </div>
         <div class="cat">
           <h3>이미지</h3>
           <p>사진을 분류하고, 물체를 찾고, 글자를 읽기</p>
-          <a class="item" href="notes/day11.html"><b>CNN과 이미지 분류</b><span class="badge day">Day11</span><small>합성곱, Pooling, ResNet 전이학습</small></a>
+          <a class="item" href="topics/model/cnn.html"><b>CNN과 이미지 분류</b><span class="badge new">새 형식</span><small>합성곱, Pooling, ResNet 전이학습</small></a>
           <a class="item" href="notes/day13.html"><b>OpenCV 이미지와 영상 전처리</b><span class="badge day">Day13</span><small>색공간, 필터, 이진화, 형태학, 증강</small></a>
           <a class="item" href="notes/day14.html"><b>전이학습과 오류 분석</b><span class="badge day">Day14</span><small>Backbone과 Head, 불균형 데이터, Macro F1, Grad-CAM</small></a>
           <a class="item" href="notes/day15.html"><b>객체 탐지와 YOLO</b><span class="badge day">Day15</span><small>박스 좌표, IoU, NMS, mAP, 학습과 추적</small></a>
@@ -129,8 +129,8 @@
         <div class="cat">
           <h3>순서와 언어 모델</h3>
           <p>순서가 있는 데이터를 읽는 모델에서 LLM까지</p>
-          <a class="item" href="notes/day12.html"><b>순서 모델</b><span class="badge day">Day12</span><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
-          <a class="item" href="notes/day20.html"><b>LLM 원리</b><span class="badge day">Day20</span><small>Token, Context Window, Self-Attention, 학습과 추론, 디코딩</small></a>
+          <a class="item" href="topics/model/sequence-models.html"><b>순서 모델</b><span class="badge new">새 형식</span><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
+          <a class="item" href="topics/model/llm-principles.html"><b>LLM 원리</b><span class="badge new">새 형식</span><small>Token, Context Window, Self-Attention, 학습과 추론, 디코딩</small></a>
         </div>
       </div>
     </section>
@@ -143,24 +143,24 @@
         <div class="cat">
           <h3>API 서버</h3>
           <p>요청을 받아 검증하고 응답하기</p>
-          <a class="item" href="notes/day17.html"><b>FastAPI 지식 관리 API</b><span class="badge day">Day17</span><small>HTTP 요청과 응답, CRUD, Pydantic 검증, 상태 코드</small></a>
+          <a class="item" href="topics/backend/fastapi.html"><b>FastAPI 지식 관리 API</b><span class="badge new">새 형식</span><small>HTTP 요청과 응답, CRUD, Pydantic 검증, 상태 코드</small></a>
         </div>
         <div class="cat">
           <h3>데이터베이스</h3>
           <p>데이터를 안전하게 저장하고 꺼내기</p>
-          <a class="item" href="notes/day18.html"><b>PostgreSQL 입문</b><span class="badge day">Day18</span><small>SQL 조회, 기본 키와 외래 키, JOIN, 제약 조건, 트랜잭션, 인덱스</small></a>
-          <a class="item" href="notes/day19.html"><b>FastAPI와 PostgreSQL 연동</b><span class="badge day">Day19</span><small>SQLAlchemy ORM, Session, 트랜잭션, Alembic</small></a>
+          <a class="item" href="topics/backend/postgres.html"><b>PostgreSQL 입문</b><span class="badge new">새 형식</span><small>SQL 조회, 기본 키와 외래 키, JOIN, 제약 조건, 트랜잭션, 인덱스</small></a>
+          <a class="item" href="topics/backend/fastapi-postgres.html"><b>FastAPI와 PostgreSQL 연동</b><span class="badge new">새 형식</span><small>SQLAlchemy ORM, Session, 트랜잭션, Alembic</small></a>
         </div>
         <div class="cat">
           <h3>LLM 활용</h3>
           <p>LLM에게 잘 묻고, 안정적으로 부르기</p>
-          <a class="item" href="notes/day21.html"><b>Prompt와 Context Engineering</b><span class="badge day">Day21</span><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
-          <a class="item" href="notes/day22.html"><b>LLM API 클라이언트</b><span class="badge day">Day22</span><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
+          <a class="item" href="topics/backend/prompt-contract.html"><b>Prompt와 Context Engineering</b><span class="badge new">새 형식</span><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
+          <a class="item" href="topics/backend/llm-client.html"><b>LLM API 클라이언트</b><span class="badge new">새 형식</span><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
         </div>
         <div class="cat">
           <h3>검색과 RAG</h3>
           <p>문서를 검색할 수 있게 쌓고, 질문과 가까운 근거 찾기</p>
-          <a class="item" href="notes/day23.html"><b>Embedding과 Vector Search</b><span class="badge day">Day23</span><small>유사도, 정규화, Sentence Transformers, pgvector, HNSW</small></a>
+          <a class="item" href="topics/backend/embedding.html"><b>Embedding과 Vector Search</b><span class="badge new">새 형식</span><small>유사도, 정규화, Sentence Transformers, pgvector, HNSW</small></a>
           <div class="subgroup">문서 적재 (3쪽, 코드 하나로 이어짐)</div>
           <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><span class="badge new">새 형식</span><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
           <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><span class="badge new">새 형식</span><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
@@ -176,7 +176,7 @@
       <h2>🕒 업데이트 기록</h2>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
-        <tr><td class="when">11/19</td><td>메인 페이지를 모델과 백엔드, 카테고리로 다시 짬. Day24를 <a href="topics/backend/document-reading.html">문서 적재 1~3쪽</a>(새 형식)으로 다시 씀 (<a href="notes/day24.html">옛 Day24 노트</a>)</td></tr>
+        <tr><td class="when">11/19</td><td>Day06~12, 17~23을 새 형식 주제 페이지로 다시 씀 (옛 Day 노트는 아래 기록에서). 메인 페이지를 모델과 백엔드, 카테고리로 다시 짬. Day24를 <a href="topics/backend/document-reading.html">문서 적재 1~3쪽</a>(새 형식)으로 다시 씀 (<a href="notes/day24.html">옛 Day24 노트</a>)</td></tr>
         <tr><td class="when">11/18</td><td>Day23 <a href="notes/day23.html">Embedding과 Vector Search</a></td></tr>
         <tr><td class="when">11/17</td><td>Day22 <a href="notes/day22.html">LLM API 클라이언트</a></td></tr>
         <tr><td class="when">11/16</td><td>Day21 <a href="notes/day21.html">Prompt와 Context Engineering</a></td></tr>

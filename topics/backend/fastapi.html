@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FastAPI로 지식 API 만들기 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>FastAPI로 지식 API 만들기</h1>
+      <div class="meta">백엔드 &gt; API 서버</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line"><b>API 서버</b>는 다른 프로그램이 데이터를 읽고 쓰는 <b>하나의 정해진 입구</b>예요. FastAPI로 주소마다 함수를 연결하고, 들어오는 입력은 <b>저장하기 전에 검사</b>해요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      
+<p><b>API</b>는 다른 프로그램이 이 서비스의 기능을 쓰는 <b>정해진 입구</b>예요. 웹 화면, 다른 서버, AI Agent가 모두 같은 입구로 "지식 목록 줘", "이거 저장해 줘"를 요청해요. 요청과 응답은 보통 <b>HTTP</b>(웹 주소로 요청을 보내고 답을 받는 규칙)로 주고받아요.</p>
+<p>예제는 지식 항목(제목, 분류, 내용)을 JSON 파일에 저장하는 작은 서비스예요. 파일은 이렇게 생겼어요.</p>
+<table><tr><th>id</th><th>title</th><th>category</th><th>content</th></tr><tr><td>1</td><td>가상환경</td><td>setup</td><td>프로젝트별 패키지를 분리한다.</td></tr><tr><td>2</td><td>서버 실행</td><td>api</td><td>uvicorn으로 개발 서버를 켠다.</td></tr><tr><td>3</td><td>입력 오류</td><td>api</td><td>422이면 입력값을 확인한다.</td></tr></table>
+<p>그냥 각 프로그램이 이 파일을 직접 열어 읽고 쓰면 안 될까요? 누군가 <code>category</code>를 빠뜨린 항목을 파일에 직접 넣으면 이렇게 돼요.</p>
+<div class="twocol"><div class="out" data-out="why_file"></div><div class="out" data-out="why_api"></div></div>
+<p>입구를 하나로 모으면, <b>들어오는 모든 데이터를 같은 규칙으로 검사</b>하고, 저장 방식이 파일에서 DB로 바뀌어도 바깥 프로그램은 몰라도 돼요. 여기서는 파이썬 웹 프레임워크 <b>FastAPI</b>로 이 입구를 만들어요.</p>
+<p><b>그래서 목표는</b> 지식을 조회, 등록, 수정, 삭제하는 입구를 만들고, 잘못된 요청은 저장 전에 막고, 결과를 알맞은 <b>상태 코드</b>(요청이 어떻게 됐는지 알려 주는 세 자리 숫자)로 알려 주는 거예요.</p>
+
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      
+<p>요청 하나가 들어오면 FastAPI가 <b>주소와 방식</b>(GET, POST 등)으로 함수를 찾고, 입력을 검사한 뒤 함수를 불러요. 함수는 파일을 읽고 쓰고, 돌려준 값은 JSON 응답이 돼요. 상자를 누르면 그 단계로 가요.</p>
+<div class="flow" id="flow"></div>
+<div class="out" data-out="codes"></div>
+<p>아래에서 ①부터 ⑥까지, <code>main.py</code> 파일 하나가 자라는 모습을 따라가요. 결과는 모두 FastAPI의 <code>TestClient</code>(서버를 띄우지 않고 요청을 보내 보는 도구)로 실제로 보낸 요청이에요.</p>
+
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 앱 만들기</h3><p class="does"><code>FastAPI()</code>로 앱을 만들고, 살아 있는지 확인하는 <code>/health</code> 주소 하나를 열어요.</p><p>함수 위에 <code>@app.get("/health")</code>를 붙이면 "<code>GET /health</code> 요청이 오면 이 함수를 불러라"라는 뜻이 돼요. 이렇게 함수를 주소에 연결하는 걸 <b>라우팅</b>이라고 해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>app = FastAPI(title=...)</code></td><td>앱 하나. 모든 주소가 여기에 등록돼요. <code>title</code>은 자동 문서에 보이는 이름</td></tr><tr><td><code>@app.get(&quot;/health&quot;)</code></td><td>GET 방식의 <code>/health</code> 요청을 아래 함수에 연결</td></tr><tr><td><code>return {&quot;status&quot;: &quot;ok&quot;}</code></td><td>dict를 돌려주면 FastAPI가 JSON 응답으로 바꿔요.</td></tr><tr><td><code>uvicorn main:app --reload</code></td><td>실제로 서버를 띄우는 명령. <code>main.py</code> 안의 <code>app</code>을 실행하고, 코드가 바뀌면 다시 불러요(개발용). 띄운 뒤 <code>/docs</code>에서 모든 주소를 눌러 볼 수 있어요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 파일 저장소</h3><p class="does">JSON 파일을 통째로 읽고 쓰는 함수 두 개를 만들어요.</p><p>파일 모양은 <code>{"next_id": 4, "entries": [...]}</code>예요. 항목 목록과 함께 "다음 번호"를 저장해 둬요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>Path(__file__).resolve().parent / &quot;data&quot;</code></td><td>이 파일(<code>main.py</code>)이 있는 폴더 기준 경로. 어디서 실행해도 같은 파일을 가리켜요.</td></tr><tr><td><code>read_text(encoding=&quot;utf-8&quot;)</code></td><td>한글이 들어 있으니 인코딩을 꼭 적어요.</td></tr><tr><td><code>json.dumps(data, ensure_ascii=False, indent=2)</code></td><td>한글을 그대로, 사람이 읽기 좋게 들여 써서 저장</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 조회하기 (GET)</h3><p class="does">목록 주소와 번호 하나 주소를 만들어요. 없는 번호는 404로 알려요.</p><p>주소에는 값을 두 가지 방법으로 실을 수 있어요. 주소 안에 넣는 <b>경로 매개변수</b>(<code>/knowledge/2</code>)와, <code>?</code> 뒤에 붙이는 <b>쿼리 매개변수</b>(<code>?category=api</code>)예요. 보통 "무엇을"은 경로에, "어떻게 거를지"는 쿼리에 둬요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>@app.get(&quot;/knowledge/{knowledge_id}&quot;)</code></td><td>중괄호 자리가 경로 매개변수. 같은 이름의 함수 인자로 들어와요.</td></tr><tr><td><code>knowledge_id: int</code></td><td>타입을 적으면 FastAPI가 숫자로 바꾸고, 못 바꾸면 422로 돌려보내요.</td></tr><tr><td><code>category: str | None = None</code></td><td>기본값이 있는 인자는 쿼리 매개변수. 안 보내면 <code>None</code></td></tr><tr><td><code>raise HTTPException(status_code=404, detail=...)</code></td><td>함수를 멈추고 404 응답을 보내요. <code>detail</code>이 응답 본문에 들어가요.</td></tr></table><details class="try"><summary>🔁 바꿔 보기: <code>GET /knowledge/abc</code>처럼 숫자가 아닌 번호를 보내면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t3"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 입력 모양 정하고 등록하기 (POST)</h3><p class="does">Pydantic으로 "등록할 때 보내야 하는 모양"을 정하고, 통과한 것만 저장해요.</p><p><b>Pydantic</b>은 "이 데이터는 이런 필드와 타입이어야 한다"를 클래스로 적어 두면 검사해 주는 라이브러리예요. 함수 인자 타입을 이 클래스로 두면, FastAPI가 요청 본문(JSON)을 이 모양으로 검사한 뒤에만 함수를 불러요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>class KnowledgeWrite(BaseModel)</code></td><td>등록과 수정 때 받을 모양. <code>id</code>는 없어요. 서버가 정하니까요.</td></tr><tr><td><code>Field(min_length=1, max_length=80)</code></td><td>빈 글이나 너무 긴 글을 막아요.</td></tr><tr><td><code>payload: KnowledgeWrite</code></td><td>요청 본문을 이 모양으로 검사해서 객체로 받아요.</td></tr><tr><td><code>payload.model_dump()</code></td><td>객체를 다시 dict로. 저장하려고요.</td></tr><tr><td><code>{&quot;id&quot;: data[&quot;next_id&quot;], **payload.model_dump()}</code></td><td>서버가 정한 번호에 받은 필드를 펼쳐 붙여요.</td></tr><tr><td><code>@app.post(&quot;/knowledge&quot;, status_code=201)</code></td><td>성공하면 200 대신 201(새로 만듦)</td></tr></table><details class="try"><summary>🔁 바꿔 보기: <code>title</code>을 빈 글로, <code>category</code>를 빼고, <code>title</code>을 숫자로 보내면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t4"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 고치기 (PUT)</h3><p class="does">번호로 항목을 찾아 받은 내용으로 통째로 바꿔요.</p><p>검사는 ④에서 만든 <code>KnowledgeWrite</code>를 그대로 다시 써요. 입력 규칙이 한 곳에만 있어서, 규칙을 바꿀 때 한 곳만 고치면 돼요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>e.update(payload.model_dump())</code></td><td>찾은 항목 dict의 값을 받은 값으로 덮어써요. <code>id</code>는 그대로예요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 지우기 (DELETE)</h3><p class="does">번호가 다른 항목만 남겨서 저장해요. 지운 게 없으면 404예요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>[e for e in ... if e[&quot;id&quot;] != knowledge_id]</code></td><td>지울 번호만 빼고 새 목록</td></tr><tr><td><code>len(kept) == len(data[&quot;entries&quot;])</code></td><td>길이가 그대로면 지운 게 없다는 뜻 → 404</td></tr><tr><td><code>status_code=204</code></td><td>성공했지만 돌려줄 본문이 없다는 뜻. 함수가 아무것도 돌려주지 않아요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/api/main.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>두 요청이 동시에 저장한다</td><td>둘 다 파일을 읽고, 각자 하나를 추가하고, 각자 저장하면 먼저 저장한 쪽이 사라져요. <code>threading.Lock</code>으로 "읽기부터 저장까지"를 한 번에 하나만 하게 막을 수 있지만, 서버가 여러 개면 소용없어요. 이게 DB를 쓰는 가장 큰 이유예요 (<a href="../../notes/day18.html">PostgreSQL</a>).</td></tr><tr><td>항목이 많아진다</td><td>지금은 요청마다 파일 전체를 읽고 써요. 항목이 수만 개가 되면 느려져요. 이것도 DB가 필요한 이유예요.</td></tr><tr><td>주소 순서가 겹친다</td><td><code>/knowledge/search</code>와 <code>/knowledge/{knowledge_id}</code>가 둘 다 있으면 먼저 등록한 쪽이 이겨요. 고정 주소를 먼저 등록해요.</td></tr><tr><td>422 응답을 사용자에게 보여 준다</td><td><code>detail</code>의 <code>loc</code>(어디)와 <code>msg</code>(왜)를 그대로 보여 주면 무엇을 고칠지 알 수 있어요.</td></tr><tr><td><code>--reload</code></td><td>코드가 바뀔 때마다 서버를 다시 띄우는 개발용 옵션이에요. 실제 운영에서는 빼요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>FastAPI()</code>, <code>@app.get</code></td><td>앱 만들기, 주소에 함수 연결 (fastapi)</td></tr><tr><td>②</td><td><code>Path.read_text()</code>, <code>json.loads()</code>, <code>json.dumps()</code></td><td>파일 저장소 (표준 라이브러리)</td></tr><tr><td>③</td><td><code>HTTPException(status_code, detail)</code></td><td>실패 응답 보내기 (fastapi)</td></tr><tr><td>④</td><td><code>BaseModel</code>, <code>Field()</code>, <code>model_dump()</code>, <code>@app.post(status_code=201)</code></td><td>입력 모양 검사 (pydantic), 등록</td></tr><tr><td>⑤ ⑥</td><td><code>@app.put</code>, <code>@app.delete(status_code=204)</code></td><td>수정, 삭제</td></tr><tr><td>확인</td><td><code>TestClient(app).get()</code>, <code>.post(json=...)</code></td><td>서버 없이 요청 보내 보기 (fastapi.testclient)</td></tr></table>
+      <p><code>read_data</code>, <code>write_data</code>와 각 주소의 함수는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="../../notes/day18.html">PostgreSQL 입문</a></td><td>파일 대신 DB에 저장하기</td></tr><tr><td><a href="../../notes/day19.html">FastAPI와 PostgreSQL 연동</a></td><td>이 API를 DB와 연결하기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day17 (2026-11-10) FastAPI 지식 관리 API</li><li>예제: <code>examples/api/main.py</code>, <code>examples/api/data/knowledge.json</code> (기존 노트의 예제 항목 세 개)</li><li>결과 값: <code>tools/pages/api_server.py</code>가 단계별로 실제 실행해 만든 <code>topics/backend/fastapi-data.js</code></li><li>공식 문서: <a href="https://fastapi.tiangolo.com/tutorial/" target="_blank">FastAPI Tutorial</a>, <a href="https://fastapi.tiangolo.com/tutorial/testing/" target="_blank">Testing</a>, <a href="https://docs.pydantic.dev/latest/concepts/fields/" target="_blank">Pydantic Field</a>, <a href="https://developer.mozilla.org/ko/docs/Web/HTTP/Status" target="_blank">HTTP 상태 코드</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="fastapi-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

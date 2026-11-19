@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회귀와 분류 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>회귀와 분류: 표 데이터로 예측하기</h1>
+      <div class="meta">모델 &gt; 머신러닝 기초 1/3쪽 &nbsp;|&nbsp; 다음: <a href="ml-trees-cv.html" style="color:inherit">트리와 교차검증</a></div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">지난 기록에서 규칙을 배워 <b>숫자를 맞히면 회귀</b>, <b>종류를 맞히면 분류</b>예요. 모델보다 먼저 <b>기준선, 지표, 나누기</b>를 정해야 점수가 의미를 가져요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      
+<p>"이 요청은 실패할까?", "처리에 얼마나 걸릴까?"처럼, 지난 기록으로 앞으로를 맞히고 싶을 때가 있어요. 사람이 규칙을 일일이 정하는 대신 <b>기록에서 규칙을 배우게</b> 하는 게 머신러닝이에요. 표(행과 열) 데이터에서는 보통 두 가지를 해요.</p>
+<table><tr><th>종류</th><th>맞히는 것</th><th>예</th></tr><tr><td><b>회귀</b></td><td>숫자</td><td>처리 시간 1,520 ms</td></tr><tr><td><b>분류</b></td><td>정해진 종류 중 하나</td><td>실패 / 성공</td></tr></table>
+<p>예제는 업무 요청 100건이에요.</p>
+<div class="out" data-out="data"></div>
+<p>모델을 만들기 전에 꼭 정해야 할 게 있어요. <b>무엇과 비교해서 잘했다고 할지</b>(기준선), <b>무엇으로 잴지</b>(지표), <b>어떤 데이터로 잴지</b>(나누기)예요. 이게 없으면 "정확도 70%"가 좋은 건지 나쁜 건지 알 수 없어요.</p>
+
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>나누고, 기준선을 정하고, 전처리를 묶고, 회귀와 분류를 해 보고, 같은 조건으로 비교해요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p><code>requests_model.py</code> 하나가 이 쪽(①~⑦)에서 시작해 <a href="ml-trees-cv.html">2쪽</a>(⑧~⑫), <a href="ml-metrics-clustering.html">3쪽</a>(⑬~⑰)까지 자라요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 데이터 읽고 나누기</h3><p class="does">요청을 받을 때 아는 네 열만 입력으로 고르고, 행을 train, valid, test로 나눠요.</p><p><b>train</b>으로 배우고, <b>valid</b>로 모델을 고르고, <b>test</b>는 마지막에 딱 한 번 성적을 매기는 데 써요. 같은 데이터로 배우고 채점하면, 답을 외운 모델도 100점이 나와요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>pd.read_csv(...).set_index(&quot;request_id&quot;)</code></td><td>표를 읽고, 요청 번호를 행 이름으로</td></tr><tr><td><code>manifest[manifest[&quot;split&quot;] == name]</code></td><td>이 쪽에 들어갈 행 번호만</td></tr><tr><td><code>raw.loc[ids]</code></td><td>그 번호의 행만 꺼내기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 기준선 만들기</h3><p class="does">아무것도 배우지 않는 모델의 점수를 먼저 재요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>DummyClassifier(strategy=&quot;most_frequent&quot;)</code></td><td>가장 많은 답(성공)만 말하는 분류기</td></tr><tr><td><code>DummyRegressor(strategy=&quot;mean&quot;)</code></td><td>train 평균만 말하는 회귀기</td></tr><tr><td><code>mean_absolute_error</code></td><td>예측과 실제 차이의 평균 (MAE). 작을수록 좋아요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 전처리를 Pipeline으로 묶기</h3><p class="does">빈 칸 채우기, 크기 맞추기, 글자를 숫자로 바꾸기를 모델과 한 덩어리로 묶어요.</p><p>전처리를 따로 하면 실수로 valid나 test까지 보고 기준(중앙값, 평균)을 정하기 쉬워요. 그러면 채점할 데이터를 미리 엿본 셈이에요. Pipeline으로 묶으면 <code>fit</code>할 때 <b>train만</b> 보고 기준을 정해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>SimpleImputer(strategy=&quot;median&quot;)</code></td><td>빈 칸을 중앙값으로</td></tr><tr><td><code>StandardScaler()</code></td><td>평균 0, 표준편차 1로</td></tr><tr><td><code>OneHotEncoder(handle_unknown=&quot;ignore&quot;)</code></td><td>글자 값마다 0/1 열. 처음 보는 값은 모두 0</td></tr><tr><td><code>ColumnTransformer([...])</code></td><td>열마다 다른 전처리</td></tr><tr><td><code>Pipeline([(&quot;pre&quot;, ...), (&quot;model&quot;, ...)])</code></td><td>전처리와 모델을 한 덩어리로</td></tr><tr><td><code>clone(model)</code></td><td>설정만 같은 새 모델. 같은 모델 객체를 여러 번 쓰지 않으려고</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 회귀: 처리 시간 예측</h3><p class="does">선형 회귀로 처리 시간을 맞히고, 기준선과 비교해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>LinearRegression()</code></td><td>입력에 곱할 가중치를 배워 더하는 가장 기본 회귀</td></tr><tr><td><code>r2_score</code></td><td>결정 계수. 평균보다 얼마나 나은지</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 분류: 실패 여부 예측</h3><p class="does">로지스틱 회귀로 실패를 맞히고, 혼동 행렬과 여러 지표로 봐요.</p><table><tr><th>지표</th><th>뜻</th></tr><tr><td>accuracy</td><td>전체 중 맞힌 비율</td></tr><tr><td>precision</td><td>"실패"라고 한 것 중 진짜 실패 비율</td></tr><tr><td>recall</td><td>진짜 실패 중 잡아낸 비율</td></tr><tr><td>F1</td><td>precision과 recall의 조화 평균</td></tr></table><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>LogisticRegression(max_iter=1000)</code></td><td>확률을 내는 선형 분류기. 0.5 이상이면 실패</td></tr><tr><td><code>confusion_matrix(y, pred, labels=[0, 1])</code></td><td>실제와 예측의 2×2 표</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ KNN: 거리로 판단하는 모델</h3><p class="does">가장 가까운 요청 5개의 결과로 투표해요. 거리를 쓰니 숫자 크기에 민감해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>KNeighborsClassifier(n_neighbors=5)</code></td><td>가까운 5개의 다수결</td></tr><tr><td><code>build(..., scale=False)</code></td><td>크기 맞추기를 빼고 비교</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 같은 조건으로 비교하기</h3><p class="does">모델만 바꾸고 나머지(나누기, 전처리, 지표)는 같게 해서 표로 비교해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>evaluate({이름: 모델})</code></td><td>모델마다 같은 train으로 배우고 같은 valid로 잰 표</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/ml/requests_model.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>데이터가 적다</td><td>valid 20건이면 한두 건만 바뀌어도 점수가 크게 흔들려요. 한 번의 점수로 고르지 말고 교차검증을 써요 (<a href="ml-trees-cv.html">2쪽</a>).</td></tr><tr><td>R²가 음수</td><td>모델보다 입력부터 의심해요. 처리 시간을 정말 설명할 값(서버 상태, 요청 내용 등)이 입력에 있나요?</td></tr><tr><td>실패가 드물다</td><td>정확도 대신 recall, F1을 보고, 필요하면 확률 기준(0.5)을 바꿔요 (<a href="ml-metrics-clustering.html">3쪽</a>).</td></tr><tr><td>처리 후에 생기는 열</td><td><code>status</code>처럼 결과가 이미 담긴 열을 입력에 넣으면 점수가 비현실적으로 높게 나와요. 실제로 쓸 때는 그 값이 없어서 무너져요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>pd.read_csv()</code>, <code>.loc[]</code></td><td>읽기, 나누기 (pandas)</td></tr><tr><td>②</td><td><code>DummyClassifier</code>, <code>DummyRegressor</code></td><td>기준선 (scikit-learn)</td></tr><tr><td>③</td><td><code>Pipeline</code>, <code>ColumnTransformer</code>, <code>SimpleImputer</code>, <code>StandardScaler</code>, <code>OneHotEncoder</code></td><td>전처리 묶기</td></tr><tr><td>④⑤</td><td><code>LinearRegression</code>, <code>LogisticRegression</code>, <code>mean_absolute_error</code>, <code>r2_score</code>, <code>confusion_matrix</code>, <code>f1_score</code></td><td>모델과 지표</td></tr><tr><td>⑥</td><td><code>KNeighborsClassifier</code></td><td>KNN</td></tr></table>
+      <p><code>part</code>, <code>build</code>, <code>evaluate</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="ml-trees-cv.html">트리와 앙상블, 교차검증</a></td><td>다른 모델과 믿을 만한 비교</td></tr><tr><td><a href="ml-metrics-clustering.html">평가지표, 특성 설계, 군집</a></td><td>확률 기준, 비용, 최종 평가</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day05~06 (2026-10-23, 26) 문제 정의, 전처리 Pipeline, 회귀, 분류, KNN, 모델 비교</li><li>데이터: <code>examples/ml/data/requests.csv</code> (가상의 업무 요청 100건)와 <code>split_manifest.csv</code> (train 60, valid 20, test 20). 기존 노트와 같은 예제</li><li>결과 값: <code>tools/pages/ml_basics.py</code>가 단계별로 실제 실행한 결과</li><li>공식 문서: <a href="https://scikit-learn.org/stable/modules/compose.html" target="_blank">Pipelines and composite estimators</a>, <a href="https://scikit-learn.org/stable/common_pitfalls.html" target="_blank">Common pitfalls</a>, <a href="https://scikit-learn.org/stable/modules/model_evaluation.html" target="_blank">Model evaluation</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="ml-regression-classification-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

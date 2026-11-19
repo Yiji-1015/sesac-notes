@@ -1,0 +1,34 @@
+{
+  "good": {
+    "label": "정상 답변",
+    "raw": "{\"status\": \"answered\", \"answer\": \"개인 폴더에 보관합니다.\", \"source_ids\": [101], \"missing_information\": \"\"}"
+  },
+  "missing": {
+    "label": "정보 부족을 제대로 알림",
+    "raw": "{\"status\": \"insufficient_context\", \"answer\": \"제공된 자료로는 답할 수 없습니다.\", \"source_ids\": [], \"missing_information\": \"보관 기간\"}"
+  },
+  "broken": {
+    "label": "닫는 괄호 빠짐",
+    "raw": "{\"status\":\"answered\",\"answer\":\"개인 폴더에 보관합니다.\",\"source_ids\":[101],\"missing_information\":\"\""
+  },
+  "string_id": {
+    "label": "출처 번호를 글자 \"101\"로",
+    "raw": "{\"status\": \"answered\", \"answer\": \"개인 폴더에 보관합니다.\", \"source_ids\": [\"101\"], \"missing_information\": \"\"}"
+  },
+  "extra": {
+    "label": "없는 필드 confidence 추가",
+    "raw": "{\"status\": \"answered\", \"answer\": \"개인 폴더에 보관합니다.\", \"source_ids\": [101], \"missing_information\": \"\", \"confidence\": 0.9}"
+  },
+  "unknown": {
+    "label": "주지 않은 자료 999를 출처로",
+    "raw": "{\"status\": \"answered\", \"answer\": \"개인 폴더에 보관합니다.\", \"source_ids\": [999], \"missing_information\": \"\"}"
+  },
+  "duplicate": {
+    "label": "출처 번호 중복",
+    "raw": "{\"status\": \"answered\", \"answer\": \"개인 폴더에 보관합니다.\", \"source_ids\": [101, 101], \"missing_information\": \"\"}"
+  },
+  "status": {
+    "label": "정보 부족이라면서 출처를 댐",
+    "raw": "{\"status\": \"insufficient_context\", \"answer\": \"제공된 자료로는 답할 수 없습니다.\", \"source_ids\": [101], \"missing_information\": \"보관 위치\"}"
+  }
+}

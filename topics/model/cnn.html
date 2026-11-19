@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNN과 이미지 분류 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>CNN과 이미지 분류: 작은 무늬를 어디서든 찾기</h1>
+      <div class="meta">모델 &gt; 이미지</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line"><b>CNN</b>은 작은 무늬(합성곱)를 그림 전체에 밀며 찾아요. 그래서 <b>가중치가 훨씬 적고</b>, 물체의 <b>위치가 바뀌어도</b> 같은 물체로 알아봐요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>그림을 컴퓨터에 넣으면 숫자 격자예요. 64×64 흑백 그림이면 숫자 4,096개예요.</p><div class="out" data-out="data"></div>
+<p>이 숫자들을 <a href="dl-tensor-training.html">신경망</a>에 그대로 펼쳐 넣을 수도 있어요. 하지만 그림에는 표 데이터와 다른 성질이 있어요. <b>가까운 픽셀끼리 의미가 있고</b>(선, 모서리), <b>같은 물체가 어디에 있든 같은 물체</b>예요. 두 방식을 실제로 비교하면:</p><div class="out" data-out="why"></div>
+<p><b>CNN</b>(합성곱 신경망)은 작은 무늬를 그림 전체에 밀며 찾는 방식으로 이 두 성질을 이용해요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>그림을 Tensor로 → 펼친 MLP로 기준선 → 무늬 하나를 손으로 대 보기 → CNN → 같은 조건으로 학습 → 위치를 바꿔 시험. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 그림을 Tensor로</h3><p class="does">폴더 이름을 정답으로 쓰는 ImageFolder로 읽고, 흑백 Tensor로 바꿔요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>datasets.ImageFolder(DATA / split, transform=...)</code></td><td><code>train/horizontal/*.png</code>처럼 폴더별로 나뉜 그림을 읽고, 폴더 이름을 정답으로</td></tr><tr><td><code>transforms.Grayscale()</code></td><td>컬러를 흑백 한 장으로</td></tr><tr><td><code>transforms.ToTensor()</code></td><td>0~255 픽셀을 0~1 실수 Tensor로, 모양은 (채널, 세로, 가로)</td></tr><tr><td><code>torch.stack([...])</code></td><td>그림들을 하나의 Tensor로 쌓기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 픽셀을 그냥 펼치면 (MLP)</h3><p class="does">4,096개 픽셀을 한 줄로 펼쳐 일반 신경망에 넣어요. 기준선이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nn.Flatten()</code></td><td>(1, 64, 64)를 4,096개 한 줄로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 합성곱 한 번: 작은 무늬 찾기</h3><p class="does">가로 선과 세로 선에 반응하는 3×3 무늬를 직접 정해, 그림에 대 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>[[-1,-1,-1],[2,2,2],[-1,-1,-1]]</code></td><td>가운데 줄이 밝고 위아래가 어두우면 큰 값. 가로 선 무늬</td></tr><tr><td><code>horizontal_kernel.T</code></td><td>뒤집으면 세로 선 무늬</td></tr><tr><td><code>F.conv2d(sample, kernels, padding=1)</code></td><td>무늬를 그림 모든 자리에 대 보고 곱해서 더한 값을 지도로. 가장자리에 0을 둘러 크기를 유지</td></tr><tr><td><code>F.relu(...)</code></td><td>음수 반응은 0으로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ CNN 만들기</h3><p class="does">합성곱과 풀링을 두 번 쌓고, 마지막에 위치를 평균 내 분류해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nn.Conv2d(1, 8, 3, padding=1)</code></td><td>3×3 무늬 8개를 학습. 결과는 무늬별 지도 8장</td></tr><tr><td><code>nn.MaxPool2d(2)</code></td><td>2×2마다 가장 큰 값만. 크기를 절반으로 줄이고 작은 위치 차이를 흡수</td></tr><tr><td><code>nn.AdaptiveAvgPool2d(1)</code></td><td>지도마다 전체 평균 하나. "어디에"는 버리고 "있나"만 남겨요.</td></tr><tr><td><code>count(model)</code></td><td>가중치 수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 학습하고 비교하기</h3><p class="does">두 모델을 같은 데이터, 같은 Optimizer, 같은 횟수로 학습해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>F.cross_entropy(model(X), y)</code></td><td>여러 종류 분류의 손실. 모델 출력은 종류마다 점수 하나</td></tr><tr><td><code>model(X).argmax(1)</code></td><td>점수가 가장 큰 종류</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 선의 위치가 바뀌면</h3><p class="does">valid 그림을 아래, 오른쪽으로 k칸씩 옮겨서 다시 맞혀 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.roll(X, shifts=(k, k), dims=(2, 3))</code></td><td>세로, 가로로 k칸씩 밀기 (밀려난 부분은 반대쪽으로)</td></tr></table><div class="out" data-out="s6img"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/cnn/lines_cnn.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>진짜 사진</td><td>사진은 훨씬 복잡해서 층이 많은 CNN이 필요해요. 처음부터 배우기보다 큰 데이터로 미리 배운 모델을 빌려 써요 (<a href="transfer-learning.html">전이학습과 오류 분석</a>).</td></tr><tr><td>컬러 사진</td><td>채널이 3이라 첫 층이 <code>nn.Conv2d(3, …)</code>예요. 정규화(평균, 표준편차 맞추기)도 같이 해요.</td></tr><tr><td>데이터가 적다</td><td>뒤집기, 조금 옮기기, 밝기 바꾸기로 그림을 늘려요(증강). 단, 정답이 바뀌는 변형은 안 돼요. 가로줄 그림을 90도 돌리면 세로줄이 돼요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>datasets.ImageFolder</code>, <code>transforms.Compose</code>, <code>Grayscale</code>, <code>ToTensor</code></td><td>그림 읽기 (torchvision)</td></tr><tr><td>②④</td><td><code>nn.Flatten</code>, <code>nn.Conv2d</code>, <code>nn.MaxPool2d</code>, <code>nn.AdaptiveAvgPool2d</code></td><td>층 (torch.nn)</td></tr><tr><td>③</td><td><code>F.conv2d</code>, <code>F.relu</code></td><td>합성곱 직접 계산</td></tr><tr><td>⑤⑥</td><td><code>F.cross_entropy</code>, <code>torch.roll</code></td><td>학습, 옮기기</td></tr></table>
+      <p><code>load</code>, <code>make_mlp</code>, <code>make_cnn</code>, <code>count</code>, <code>fit</code>, <code>acc</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="transfer-learning.html">전이학습과 오류 분석</a></td><td>미리 배운 CNN 빌려 쓰기</td></tr><tr><td><a href="opencv-preprocessing.html">OpenCV 전처리</a></td><td>모델에 넣기 전 그림 다듬기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day11 (2026-11-02) Image Tensor, CNN, Pooling, 이미지 분류</li><li>데이터: <code>examples/cnn/data/</code> (64×64 가로줄, 세로줄 그림. 기존 노트와 같은 예제)</li><li>결과 값: <code>tools/pages/cnn_lines.py</code> (seed 0)</li><li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html" target="_blank">nn.Conv2d</a>, <a href="https://docs.pytorch.org/vision/stable/generated/torchvision.datasets.ImageFolder.html" target="_blank">ImageFolder</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="cnn-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

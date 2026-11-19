@@ -23,7 +23,7 @@
       <p class="one-line"><b>인덱싱</b>은 조각을 벡터와 함께 DB에 저장해서 <b>질문과 가까운 조각을 찾을 수 있게</b> 하고, <b>확인이 끝난 판만 검색에 보이게</b> 하는 단계예요.</p>
 
       <h2 id="why">🤔 왜 필요할까?</h2>
-      <p>입력은 <a href="chunking.html">2쪽</a>에서 만든 조각 13개(<code>chunks.json</code>)예요. 이걸 검색에 쓰려면 세 가지가 필요해요.</p>
+      <p>입력은 <a href="chunking.html">2쪽</a>에서 만든 조각 12개(<code>chunks.json</code>)예요. 이걸 검색에 쓰려면 세 가지가 필요해요.</p>
 
       <h3>필요 1. 질문과 비슷한 조각을 찾기</h3>
       <p>2쪽 "왜"에서 본 것처럼, 비슷한지는 텍스트를 숫자 목록(<b>벡터</b>)으로 바꿔 거리를 재서 판단해요. 질문이 올 때마다 모든 조각의 벡터를 새로 만들면 느리니까, 조각의 벡터는 <b>미리 만들어 저장</b>해 두고 질문의 벡터만 그때 만들어요.</p>
@@ -38,7 +38,7 @@
       <p>새 판을 넣는 도중에 검색이 들어오면, 반쯤 들어간 새 판이 보이면 안 돼요. 그래서 새 판은 <b>먼저 다 넣고, 개수가 맞는지 확인한 다음, 한 번에 공개</b>해요. 확인에 실패하면 공개하지 않아서 옛 판이 그대로 보여요.</p>
       <p><b>그래서 이 단계는</b> 벡터를 만들고, 판 번호와 함께 저장하고, 확인한 뒤 공개하고, 공개된 판에서만 검색해요.</p>
 
-      <h2 id="whole">🗺️ 통째로 한 번: 조각 13개가 검색되기까지</h2>
+      <h2 id="whole">🗺️ 통째로 한 번: 조각 12개가 검색되기까지</h2>
       <p>상자를 누르면 그 단계로 이동해요.</p>
       <div class="flow" id="flow"></div>
       <div class="out" id="final"></div>
@@ -52,21 +52,19 @@
           <section class="step" data-step="14" id="s14">
             <span class="label">코드의 ⑭ 부분</span>
             <h3>⑭ 벡터 만들기</h3>
-            <p class="does">조각마다 256칸짜리 벡터를 만들어요.</p>
-            <p class="kicker">먼저 밝혀 둘 것: 이건 임시 벡터예요</p>
-            <p>원래는 Embedding 모델(예: multilingual-e5-small)로 벡터를 만들어야 하지만, 이 PC에는 한국어 Embedding 모델이 없어요. 그래서 대신 <b>"글자 2개 묶음을 256칸에 나눠 세는"</b> 벡터를 써요. 뜻이 아니라 <b>글자가 겹치는 정도</b>만 반영해요. 코드에서 <code>embed()</code> 안만 바꾸면 Embedding 모델로 갈아 끼울 수 있게 함수로 나눠 뒀어요.</p>
-            <p>질문 하나가 어떻게 숫자가 되는지 실제로 보면:</p>
+            <p class="does">Embedding 모델로 조각마다 384칸짜리 벡터를 만들어요.</p>
+            <p>모델은 2쪽 ⑨에서 토큰을 센 그 모델, <code>intfloat/multilingual-e5-small</code>이에요. 한국어를 포함한 여러 언어를 같은 공간의 벡터로 바꿔 줘서, 글자가 겹치지 않아도 <b>뜻이 비슷하면 가까운 벡터</b>가 나와요.</p>
+            <p>이 모델은 입력 앞에 무엇인지 표시를 붙여 쓰도록 학습됐어요. 저장할 조각에는 <code>passage: </code>, 검색할 질문에는 <code>query: </code>를 붙여요. 실제로 모델에 들어가는 글은 이래요.</p>
             <div class="out" id="o14a"></div>
-            <p>글자 2개 묶음마다 정해진 칸(256칸 중 하나)에 1을 더하고, 마지막에 벡터 길이가 1이 되도록 나눠요. 길이가 1인 벡터끼리는 곱해서 더한 값(내적)이 바로 <b>코사인 유사도</b>예요. 두 벡터가 같은 방향이면 1, 겹치는 게 없으면 0이에요. DB에서는 이걸 거리로 써요: <b>코사인 거리 = 1 − 코사인 유사도</b>. 작을수록 가까워요.</p>
+            <p><code>normalize_embeddings=True</code>로 벡터 길이를 1로 맞추면, 두 벡터를 곱해서 더한 값(내적)이 바로 <b>코사인 유사도</b>예요. 같은 방향이면 1에 가까워요. DB에서는 이걸 거리로 써요: <b>코사인 거리 = 1 − 코사인 유사도</b>. 작을수록 가까워요.</p>
             <p class="kicker">코드 읽기</p>
             <table>
               <tr><th>코드</th><th>뜻</th></tr>
-              <tr><td><code>analyzer="char_wb"</code>, <code>ngram_range=(2, 2)</code></td><td>단어 안에서 글자 2개씩 묶기. 단어 앞뒤에 공백을 붙여서 "단어의 시작과 끝"도 묶음이 돼요.</td></tr>
-              <tr><td><code>n_features=DIM</code></td><td>칸 수(256). 묶음마다 해시로 칸을 정해서, 사전을 만들 필요가 없어요.</td></tr>
-              <tr><td><code>alternate_sign=False</code></td><td>칸에 언제나 더하기만. 기본값은 빼기도 섞어요.</td></tr>
-              <tr><td><code>norm="l2"</code></td><td>벡터 길이를 1로 맞추기</td></tr>
-              <tr><td><code>.toarray().astype(np.float32)</code></td><td>대부분 0인 "희소 행렬"을 보통 배열로, 32비트 실수로. pgvector는 32비트 실수를 저장해요.</td></tr>
-              <tr><td><code>embed_text(c)</code></td><td>2쪽에서 찾은 섹션 제목을 본문 앞에 붙여요. "열람실" 같은 제목이 본문에 없어도 검색에 걸리게요.</td></tr>
+              <tr><td><code>SentenceTransformer(MODEL)</code></td><td>문장을 벡터로 바꾸는 모델을 불러와요. 이 PC에 받아 둔 파일을 써요.</td></tr>
+              <tr><td><code>model.get_sentence_embedding_dimension()</code></td><td>벡터 칸 수(이 모델은 384). ⑮의 테이블이 이 값을 따라가요.</td></tr>
+              <tr><td><code>model.encode(texts, normalize_embeddings=True)</code></td><td>글 목록을 한 번에 벡터 목록으로. 길이는 1로 맞춰요.</td></tr>
+              <tr><td><code>f"{kind}: {t}"</code></td><td>조각이면 <code>passage: </code>, 질문이면 <code>query: </code>를 앞에 붙여요.</td></tr>
+              <tr><td><code>embed_text(c)</code></td><td>2쪽에서 찾은 섹션 제목을 본문 앞에 붙여요. "열람실" 같은 제목이 본문에 없어도 문맥이 들어가게요.</td></tr>
             </table>
             <p class="kicker">이 단계까지 실행하면</p>
             <div class="out" id="o14"></div>
@@ -88,7 +86,7 @@
               <tr><td><code>published int</code></td><td>지금 검색에 보이는 판 번호. 처음엔 비어 있어요(<code>NULL</code>).</td></tr>
               <tr><td><code>REFERENCES documents (file)</code></td><td><code>documents</code>에 없는 파일의 조각은 넣을 수 없어요.</td></tr>
               <tr><td><code>location</code></td><td>2쪽의 <code>where</code>(쪽 정보)예요. <code>WHERE</code>는 SQL 문법 단어라 열 이름을 바꿨어요.</td></tr>
-              <tr><td><code>embedding vector(256)</code></td><td>256칸 벡터를 담는 열</td></tr>
+              <tr><td><code>embedding vector({DIM})</code></td><td>⑭의 모델 칸 수(384)만큼의 벡터를 담는 열</td></tr>
             </table>
             <p class="kicker">이 단계까지 실행하면</p>
             <div class="out" id="o15"></div>
@@ -156,7 +154,7 @@
               <p class="hint">먼저 예상해 보고 펼쳐 보세요.</p>
               <div id="t18"></div>
             </details>
-            <p class="kicker">임시 벡터의 한계</p>
+            <p class="kicker">의미 검색도 놓치는 것</p>
             <div class="out" id="o18b"></div>
           </section>
 
@@ -177,7 +175,7 @@
       <h2 id="practice">🛠️ 실제로 할 때</h2>
       <table>
         <tr><th>상황</th><th>어떻게</th></tr>
-        <tr><td>Embedding 모델로 바꾸기</td><td><code>embed()</code> 안을 Embedding 모델 호출로 바꾸고, <code>DIM</code>을 그 모델의 차원으로 맞춰요 (예: multilingual-e5-small은 384). e5 계열은 질문 앞에 <code>"query: "</code>, 조각 앞에 <code>"passage: "</code>를 붙여 쓰라고 안내해요 (공식 문서). 자세한 내용은 <a href="../../notes/day23.html">Embedding 노트</a>를 보세요.</td></tr>
+        <tr><td>다른 Embedding 모델로 바꾸기</td><td>2쪽 ⑨의 <code>MODEL</code> 한 줄만 바꾸면 토큰 세기와 벡터가 같이 바뀌어요. <code>DIM</code>도 모델에서 읽어요. 단, 이미 저장된 벡터와 새 모델의 벡터는 섞어 쓸 수 없어서 전부 다시 만들어요. 접두어(<code>query: </code>, <code>passage: </code>) 같은 사용법은 모델마다 달라서 그 모델의 문서를 확인해요. 자세한 내용은 <a href="../../notes/day23.html">Embedding 노트</a>를 보세요.</td></tr>
         <tr><td>조각이 아주 많다</td><td>지금은 모든 조각과 거리를 재요. 수십만 개가 되면 <code>CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops)</code>로 근사 검색 인덱스를 만들어요. 아주 조금 덜 정확한 대신 훨씬 빨라요.</td></tr>
         <tr><td>판마다 조각을 전부 다시 넣는 게 아깝다</td><td>지금은 판 2에도 바뀌지 않은 조각까지 다시 넣어요(단순하고 확인이 쉬워요). 조각이 많으면 2쪽의 <code>chunk_id</code>로 바뀐 조각만 찾아 새로 벡터를 만들고, 나머지는 재사용하는 방식도 있어요.</td></tr>
         <tr><td>옛 판 정리</td><td>공개가 바뀐 뒤에도 옛 판은 잠시 남겨 두면, 문제가 생겼을 때 <code>published</code>만 되돌려 바로 복구할 수 있어요. 일정 기간이 지나면 지워요.</td></tr>
@@ -187,7 +185,7 @@
       <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
       <table>
         <tr><th>단계</th><th>함수와 SQL</th><th>하는 일</th></tr>
-        <tr><td>⑭</td><td><code>HashingVectorizer(...).transform(texts)</code>, <code>toarray()</code>, <code>astype(np.float32)</code></td><td>임시 벡터 만들기 (scikit-learn, numpy)</td></tr>
+        <tr><td>⑭</td><td><code>SentenceTransformer(name)</code>, <code>encode(texts, normalize_embeddings=True)</code>, <code>get_sentence_embedding_dimension()</code></td><td>Embedding 모델로 벡터 만들기 (sentence-transformers)</td></tr>
         <tr><td>⑮</td><td><code>psycopg.connect()</code>, <code>register_vector(conn)</code>, <code>CREATE EXTENSION</code>, <code>CREATE TABLE</code></td><td>접속, 벡터 타입 등록, 테이블 (psycopg, pgvector)</td></tr>
         <tr><td>⑯</td><td><code>conn.transaction()</code>, <code>conn.execute(sql, params)</code>, <code>INSERT … ON CONFLICT DO NOTHING</code></td><td>트랜잭션 안에서 적재</td></tr>
         <tr><td>⑰</td><td><code>collections.Counter</code>, <code>SELECT count(*)</code>, <code>UPDATE</code></td><td>개수 확인, 공개 판 바꾸기</td></tr>
@@ -210,7 +208,7 @@
         <li>예제 문서: <code>examples/ingest/raw/</code> (이 노트용으로 직접 만든 가상 자료)</li>
         <li>전체 코드: <code>examples/ingest/ingest.py</code></li>
         <li>결과 값: <code>tools/io_indexing.py</code>가 노트 전용 DB를 만들어 코드를 단계별로 실제 실행하고 지운 결과 (<code>topics/backend/indexing-data.js</code>). 실행 환경 <span id="env"></span></li>
-        <li>공식 문서: <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector</a>, <a href="https://github.com/pgvector/pgvector-python" target="_blank">pgvector-python</a>, <a href="https://www.psycopg.org/psycopg3/docs/basic/transactions.html" target="_blank">psycopg 트랜잭션</a>, <a href="https://www.postgresql.org/docs/current/sql-insert.html" target="_blank">INSERT ON CONFLICT</a>, <a href="https://www.postgresql.org/docs/current/libpq-envars.html" target="_blank">libpq 환경 변수</a>, <a href="https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.HashingVectorizer.html" target="_blank">HashingVectorizer</a>, <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a></li>
+        <li>공식 문서: <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector</a>, <a href="https://github.com/pgvector/pgvector-python" target="_blank">pgvector-python</a>, <a href="https://www.psycopg.org/psycopg3/docs/basic/transactions.html" target="_blank">psycopg 트랜잭션</a>, <a href="https://www.postgresql.org/docs/current/sql-insert.html" target="_blank">INSERT ON CONFLICT</a>, <a href="https://www.postgresql.org/docs/current/libpq-envars.html" target="_blank">libpq 환경 변수</a>, <a href="https://sbert.net/docs/package_reference/sentence_transformer/SentenceTransformer.html" target="_blank">SentenceTransformer</a>, <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a></li>
       </ul>
     </article>
   </main>
@@ -233,23 +231,24 @@
     /* ---------- 통째로 ---------- */
     const docs17 = S[17].docs;
     const boxes = [
-      [14, "벡터", `${S[14].shape[0]} × ${S[14].shape[1]}`, "조각 13개, 256칸"],
+      [14, "벡터", `${S[14].shape[0]} × ${S[14].shape[1]}`, `e5 모델, ${S[14].shape[1]}칸`],
       [15, "테이블", "2개", "documents, chunks"],
       [16, "적재", `${S[16].chunks}행`, "판 1, 아직 비공개"],
       [17, "공개", `문서 ${docs17.length}개`, "published = 1"],
       [18, "검색", "가까운 3개", "공개된 판에서만"],
     ];
-    $("flow").innerHTML = `<div class="box" onclick="location.href='chunking.html'"><span class="n">2쪽 결과</span><span class="big">조각 13개</span><small>chunks.json</small></div><span class="arrow">→</span>` +
+    $("flow").innerHTML = `<div class="box" onclick="location.href='chunking.html'"><span class="n">2쪽 결과</span><span class="big">조각 ${S[14].shape[0]}개</span><small>chunks.json</small></div><span class="arrow">→</span>` +
       boxes.map((b, i) => `${i ? '<span class="arrow">→</span>' : ""}<div class="box" data-go="${b[0]}"><span class="n">${C[b[0] - 1]} ${b[1]}</span><span class="big">${b[2]}</span><small>${esc(b[3])}</small></div>`).join("");
     $("final").innerHTML = `<div class="ttl">▶ 최종 결과: 질문 세 개를 검색하면</div>` + S[18].results.map(r => `<div class="note"><b>${esc(r.q)}</b></div>` + resTable(r.rows)).join("");
 
     /* ---------- ⑭ ---------- */
     const V = S[14];
-    $("o14a").innerHTML = `<div class="ttl">▶ "${esc(V.q)}"의 글자 2개 묶음</div><div class="note">${X.bigrams.map(b => `<code style="margin:2px;white-space:pre">${esc(b.replace(/ /g, "␣"))}</code>`).join(" ")}</div>` +
-      `<ol class="ann"><li><code>␣</code>는 공백이에요. "<code>␣대</code>"는 "대출"이라는 단어의 시작, "<code>출␣</code>"는 끝이에요.</li><li>이 ${X.bigrams.length}개 묶음이 256칸 중 ${V.q_nonzero}칸에 나눠 세져요 (몇 개는 같은 칸에 겹칠 수 있어요).</li></ol>`;
-    $("o14").innerHTML = `<div class="ttl">▶ ⑭ 실행 결과</div><pre><code>vectors.shape → (${V.shape.join(", ")})<span class="mk">①</span>\nvectors[0] 중 0이 아닌 칸 → ${V.nonzero}개,  길이 → ${V.norm}<span class="mk">②</span>\nembed_text(chunks[0]) → ${esc(q(V.embed_text.slice(0, 34)))}…<span class="mk">③</span></code></pre>` +
-      `<ol class="ann"><li>조각 ${V.shape[0]}개, 각각 ${V.shape[1]}칸</li><li>대부분의 칸은 0이고, 길이는 1로 맞춰져 있어요.</li><li>제목 "대출과 반납"이 본문 앞에 붙었어요.</li></ol>` +
-      `<div class="note">질문 "${esc(V.q)}"와 조각 13개의 거리를 파이썬으로 직접 재 보면 (⑱에서 DB가 하는 계산과 같아요):</div>` +
+    $("o14a").innerHTML = `<div class="ttl">▶ 모델에 들어가는 글</div><pre><code>${V.inputs.map(t => esc(t).replace(/^(passage|query): /, '<span class="newf">$1: </span>').replace(/\n/g, "⏎")).join("\n\n")}</code></pre>`;
+    $("o14").innerHTML = `<div class="ttl">▶ ⑭ 실행 결과</div><pre><code>vectors.shape → (${V.shape.join(", ")})<span class="mk">①</span>
+vectors[0] 앞 6칸 → [${V.first.join(", ")}, …]
+vectors[0]의 길이 → ${V.norm}<span class="mk">②</span></code></pre>` +
+      `<ol class="ann"><li>조각 ${V.shape[0]}개, 각각 ${V.shape[1]}칸</li><li>길이가 1로 맞춰져 있어요. 칸 하나하나의 숫자에는 사람이 읽을 뜻이 없고, 벡터끼리의 방향만 의미가 있어요.</li></ol>` +
+      `<div class="note">질문 "${esc(V.q)}"와 조각 ${V.shape[0]}개의 거리를 파이썬으로 직접 재 보면 (⑱에서 DB가 하는 계산과 같아요):</div>` +
       tbl(["file", "heading", "코사인 유사도", "코사인 거리", "본문 첫 줄"], [...V.dist].sort((a, b) => a.dist - b.dist).map(d =>
         [`<code>${d.file}</code>`, d.heading ? esc(d.heading) : "", d.cos.toFixed(3), `<b>${d.dist.toFixed(3)}</b>`, esc(d.body)]));
 
@@ -287,7 +286,7 @@
       `<p>"왜"에서 본 것처럼 14일과 21일이 같이 나오는 일이 없어요.</p>`;
     const WK = X.weekend;
     $("o18b").innerHTML = `<div class="ttl">▶ "${esc(WK.q)}" 상위 5개</div>` + resTable(WK.rows) +
-      `<div class="note">답은 hours.html의 "구분: 열람실, …, 주말: 휴실" 줄에 있는데, ${(() => { const i = WK.rows.findIndex(r => r.body.includes("주말: 휴실")); return i < 0 ? "5위 안에도 없어요" : `<b>${i + 1}위</b>예요`; })()}. 임시 벡터는 <b>글자가 겹치는 정도</b>만 보기 때문에, "열람실"이라는 글자가 여러 번 나오는 조각을 더 가깝다고 봐요. 뜻을 반영하는 Embedding 모델로 바꿔야 이런 질문에 강해져요.</div>`;
+      `<div class="note">답은 hours.html 조각의 "구분: 열람실, …, 주말: 휴실" 줄에 있는데, ${(() => { const i = WK.rows.findIndex(r => r.body.includes("주말: 휴실")); return i < 0 ? "5위 안에도 없어요" : `<b>${i + 1}위</b>예요`; })()}. 그 조각에는 운영 시간 안내 문장과 자료실, 열람실 표가 <b>함께</b> 들어 있어서, "주말 열람실"과 딱 맞는 부분은 일부뿐이에요. 1위인 「열람실」 조각은 주말 이야기는 없지만 열람실만 다뤄요. 표를 줄마다 따로 조각으로 두면 이런 질문에 더 잘 맞아요 (<a href="chunking.html">2쪽</a>의 나누는 방식 문제).</div>`;
 
     $("env").textContent = `Python ${P.meta.python}, PostgreSQL ${S[15].pg}, pgvector ${S[15].pgvector}, psycopg ${P.meta.psycopg}, scikit-learn ${P.meta.sklearn}`;
   })();

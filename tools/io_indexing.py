@@ -22,7 +22,7 @@ import stepcode  # noqa: E402
 import numpy as np  # noqa: E402
 import pgvector  # noqa: E402
 import psycopg  # noqa: E402
-import sklearn  # noqa: E402
+import sentence_transformers  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 EX = ROOT / "examples" / "ingest"
@@ -56,17 +56,19 @@ try:
     # ---- ⑭ 벡터 ----------------------------------------------------------------
     ns = run(14)
     v = ns["vectors"]
-    qv = ns["embed"]([Q[0]])[0]
+    qv = ns["embed"]([Q[0]], "query")[0]
     c0 = ns["chunks"][0]
     sims = (ns["vectors"] @ qv).tolist()
-    out["steps"][14] = {"shape": list(v.shape), "dtype": str(v.dtype), "nonzero": int((v[0] > 0).sum()),
-                        "norm": round(float(np.linalg.norm(v[0])), 4), "first5": [round(float(x), 3) for x in v[0][:12]],
-                        "embed_text": ns["embed_text"](c0),
-                        "q": Q[0], "q_nonzero": int((qv > 0).sum()),
+    out["steps"][14] = {"shape": list(v.shape), "dtype": str(v.dtype),
+                        "norm": round(float(np.linalg.norm(v[0])), 4), "first": [round(float(x), 4) for x in v[0][:6]],
+                        "embed_text": ns["embed_text"](c0), "model": ns["MODEL"],
+                        "inputs": [f"passage: {ns['embed_text'](c0)}", f"query: {Q[0]}"],
+                        "q": Q[0],
                         "dist": [{"file": c["file"], "heading": c["heading"], "where": c["where"], "body": c["body"].splitlines()[0],
                                   "cos": round(s, 3), "dist": round(1 - s, 3)} for c, s in zip(ns["chunks"], sims)]}
-    bigrams = ns["hasher"].build_analyzer()(Q[0])
-    out["exp"]["bigrams"] = bigrams
+    noprefix = ns["model"].encode([Q[0]], normalize_embeddings=True)[0]
+    out["exp"]["noprefix"] = [{"heading": c["heading"], "file": c["file"], "with": round(float(a), 3), "without": round(float(b), 3)}
+                              for c, a, b in zip(ns["chunks"], (ns["vectors"] @ qv).tolist(), (ns["vectors"] @ noprefix).tolist())]
 
     # ---- ⑮~⑱ 한 DB 에서 차례대로 ------------------------------------------------
     notes_pg.fresh()
@@ -118,7 +120,7 @@ try:
 
     # ---- 왜: 판을 구분하지 않고 섞어 두면 -------------------------------------------
     mixed = ns1["conn"].execute("""SELECT c.file, c.version, c.body, c.embedding <=> %s AS d FROM chunks c
-                                   ORDER BY d LIMIT 3""", (ns1["embed"]([Q[0]])[0],)).fetchall()
+                                   ORDER BY d LIMIT 3""", (ns1["embed"]([Q[0]], "query")[0],)).fetchall()
     out["why"] = {"mixed": [{"file": r[0], "version": r[1], "body": r[2], "distance": round(float(r[3]), 3)} for r in mixed]}
     ns1["conn"].close()
 
@@ -144,7 +146,7 @@ out["code"] = [c for c in code if c["s"] <= RANGE[1]]
 out["names"] = stepcode.names(out["code"])
 out["range"] = RANGE
 out["meta"] = {"python": sys.version.split()[0], "psycopg": psycopg.__version__, "pgvector_py": pgvector.__version__ if hasattr(pgvector, "__version__") else "?",
-               "sklearn": sklearn.__version__}
+               "sentence_transformers": sentence_transformers.__version__}
 dst = ROOT / "topics" / "backend" / "indexing-data.js"
 dst.write_text("window.PAGE = " + json.dumps(out, ensure_ascii=False, indent=1) + ";\n", encoding="utf-8")
 shutil.rmtree(W, ignore_errors=True)
