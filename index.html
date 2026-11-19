@@ -5,185 +5,232 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>부트캠프 학습 노트</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    :root { --t-model: var(--dl); --t-model-soft: var(--dl-soft); --t-back: var(--llm); --t-back-soft: var(--llm-soft); }
+
+    /* 시스템 지도 */
+    .sysmap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; margin-top: 28px; }
+    .sysmap h2 { margin: 0 0 4px; font-size: 1.15rem; }
+    .sysmap > p { margin: 0 0 12px; color: var(--muted); font-size: .9rem; }
+    .lane { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; }
+    .lane .lname { width: 92px; flex: none; font-size: .8rem; font-weight: 800; color: var(--muted); }
+    .lane .node { display: inline-block; padding: 7px 12px; border-radius: 10px; font-size: .88rem; font-weight: 700; border: 2px solid var(--line); background: var(--bg); color: var(--text); }
+    .lane a.node:hover { text-decoration: none; transform: translateY(-1px); }
+    .lane .node.model { border-color: var(--t-model); background: var(--t-model-soft); }
+    .lane .node.back { border-color: var(--t-back); background: var(--t-back-soft); }
+    .lane .node.plain { border-style: dashed; color: var(--muted); font-weight: 600; }
+    .lane .arr { color: var(--muted); font-weight: 800; }
+    .legend2 { font-size: .8rem; color: var(--muted); margin-top: 6px; }
+    .legend2 i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin: 0 4px 0 12px; border: 2px solid; }
+
+    /* 갈래와 카테고리 */
+    .track { margin-top: 36px; }
+    .track > h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 4px; font-size: 1.45rem; }
+    .track > p { margin: 0 0 14px; color: var(--muted); }
+    .track.model > h2 { color: var(--t-model); }
+    .track.back > h2 { color: var(--t-back); }
+    .cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
+    .cat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; border-top: 5px solid; }
+    .track.model .cat { border-top-color: var(--t-model); }
+    .track.back .cat { border-top-color: var(--t-back); }
+    .cat h3 { margin: 0 0 2px; font-size: 1.1rem; }
+    .cat > p { margin: 0 0 10px; color: var(--muted); font-size: .88rem; }
+    .item { display: block; padding: 9px 10px; border-radius: 10px; color: var(--text); border: 1px solid transparent; }
+    .item:hover { text-decoration: none; background: var(--bg); border-color: var(--line); }
+    .item b { font-size: .97rem; }
+    .item small { display: block; color: var(--muted); font-size: .84rem; margin-top: 1px; }
+    .badge { display: inline-block; font-size: .72rem; font-weight: 800; border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 1px; }
+    .badge.new { background: #d3f9d8; color: #2b8a3e; }
+    .badge.day { background: var(--accent-soft); color: var(--muted); }
+    .subgroup { margin: 4px 0 2px 10px; font-size: .78rem; font-weight: 800; color: var(--muted); }
+
+    /* 업데이트 기록 */
+    .log { margin-top: 40px; }
+    .log h2 { font-size: 1.15rem; }
+    .log table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+    .log th, .log td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; font-size: .9rem; vertical-align: top; }
+    .log th { background: var(--accent-soft); color: var(--accent); }
+    .log td.when { white-space: nowrap; color: var(--muted); }
+    @media (max-width: 600px) { .cats { grid-template-columns: 1fr; } .lane .lname { width: 100%; } }
+  </style>
 </head>
 <body>
   <main class="container">
     <header class="site-header">
       <h1>📚 부트캠프 학습 노트</h1>
-      <p>SeSAC Vision·멀티모달 AI — 배운 내용을 하루 한 페이지로</p>
+      <p>SeSAC [NVIDIA] AI 코어 엔지니어 과정에서 배운 것을 주제별로 정리한 지식저장소</p>
     </header>
 
     <div class="toolbar">
-      <input id="search" type="search" placeholder="제목·내용으로 검색…">
-      <button class="filter-btn active" data-tag="all">전체</button>
-      <button class="filter-btn" data-tag="머신러닝">머신러닝</button>
-      <button class="filter-btn" data-tag="딥러닝">딥러닝</button>
-      <button class="filter-btn" data-tag="컴퓨터비전">컴퓨터비전</button>
-      <button class="filter-btn" data-tag="LLM·RAG">LLM·RAG</button>
+      <input id="search" type="search" placeholder="주제나 내용으로 검색">
+      <button class="filter-btn active" data-track="all">전체</button>
+      <button class="filter-btn" data-track="model">모델</button>
+      <button class="filter-btn" data-track="back">백엔드</button>
       <a class="filter-btn" href="glossary.html" style="text-decoration:none">📚 용어 사전</a>
       <a class="filter-btn" href="commands.html" style="text-decoration:none">🔧 명령어 사전</a>
     </div>
 
-    <!--
-      ✏️ 새 노트 추가하는 법
-      1) notes/_template.html 을 복사해서 이름을 바꿉니다 (예: notes/day17.html)
-      2) 아래 해당 주차 <div class="grid"> 안에 카드(<a class="card">…</a>)를 하나 복사해 붙이고
-         href / data-tag / 제목 / 설명만 바꾸면 끝!
-      3) 새 주차는 <section class="week"> 블록을 통째로 복사하세요.
-      4) 새 태그를 쓰면 위 toolbar 에 filter-btn 도 하나 추가하세요.
-    -->
+    <!-- ===================== 시스템 지도 ===================== -->
+    <section class="sysmap" id="map">
+      <h2>🗺️ RAG 시스템 지도</h2>
+      <p>두 갈래가 어디서 만나는지 보여 줘요. 문서를 검색할 수 있게 쌓아 두는 흐름과, 질문에 답하는 흐름이 같은 DB에서 만나요.</p>
+      <div class="lane">
+        <span class="lname">문서를 쌓을 때</span>
+        <span class="node plain">문서 파일</span><span class="arr">→</span>
+        <a class="node back" href="topics/backend/document-reading.html">문서 읽기</a><span class="arr">→</span>
+        <a class="node back" href="topics/backend/chunking.html">Chunking</a><span class="arr">→</span>
+        <a class="node back" href="topics/backend/indexing.html">인덱싱</a><span class="arr">→</span>
+        <a class="node back" href="notes/day18.html">PostgreSQL + pgvector</a>
+      </div>
+      <div class="lane">
+        <span class="lname">질문에 답할 때</span>
+        <span class="node plain">질문</span><span class="arr">→</span>
+        <a class="node back" href="notes/day17.html">API 서버</a><span class="arr">→</span>
+        <a class="node back" href="notes/day23.html">벡터 검색</a><span class="arr">→</span>
+        <a class="node back" href="notes/day21.html">Prompt와 Context</a><span class="arr">→</span>
+        <a class="node back" href="notes/day22.html">LLM API 호출</a><span class="arr">→</span>
+        <span class="node plain">답</span>
+      </div>
+      <div class="lane">
+        <span class="lname">안에서 도는 것</span>
+        <a class="node model" href="notes/day23.html">Embedding 모델</a>
+        <a class="node model" href="notes/day20.html">LLM과 Transformer</a>
+      </div>
+      <div class="legend2"><i style="border-color:var(--t-back);background:var(--t-back-soft)"></i>백엔드<i style="border-color:var(--t-model);background:var(--t-model-soft)"></i>모델<i style="border-color:var(--line);border-style:dashed"></i>입력과 출력</div>
+    </section>
 
-    <section class="week">
-      <h2>11월 3주차</h2>
-      <div class="grid">
-        <a class="card" href="notes/day24.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day24 · 2026-11-19(목)</small>
-          <h3>Document Parsing · Chunking · Indexing</h3>
-          <p>Manifest · SHA-256 · TXT/MD/HTML/PDF Parsing · needs_ocr · Cleaning · NFC · Chunking · Overlap · Span · Coverage · chunk_id · Staging/Publish</p>
-        </a>
-        <a class="card" href="notes/day23.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day23 · 2026-11-18(수)</small>
-          <h3>Embedding · Vector Search</h3>
-          <p>Dot · Cosine · L2 · 정규화 · Sentence Transformers · E5 query/passage · pgvector 설치 · Top-k · Metadata Filter · HNSW · 정성평가</p>
-        </a>
-        <a class="card" href="notes/day22.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day22 · 2026-11-17(화)</small>
-          <h3>LLM API 클라이언트</h3>
-          <p>Responses API · Structured Outputs · Streaming · Rate Limit · 재시도 · Usage·비용 · Cache · Model Routing</p>
-        </a>
-        <a class="card" href="notes/day21.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day21 · 2026-11-16(월)</small>
-          <h3>Prompt · Context Engineering</h3>
-          <p>Prompt 여섯 요소 · Template · Few-shot · A/B · Context 선택 · 출력 계약 · Pydantic 검증 · 재시도</p>
-        </a>
+    <!-- ===================== 모델 ===================== -->
+    <section class="track model" data-track="model">
+      <h2>🧠 모델</h2>
+      <p>데이터를 숫자로 바꿔 예측하거나 생성하는 것. 원리, 학습, 평가가 중심이에요.</p>
+      <div class="cats">
+        <div class="cat">
+          <h3>머신러닝 기초</h3>
+          <p>표 데이터로 예측하고, 공정하게 평가하기</p>
+          <a class="item" href="notes/day06.html"><b>회귀, 분류, KNN, 모델 비교</b><span class="badge day">Day06</span><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
+          <a class="item" href="notes/day07.html"><b>트리, 앙상블, 교차검증</b><span class="badge day">Day07</span><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
+          <a class="item" href="notes/day08.html"><b>평가지표, 특성 설계, K-Means</b><span class="badge day">Day08</span><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
+        </div>
+        <div class="cat">
+          <h3>딥러닝 기초</h3>
+          <p>신경망이 배우는 원리와 학습을 안정시키는 방법</p>
+          <a class="item" href="notes/day09.html"><b>GPU, Tensor, ANN</b><span class="badge day">Day09</span><small>GPU 확인, Tensor 연산, 역전파, 학습 루프</small></a>
+          <a class="item" href="notes/day10.html"><b>Optimizer와 Regularization</b><span class="badge day">Day10</span><small>학습률, Batch와 Epoch, 과적합, Dropout, BatchNorm, 조기 종료</small></a>
+        </div>
+        <div class="cat">
+          <h3>이미지</h3>
+          <p>사진을 분류하고, 물체를 찾고, 글자를 읽기</p>
+          <a class="item" href="notes/day11.html"><b>CNN과 이미지 분류</b><span class="badge day">Day11</span><small>합성곱, Pooling, ResNet 전이학습</small></a>
+          <a class="item" href="notes/day13.html"><b>OpenCV 이미지와 영상 전처리</b><span class="badge day">Day13</span><small>색공간, 필터, 이진화, 형태학, 증강</small></a>
+          <a class="item" href="notes/day14.html"><b>전이학습과 오류 분석</b><span class="badge day">Day14</span><small>Backbone과 Head, 불균형 데이터, Macro F1, Grad-CAM</small></a>
+          <a class="item" href="notes/day15.html"><b>객체 탐지와 YOLO</b><span class="badge day">Day15</span><small>박스 좌표, IoU, NMS, mAP, 학습과 추적</small></a>
+          <a class="item" href="notes/day16.html"><b>OCR, 문서 구조화, VLM, 엣지 배포</b><span class="badge day">Day16</span><small>Tesseract, 근거 검증, TensorRT, Jetson</small></a>
+        </div>
+        <div class="cat">
+          <h3>순서와 언어 모델</h3>
+          <p>순서가 있는 데이터를 읽는 모델에서 LLM까지</p>
+          <a class="item" href="notes/day12.html"><b>순서 모델</b><span class="badge day">Day12</span><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
+          <a class="item" href="notes/day20.html"><b>LLM 원리</b><span class="badge day">Day20</span><small>Token, Context Window, Self-Attention, 학습과 추론, 디코딩</small></a>
+        </div>
       </div>
     </section>
 
-    <section class="week">
-      <h2>11월 2주차</h2>
-      <div class="grid">
-        <a class="card" href="notes/day20.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day20 · 2026-11-13(금)</small>
-          <h3>LLM 원리 — Token · Embedding · Attention</h3>
-          <p>Tokenizer · Context Window · Embedding · Transformer Block · Self-Attention · 학습/추론 · 디코딩 · 한계</p>
-        </a>
-        <a class="card" href="notes/day19.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day19 · 2026-11-12(목)</small>
-          <h3>FastAPI–PostgreSQL 연동</h3>
-          <p>SQLAlchemy ORM · Session · 트랜잭션 · 오류 정책 · Alembic · 통합 검증</p>
-        </a>
-        <a class="card" href="notes/day18.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day18 · 2026-11-11(수)</small>
-          <h3>PostgreSQL 입문 · 지식 관리 DB</h3>
-          <p>SQL 조회 · PK/FK · JOIN·집계 · 제약조건 · 트랜잭션 · 인덱스</p>
-        </a>
-        <a class="card" href="notes/day17.html" data-tag="LLM·RAG">
-          <span class="tag llm">LLM·RAG</span> <small class="day">Day17 · 2026-11-10(화)</small>
-          <h3>FastAPI 지식 관리 API</h3>
-          <p>HTTP 요청·응답 · CRUD · Pydantic 검증 · JSON 저장 · 상태 코드</p>
-        </a>
-        <a class="card" href="notes/day16.html" data-tag="컴퓨터비전">
-          <span class="tag cv">컴퓨터비전</span> <small class="day">Day16 · 2026-11-09(월)</small>
-          <h3>OCR·문서 구조화·VLM·엣지 배포</h3>
-          <p>OCR·구조화·VLM 근거 검증·TensorRT 엣지 배포</p>
-        </a>
-      </div>
-    </section>
-
-    <section class="week">
-      <h2>11월 1주차</h2>
-      <div class="grid">
-        <a class="card" href="notes/day15.html" data-tag="컴퓨터비전">
-          <span class="tag cv">컴퓨터비전</span> <small class="day">Day15 · 2026-11-06(금)</small>
-          <h3>객체탐지와 YOLO</h3>
-          <p>박스 좌표·IoU·mAP·NMS + train/val/predict/track</p>
-        </a>
-        <a class="card" href="notes/day14.html" data-tag="딥러닝">
-          <span class="tag dl">딥러닝</span> <small class="day">Day14 · 2026-11-05(목)</small>
-          <h3>전이학습과 오류 분석</h3>
-          <p>Backbone·Head, 불균형, Macro F1, Grad-CAM</p>
-        </a>
-        <a class="card" href="notes/day13.html" data-tag="컴퓨터비전">
-          <span class="tag cv">컴퓨터비전</span> <small class="day">Day13 · 2026-11-04(수)</small>
-          <h3>OpenCV 이미지·영상 전처리</h3>
-          <p>색공간·필터·이진화·형태학·영상·증강</p>
-        </a>
-        <a class="card" href="notes/day12.html" data-tag="딥러닝">
-          <span class="tag dl">딥러닝</span> <small class="day">Day12 · 2026-11-02(월)</small>
-          <h3>순서 모델 (RNN·LSTM·Transformer)</h3>
-          <p>Padding·RNN·LSTM·AE·Attention</p>
-        </a>
-        <a class="card" href="notes/day11.html" data-tag="딥러닝">
-          <span class="tag dl">딥러닝</span> <small class="day">Day11 · 2026-11-02(월)</small>
-          <h3>CNN·이미지 분류·전이학습</h3>
-          <p>합성곱·Pooling 이미지 분류, ResNet 전이학습</p>
-        </a>
-      </div>
-    </section>
-
-    <section class="week">
-      <h2>10월 4주차</h2>
-      <div class="grid">
-        <a class="card" href="notes/day10.html" data-tag="딥러닝">
-          <span class="tag dl">딥러닝</span> <small class="day">Day10 · 2026-10-30(금)</small>
-          <h3>Optimizer·Regularization</h3>
-          <p>학습률·과적합 진단, Dropout·조기종료</p>
-        </a>
-        <a class="card" href="notes/day09.html" data-tag="딥러닝">
-          <span class="tag dl">딥러닝</span> <small class="day">Day9 · 2026-10-29(목)</small>
-          <h3>GPU·Tensor·ANN</h3>
-          <p>GPU 확인부터 Tensor·역전파·학습 루프까지</p>
-        </a>
-        <a class="card" href="notes/day08.html" data-tag="머신러닝">
-          <span class="tag ml">머신러닝</span> <small class="day">Day8 · 2026-10-28(수)</small>
-          <h3>평가지표·특성설계·K-Means</h3>
-          <p>P/R/F1·AUC·log1p·KMeans</p>
-        </a>
-        <a class="card" href="notes/day07.html" data-tag="머신러닝">
-          <span class="tag ml">머신러닝</span> <small class="day">Day7 · 2026-10-27(화)</small>
-          <h3>트리·앙상블·교차검증</h3>
-          <p>트리·RF·XGBoost·중요도 + 5-fold CV</p>
-        </a>
-        <a class="card" href="notes/day06.html" data-tag="머신러닝">
-          <span class="tag ml">머신러닝</span> <small class="day">Day6 · 2026-10-26(월)</small>
-          <h3>회귀·분류·KNN·모델 비교</h3>
-          <p>선형·로지스틱·KNN·스케일링 + Pipeline</p>
-        </a>
+    <!-- ===================== 백엔드 ===================== -->
+    <section class="track back" data-track="back">
+      <h2>🛠️ 백엔드</h2>
+      <p>모델을 서비스로 감싸는 것. 저장, 호출, 검색, 오류 처리가 중심이에요.</p>
+      <div class="cats">
+        <div class="cat">
+          <h3>API 서버</h3>
+          <p>요청을 받아 검증하고 응답하기</p>
+          <a class="item" href="notes/day17.html"><b>FastAPI 지식 관리 API</b><span class="badge day">Day17</span><small>HTTP 요청과 응답, CRUD, Pydantic 검증, 상태 코드</small></a>
+        </div>
+        <div class="cat">
+          <h3>데이터베이스</h3>
+          <p>데이터를 안전하게 저장하고 꺼내기</p>
+          <a class="item" href="notes/day18.html"><b>PostgreSQL 입문</b><span class="badge day">Day18</span><small>SQL 조회, 기본 키와 외래 키, JOIN, 제약 조건, 트랜잭션, 인덱스</small></a>
+          <a class="item" href="notes/day19.html"><b>FastAPI와 PostgreSQL 연동</b><span class="badge day">Day19</span><small>SQLAlchemy ORM, Session, 트랜잭션, Alembic</small></a>
+        </div>
+        <div class="cat">
+          <h3>LLM 활용</h3>
+          <p>LLM에게 잘 묻고, 안정적으로 부르기</p>
+          <a class="item" href="notes/day21.html"><b>Prompt와 Context Engineering</b><span class="badge day">Day21</span><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
+          <a class="item" href="notes/day22.html"><b>LLM API 클라이언트</b><span class="badge day">Day22</span><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
+        </div>
+        <div class="cat">
+          <h3>검색과 RAG</h3>
+          <p>문서를 검색할 수 있게 쌓고, 질문과 가까운 근거 찾기</p>
+          <a class="item" href="notes/day23.html"><b>Embedding과 Vector Search</b><span class="badge day">Day23</span><small>유사도, 정규화, Sentence Transformers, pgvector, HNSW</small></a>
+          <div class="subgroup">문서 적재 (3쪽, 코드 하나로 이어짐)</div>
+          <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><span class="badge new">새 형식</span><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
+          <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><span class="badge new">새 형식</span><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
+          <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><span class="badge new">새 형식</span><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
+        </div>
       </div>
     </section>
 
     <p class="empty" id="empty">검색 결과가 없어요.</p>
+
+    <!-- ===================== 업데이트 기록 ===================== -->
+    <section class="log" id="log">
+      <h2>🕒 업데이트 기록</h2>
+      <table>
+        <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/19</td><td>메인 페이지를 모델과 백엔드, 카테고리로 다시 짬. Day24를 <a href="topics/backend/document-reading.html">문서 적재 1~3쪽</a>(새 형식)으로 다시 씀 (<a href="notes/day24.html">옛 Day24 노트</a>)</td></tr>
+        <tr><td class="when">11/18</td><td>Day23 <a href="notes/day23.html">Embedding과 Vector Search</a></td></tr>
+        <tr><td class="when">11/17</td><td>Day22 <a href="notes/day22.html">LLM API 클라이언트</a></td></tr>
+        <tr><td class="when">11/16</td><td>Day21 <a href="notes/day21.html">Prompt와 Context Engineering</a></td></tr>
+        <tr><td class="when">11/13</td><td>Day20 <a href="notes/day20.html">LLM 원리</a></td></tr>
+        <tr><td class="when">11/12</td><td>Day19 <a href="notes/day19.html">FastAPI와 PostgreSQL 연동</a></td></tr>
+        <tr><td class="when">11/11</td><td>Day18 <a href="notes/day18.html">PostgreSQL 입문</a></td></tr>
+        <tr><td class="when">11/10</td><td>Day17 <a href="notes/day17.html">FastAPI 지식 관리 API</a></td></tr>
+        <tr><td class="when">11/09</td><td>Day16 <a href="notes/day16.html">OCR, 문서 구조화, VLM, 엣지 배포</a></td></tr>
+        <tr><td class="when">11/06</td><td>Day15 <a href="notes/day15.html">객체 탐지와 YOLO</a></td></tr>
+        <tr><td class="when">11/05</td><td>Day14 <a href="notes/day14.html">전이학습과 오류 분석</a></td></tr>
+        <tr><td class="when">11/04</td><td>Day13 <a href="notes/day13.html">OpenCV 이미지와 영상 전처리</a></td></tr>
+        <tr><td class="when">11/02</td><td>Day11 <a href="notes/day11.html">CNN과 이미지 분류</a>, Day12 <a href="notes/day12.html">순서 모델</a></td></tr>
+        <tr><td class="when">10/30</td><td>Day10 <a href="notes/day10.html">Optimizer와 Regularization</a></td></tr>
+        <tr><td class="when">10/29</td><td>Day09 <a href="notes/day09.html">GPU, Tensor, ANN</a></td></tr>
+        <tr><td class="when">10/28</td><td>Day08 <a href="notes/day08.html">평가지표, 특성 설계, K-Means</a></td></tr>
+        <tr><td class="when">10/27</td><td>Day07 <a href="notes/day07.html">트리, 앙상블, 교차검증</a></td></tr>
+        <tr><td class="when">10/26</td><td>Day06 <a href="notes/day06.html">회귀, 분류, KNN, 모델 비교</a></td></tr>
+      </table>
+    </section>
   </main>
 
   <script>
-    // 검색 + 태그 필터
+    // 검색 + 갈래 필터
     const search = document.getElementById('search');
-    const buttons = document.querySelectorAll('.filter-btn');
-    let currentTag = 'all';
-
+    const buttons = document.querySelectorAll('.filter-btn[data-track]');
+    let track = 'all';
     function applyFilter() {
       const q = search.value.trim().toLowerCase();
-      let visibleCount = 0;
-      document.querySelectorAll('.week').forEach(week => {
-        let weekVisible = 0;
-        week.querySelectorAll('.card').forEach(card => {
-          const matchTag = currentTag === 'all' || card.dataset.tag === currentTag;
-          const matchText = card.textContent.toLowerCase().includes(q);
-          const show = matchTag && matchText;
-          card.style.display = show ? '' : 'none';
-          if (show) weekVisible++;
+      let shown = 0;
+      document.querySelectorAll('.track').forEach(t => {
+        const trackOk = track === 'all' || t.dataset.track === track;
+        let inTrack = 0;
+        t.querySelectorAll('.cat').forEach(cat => {
+          const catHit = cat.querySelector('h3').textContent.toLowerCase().includes(q);
+          let inCat = 0;
+          cat.querySelectorAll('.item').forEach(it => {
+            const ok = trackOk && (catHit || it.textContent.toLowerCase().includes(q));
+            it.style.display = ok ? '' : 'none';
+            if (ok) inCat++;
+          });
+          cat.querySelectorAll('.subgroup').forEach(s => s.style.display = inCat ? '' : 'none');
+          cat.style.display = inCat ? '' : 'none';
+          inTrack += inCat;
         });
-        week.style.display = weekVisible ? '' : 'none';
-        visibleCount += weekVisible;
+        t.style.display = inTrack ? '' : 'none';
+        shown += inTrack;
       });
-      document.getElementById('empty').style.display = visibleCount ? 'none' : 'block';
+      document.getElementById('empty').style.display = shown ? 'none' : 'block';
     }
-
     search.addEventListener('input', applyFilter);
     buttons.forEach(btn => btn.addEventListener('click', () => {
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      currentTag = btn.dataset.tag;
+      track = btn.dataset.track;
       applyFilter();
     }));
   </script>

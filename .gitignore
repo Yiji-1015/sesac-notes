@@ -6,3 +6,7 @@ Thumbs.db
 
 # 원본 강의자료 (공개 저장소에 올리지 않음)
 강의자료-원본/
+
+# 예제 코드 실행 결과 (다시 만들 수 있음)
+examples/*/out/
+examples/*/chunks.json

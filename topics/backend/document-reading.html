@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>문서 읽기: 여러 형식의 파일을 깨끗한 글로 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>문서 읽기: 여러 형식의 파일을 깨끗한 글로</h1>
+      <div class="meta">문서 적재 1/3쪽 &nbsp;|&nbsp; 다음: <a href="chunking.html" style="color:inherit;text-decoration:underline">2쪽 Chunking</a> &nbsp;|&nbsp; <a href="indexing.html" style="color:inherit;text-decoration:underline">3쪽 인덱싱</a></div>
+    </header>
+
+    <article class="note">
+
+      <!-- ===================== 한 문장 ===================== -->
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">검색할 조각을 만들려면 먼저 파일을 <b>글</b>로 바꿔야 해요. 문서 읽기는 Markdown, 웹페이지, PDF, 스캔본처럼 형식이 제각각인 파일에서 <b>본문 글만 꺼내고, 잡음을 걷어 내는</b> 단계예요.</p>
+
+      <!-- ===================== 왜 ===================== -->
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>컴퓨터에서 파일은 전부 <b>바이트</b>(0~255 사이 숫자)의 나열이에요. 글자 파일은 이 바이트를 정해진 규칙으로 글자로 바꿔서 읽는데, 이 규칙을 <b>인코딩</b>이라고 해요. 요즘은 대부분 <b>UTF-8</b>이라는 인코딩을 써요.</p>
+      <p>가상의 「가람 도서관」 파일 7개로 확인해 볼게요. 이 페이지는 끝까지 이 7개로 설명해요.</p>
+      <table id="w-files"></table>
+      <p>가장 단순한 방법은 모든 파일을 UTF-8 글자로 읽는 거예요 (<code>path.read_text(encoding="utf-8")</code>). 실제로 해 보면:</p>
+      <div class="out" id="w-naive"></div>
+      <p><code>UnicodeDecodeError</code>는 "이 바이트를 UTF-8 규칙으로는 글자로 바꿀 수 없다"는 오류예요. <b>7개 중 4개는 아예 읽지 못했고</b>, 읽힌 것 중 <code>hours.html</code>은 <code>&lt;html&gt;</code> 같은 태그부터 나와요. <code>notice.txt</code>는 멀쩡해 보이지만, 사실 숨은 문제가 있어요 (⑥에서 드러나요).</p>
+      <p>형식마다 글이 들어 있는 방식이 달라서, <b>형식별로 읽는 방법</b>이 따로 필요해요. 그리고 끝내 읽지 못하는 파일도 생겨요. 그때 "무엇을 읽었고 무엇을 못 읽었는지" 기록이 없으면, 나중에 검색 결과에 그 문서가 왜 안 나오는지 알 수 없어요.</p>
+      <p><b>그래서 이 단계의 목표는 셋이에요.</b> 모든 파일의 상태를 기록하고, 형식별로 본문 글만 꺼내고, 잡음을 걷어 내요.</p>
+
+      <!-- ===================== 통째로 ===================== -->
+      <h2 id="whole">🗺️ 통째로 한 번: 파일 7개가 글 7개가 되기까지</h2>
+      <p>7개 파일을 끝까지 돌리면 이렇게 돼요. 상자를 누르면 그 단계로 이동해요. 여기서 <b>글</b>은 파일 하나, PDF라면 한 쪽에서 꺼낸 글 하나를 말해요.</p>
+      <div class="flow" id="flow"></div>
+      <table id="final-table"></table>
+      <p>아래에서 이 흐름을 <b>①부터 ⑦까지 한 단계씩</b> 따라가요. 왼쪽 설명의 번호와 오른쪽 코드의 번호는 같은 단계예요. 스크롤하면 오른쪽 코드가 <b>그 단계에서 새로 추가된 줄</b>을 초록색으로 보여 줘요.</p>
+
+      <!-- ===================== 한 단계씩 ===================== -->
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+
+          <!-- ① -->
+          <section class="step" data-step="1" id="s1">
+            <span class="label">코드의 ① 부분</span>
+            <h3>① 파일 목록과 원본 기록</h3>
+            <p class="does">폴더의 파일마다 이름, 형식, 크기, 지문(SHA-256)을 적어요. 이 기록표를 <b>manifest</b>라고 불러요.</p>
+            <p class="kicker">왜 읽기 전에 기록부터?</p>
+            <p>원본 파일은 고치지 않고, 무엇이 들어왔는지 먼저 적어 둬요. 그래야 나중에 "이 파일이 바뀌었나?", "같은 파일이 두 번 들어왔나?"를 이 기록만 보고 알 수 있어요. 바뀐 파일만 다시 처리할 수도 있고요.</p>
+            <p><b>SHA-256</b>은 어떤 바이트를 넣든 64자리 16진수 "지문"을 돌려주는 함수예요. 같은 바이트면 언제나 같은 지문이 나오고, 1바이트만 달라도 완전히 다른 지문이 나와요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>sorted(RAW.iterdir())</code></td><td>폴더 안 파일을 이름순으로. 순서를 고정해야 몇 번을 돌려도 결과 순서가 같아요.</td></tr>
+              <tr><td><code>path.read_bytes()</code></td><td>글자로 바꾸기 전, 바이트 그대로 읽어요. 지문은 바이트로 계산해요.</td></tr>
+              <tr><td><code>path.suffix.lower()</code></td><td>확장자(<code>.PDF</code>도 <code>.pdf</code>로). 어떤 방법으로 읽을지 고르는 데 써요.</td></tr>
+              <tr><td><code>hexdigest()[:12]</code></td><td>64자리 지문 중 앞 12자리만. 사람이 보기 짧게 하려는 것이에요.</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o1"></div>
+            <details class="try">
+              <summary>🔁 바꿔 보기: <code>guide.md</code>를 복사해 이름만 <code>guide_copy.md</code>로 바꿔 넣으면 지문은?</summary>
+              <p class="hint">먼저 예상해 보고 펼쳐 보세요.</p>
+              <div id="t1"></div>
+            </details>
+          </section>
+
+          <!-- ② -->
+          <section class="step" data-step="2" id="s2">
+            <span class="label">코드의 ② 부분</span>
+            <h3>② 글자 파일 읽기</h3>
+            <p class="does">TXT와 Markdown은 바이트를 글자로 바꾸기만 하면 돼요. 읽은 글은 <code>units</code> 목록에 "어느 파일의 어디서 나온 무슨 글"로 담아요.</p>
+            <p class="kicker">old_notice.txt는 왜 실패했을까?</p>
+            <p>이 파일은 옛날 Windows의 한국어 기본 인코딩인 <b>CP949</b>로 저장돼 있어요. 같은 "시"라는 글자도 UTF-8과 CP949는 다른 바이트로 저장해서, UTF-8 규칙으로 읽으면 실패해요.</p>
+            <p>흔히 쓰는 우회법은 <code>errors="ignore"</code>(못 바꾸는 바이트는 버리기)예요. 실제로 해 보면:</p>
+            <div class="out" id="o2a"></div>
+            <p>오류는 사라졌지만 <b>글이 깨진 채 저장</b>돼요. 이러면 검색에서 조용히 사라져서, 실패보다 더 찾기 어려워요. 그래서 이렇게 해요.</p>
+            <ul>
+              <li>실패하면 멈추지도, 숨기지도 않고 <b>상태(<code>decode_error</code>)와 오류 내용을 기록</b>해요.</li>
+              <li>기록을 보고 파일을 열어 확인한 뒤, <b>그 파일만</b> 인코딩을 따로 적어 둬요 (<code>ENCODING</code>).</li>
+            </ul>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>ENCODING.get(m["file"], "utf-8")</code></td><td>예외로 적어 둔 파일이면 그 인코딩, 아니면 UTF-8</td></tr>
+              <tr><td><code>data.decode(...)</code></td><td>바이트를 글자로 바꿔요. 실패하면 <code>UnicodeDecodeError</code></td></tr>
+              <tr><td><code>m["status"]</code></td><td>①의 기록표에 이 파일의 처리 상태를 적어요. 읽으면 <code>parsed</code></td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o2"></div>
+            <details class="try">
+              <summary>🔁 바꿔 보기: <code>ENCODING</code>을 비워 두면(<code>{}</code>) old_notice.txt는 어떻게 기록될까?</summary>
+              <p class="hint">먼저 예상해 보고 펼쳐 보세요.</p>
+              <div id="t2"></div>
+            </details>
+          </section>
+
+          <!-- ③ -->
+          <section class="step" data-step="3" id="s3">
+            <span class="label">코드의 ③ 부분</span>
+            <h3>③ 웹페이지 읽기</h3>
+            <p class="does">HTML에서 본문 영역만 꺼내고, 표는 "열 이름: 값" 줄로 바꿔요.</p>
+            <p>웹페이지는 <b>태그</b>로 영역을 나눠요. <code>hours.html</code>의 원본은 이래요.</p>
+            <div class="out" id="o3src"></div>
+            <p><code>&lt;nav&gt;</code>는 메뉴, <code>&lt;main&gt;</code>은 본문, <code>&lt;footer&gt;</code>는 아래쪽 안내예요. 검색에 필요한 건 <code>&lt;main&gt;</code>뿐이에요.</p>
+            <p class="kicker">태그만 지우고 글자를 다 꺼내면?</p>
+            <div class="out" id="o3a"></div>
+            <p>페이지 제목, 메뉴("홈 자료 검색 로그인"), 저작권 줄이 본문처럼 섞였어요. 더 큰 문제는 <b>표</b>예요. "자료실09:00~22:0009:00~18:00"에서는 어느 시간이 평일이고 어느 시간이 주말인지 알 수 없어요. 그래서 표의 각 칸에 <b>머리줄의 열 이름을 붙여</b> 한 줄로 만들어요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>BeautifulSoup(글, "html.parser")</code></td><td>HTML 글을 태그 나무 구조로 읽어요.</td></tr>
+              <tr><td><code>soup.select_one("main")</code></td><td><code>&lt;main&gt;</code> 태그 하나를 찾아요. 없으면 <code>None</code> → <code>main_not_found</code>로 기록</td></tr>
+              <tr><td><code>tr.select("th, td")</code></td><td>표의 한 줄에서 칸(<code>th</code> 머리칸, <code>td</code> 보통 칸)을 모두</td></tr>
+              <tr><td><code>get_text(strip=True)</code></td><td>칸 안의 글자만, 앞뒤 공백 없이</td></tr>
+              <tr><td><code>zip(head, r)</code></td><td>머리줄 칸과 이 줄의 칸을 하나씩 짝지어요 → <code>"평일: 09:00~22:00"</code></td></tr>
+              <tr><td><code>table.replace_with(...)</code></td><td>표 태그를 통째로 만든 줄들로 바꿔 끼워요.</td></tr>
+              <tr><td><code>main.get_text("\n")</code></td><td>본문의 글자를 꺼내되, 태그 사이를 줄바꿈으로 이어요.</td></tr>
+            </table>
+            <p>참고로 <code>&lt;script&gt;</code> 안의 코드는 BeautifulSoup이 <code>get_text()</code>에서 알아서 빼요 (위 대조 출력에도 스크립트 코드는 없어요).</p>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o3"></div>
+          </section>
+
+          <!-- ④ -->
+          <section class="step" data-step="4" id="s4">
+            <span class="label">코드의 ④ 부분</span>
+            <h3>④ PDF 읽기</h3>
+            <p class="does">쪽마다 글을 꺼내 쪽 번호와 함께 담아요. 한 글자도 안 나오면 <code>needs_ocr</code>로 표시해 ⑤로 넘겨요.</p>
+            <p>PDF 안의 글자는 "이 쪽의 이 위치에 이 글자를 그려라"는 명령으로 들어 있어요. 글자를 꺼내면 그 명령 순서대로 나와서, <b>머리말과 쪽번호도 본문처럼 섞여</b> 나와요. 스캔한 PDF는 쪽 전체가 그림 한 장이라 꺼낼 글자가 아예 없어요.</p>
+            <p>쪽마다 따로 담는 이유는 출처 때문이에요. 검색 결과에서 "회원 규정 2쪽"처럼 어디서 왔는지 보여 줄 수 있어요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>PdfReader(path).pages</code></td><td>PDF의 쪽 목록</td></tr>
+              <tr><td><code>p.extract_text() or ""</code></td><td>그 쪽의 글자. 아무것도 없으면 <code>None</code>이 올 수 있어서 빈 글로 바꿔요.</td></tr>
+              <tr><td><code>any(t.strip() for t in pages)</code></td><td>공백을 빼고도 글자가 남은 쪽이 하나라도 있나</td></tr>
+              <tr><td><code>enumerate(pages, start=1)</code></td><td>쪽 번호를 1부터 붙여요.</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o4"></div>
+          </section>
+
+          <!-- ⑤ -->
+          <section class="step" data-step="5" id="s5">
+            <span class="label">코드의 ⑤ 부분</span>
+            <h3>⑤ 스캔 PDF는 OCR로</h3>
+            <p class="does">그림 속 글자를 읽어 글로 바꿔요. 이걸 <b>OCR</b>(광학 문자 인식)이라고 해요.</p>
+            <p>여기서는 무료 OCR 프로그램 <b>Tesseract</b>를 파이썬에서 부르는 <code>pytesseract</code>를 써요. 한국어를 읽으려면 한국어 언어 데이터(<code>kor</code>)가 따로 필요해요.</p>
+            <p class="kicker">기본 설정으로 읽으면?</p>
+            <div class="out" id="o5a"></div>
+            <p>글자는 맞게 읽었는데 <b>글자마다 띄어져</b> 있어요. 이러면 "자료실"로 검색해도 "자 료 실"과는 맞지 않아요. Tesseract에 <b>단어 사이 공백을 원래대로 남기라는 설정</b>(<code>preserve_interword_spaces=1</code>)을 주면 해결돼요.</p>
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>page.images[0].data</code></td><td>그 쪽에 들어 있는 첫 번째 그림의 바이트</td></tr>
+              <tr><td><code>Image.open(io.BytesIO(...))</code></td><td>바이트를 파일처럼 감싸서 그림으로 열어요.</td></tr>
+              <tr><td><code>lang="kor"</code></td><td>한국어 언어 데이터로 읽기</td></tr>
+              <tr><td><code>--psm 6</code></td><td>그림 전체를 "글 한 덩어리"로 보고 읽기</td></tr>
+              <tr><td><code>--tessdata-dir</code></td><td>언어 데이터가 있는 폴더</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o5"></div>
+          </section>
+
+          <!-- ⑥ -->
+          <section class="step" data-step="6" id="s6">
+            <span class="label">코드의 ⑥ 부분</span>
+            <h3>⑥ 잡음 정리 (Cleaning)</h3>
+            <p class="does">글마다 세 가지를 정리해요: 한글 저장 방식 통일, 쪽번호 줄 빼기, 공백과 빈 줄 줄이기.</p>
+
+            <p class="kicker">사례 1. 눈에는 같은데 검색이 안 되는 글</p>
+            <p>"왜" 섹션에서 멀쩡해 보였던 <code>notice.txt</code>의 한 줄이에요.</p>
+            <div class="out" id="o6a"></div>
+            <p>한글은 두 가지 방식으로 저장될 수 있어요. "도"를 <b>한 글자</b>로 저장하는 <b>완성형</b>과, "ㄷ"+"ㅗ" <b>자모 두 개</b>로 저장하는 <b>분리형</b>이에요. 화면에는 똑같이 보이지만 컴퓨터에겐 다른 글이라 검색이 안 맞아요. macOS에서 만든 파일이나 거기서 복사한 글에서 자주 생겨요. 유니코드 <b>NFC 정규화</b>를 하면 모두 완성형으로 바뀌어요.</p>
+
+            <p class="kicker">사례 2. 쪽번호 줄</p>
+            <div class="twocol"><div class="out" id="o6b1"></div><div class="out" id="o6b2"></div></div>
+            <p>④에서 섞여 나온 "1 / 2"를 지웠어요. 규칙은 <b>줄 전체가 "숫자 / 숫자"일 때만</b> 지우도록 좁혔어요. 이유는 바꿔 보기에서 확인해요.</p>
+
+            <p class="kicker">사례 3. 공백과 빈 줄</p>
+            <div class="twocol"><div class="out" id="o6c1"></div><div class="out" id="o6c2"></div></div>
+
+            <p class="kicker">코드 읽기</p>
+            <table>
+              <tr><th>코드</th><th>뜻</th></tr>
+              <tr><td><code>unicodedata.normalize("NFC", text)</code></td><td>분리형 한글을 완성형으로 통일</td></tr>
+              <tr><td><code>r"^\s*\d+\s*/\s*\d+\s*$"</code></td><td>줄 처음(<code>^</code>)부터 끝(<code>$</code>)까지가 "숫자 / 숫자"뿐인 줄. <code>\s*</code>는 공백 0개 이상</td></tr>
+              <tr><td><code>re.sub(r"[ \t]+", " ", ln)</code></td><td>이어진 공백과 탭을 공백 하나로</td></tr>
+              <tr><td><code>re.sub(r"\n{3,}", "\n\n", ...)</code></td><td>줄바꿈 3개 이상(빈 줄 2개 이상)을 빈 줄 하나로</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o6"></div>
+            <details class="try">
+              <summary>🔁 바꿔 보기: 쪽번호 규칙에서 <code>^</code>와 <code>$</code>를 빼고 "줄 어디든 숫자 / 숫자가 있으면" 지우면?</summary>
+              <p class="hint">먼저 예상해 보고 펼쳐 보세요. 힌트: 회원 규정 2쪽을 다시 보세요.</p>
+              <div id="t6"></div>
+            </details>
+          </section>
+
+          <!-- ⑦ -->
+          <section class="step" data-step="7" id="s7">
+            <span class="label">코드의 ⑦ 부분</span>
+            <h3>⑦ 상태 정리하고 저장</h3>
+            <p class="does">어느 단계도 읽지 못한 파일은 <code>unsupported</code>로 표시하고, 기록표와 글을 파일로 저장해요.</p>
+            <p>지금까지 나온 상태를 모으면 이래요. 상태가 남아 있으니 "무엇이 왜 검색에 안 나오는지"를 언제든 되짚을 수 있어요.</p>
+            <table>
+              <tr><th>상태</th><th>뜻</th><th>나온 곳</th></tr>
+              <tr><td><code>parsed</code></td><td>글을 꺼냄</td><td>②③④</td></tr>
+              <tr><td><code>decode_error</code></td><td>인코딩이 맞지 않아 못 읽음 (오류 내용도 기록)</td><td>②</td></tr>
+              <tr><td><code>main_not_found</code></td><td>웹페이지에 본문 영역이 없음</td><td>③</td></tr>
+              <tr><td><code>needs_ocr</code></td><td>PDF에 글자가 없음 → OCR 대기</td><td>④</td></tr>
+              <tr><td><code>ocr</code></td><td>OCR로 읽음. 오인식이 있을 수 있어 사람이 확인하면 좋아요</td><td>⑤</td></tr>
+              <tr><td><code>unsupported</code></td><td>읽는 방법이 없는 형식</td><td>⑦</td></tr>
+            </table>
+            <p class="kicker">이 단계까지 실행하면</p>
+            <div class="out" id="o7"></div>
+            <div class="out" id="o7b"></div>
+          </section>
+
+        </div>
+
+        <aside class="codepanel" id="panel">
+          <div class="bar">
+            <span class="file">examples/ingest/ingest.py</span>
+            <span id="pills"></span>
+            <button class="pill" id="showall" type="button">전체 보기</button>
+          </div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+
+      <!-- ===================== 실제로 할 때 ===================== -->
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table>
+        <tr><th>상황</th><th>어떻게</th></tr>
+        <tr><td>인코딩을 모르는 파일이 많다</td><td><code>charset-normalizer</code> 같은 추측 라이브러리가 있지만 틀릴 수 있어요. 추측한 결과도 상태와 함께 기록하고, 사람이 몇 개 열어 확인해요.</td></tr>
+        <tr><td>쪽마다 같은 머리말이 반복된다</td><td>위 회원 규정의 "가람 도서관 회원 규정"처럼요. 여러 쪽에 <b>똑같이</b> 나오는 줄을 찾아 빼면 되지만, 문서마다 확인한 뒤 적용해요.</td></tr>
+        <tr><td>스캔이 흐리거나 기울었다</td><td>이 예제는 깨끗하게 만든 스캔이라 OCR이 정확했어요. 실제 스캔은 확대, 잡음 제거, 흑백 변환을 먼저 하고, 결과는 사람이 확인해요. 자세한 내용은 <a href="../../notes/day16.html">OCR 노트</a>를 보세요.</td></tr>
+        <tr><td>웹페이지에 <code>&lt;main&gt;</code>이 없다</td><td><code>main_not_found</code>로 기록하고, 사이트마다 본문 영역을 가리키는 선택자를 정해요.</td></tr>
+        <tr><td>표에 합쳐진 칸이 있다</td><td>"열 이름: 값" 방식이 어긋날 수 있어요. 원본 표와 대조하고, 필요하면 표를 따로 하나의 글로 둬요.</td></tr>
+        <tr><td>HWP 같은 형식</td><td>가장 간단한 방법은 PDF로 내보낸 뒤 ④로 읽는 거예요.</td></tr>
+      </table>
+
+      <!-- ===================== 쓴 라이브러리 ===================== -->
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table>
+        <tr><th>단계</th><th>함수</th><th>하는 일</th></tr>
+        <tr><td>①</td><td><code>Path.iterdir()</code>, <code>Path.read_bytes()</code>, <code>hashlib.sha256(b).hexdigest()</code></td><td>파일 목록, 바이트 읽기, 지문 만들기 (표준 라이브러리)</td></tr>
+        <tr><td>②</td><td><code>bytes.decode(encoding)</code></td><td>바이트를 글자로 (표준)</td></tr>
+        <tr><td>③</td><td><code>BeautifulSoup(html, "html.parser")</code>, <code>select_one()</code>, <code>select()</code>, <code>get_text()</code>, <code>replace_with()</code></td><td>HTML 읽기 (beautifulsoup4)</td></tr>
+        <tr><td>④</td><td><code>PdfReader(path).pages</code>, <code>page.extract_text()</code></td><td>PDF 쪽별 글자 꺼내기 (pypdf)</td></tr>
+        <tr><td>⑤</td><td><code>page.images</code>, <code>Image.open()</code>, <code>pytesseract.image_to_string()</code></td><td>쪽 안의 그림 꺼내기 (pypdf), 그림 열기 (Pillow), OCR (pytesseract + Tesseract)</td></tr>
+        <tr><td>⑥</td><td><code>unicodedata.normalize("NFC", s)</code>, <code>re.compile()</code>, <code>re.sub()</code></td><td>한글 통일, 정규식 (표준)</td></tr>
+        <tr><td>⑦</td><td><code>json.dumps(..., ensure_ascii=False)</code>, <code>Path.write_text()</code></td><td>저장 (표준)</td></tr>
+      </table>
+      <p><code>read_text_file</code>, <code>read_html</code>, <code>read_pdf</code>, <code>read_scan</code>, <code>clean</code>은 이 파일 안에서 정의한 함수예요.</p>
+
+      <h2 id="next">이어서 볼 주제</h2>
+      <table>
+        <tr><th>주제</th><th>연결</th></tr>
+        <tr><td><a href="chunking.html">2쪽 Chunking</a></td><td>여기서 만든 글을 검색할 조각으로 나누기</td></tr>
+        <tr><td><a href="../../notes/day16.html">OCR</a></td><td>흐린 스캔을 OCR 전에 다듬는 방법</td></tr>
+      </table>
+
+      <h2>원본 자료</h2>
+      <ul>
+        <li>다루는 범위: Day24 (2026-11-19) Document Parsing, Chunking, Indexing 중 수집, Parsing, Cleaning 부분</li>
+        <li>예제 문서: <code>examples/ingest/raw/</code>. 이 노트용으로 직접 만든 가상 자료이고, <code>tools/make_ingest_examples.py</code>로 다시 만들 수 있어요.</li>
+        <li>전체 코드: <code>examples/ingest/ingest.py</code> (그대로 실행 가능)</li>
+        <li>결과 값: <code>tools/io_ingest.py</code>가 코드를 단계별로 실제 실행해 만든 <code>topics/backend/document-reading-data.js</code>. 실행 환경 <span id="env"></span></li>
+        <li>공식 문서: <a href="https://docs.python.org/3/library/codecs.html#standard-encodings" target="_blank">Python 표준 인코딩</a>, <a href="https://docs.python.org/3/library/unicodedata.html#unicodedata.normalize" target="_blank">unicodedata.normalize</a>, <a href="https://www.crummy.com/software/BeautifulSoup/bs4/doc/" target="_blank">Beautiful Soup</a>, <a href="https://pypdf.readthedocs.io/en/stable/user/extract-text.html" target="_blank">pypdf 글자 꺼내기</a>, <a href="https://tesseract-ocr.github.io/tessdoc/" target="_blank">Tesseract</a></li>
+      </ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="document-reading-data.js"></script>
+  <script src="../steps.js"></script>
+  <script>
+  (() => {
+    const { esc, q, C, outBox, tbl, $ } = window.Steps;
+    const P = window.PAGE, S = P.steps, X = P.exp;
+    const vis = s => esc(s).replace(/\n/g, "⏎\n");
+    const lines = s => s.split("\n");
+    const desc = {
+      "floor_map.hwp": "층별 지도 (한글 문서 형식)", "guide.md": "이용 안내 (Markdown)", "hours.html": "운영 시간 웹페이지",
+      "notice.txt": "겨울방학 공지", "old_notice.txt": "옛 공지 (오래된 PC에서 저장)", "rules.pdf": "회원 규정 2쪽 (PDF)",
+      "scan.pdf": "자료실 배치 안내를 스캔한 PDF",
+    };
+
+    /* ---------- 왜 ---------- */
+    $("w-files").innerHTML = tbl(["파일", "무엇", "크기"], S[1].manifest.map(m => [`<code>${m.file}</code>`, desc[m.file] || "", `${m.bytes.toLocaleString()} 바이트`]));
+    $("w-naive").innerHTML = `<div class="ttl">▶ 모든 파일을 read_text(encoding="utf-8")로 읽으면</div>` +
+      tbl(["파일", "결과", "앞부분"], P.why.map(w => [`<code>${w.file}</code>`,
+        w.ok ? `<span style="color:#2b8a3e;font-weight:700">읽힘 (${w.chars}자)</span>` : `<span class="bad">${esc(w.error)}</span>`,
+        w.ok ? `<code>${esc(w.head.replace(/\n/g, "⏎"))}…</code>` : ""]));
+
+    /* ---------- 통째로 ---------- */
+    const st = Object.fromEntries(S[7].manifest.map(m => [m.file, m.status]));
+    const cnt = s => S[7].manifest.filter(m => m.status === s).length;
+    const boxes = [
+      [1, "원본 기록", `파일 ${S[1].manifest.length}개`, "이름, 크기, 지문"],
+      [2, "글자 파일", "3개 읽음", "md, txt (CP949 1개 포함)"],
+      [3, "웹페이지", "1개 읽음", "본문과 표만"],
+      [4, "PDF", "2쪽 읽음", "scan.pdf는 글자 없음"],
+      [5, "OCR", "1쪽 읽음", "scan.pdf"],
+      [6, "잡음 정리", `글 ${S[7].n_units}개`, "한글 통일, 쪽번호, 공백"],
+      [7, "저장", `못 읽음 ${cnt("unsupported")}개`, "floor_map.hwp"],
+    ];
+    $("flow").innerHTML = boxes.map((b, i) => `${i ? '<span class="arrow">→</span>' : ""}<div class="box" data-go="${b[0]}"><span class="n">${C[b[0] - 1]} ${b[1]}</span><span class="big">${b[2]}</span><small>${esc(b[3])}</small></div>`).join("");
+    $("final-table").innerHTML = tbl(["파일", "어디", "글자 수", "첫 줄"],
+      S[7].units.map(u => [`<code>${u.file}</code>`, esc(u.where), u.clean.length, esc(lines(u.clean)[0])]));
+
+    /* ---------- ① ---------- */
+    $("o1").innerHTML = `<div class="ttl">▶ ① 실행 결과: manifest</div>` +
+      tbl(["file", "type", "bytes", "sha256"], S[1].manifest.map(m => [`<code>${m.file}</code>`, m.type, m.bytes.toLocaleString(), `<code>${m.sha256}</code>`])) +
+      `<ol class="ann"><li><code>bytes</code>는 글자 수가 아니라 바이트 수예요. PDF는 글꼴과 그림이 들어 있어서 글이 짧아도 커요.</li><li>아직 아무것도 읽지 않았어요. 파일마다 무엇이 들어왔는지만 적었어요.</li></ol>`;
+    const D = X.dup;
+    $("t1").innerHTML = `<p><b>똑같아요.</b> 이름이 달라도 바이트가 같으면 지문이 같아요.</p>` +
+      tbl(["file", "sha256"], D.map(m => [`<code>${m.file}</code>`, `<code>${m.sha256}</code>`])) +
+      `<p>그래서 지문이 같은 파일이 있으면 <b>같은 문서가 두 번 들어온 것</b>으로 보고 한 번만 처리할 수 있어요. 반대로 지문은 "바이트가 같은지"만 알려 줘요. 내용이 거의 같아도 한 글자만 다르면 다른 지문이에요.</p>`;
+
+    /* ---------- ② ---------- */
+    const IG = X.ignore;
+    outBox("o2a", 'old_notice.txt를 decode("utf-8", errors="ignore")로 읽으면', [
+      ...lines(IG.raw.trimEnd()),
+      "",
+      [`글자 수: ${IG.chars}  (CP949로 제대로 읽으면 ${IG.right})`, 1],
+    ], [`절반 가까이 버려졌고, 남은 글자도 엉뚱한 글자예요. 오류는 안 났지만 검색할 수 있는 글이 아니에요.`]);
+    const u2 = S[2].units.find(u => u.file === "old_notice.txt");
+    $("o2").innerHTML = `<div class="ttl">▶ ② 실행 결과</div>` +
+      tbl(["file", "status"], Object.entries(S[2].status).map(([f, s]) => [`<code>${f}</code>`, s ? `<code>${s}</code>` : `<span style="color:var(--muted)">(아직 없음)</span>`])) +
+      `<pre><code>units[2] = {\n  "file": ${esc(q(u2.file))},<span class="mk">①</span>\n  "where": ${esc(q(u2.where))},<span class="mk">②</span>\n  "raw": ${esc(q(u2.raw))}<span class="mk">③</span>\n}</code></pre>` +
+      `<ol class="ann"><li>어느 파일에서 나온 글인지</li><li>파일 안의 어디인지. 글자 파일은 통째로 하나라서 <code>전체</code>. PDF는 ④에서 쪽 번호가 들어가요.</li><li>읽은 글 그대로. 줄바꿈(<code>\\n</code>)까지 원본대로예요. 정리는 ⑥에서 해요.</li></ol>` +
+      `<p class="note">글자 파일 3개가 <code>parsed</code>가 됐어요. 다른 형식은 아직 상태가 없어요. 다음 단계에서 채워져요.</p>`;
+    $("t2").innerHTML = `<p><b>멈추지 않고, 상태와 오류 내용이 기록돼요.</b></p>` +
+      `<pre><code>{"file": "old_notice.txt", "status": ${esc(q(X.noenc.status))},\n "error": ${esc(q(X.noenc.error))}}</code></pre>` +
+      `<p>오류 내용의 <code>byte 0xbd in position 0</code>은 "첫 바이트부터 UTF-8 규칙에 안 맞는다"는 뜻이에요. 이 기록을 보고 파일을 열어 CP949임을 확인한 뒤 <code>ENCODING</code>에 적은 거예요.</p>`;
+
+    /* ---------- ③ ---------- */
+    $("o3src").innerHTML = `<div class="ttl">▶ hours.html 원본</div><pre><code>${esc(X.html_src.trimEnd())}</code></pre>`;
+    outBox("o3a", "BeautifulSoup(html).get_text() (태그만 지우고 전부)", lines(X.html_naive.replace(/\n{3,}/g, "\n\n").trim()).map(l =>
+      /홈 자료|©|가람 도서관$|^구분평일|^자료실0|^열람실0/.test(l) ? [`<span class="bad">${esc(l)}</span>`, 0, true] : l));
+    const u3 = S[3].unit;
+    outBox("o3", "③ 실행 결과: hours.html의 글", [
+      ...lines(u3.raw).map(l => /^구분:/.test(l) ? [`<span class="newf">${esc(l)}</span>`, 0, true] : (l === "" ? "⏎" : esc(l).length ? [esc(l), 0, true] : l)),
+    ], [`메뉴, 제목, 저작권 줄이 빠지고 본문만 남았어요.`, `표는 초록색 줄처럼 "열 이름: 값"으로 바뀌었어요. 이제 "열람실 주말"을 물으면 "휴실"이 같은 줄에 있어요.`, `빈 줄(⏎)과 "은    아래"의 연속 공백은 아직 남아 있어요. ⑥에서 정리해요.`]);
+
+    /* ---------- ④ ---------- */
+    const r1 = S[4].units[0];
+    outBox("o4", "④ 실행 결과: rules.pdf 1쪽의 글", [
+      ...lines(r1.raw).map((l, i, a) => (i === 0 || i === a.length - 1) ? [`<span class="bad">${esc(l)}</span>`, i === 0 ? 1 : 2, true] : l),
+      "",
+      [`scan.pdf: extract_text() → ${q(X.scan_text[0])}  →  status = ${q(S[4].status["scan.pdf"])}`, 3],
+    ], [`쪽마다 위에 찍힌 머리말이 본문 첫 줄처럼 나왔어요.`, `아래에 찍힌 쪽번호 "1 / 2"도 본문처럼 나왔어요. ⑥에서 빼요.`, `스캔 PDF는 꺼낼 글자가 없어서 빈 글이에요. ⑤로 넘겨요.`]);
+
+    /* ---------- ⑤ ---------- */
+    outBox("o5a", "기본 설정으로 OCR (preserve_interword_spaces 없음)", lines(X.ocr_nopis.trim()).filter(l => l));
+    outBox("o5", "⑤ 실행 결과: scan.pdf 1쪽 (OCR)", lines(S[5].unit.raw.trimEnd()).map(l => l === "" ? "⏎" : l),
+      [`띄어쓰기가 원래대로 나왔어요. 줄 사이 빈 줄(⏎)은 ⑥에서 줄여요.`, `이 예제는 깨끗한 스캔이라 오인식이 없어요. 실제 스캔은 "실제로 할 때"를 보세요.`]);
+
+    /* ---------- ⑥ ---------- */
+    const N = X.nfd;
+    outBox("o6a", "notice.txt 넷째 줄: 정리 전과 후", [
+      `정리 전: ${N.line_raw}`,
+      [`  len() → ${N.len_raw},  "도서관" in 글 → ${N.find_raw ? "True" : "False"},  앞 글자 코드: ${N.jamo.join(" ")}`, 1],
+      `정리 후: ${N.line_clean}`,
+      [`  len() → ${N.len_clean},  "도서관" in 글 → ${N.find_clean ? "True" : "False"}`, 2],
+    ], [`19글자짜리 줄이 ${N.len_raw}글자로 세지고, "도서관"으로 찾아도 안 나와요. 앞 글자 코드 U+1103(ㄷ) U+1169(ㅗ)처럼 자모가 따로 저장돼 있어요.`,
+        `NFC 정규화 뒤에는 완성형 ${N.len_clean}글자가 되고 검색도 맞아요.`]);
+    const CC = X.clean_cases;
+    outBox("o6b1", "rules.pdf 1쪽: 정리 전", lines(CC.rules_raw).map(l => /^\d+ \/ \d+$/.test(l) ? [`<span class="bad">${esc(l)}</span>`, 0, true] : l));
+    outBox("o6b2", "정리 후", lines(CC.rules_clean));
+    outBox("o6c1", "hours.html: 정리 전 (⏎ = 줄바꿈)", [vis(CC.html_raw).replace(/ {2,}/g, m => `<span class="bad">${m.replace(/ /g, "␣")}</span>`)].map(s => [s, 0, true]));
+    outBox("o6c2", "정리 후", [vis(CC.html_clean)].map(s => [s, 0, true]));
+    $("o6").innerHTML = `<div class="ttl">▶ ⑥ 실행 결과: 글마다 raw → clean 글자 수</div>` +
+      tbl(["file", "where", "raw", "clean"], S[6].units.map(u => [`<code>${u.file}</code>`, esc(u.where), u.raw_chars, `<b>${u.clean_chars}</b>`])) +
+      `<ol class="ann"><li>원본 글(<code>raw</code>)은 그대로 두고, 정리한 글을 <code>clean</code>이라는 <b>새 필드</b>로 붙였어요. 정리 규칙이 틀렸을 때 원본과 비교할 수 있게요.</li></ol>`;
+    $("t6").innerHTML = `<p><b>규정 한 줄이 통째로 사라져요.</b> 회원 규정 2쪽의 "1/2 이상"이 쪽번호로 잘못 걸렸어요.</p><div class="twocol">` +
+      `<div class="out"><div class="ttl">▶ 줄 어디든 걸리게 하면</div><pre><code>${lines(X.loose.bad).map(esc).join("\n")}</code></pre></div>` +
+      `<div class="out"><div class="ttl">▶ 줄 전체일 때만 (지금 코드)</div><pre><code>${lines(X.loose.good).map(l => /1\/2/.test(l) ? `<span class="newf">${esc(l)}</span>` : esc(l)).join("\n")}</code></pre></div></div>` +
+      `<p>지우는 규칙은 넓을수록 위험해요. <b>지워도 되는 것만 정확히 걸리게</b> 좁히고, 지운 줄 수를 세어 확인해요.</p>`;
+
+    /* ---------- ⑦ ---------- */
+    outBox("o7", "⑦ 실행 결과", [
+      [S[7].printed, 1],
+      "",
+      ...S[7].manifest.map(m => `${m.file.padEnd(15)} ${m.status}`),
+    ], [`읽은 글 ${S[7].n_units}개가 <code>out/units.json</code>에, 파일 ${S[7].manifest.length}개의 기록이 <code>out/manifest.json</code>에 저장됐어요.`]);
+    const sm = S[7].sample;
+    $("o7b").innerHTML = `<div class="ttl">▶ out/units.json의 한 글 (rules.pdf 2쪽)</div><pre><code>{\n  "file": ${esc(q(sm.file))},<span class="mk">①</span>\n  "where": ${esc(q(sm.where))},<span class="mk">②</span>\n  "raw": ${esc(q(sm.raw.slice(0, 40)))}…,<span class="mk">③</span>\n  <span class="newf">"clean": ${esc(q(sm.clean.slice(0, 40)))}…</span><span class="mk">④</span>\n}</code></pre>` +
+      `<ol class="ann"><li>어느 파일인지</li><li>그 파일의 몇 쪽인지. 검색 결과의 출처로 보여 줄 수 있어요.</li><li>꺼낸 그대로의 글</li><li>⑥에서 정리한 글. <b>다음 쪽(Chunking)은 이 <code>clean</code>을 나눠요.</b></li></ol>`;
+
+    $("env").textContent = `Python ${P.meta.python}, beautifulsoup4 ${P.meta.beautifulsoup4}, pypdf ${P.meta.pypdf}, Tesseract ${P.meta_tesseract} + kor 언어 데이터`;
+  })();
+  </script>
+</body>
+</html>

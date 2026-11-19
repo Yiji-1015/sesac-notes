@@ -1,0 +1,84 @@
+/* 주제 페이지 공통: "한 단계씩" 설명과 자라는 코드 (topics/steps.js 와 함께 씀) */
+.container.wide { max-width: 1320px; }
+.crumb { font-size: .85rem; color: var(--muted); margin-bottom: 6px; }
+.one-line { font-size: 1.15rem; line-height: 1.7; background: var(--surface); border-left: 6px solid var(--accent); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+.one-line b { color: var(--accent); }
+
+/* 통째로 한 번: 흐름 상자 */
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 14px 0; }
+.flow .box { flex: 1 1 130px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); cursor: pointer; transition: transform .15s; }
+.flow .box:hover { transform: translateY(-2px); border-color: var(--accent); }
+.flow .box .n { font-weight: 800; color: var(--accent); }
+.flow .box .big { font-size: 1.25rem; font-weight: 800; display: block; margin: 2px 0; }
+.flow .box small { color: var(--muted); }
+.flow .arrow { align-self: center; color: var(--muted); font-weight: 700; }
+
+/* 한 단계씩: 왼쪽 설명, 오른쪽 고정 코드 */
+.scrolly { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 28px; align-items: start; }
+.steps .step { min-height: 70vh; padding: 6px 0 40px; border-bottom: 1px dashed var(--line); opacity: .45; transition: opacity .25s; }
+.steps .step.on { opacity: 1; }
+.steps .step:last-child { border-bottom: none; min-height: 40vh; }
+.label { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 10px; }
+.step h3 { margin: 8px 0 6px !important; font-size: 1.3rem !important; color: var(--text) !important; }
+.step .does { font-weight: 600; margin: 4px 0 12px; }
+.kicker { font-weight: 800; color: var(--accent2); margin: 14px 0 4px; font-size: .92rem; }
+
+.codepanel { position: sticky; top: 14px; max-height: calc(100vh - 28px); display: flex; flex-direction: column; background: var(--code-bg); color: var(--code-text); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.codepanel .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; background: rgba(255,255,255,.06); font-size: .82rem; }
+.codepanel .file { font-family: var(--font-code); opacity: .8; margin-right: auto; }
+.pill { border: 1px solid rgba(255,255,255,.25); background: transparent; color: inherit; border-radius: 999px; padding: 1px 9px; font-size: .85rem; cursor: pointer; font-family: inherit; }
+.pill.on { background: #3ddc84; color: #10291b; border-color: #3ddc84; font-weight: 800; }
+.pill.done { opacity: .75; }
+.codepanel .now { padding: 6px 14px; font-size: .85rem; background: rgba(61,220,132,.12); border-bottom: 1px solid rgba(255,255,255,.08); }
+.codepanel .legend { padding: 4px 14px 8px; font-size: .75rem; opacity: .75; }
+.codepanel .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+.codewrap { overflow: auto; padding: 6px 0 14px; }
+.code { font-family: var(--font-code); font-size: .8rem; line-height: 1.55; margin: 0; }
+.code .ln { display: block; white-space: pre; padding: 0 14px 0 0; border-left: 4px solid transparent; }
+.code .ln .no { display: inline-block; width: 2.6em; text-align: right; padding-right: 1em; opacity: .35; user-select: none; }
+.code .ln.old { opacity: .5; }
+.code .ln.new { background: rgba(61,220,132,.16); border-left-color: #3ddc84; opacity: 1; }
+.code .ln.new .no::before { content: "+"; color: #3ddc84; margin-right: 2px; }
+.code .ln.hide { display: none; }
+.code .ln.labelln .cm { color: #ffd166; font-style: normal; font-weight: 800; }
+.code .ln.prevfold { cursor: pointer; opacity: .55; font-style: italic; padding-left: 3.6em; }
+.code .ln.prevfold:hover { opacity: .9; }
+.code .more { display: block; padding: 4px 0 0 3.6em; opacity: .45; font-style: italic; }
+.cm { color: #8fa3bf; font-style: italic; }
+.st { color: #ffcf8a; }
+.kw { color: #ff9ad5; font-weight: 600; }
+.nb { color: #9ce8ff; }
+
+/* 출력 상자 (번호 주석) */
+.out { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; overflow: hidden; }
+.out .ttl { font-size: .82rem; font-weight: 700; padding: 6px 12px; background: var(--accent-soft); color: var(--accent); }
+.out pre { margin: 0 !important; border-radius: 0 !important; font-size: .8rem !important; white-space: pre-wrap; word-break: break-all; }
+.out table { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; }
+.out .mk { display: inline-block; min-width: 1.4em; margin-left: 6px; color: #3ddc84; font-weight: 800; }
+.out ol.ann { margin: 0; padding: 8px 12px 10px 34px; font-size: .9rem; }
+.out ol.ann li { margin: 3px 0; }
+.out ol.ann li::marker { color: var(--accent); font-weight: 800; }
+.out .note { padding: 8px 12px; font-size: .9rem; }
+.newf { background: rgba(61,220,132,.28); color: #c9ffe0; border-radius: 3px; padding: 0 2px; font-weight: 700; }
+table .newf, .note .newf, p .newf { color: #146c35; background: rgba(61,220,132,.3); }
+.bad { background: #ffd8d8; color: #a10000; border-radius: 3px; padding: 0 2px; font-weight: 800; }
+pre .bad { background: rgba(255, 120, 120, .3); color: #ffc9c9; }
+td.over, td.bad-c { color: #c92a2a; font-weight: 800; }
+td.ok-c { color: #2b8a3e; font-weight: 800; }
+.twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.twocol .out { margin: 6px 0; }
+
+/* 바꿔 보기 */
+details.try { border-color: var(--accent2) !important; }
+details.try summary { color: var(--accent2) !important; }
+details.try .hint { color: var(--muted); font-size: .85rem; margin: 6px 0; }
+
+.inline-code { display: none; }
+@media (max-width: 1000px) {
+  .scrolly { grid-template-columns: 1fr; }
+  .codepanel { display: none; }
+  .steps .step { min-height: 0; opacity: 1; }
+  .inline-code { display: block; }
+  .inline-code .mini { background: var(--code-bg); color: var(--code-text); border-radius: 12px; padding: 8px 0; margin: 10px 0; overflow-x: auto; }
+  .twocol { grid-template-columns: 1fr; }
+}
