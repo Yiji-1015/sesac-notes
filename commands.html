@@ -19,7 +19,7 @@
       <input id="q" type="search" placeholder="명령어 검색 (예: resize, threshold, VideoWriter)…">
     </div>
     <div class="toolbar cmd-days"><button class="filter-btn active" data-day="all">전체 Day</button><button class="filter-btn" data-day="6">Day6</button><button class="filter-btn" data-day="7">Day7</button><button class="filter-btn" data-day="8">Day8</button><button class="filter-btn" data-day="9">Day9</button><button class="filter-btn" data-day="10">Day10</button><button class="filter-btn" data-day="11">Day11</button><button class="filter-btn" data-day="12">Day12</button><button class="filter-btn" data-day="13">Day13</button><button class="filter-btn" data-day="14">Day14</button><button class="filter-btn" data-day="15">Day15</button><button class="filter-btn" data-day="16">Day16</button><button class="filter-btn" data-day="17">Day17</button><button class="filter-btn" data-day="18">Day18</button><button class="filter-btn" data-day="19">Day19</button><button class="filter-btn" data-day="20">Day20</button><button class="filter-btn" data-day="21">Day21</button><button class="filter-btn" data-day="22">Day22</button><button class="filter-btn" data-day="23">Day23</button><button class="filter-btn" data-day="24">Day24</button></div>
-    <nav class="toolbar cmd-toc"><a class="filter-btn" href="#topic-scikit-learn">🤖 scikit-learn <small>26</small></a><a class="filter-btn" href="#topic-xgboost">🌲 XGBoost <small>2</small></a><a class="filter-btn" href="#topic-pytorch">🔥 PyTorch <small>61</small></a><a class="filter-btn" href="#topic-torchvision">🧩 torchvision <small>9</small></a><a class="filter-btn" href="#topic-opencv">🖼️ OpenCV <small>19</small></a><a class="filter-btn" href="#topic-yolo">🎯 YOLO <small>9</small></a><a class="filter-btn" href="#topic-ocr-문서">📄 OCR · 문서 <small>5</small></a><a class="filter-btn" href="#topic-vlm-transformers">🧠 VLM · Transformers <small>3</small></a><a class="filter-btn" href="#topic-배포-최적화">🚀 배포 · 최적화 <small>2</small></a><a class="filter-btn" href="#topic-fastapi">⚡ FastAPI <small>29</small></a><a class="filter-btn" href="#topic-postgresql-sql">🐘 PostgreSQL · SQL <small>27</small></a><a class="filter-btn" href="#topic-sqlalchemy-alembic">🧬 SQLAlchemy · Alembic <small>13</small></a><a class="filter-btn" href="#topic-llm-transformer-원리">💬 LLM · Transformer 원리 <small>17</small></a><a class="filter-btn" href="#topic-prompt-context-engineering">📝 Prompt · Context Engineering <small>23</small></a><a class="filter-btn" href="#topic-llm-api-클라이언트">🔌 LLM API 클라이언트 <small>16</small></a><a class="filter-btn" href="#topic-embedding-vector-search">🧭 Embedding · Vector Search <small>24</small></a><a class="filter-btn" href="#topic-document-parsing-chunking">📑 Document Parsing · Chunking <small>18</small></a></nav>
+    <nav class="toolbar cmd-toc"><a class="filter-btn" href="#topic-scikit-learn">🤖 scikit-learn <small>26</small></a><a class="filter-btn" href="#topic-xgboost">🌲 XGBoost <small>2</small></a><a class="filter-btn" href="#topic-pytorch">🔥 PyTorch <small>61</small></a><a class="filter-btn" href="#topic-torchvision">🧩 torchvision <small>9</small></a><a class="filter-btn" href="#topic-opencv">🖼️ OpenCV <small>19</small></a><a class="filter-btn" href="#topic-yolo">🎯 YOLO <small>9</small></a><a class="filter-btn" href="#topic-ocr-문서">📄 OCR · 문서 <small>5</small></a><a class="filter-btn" href="#topic-vlm-transformers">🧠 VLM · Transformers <small>3</small></a><a class="filter-btn" href="#topic-배포-최적화">🚀 배포 · 최적화 <small>2</small></a><a class="filter-btn" href="#topic-fastapi">⚡ FastAPI <small>29</small></a><a class="filter-btn" href="#topic-postgresql-sql">🐘 PostgreSQL · SQL <small>27</small></a><a class="filter-btn" href="#topic-sqlalchemy-alembic">🧬 SQLAlchemy · Alembic <small>13</small></a><a class="filter-btn" href="#topic-llm-transformer-원리">💬 LLM · Transformer 원리 <small>17</small></a><a class="filter-btn" href="#topic-prompt-context-engineering">📝 Prompt · Context Engineering <small>23</small></a><a class="filter-btn" href="#topic-llm-api-클라이언트">🔌 LLM API 클라이언트 <small>16</small></a><a class="filter-btn" href="#topic-embedding-vector-search">🧭 Embedding · Vector Search <small>24</small></a><a class="filter-btn" href="#topic-document-parsing-chunking">📑 Document Parsing · Chunking <small>20</small></a></nav>
     <p id="count" style="color:var(--muted);font-size:0.9rem"></p>
 
     <article class="note cmd-list">
@@ -289,7 +289,7 @@
 <table>
         <tr><th>이론</th><th>대응 명령어 (🔧 = 아래 사전 항목으로)</th></tr>
         <tr><td><a href="notes/day24.html#collect">📖 ① 수집 — 원본 · Manifest</a></td><td><code>Path.iterdir()</code> · <code>suffix</code> · <code>stat().st_size</code>, <code>read_bytes()</code>, <code>hashlib.sha256().hexdigest()</code>, <code>as_uri()</code> <a href="#d24-collect" class="ov-go">🔧 1개 보기</a></td></tr>
-        <tr><td><a href="notes/day24.html#parse">📖 ② Parsing — 형식별 읽기</a></td><td><code>bytes.decode("utf-8")</code>, <code>MarkdownIt().parse()</code>, <code>BeautifulSoup</code> · <code>select_one</code> · <code>get_text</code>, <code>PdfReader</code> · <code>extract_text()</code></td></tr>
+        <tr><td><a href="notes/day24.html#parse">📖 ② Parsing — 형식별 읽기</a></td><td><code>bytes.decode("utf-8")</code>, <code>MarkdownIt().parse()</code>, <code>BeautifulSoup</code> · <code>select_one</code> · <code>get_text</code>, <code>PdfReader</code> · <code>extract_text()</code>, <code>pytesseract.image_to_string</code> · <code>image_to_data</code></td></tr>
         <tr><td><a href="notes/day24.html#clean">📖 ③ Cleaning — 의미는 남기고 잡음만</a></td><td><code>unicodedata.normalize("NFC")</code>, <code>re.sub(r"[ \t]+", " ", …)</code>, <code>sha256(text.encode())</code> <a href="#d24-clean" class="ov-go">🔧 2개 보기</a></td></tr>
         <tr><td><a href="notes/day24.html#chunk">📖 ④ Chunking — 검색 단위로 나누기</a></td><td><code>text[start:end]</code> 창, <code>tokenizer(…, truncation=False)["input_ids"]</code></td></tr>
         <tr><td><a href="notes/day24.html#validate">📖 ⑤ 검증 — Span · Coverage</a></td><td><code>clean_text[a:b] == body</code>, <code>sorted()</code> 구간 병합, <code>type(x) is int</code></td></tr>
@@ -9988,11 +9988,22 @@ text = main.get_text("\n", strip=True)
 # 표는 행 단위로 따로 — 열 이름과 값을 붙여 문장화
 for tr in main.select("table tr"):
     cells = [c.get_text(strip=True) for c in tr.select("th, td")]</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>facility.html 로 실제 실행 · beautifulsoup4 4.15.0</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>BeautifulSoup(html).get_text(&#x27;\n&#x27;, strip=True)  # 전체</code></td><td><code>&#x27;시설 안내\n홈 | 뉴스 | 로그인 | 연혁\n시설 안내\n컴퓨터 실습실은 안내에 따라 이용합니다.\n시설 이용 시&#x27; …</code></td><td>&lt;title&gt; 과 &lt;h1&gt; 이 겹쳐 &#x27;시설 안내&#x27; 두 번 · 메뉴 · 꼬리말까지 섞임</td></tr>
+    <tr><td><code>&#x27;menu marker&#x27; in 전체 텍스트  # &lt;script&gt; 안의 글자</code></td><td><code>False</code></td><td>bs4 4.x 의 get_text() 는 script · style 안 글자를 기본으로 뺌 — 그래도 decompose() 로 명시적으로 지우는 편이 안전</td></tr>
+    <tr><td><code>전체 텍스트 마지막 줄</code></td><td><code>&#x27;문의는 운영실로 연락하세요.&#x27;</code></td><td>&lt;footer&gt; 꼬리말</td></tr>
+    <tr><td><code>main 선택 + script/style decompose()</code></td><td><code>&#x27;시설 안내\n컴퓨터 실습실은 안내에 따라 이용합니다.\n시설 이용 시간\n시설\n안내\n실습실\n담당자 안내에 따라 운영\n회의실\n예약 승인 후 이용\n장비 이상은 운영실에 알립니다.&#x27;</code></td><td>본문만 — 하지만 표는 칸이 줄마다 흩어짐</td></tr>
+    <tr><td><code>표를 행마다 &#x27;열1: 열2&#x27; 로 바꾼 뒤</code></td><td><code>&#x27;시설 안내\n컴퓨터 실습실은 안내에 따라 이용합니다.\n시설 이용 시간\n실습실: 담당자 안내에 따라 운영\n회의실: 예약 승인 후 이용\n장비 이상은 운영실에 알립니다.&#x27;</code></td><td>어느 시설의 안내인지 한 줄로 묶임</td></tr>
+  </table>
+</div>
       <table>
         <tr><th>부분</th><th>뜻</th></tr>
         <tr><td><code>BeautifulSoup(html, "html.parser")</code></td><td>HTML을 태그 트리로. <code>"html.parser"</code>는 표준 라이브러리 파서 (추가 설치 없음)</td></tr>
         <tr><td><code>select_one("main")</code></td><td>CSS 선택자로 첫 요소 — 메뉴(<code>nav</code>) · 꼬리말(<code>footer</code>) 제외</td></tr>
-        <tr><td><code>tag.decompose()</code></td><td>트리에서 완전히 삭제 — <code>script</code> · <code>style</code> 글자가 본문에 섞이지 않게</td></tr>
+        <tr><td><code>tag.decompose()</code></td><td>트리에서 완전히 삭제. bs4 4.x의 <code>get_text()</code>는 <code>script</code> · <code>style</code> 글자를 기본으로 빼 주지만, 다른 방식(<code>.strings</code> · 다른 파서)에서도 안전하도록 명시적으로 지움</td></tr>
         <tr><td><code>get_text("\n", strip=True)</code></td><td>태그 사이를 줄바꿈으로 이어 텍스트만. <b>표의 행 · 열 관계는 복원하지 않음</b></td></tr>
       </table>
 </article>
@@ -10030,7 +10041,77 @@ for page_number, page in enumerate(reader.pages, start=1):
       </table>
       <div class="callout">⚠️ 빈 결과 = 스캔 · 빈 페이지 · 손상 중 무엇인지 아직 몰라요. 확인 후 <code>needs_ocr</code> 등으로 상태를 정해요. 쪽번호 · 머리말도 본문처럼 섞여 나와요.</div>
 </article>
+<article class="cmd" id="d24-ocr" data-day="24">
+  <div class="cmd-head"><h3>스캔 PDF OCR — <code>page.images</code> → <code>pytesseract.image_to_string(lang, config)</code> · <code>image_to_data()['conf']</code></h3><span class="cmd-meta"><span class="tag">Day24</span> <a href="notes/day24.html#case-ocr">📖 이론 보기</a></span></div>
+<pre><code>import numpy as np, cv2, pytesseract
+from pypdf import PdfReader
+from pytesseract import Output
+
+page = PdfReader(str(path)).pages[0]
+if not (page.extract_text() or "").strip():               # 텍스트층이 없을 때만
+    img = cv2.cvtColor(np.array(page.images[0].image), cv2.COLOR_RGB2GRAY)
+    cfg = "--psm 6 -c preserve_interword_spaces=1"
+    text = pytesseract.image_to_string(img, lang="kor", config=cfg)
+    data = pytesseract.image_to_data(img, lang="kor", config=cfg, output_type=Output.DICT)
+    low = [(t, c) for t, c in zip(data["text"], data["conf"]) if t.strip() and float(c) &lt; 60]</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>Tesseract 5.4.0.20240606 · kor 언어팩 · 예제 scan.pdf 의 이미지로 실제 실행</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>PdfReader(scan.pdf).pages[0].extract_text()</code></td><td><code>&#x27;&#x27;</code></td><td>텍스트층 없음 → 이미지를 꺼내 OCR</td></tr>
+    <tr><td><code>page.images[0].image.size</code></td><td><code>(1200, 1700)</code></td><td>PDF 안에 든 스캔 이미지</td></tr>
+    <tr><td><code>image_to_string(깨끗한 스캔, lang=&#x27;kor&#x27;)</code></td><td><code>&#x27;스 캔 된 안 내 문 ( 이 미 지 0 마 ) / 이 문 서는 텍 스 트 층 이 없 습 니 다 . / 00 필 요 여 부는 실 제 원 본 을 확 인 합 니 다 .&#x27;</code></td><td>CER 0.55</td></tr>
+    <tr><td><code>image_to_string(깨끗한 스캔, lang=&#x27;kor&#x27;, preserve_interword_spaces=1)</code></td><td><code>&#x27;스캔된 안내문 (이미지 0마) / 이 문서는 텍스트층이 없습니다. / 00 필요 여부는 실제 원본을 확인합니다.&#x27;</code></td><td>CER 0.1</td></tr>
+    <tr><td><code>image_to_string(깨끗한 스캔, lang=&#x27;kor+eng&#x27;, preserve_interword_spaces=1)</code></td><td><code>&#x27;스캔된 안내문 (이미지 PDF) / 이 문서는 텍스트층이 없습니다. / OCR HQ 여부는 실제 원본을 확인합니다.&#x27;</code></td><td>CER 0.033</td></tr>
+    <tr><td><code>image_to_string(흐린 스캔, lang=&#x27;kor&#x27;, preserve_interword_spaces=1)</code></td><td><code>&#x27;스캔된 안내문 (이미지 『마) / 이 문서는 텍스트충이 없습니다. / 0&lt;8필요 여부는 실제 원본을 확인합니다.&#x27;</code></td><td>CER 0.133</td></tr>
+    <tr><td><code>image_to_string(흐린 스캔, lang=&#x27;kor+eng&#x27;, preserve_interword_spaces=1)</code></td><td><code>&#x27;스캔된 안내문 (이미지 PDF) / 이 문서는 BASSO 없습니다. / OCR HE 여부는 실제 원본을 확인합니다.&#x27;</code></td><td>CER 0.117</td></tr>
+    <tr><td><code>image_to_string(흐린 스캔 → 확대·잡음제거·이진화, lang=&#x27;kor+eng&#x27;, preserve_interword_spaces=1)</code></td><td><code>&#x27;스켄된 안내문 (이미지 POF) / 여 문서는 BAKES 없습니다. / OCR HR 여부는 실제 원본를 확인합니다&#x27;</code></td><td>CER 0.2</td></tr>
+    <tr><td><code>image_to_data(…)[&#x27;conf&#x27;] &lt; 60  # 흐린 스캔 · kor</code></td><td><code>[(&#x27;충&#x27;, 33), (&#x27;0&lt;8&#x27;, 0), (&#x27;필&#x27;, 52)]</code></td><td>신뢰도 낮은 글자 = 검토 후보</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>부분</th><th>뜻</th></tr>
+        <tr><td><code>page.images[0].image</code></td><td>PDF 안에 들어 있는 스캔 이미지를 PIL 이미지로 꺼냄 (페이지를 다시 그리지 않음)</td></tr>
+        <tr><td><code>lang="kor"</code> · <code>"kor+eng"</code></td><td>쓸 언어팩 (<code>kor.traineddata</code>가 tessdata 폴더에 있어야 함). 섞으면 영어 단어는 살지만 한글이 영어로 오인될 수 있음</td></tr>
+        <tr><td><code>--psm 6</code></td><td>페이지를 "균일한 글 덩어리 하나"로 보고 읽기 (페이지 분할 방식)</td></tr>
+        <tr><td><code>-c preserve_interword_spaces=1</code></td><td>한국어에서 글자마다 끼는 공백을 줄이고 원래 띄어쓰기를 살림</td></tr>
+        <tr><td><code>image_to_data(…, Output.DICT)</code></td><td>단어마다 글자 · 위치(left/top/width/height) · 신뢰도 <code>conf</code>(0~100)</td></tr>
+        <tr><td><code>--tessdata-dir 경로</code></td><td>언어팩을 다른 폴더에 둔 경우 그 위치 (Windows는 슬래시 경로 · 따옴표 없이)</td></tr>
+      </table>
+      <div class="callout">⚠️ OCR 결과는 "원문"이 아니라 <b>추정</b>이에요. 엔진 · 버전 · 언어 · psm을 <code>pipeline_version</code>으로 기록하고, 원래 OCR 결과와 신뢰도를 함께 남겨요.</div>
+</article>
 <h4 class="cmd-sub">Cleaning</h4>
+<article class="cmd" id="d24-ocr-clean" data-day="24">
+  <div class="cmd-head"><h3>OCR 결과 다루기 — 기울기 <code>cv2.minAreaRect</code> · 신뢰도로 검토 표시 · 정규식으로 고치지 않을 것</h3><span class="cmd-meta"><span class="tag">Day24</span> <a href="notes/day24.html#case-ocr">📖 이론 보기</a></span></div>
+<pre><code>import cv2, numpy as np, re
+
+# 기울기 추정 (글자 픽셀을 감싸는 최소 회전 사각형)
+_, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+ys, xs = np.where(bw &lt; 128)
+angle = cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32))[-1]
+
+# ❌ 글자 사이 공백을 정규식으로 지우기 — 진짜 띄어쓰기까지 사라짐
+bad_fix = re.sub(r"(?&lt;=[가-힣]) (?=[가-힣])", "", ocr_text)
+
+# ✅ 오인식은 규칙으로 바꾸지 말고 검토 대상으로 표시
+review = [(t, c) for t, c in words if c &lt; 60]</code></pre>
+<div class="io">
+  <div class="io-title">▶ 실제로 돌려 보면 <small>위 OCR 결과로 실제 실행</small></div>
+  <table class="io-table">
+    <tr><th>📥 입력</th><th>📤 출력</th><th>뜻</th></tr>
+    <tr><td><code>re.sub(r&#x27;(?&lt;=[가-힣]) (?=[가-힣])&#x27;, &#x27;&#x27;, 기본 OCR 결과)</code></td><td><code>&#x27;스캔된안내문 ( 이미지 0 마 ) / 이문서는텍스트층이없습니다 . / 00 필요여부는실제원본을확인합니다 .&#x27;</code></td><td>글자 사이 공백을 정규식으로 지우면 진짜 띄어쓰기까지 사라짐 · CER 0.3</td></tr>
+    <tr><td><code>minAreaRect 로 잰 기울기</code></td><td><code>-1.76°</code></td><td>일부러 1.8° 돌린 사본 — 각도는 잡아냄</td></tr>
+    <tr><td><code>흐린 스캔 단어별 conf (일부)</code></td><td><code>[(&#x27;지&#x27;, 82), (&#x27;『&#x27;, 81), (&#x27;마&#x27;, 87), (&#x27;)&#x27;, 91), (&#x27;이&#x27;, 93), (&#x27;문&#x27;, 93), (&#x27;서는&#x27;, 93), (&#x27;텍&#x27;, 92), (&#x27;스&#x27;, 93), (&#x27;트&#x27;, 93), (&#x27;충&#x27;, 33), (&#x27;이&#x27;, 93)]</code></td><td>&#x27;『&#x27; 81 처럼 틀렸는데 신뢰도가 높은 경우도 있음</td></tr>
+  </table>
+</div>
+      <table>
+        <tr><th>부분</th><th>뜻</th></tr>
+        <tr><td><code>cv2.minAreaRect(points)</code></td><td>점들을 감싸는 최소 회전 사각형 → <code>(중심, (폭, 높이), 각도)</code>. 각도로 기울기를 추정</td></tr>
+        <tr><td><code>THRESH_BINARY + THRESH_OTSU</code></td><td>밝기 기준값을 자동으로 정해 흑백으로</td></tr>
+        <tr><td><code>(?&lt;=[가-힣]) (?=[가-힣])</code></td><td>한글 사이 공백 — 글자 간 공백과 단어 간 공백을 구분하지 못함</td></tr>
+        <tr><td><code>conf &lt; 60</code></td><td>검토 후보 (기준값은 예시 설정) — 틀렸는데 신뢰도가 높은 글자도 있어 사람 대조가 필요</td></tr>
+      </table>
+</article>
 <article class="cmd" id="d24-normalize" data-day="24">
   <div class="cmd-head"><h3>유니코드 정규화 — <code>unicodedata.normalize("NFC" | "NFKC", s)</code></h3><span class="cmd-meta"><span class="tag">Day24</span> <a href="notes/day24.html#normalize">📖 이론 보기</a></span></div>
 <pre><code>import unicodedata
@@ -10265,7 +10346,7 @@ chunk_id = hashlib.sha256(payload).hexdigest()</code></pre>
     <tr><td><code>json.dumps(identity, sort_keys=True, separators=(&#x27;,&#x27;, &#x27;:&#x27;), ensure_ascii=False)</code></td><td><code>{&quot;doc_id&quot;:&quot;DOC-ATTEND&quot;,&quot;pipeline_version&quot;:&quot;ingest-e5-v1&quot;,&quot;source_version&quot;:&quot;v1&quot;,&quot;span&quot;:[0,40],&quot;unit_id&quot;:&quot;sec-1&quot;}</code></td><td>키 순서 · 공백이 고정된 직렬화</td></tr>
     <tr><td><code>sha256(payload).hexdigest()[:16]</code></td><td><code>f8290ff2d605009a…</code></td><td>같은 입력 → 언제 돌려도 같은 chunk_id</td></tr>
     <tr><td><code>source_version 만 v2 로</code></td><td><code>2dcfe15c1f4037ab…</code></td><td>버전이 다르면 다른 ID</td></tr>
-    <tr><td><code>두 프로세스에서 hash(&#x27;DOC-ATTEND&#x27;)</code></td><td><code>-6668765536654053889 / 5869132473351698419</code></td><td>Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀</td></tr>
+    <tr><td><code>두 프로세스에서 hash(&#x27;DOC-ATTEND&#x27;)</code></td><td><code>-7766343271965289275 / -8145272665599836368</code></td><td>Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀</td></tr>
   </table>
 </div>
       <table>

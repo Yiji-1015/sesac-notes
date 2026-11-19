@@ -226,6 +226,133 @@ IO["d24-chunk-id"] = ("실제 실행", [
     ("두 프로세스에서 hash('DOC-ATTEND')", " / ".join(hs), "Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀"),
 ])
 
+# ------------------------------------------------------------------ 실물 사례: 그대로 파싱 → 문제 → 정제
+CASES = {}
+
+# 사례 A — 줄바꿈 · 공백이 섞인 텍스트 (예제 fixture)
+fx = (DATA / "fixtures" / "clean_before.txt").read_bytes().decode("utf-8")
+CASES["A"] = {"raw": fx, "clean": clean_prose(fx), "naive": re.sub(r"\s+", " ", fx).strip()}
+
+# 사례 B — HTML: 전체 텍스트 vs main 만 vs 표를 행 단위로
+from bs4 import BeautifulSoup  # noqa: E402
+import bs4 as _bs4  # noqa: E402
+
+html_text = (RAW / "facility.html").read_text(encoding="utf-8")
+soup_all = BeautifulSoup(html_text, "html.parser")
+whole = soup_all.get_text("\n", strip=True)
+soup = BeautifulSoup(html_text, "html.parser")
+main = soup.select_one("main")
+for tag in main.select("script, style"):
+    tag.decompose()
+main_text = main.get_text("\n", strip=True)
+table = main.select_one("table")
+header = [th.get_text(strip=True) for th in table.select("thead th")]
+rows = [[td.get_text(strip=True) for td in tr.select("td")] for tr in table.select("tbody tr")]
+row_lines = [f"{r[0]}: {r[1]}" for r in rows]
+table.replace_with(soup.new_string("\n".join(row_lines)))
+main_rows = main.get_text("\n", strip=True)
+CASES["B"] = {"whole": whole, "main": main_text, "rows": main_rows, "header": header}
+IO["d24-html"] = (f"facility.html 로 실제 실행 · beautifulsoup4 {_bs4.__version__}", [
+    ("BeautifulSoup(html).get_text('\\n', strip=True)  # 전체", repr(whole[:60]) + " …", "<title> 과 <h1> 이 겹쳐 '시설 안내' 두 번 · 메뉴 · 꼬리말까지 섞임"),
+    ("'menu marker' in 전체 텍스트  # <script> 안의 글자", str("menu marker" in whole), "bs4 4.x 의 get_text() 는 script · style 안 글자를 기본으로 뺌 — 그래도 decompose() 로 명시적으로 지우는 편이 안전"),
+    ("전체 텍스트 마지막 줄", repr(whole.splitlines()[-1]), "<footer> 꼬리말"),
+    ("main 선택 + script/style decompose()", repr(main_text), "본문만 — 하지만 표는 칸이 줄마다 흩어짐"),
+    ("표를 행마다 '열1: 열2' 로 바꾼 뒤", repr(main_rows), "어느 시설의 안내인지 한 줄로 묶임"),
+])
+
+# 사례 C — 텍스트 PDF: 쪽번호 줄이 본문에 섞임
+pages = []
+import logging  # noqa: E402
+logging.getLogger("pypdf").setLevel(logging.ERROR)
+for n, page in enumerate(PdfReader(str(RAW / "career.pdf")).pages, start=1):
+    pages.append(page.extract_text() or "")
+PAGE_NO = re.compile(r"^\s*\d+\s*/\s*\d+\s*$")
+cleaned_pages = ["\n".join(ln for ln in p.splitlines() if not PAGE_NO.match(ln)).strip() for p in pages]
+CASES["C"] = {"raw": pages, "clean": cleaned_pages}
+
+# 사례 D — 스캔 PDF → OCR
+import cv2  # noqa: E402
+import pytesseract  # noqa: E402
+from pytesseract import Output  # noqa: E402
+
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+TESS = "--tessdata-dir C:/Users/pc_28/tessdata_local --psm 6"
+PIS = " -c preserve_interword_spaces=1"
+TRUTH = "스캔된 안내문 (이미지 PDF)\n이 문서는 텍스트층이 없습니다.\nOCR 필요 여부는 실제 원본을 확인합니다."
+scan_img = PdfReader(str(RAW / "scan.pdf")).pages[0].images[0].image
+clean_scan = cv2.cvtColor(np.array(scan_img), cv2.COLOR_RGB2GRAY)[:560]
+# 저화질 복사본 흉내: 1/3 축소 · 1.8° 기울임 · 회색 종이 · 잡음 · 흐림 (seed 0)
+_r = np.random.default_rng(0)
+h_, w_ = clean_scan.shape
+small = cv2.resize(clean_scan, (w_ // 3, h_ // 3), interpolation=cv2.INTER_AREA)
+Mrot = cv2.getRotationMatrix2D((small.shape[1] / 2, small.shape[0] / 2), 1.8, 1.0)
+rot = cv2.warpAffine(small, Mrot, (small.shape[1], small.shape[0]), borderValue=255)
+bad_scan = cv2.GaussianBlur(np.clip(rot.astype(np.float32) * 0.75 + 40 + _r.normal(0, 22, rot.shape), 0, 255).astype(np.uint8), (3, 3), 0)
+up = cv2.resize(bad_scan, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+_, otsu = cv2.threshold(cv2.fastNlMeansDenoising(up, None, h=25), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+ys, xs = np.where(otsu < 128)
+skew = cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32))[-1]
+
+
+def ocr(img, lang, cfg=""):
+    return pytesseract.image_to_string(img, lang=lang, config=TESS + cfg).strip()
+
+
+def lev(a, b):
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def cer(t):
+    return round(lev(t, TRUTH) / len(TRUTH), 3)
+
+
+runs = [("깨끗한 스캔", "kor", "", clean_scan), ("깨끗한 스캔", "kor", PIS, clean_scan), ("깨끗한 스캔", "kor+eng", PIS, clean_scan),
+        ("흐린 스캔", "kor", PIS, bad_scan), ("흐린 스캔", "kor+eng", PIS, bad_scan),
+        ("흐린 스캔 → 확대·잡음제거·이진화", "kor+eng", PIS, otsu)]
+ocr_rows = []
+for name, lang, cfg, img in runs:
+    t = ocr(img, lang, cfg)
+    ocr_rows.append({"img": name, "lang": lang, "pis": bool(cfg), "text": t, "cer": cer(t)})
+raw_kor = ocr_rows[0]["text"]
+naive_join = re.sub(r"(?<=[가-힣]) (?=[가-힣])", "", raw_kor)
+
+
+def low_conf(img, lang="kor", th=60):
+    d = pytesseract.image_to_data(img, lang=lang, config=TESS + PIS, output_type=Output.DICT)
+    words = [(t, float(c), (x, y, w, h)) for t, c, x, y, w, h in zip(d["text"], d["conf"], d["left"], d["top"], d["width"], d["height"]) if t.strip()]
+    return words, [(t, round(c)) for t, c, _ in words if c < th]
+
+
+clean_words, clean_low = low_conf(clean_scan)
+bad_words, bad_low = low_conf(bad_scan)
+CASES["D"] = {"truth": TRUTH, "runs": ocr_rows, "naive_join": naive_join, "naive_cer": cer(naive_join),
+              "skew": round(float(skew), 2), "clean_low": clean_low, "bad_low": bad_low,
+              "bad_words": [(t, round(c)) for t, c, _ in bad_words]}
+RESULTS["cases"] = CASES
+tmpd = Path(tempfile.gettempdir())
+cv2.imwrite(str(tmpd / "d24_scan_clean.png"), clean_scan)
+cv2.imwrite(str(tmpd / "d24_scan_bad.png"), bad_scan)
+(tmpd / "d24_bad_boxes.json").write_text(json.dumps([(t, c, b) for t, c, b in bad_words]), encoding="utf-8")
+
+IO["d24-ocr"] = (f"Tesseract {pytesseract.get_tesseract_version()} · kor 언어팩 · 예제 scan.pdf 의 이미지로 실제 실행", [
+    ("PdfReader(scan.pdf).pages[0].extract_text()", repr(PdfReader(str(RAW / 'scan.pdf')).pages[0].extract_text()), "텍스트층 없음 → 이미지를 꺼내 OCR"),
+    ("page.images[0].image.size", str(scan_img.size), "PDF 안에 든 스캔 이미지"),
+    *[(f"image_to_string({r['img']}, lang='{r['lang']}'{', preserve_interword_spaces=1' if r['pis'] else ''})",
+       repr(r["text"].replace("\n", " / ")), f"CER {r['cer']}") for r in ocr_rows],
+    ("image_to_data(…)['conf'] < 60  # 흐린 스캔 · kor", str(bad_low), "신뢰도 낮은 글자 = 검토 후보"),
+])
+IO["d24-ocr-clean"] = ("위 OCR 결과로 실제 실행", [
+    ("re.sub(r'(?<=[가-힣]) (?=[가-힣])', '', 기본 OCR 결과)", repr(naive_join.replace("\n", " / ")), f"글자 사이 공백을 정규식으로 지우면 진짜 띄어쓰기까지 사라짐 · CER {cer(naive_join)}"),
+    ("minAreaRect 로 잰 기울기", f"{round(float(skew), 2)}°", "일부러 1.8° 돌린 사본 — 각도는 잡아냄"),
+    ("흐린 스캔 단어별 conf (일부)", str([(t, round(c)) for t, c, _ in bad_words][9:21]), "'『' 81 처럼 틀렸는데 신뢰도가 높은 경우도 있음"),
+])
+
 # ------------------------------------------------------------------ ⑦ DB
 def read_env(p):
     out = {}

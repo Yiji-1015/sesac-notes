@@ -20245,8 +20245,8 @@ Embedding · Vector Search는 이미 정리된 짧은 지식 문장을 벡터로
 | 단계 | 하는 일 | 핵심 질문 |
 |---|---|---|
 | ① 수집 | 파일 목록 · 원본 바이트 · SHA-256 | 무엇을 처리했고, 원문이 바뀌었나? |
-| ② Parsing | 형식별로 텍스트와 구조 꺼내기 | 글자만이 아니라 제목 · 표 · 페이지가 살아 있나? |
-| ③ Cleaning | 줄바꿈 · 공백 · 유니코드 정리 | 잡음만 지웠고 의미는 그대로인가? |
+| ② Parsing | 형식별로 텍스트와 구조 꺼내기 · 스캔은 OCR — 실제 출력 사례 5개 | 그대로 읽으면 무엇이 섞이고 무엇이 깨지나? |
+| ③ Cleaning | 줄바꿈 · 공백 · 유니코드 정리 — Before / After | 잡음만 지웠고 의미는 그대로인가? |
 | ④ Chunking | 검색 단위로 나누기 | 조건과 결과가 한 조각에 있나? 모델 한도 안인가? |
 | ⑤ 검증 | Span · Coverage · 중복 · 빈 조각 | 조각이 원문과 정확히 대응하고, 빠진 곳이 없나? |
 | ⑥ Metadata | 출처 · 버전 · 위치 · 결정적 ID | 이 조각은 어느 문서 어느 판의 어디서 왔나? |
@@ -20319,26 +20319,19 @@ record = {"doc_id": "DOC-ASSIGN", "source_version": "v1", "source_uri": path.as_
 
 입력 수 = 완료 + 보류 + 실패 + 건너뜀이 맞아야 해요. 예제 6건이면 parsed 4 · needs_ocr 1 · unsupported 1. 빠진 파일이 조용히 사라지면 "검색에 없는 이유"를 아무도 설명할 수 없어요.
 
-## ② Parsing — 글자만이 아니라 구조까지
+## ② Parsing — 실제로 읽으면 이렇게 나온다
 
-Parsing은 파일 형식을 해석해 텍스트와 함께 제목 · 문단 · 표 · 페이지 같은 구조를 꺼내는 일이에요. 문자열이 나왔다고 원문의 순서 · 관계가 보존됐다는 뜻은 아니에요.
+Parsing은 파일 형식을 해석해 텍스트와 함께 제목 · 문단 · 표 · 페이지 같은 구조를 꺼내는 일이에요. 규칙을 외우기보다, 예제 문서를 그대로 읽었을 때 실제로 무엇이 나오는지 보고, 무엇이 문제인지, 어떻게 고치는지 순서로 볼게요. 아래 출력은 모두 실제 실행 결과 그대로예요.
 
-```
-원문:        [지각과 결석]  10분 초과 → 결석
-잘못 추출:   10분 / 결석 / (다른 행의 값)     ← 조건 관계가 사라짐
-```
-
-### 형식마다 지킬 구조가 달라요
-
-| 형식 | 도구 | 지킬 것 · 주의 |
+| 형식 | 도구 | 그대로 읽으면 생기는 문제 (아래 사례) |
 |---|---|---|
-| TXT | bytes.decode("utf-8") | 인코딩 오류 · 줄바꿈 |
-| Markdown | Markdown 파서 (markdown-it-py) | 제목 경계 · 목록 · 코드 블록 |
-| HTML | Beautiful Soup — main 선택 | 메뉴 · 스크립트 제외 · 표의 행 · 열 |
-| PDF | pypdf — 페이지별 추출 | 읽기 순서 · 이미지 글자 · 표 |
-| DOCX (참고) | python-docx | 문단만 돌면 표가 빠짐 |
+| TXT | bytes.decode("utf-8") | 인코딩이 틀리면 글자가 깨지거나 조용히 사라짐 |
+| Markdown | markdown-it-py | 제목과 본문의 소속이 사라짐 · 코드 속 #를 제목으로 착각 |
+| HTML | Beautiful Soup | 메뉴 · 꼬리말 · 제목 중복이 섞이고, 표가 칸 단위로 흩어짐 |
+| 텍스트 PDF | pypdf | 쪽번호 · 머리말이 본문에 섞임 |
+| 스캔 PDF | pypdf → OCR(Tesseract) | 텍스트가 0자 → OCR 결과는 띄어쓰기 · 오인식투성이 |
 
-### TXT — 인코딩을 명시하고, 실패를 숨기지 않기
+### 사례 1 · TXT — 인코딩을 명시하고 실패를 숨기지 않기
 
 🔧 bytes.decode("utf-8") 명령어 사전에서 자세히 →
 
@@ -20349,15 +20342,24 @@ except UnicodeDecodeError: status = "decode_error"
 
 | 입력 (실제 실행) | 결과 |
 |---|---|
-| 잘린 UTF-8 바이트 .decode("utf-8") | UnicodeDecodeError → decode_error 기록 |
-| 같은 바이트 errors="ignore" | '과 ok' — 깨진 글자가 조용히 사라짐 |
-| 빈 바이트 | '' — 오류가 아니라 empty |
+| assignment.txt | parsed · 113자 / 267바이트 (한글 1자 = 3바이트) |
+| 끝이 잘린 UTF-8 바이트 | UnicodeDecodeError → decode_error로 기록 |
+| 같은 바이트를 errors="ignore"로 | '과 ok' — "과제"의 "제"가 오류 없이 사라짐 |
 
-TXT에는 페이지가 없어요. page_number=1을 억지로 넣지 않고 비워 둬요(None).
+그래서 errors="ignore"는 쓰지 않아요. TXT에는 페이지가 없으니 page_number도 비워 둬요(None).
 
-### Markdown — 제목 경로(Heading Path)를 함께
+### 사례 2 · Markdown — 제목 경로를 같이 들고 가기
 
-제목 다음의 문장은 그 절에 속하고, 다음 제목을 만나면 구역이 바뀌어요. 이 소속을 Heading Path로 남기면, 비슷한 문장이 여러 절에 있어도 어느 규정인지 설명할 수 있어요.
+```
+# 출석 안내
+## 지각과 결석
+수업 시작 후 10분까지 입실하면 지각으로 기록합니다.
+10분을 초과하면 결석으로 기록합니다.
+## 출석 문의
+출석 기록에 오류가 있다면 운영실에 문의하세요.
+```
+
+본문만 뽑으면 "10분을 초과하면 결석"이 어느 절의 규정인지가 사라져요. 파서로 제목 토큰을 읽어 Heading Path를 붙여요.
 
 🔧 MarkdownIt().parse() 명령어 사전에서 자세히 →
 
@@ -20365,87 +20367,243 @@ TXT에는 페이지가 없어요. page_number=1을 억지로 넣지 않고 비�
 tokens = MarkdownIt().parse(md_text)      # heading_open → inline → heading_close …
 ```
 
-실제 실행(attendance.md): 출석 안내 · 출석 안내 > 지각과 결석 · 출석 안내 > 출석 문의. 🤔 정규식으로 # 줄을 찾으면 안 돼? 코드 블록 안의 # 주석도 제목으로 잡혀요. 파서는 그 부분을 fence 토큰으로 따로 줘요(실제 실행: ('fence', 'code'), 진짜 제목만 ('heading_open', 'h1')).
+실제 결과: 출석 안내 · 출석 안내 > 지각과 결석 · 출석 안내 > 출석 문의. 정규식으로 # 줄을 찾으면 코드 블록 안의 # 주석도 제목으로 잡히지만, 파서는 그 부분을 fence 토큰으로 따로 줘요(실제: ('fence', 'code'), 진짜 제목만 ('heading_open', 'h1')).
 
-### HTML — 본문 영역만, 표는 행 · 열 관계를 살려서
+### 사례 3 · HTML — 본문만 고르고, 표는 행으로 묶기
 
-🔧 BeautifulSoup · select_one("main") · decompose() 명령어 사전에서 자세히 →
+원본 (facility.html, 일부):
+
+```
+<title>시설 안내</title> … <nav>홈 | 뉴스 | 로그인 | 연혁</nav>
+<main><h1>시설 안내</h1><p>컴퓨터 실습실은 안내에 따라 이용합니다.</p>
+  <table><tr><th>시설</th><th>안내</th></tr>
+         <tr><td>실습실</td><td>담당자 안내에 따라 운영</td></tr> …</table>
+  <script>console.log('menu marker …')</script></main>
+<footer>문의는 운영실로 연락하세요.</footer>
+```
+
+① 그대로 전체 텍스트 — BeautifulSoup(html).get_text("\n", strip=True):
+
+```
+시설 안내                  ← <title>
+홈 | 뉴스 | 로그인 | 연혁    ← 메뉴
+시설 안내                  ← <h1> (같은 말이 두 번)
+컴퓨터 실습실은 안내에 따라 이용합니다.
+시설 이용 시간
+시설
+안내
+실습실
+담당자 안내에 따라 운영
+회의실
+예약 승인 후 이용
+장비 이상은 운영실에 알립니다.
+문의는 운영실로 연락하세요.   ← 꼬리말
+```
+
+무엇이 문제? 메뉴 · 꼬리말 · 중복 제목이 Embedding에 섞여 검색을 흐려요. 그리고 표가 칸마다 한 줄씩 흩어져서, "예약 승인 후 이용"이 어느 시설 얘기인지 조각만 보고는 알 수 없어요. (<script> 안 글자는 Beautiful Soup 4.x가 기본으로 빼 줘서 실제로는 안 섞였어요 — 그래도 명시적으로 지우는 편이 안전해요.)
+
+② 고치기 — 본문 영역만 고르고, 표는 행마다 "열1: 열2"로:
+
+🔧 select_one("main") · decompose() · 표 행 단위 명령어 사전에서 자세히 →
 
 ```
 main = BeautifulSoup(html_text, "html.parser").select_one("main")
 for tag in main.select("script, style"): tag.decompose()
+table = main.select_one("table")
+lines = [f"{tds[0].get_text(strip=True)}: {tds[1].get_text(strip=True)}"
+         for tds in (tr.select("td") for tr in table.select("tbody tr"))]
+table.replace_with("\n".join(lines))
 text = main.get_text("\n", strip=True)
 ```
 
-facility.html에는 <nav>홈 | 뉴스 | 로그인</nav>, <footer>, <script>가 섞여 있어요. 전체 get_text()를 쓰면 메뉴 글자까지 Embedding돼 검색을 흐려요. 그리고 get_text()는 표의 행 · 열 관계를 복원하지 않아요:
+```
+시설 안내
+컴퓨터 실습실은 안내에 따라 이용합니다.
+시설 이용 시간
+실습실: 담당자 안내에 따라 운영
+회의실: 예약 승인 후 이용
+장비 이상은 운영실에 알립니다.
+```
 
-| 원문 표 | 잘못된 텍스트 | 보존한 텍스트 |
-|---|---|---|
-| 시설 / 운영시간 | 09:00 18:00 | 도서관: 09:00~18:00 |
-| 요일 / 장소 | 월 화 2층 3층 | 월: 2층 / 화: 3층 |
-| 비고 / 예외 | 휴관 허용 | 일요일: 휴관 (예외 조건 보존) |
+남는 한계: 열이 3개 이상이거나 칸이 합쳐진(rowspan · colspan) 표는 이 방식으로 부족해요. "열 이름: 값" 형태로 모든 열을 붙이거나 표를 별도 Chunk로 두고, 원본 표와 대조해요. <main>이 없는 페이지는 main_not_found로 기록하고 어떤 영역을 쓸지 따로 정해요.
 
-(위 표는 구조 보존을 설명하는 가상 예시.) 표는 행 단위로 읽어 열 이름과 값을 붙여 문장화하거나 행을 그대로 보존해요.
+### 사례 4 · 텍스트 PDF — 쪽번호를 지우고, 페이지 위치는 남기기
 
-### PDF — 페이지별 추출과 위치, 그리고 한계
+① 그대로 추출 — page.extract_text() (career.pdf):
+
+```
+[page 1]
+진로 상담 안내
+진로 상담은 운영실에 신청할 수 있습니다.
+상담 신청 시 희망 날짜와 문의 주제를 함께 적습니다.
+상담 일정은 담당자 확인 후 확정됩니다.
+1 / 2                               ← 쪽번호가 본문처럼 섞임
+
+[page 2]
+진로 상담 안내 - 두 번째 페이지       ← 페이지마다 반복되는 머리말
+신청한 상담을 변경하려면 담당자에게 미리 연락하세요.
+상담 내용에는 개인정보가 포함될 수 있으므로 공개 게시판에 적지 않습니다.
+2 / 2
+```
+
+무엇이 문제? "1 / 2" 같은 쪽번호는 의미 없는 글자인데 Chunk에 들어가 검색 · 토큰을 차지해요. 페이지를 그냥 이어 붙이면 page 1 끝과 page 2 머리말이 한 조각으로 붙어요.
+
+② 고치기 — "숫자 / 숫자"만 있는 줄만 지우고, 페이지는 따로 둬요:
+
+```
+PAGE_NO = re.compile(r"^\s*\d+\s*/\s*\d+\s*$")        # 줄 전체가 "1 / 2" 꼴일 때만
+clean = "\n".join(ln for ln in raw.splitlines() if not PAGE_NO.match(ln)).strip()
+# unit_id = f"page-{n}", source_locator = f"career.pdf#page={n}"  ← 페이지마다 출처 유지
+```
+
+```
+[page 1]  진로 상담 안내 / 진로 상담은 운영실에 신청할 수 있습니다. / … / 상담 일정은 담당자 확인 후 확정됩니다.
+[page 2]  진로 상담 안내 - 두 번째 페이지 / 신청한 상담을 변경하려면 … / … 공개 게시판에 적지 않습니다.
+```
+
+왜 이렇게 좁게? "줄 안 어디든 숫자/숫자"를 지우면 "2/3 이상 출석"같은 진짜 조건까지 지워져요. 규칙은 줄 전체가 그 꼴일 때만 걸리게 좁히고, 지운 줄 수를 기록해 확인해요. 머리말 "진로 상담 안내 - 두 번째 페이지"는 문서마다 다르니, 여러 페이지에 똑같이 반복되는 줄을 찾아 지우는 건 문서별로 확인한 뒤 적용해요.
 
 🔧 PdfReader(path).pages · extract_text() 명령어 사전에서 자세히 →
 
 ```
 for page_number, page in enumerate(PdfReader(str(path)).pages, start=1):
-    units.append({"unit_id": f"page-{page_number}", "source_locator": f"career.pdf#page={page_number}",
-                  "raw_text": page.extract_text() or ""})
+    raw_text = page.extract_text() or ""
 ```
 
-| 파일 · 페이지 (실제 실행) | 추출 결과 | 상태 |
-|---|---|---|
-| career.pdf p.1 | 93자 · 첫 줄 "진로 상담 안내" | page-1 unit |
-| career.pdf p.2 | 98자 · 첫 줄 "진로 상담 안내 - 두 번째 페이지" | page-2 unit |
-| scan.pdf p.1 | 0자 | needs_ocr 보류 |
-
-| PDF 종류 | 주의 |
+| PDF 종류 | 그대로 읽으면 |
 |---|---|
-| 텍스트 PDF | 글자는 나와도 다단 순서 · 머리말 · 쪽번호(실제로 "1 / 2"가 본문에 섞여 나옴) · 표는 검수 필요 |
-| 스캔 PDF | 글자가 이미지 → pypdf는 못 읽음. OCR이 별도로 필요 (OCR) |
-| OCR 텍스트층 있는 PDF | 글자는 나와도 오인식 가능 |
+| 텍스트 PDF | 글자는 나오지만 다단 순서 · 머리말 · 쪽번호 · 표는 검수 필요 (위 사례) |
+| 스캔 PDF | 0자 — 글자가 그림이라 OCR이 필요 (다음 사례) |
+| OCR 텍스트층이 이미 있는 PDF | 글자는 나오지만 예전 OCR의 오인식이 그대로 들어 있을 수 있음 |
 | 혼합 PDF | 페이지마다 상태가 다름 → 문서 전체를 한 번에 승인하지 않음 |
 
-🤔 빈 결과면 스캔 PDF라고 확정해도 돼? 아니요. 실제 빈 페이지 · 파일 손상 · 스캔 중 무엇인지 원본을 확인한 뒤 상태를 정해요. PDF는 화면에 "보이는" 배치가 중심이라, 화면 순서와 추출 순서가 다를 수 있어요.
+### 사례 5 · 스캔 PDF → OCR — 결과를 어떻게 정제하나
+
+[그림: scan.pdf 안의 스캔 이미지, 흐린 사본에 단어별 신뢰도 표시(충 33, OCR→0<8 0, 필 52 빨강, 『 81 주황), 설정별 CER 막대(0.55, 0.10, 0.033, 0.133, 0.117, 0.20)] 무엇을 보나: ① scan.pdf에 들어 있는 실제 스캔 이미지. ② 같은 이미지를 1/3로 줄이고 1.8° 기울이고 잡음을 넣은 "복사기 사본" — 빨간 칸은 Tesseract가 신뢰도 60 미만이라고 한 글자, 주황은 틀렸는데 신뢰도 81로 자신 있게 낸 글자. ③ 설정마다 정답 문장과 비교한 글자 오류율(CER). Tesseract 5.4 · kor 언어팩 실제 실행.
+
+Step 1 · 텍스트층 확인 — extract_text()가 ''. 페이지 안의 그림(page.images[0], 1200×1700)을 꺼내 OCR해요. 정답 문장은:
+
+```
+스캔된 안내문 (이미지 PDF)
+이 문서는 텍스트층이 없습니다.
+OCR 필요 여부는 실제 원본을 확인합니다.
+```
+
+Step 2 · 그대로 OCR — image_to_string(img, lang="kor") (깨끗한 스캔인데도):
+
+```
+스 캔 된 안 내 문 ( 이 미 지 0 마 )
+이 문 서는 텍 스 트 층 이 없 습 니 다 .
+00 필 요 여 부는 실 제 원 본 을 확 인 합 니 다 .          CER 0.55
+```
+
+무엇이 문제? ① 한국어 글자마다 공백이 끼었어요. ② 영어 "PDF" → "0 마", "OCR" → "00" — 한국어 언어팩만으로 영어를 읽어서요. 이대로 Chunk에 넣으면 "문서는"으로 검색해도 "문 서는"과 안 맞고, 토큰 수도 불어나요.
+
+Step 3 · ❌ 흔한 잘못된 정제 — "한글 사이 공백을 정규식으로 지우자":
+
+```
+re.sub(r"(?<=[가-힣]) (?=[가-힣])", "", ocr_text)
+
+스캔된안내문 ( 이미지 0 마 )
+이문서는텍스트층이없습니다 .
+00 필요여부는실제원본을확인합니다 .                    CER 0.30
+```
+
+숫자(CER)는 좋아졌지만, OCR이 낀 공백과 원래 있던 띄어쓰기를 구분할 수 없어서 진짜 띄어쓰기까지 다 사라졌어요. "PDF" · "OCR"은 여전히 틀려 있고요. 🤔 교훈: 정제 단계에서 OCR 결과의 모양을 억지로 맞추면, 다른 정보가 망가져요. 원인 쪽(OCR 설정)에서 고치는 게 먼저예요.
+
+Step 4 · ✅ 원인에서 고치기 — OCR 설정
+
+| 설정 (깨끗한 스캔) | 실제 결과 | CER |
+|---|---|---|
+| kor + preserve_interword_spaces=1 | 스캔된 안내문 (이미지 0마) / 이 문서는 텍스트층이 없습니다. / 00 필요 여부는 실제 원본을 확인합니다. | 0.100 |
+| kor+eng + 띄어쓰기 보존 | 스캔된 안내문 (이미지 PDF) / 이 문서는 텍스트층이 없습니다. / OCR HQ 여부는 실제 원본을 확인합니다. | 0.033 |
+
+띄어쓰기는 preserve_interword_spaces=1 한 줄로 해결됐어요. 영어 언어팩을 함께 쓰면 "PDF" · "OCR"은 살지만, 이번엔 한국어 "필요"를 영어 "HQ"로 읽었어요. 설정 하나로 모든 게 좋아지지 않아요 — 자기 문서로 비교해서 골라요.
+
+🔧 pytesseract.image_to_string(lang, config) · image_to_data() 명령어 사전에서 자세히 →
+
+```
+cfg = "--psm 6 -c preserve_interword_spaces=1"
+text = pytesseract.image_to_string(img, lang="kor", config=cfg)
+```
+
+Step 5 · 실제 스캔은 더 흐리다 — 같은 이미지를 1/3 축소 · 1.8° 기울임 · 잡음을 넣은 사본:
+
+| 설정 (흐린 사본) | 실제 결과 | CER |
+|---|---|---|
+| kor + 띄어쓰기 보존 | 스캔된 안내문 (이미지 『마) / 이 문서는 텍스트충이 없습니다. / 0<8필요 여부는 실제 원본을 확인합니다. | 0.133 |
+| kor+eng + 띄어쓰기 보존 | 스캔된 안내문 (이미지 PDF) / 이 문서는 BASSO 없습니다. / OCR HE 여부는 실제 원본을 확인합니다. | 0.117 |
+| 확대 · 잡음 제거 · 이진화 후 kor+eng | 스켄된 안내문 (이미지 POF) / 여 문서는 BAKES 없습니다. / OCR HR 여부는 실제 원본를 확인합니다 | 0.200 |
+
+흐린 사본에서는 "층"이 "충"(받침 하나 차이)으로, 영어 섞인 설정은 "텍스트층이"를 통째로 "BASSO"로 읽었어요. 그리고 흔히 권하는 이미지 전처리(확대 · 잡음 제거 · 이진화)가 오히려 더 나빠졌어요(CER 0.117 → 0.200). 전처리도 "하면 좋아진다"가 아니라 측정해서 정하는 설정이에요. 기울기는 cv2.minAreaRect로 −1.76°로 잡아냈어요(일부러 1.8° 돌림).
+
+Step 6 · 고칠 수 없는 오류는 표시한다 — 신뢰도
+
+| 흐린 사본 단어 (실제 conf) | 정답 | 판정 |
+|---|---|---|
+| 충 33 | 층 | 🔴 낮음 → 검토 대상으로 잡힘 |
+| 0<8 0 | OCR | 🔴 낮음 → 잡힘 |
+| 필 52 | 필 (맞음) | 🔴 낮음 — 맞는데 의심받음 |
+| 『 81 · 마 87 | PDF | 🟠 틀렸는데 신뢰도 높음 → 못 잡음 |
+
+"충"을 "층"으로 바꾸는 규칙을 만들면 진짜 "충"이 있는 문장(충전 · 충분)을 망가뜨려요. 그래서 오인식은 규칙으로 고치지 않고 신뢰도가 낮은 단어를 표시해 사람이 원본과 대조해요. 다만 신뢰도도 완벽하지 않아서(『 81) 중요한 문서는 표본을 사람이 직접 읽어요.
+
+🔧 신뢰도 · 기울기 · 하지 말 정규식 명령어 사전에서 자세히 →
+
+```
+data = pytesseract.image_to_data(img, lang="kor", config=cfg, output_type=Output.DICT)
+review = [(t, c) for t, c in zip(data["text"], data["conf"]) if t.strip() and float(c) < 60]
+```
+
+Step 7 · OCR 문서의 정제 원칙 정리
+
+| 문제 | 어디서 고치나 | 방법 |
+|---|---|---|
+| 글자마다 낀 공백 | OCR 설정 | preserve_interword_spaces=1 — 정규식으로 지우지 않음 |
+| 영어 · 숫자 오인식 | OCR 설정 | 언어 조합(kor+eng) 비교 — 대신 한글이 영어로 바뀌는지 확인 |
+| 기울기 · 흐림 | 이미지 전처리 | 기울기 보정 · 확대 · 이진화를 CER로 비교해서 채택 |
+| 줄바꿈 · 연속 공백 · NFC | 텍스트 정제 | 일반 정제 규칙(③)으로 안전하게 |
+| 글자 오인식 (층→충) | 사람 검토 | 신뢰도 낮은 단어 표시 · 원본 이미지와 대조 · 규칙 치환 금지 |
+| 재현성 | Metadata | OCR 엔진 · 버전 · 언어 · psm · 전처리를 pipeline_version에 기록, OCR 원문과 신뢰도 보존 |
+
+그래서 스캔 문서는 처음에 needs_ocr로 보류해 두고, 위 과정을 거친 OCR 결과만 별도 버전으로 넣어요 — 텍스트 PDF와 같은 신뢰도로 섞지 않아요. OCR 원리 · 엔진 비교는 OCR.
 
 ## ③ Cleaning — 잡음만 지우고 의미는 남기기
 
-### 짧게 만드는 작업이 아니에요
+### 사례 · 줄바꿈과 공백이 섞인 텍스트
 
-| 정리해도 되는 것 | 반드시 남길 것 |
-|---|---|
-| CRLF · CR 줄바꿈, 지나친 가로 공백, 반복되는 머리말 일부 | 10분 · 초과 · "단," · 승인 시 · 제출 불가 같은 답을 바꾸는 정보, 문단 경계, 표 구조 |
+원본 (예제 fixture, repr로 보이지 않는 글자까지):
 
 ```
-원문:        "제출할 수 없습니다."
-잘못된 정제: "제출할 수 있습니다."   ← 부정어 하나로 의미가 뒤집힘
+'출석   안내\r\n\r\n10분  초과는 결석.\r\n단,  사전 승인 시 예외.\r\n'
 ```
+
+Windows 줄바꿈(\r\n), 두세 칸짜리 공백이 섞여 있어요. 그대로 두면 같은 문장이 공백 수만 달라 다른 문자열이 되고, 해시 · 비교가 어긋나요.
+
+| 정제 방법 (실제 실행) | 결과 | 판정 |
+|---|---|---|
+| ❌ re.sub(r"\s+", " ", text) | '출석 안내 10분 초과는 결석. 단, 사전 승인 시 예외.' | 문단 · 줄 구분이 사라져 제목과 규정이 한 줄로 붙음 |
+| ✅ 줄바꿈 통일 + 줄마다 가로 공백만 1칸 | '출석 안내\n\n10분 초과는 결석.\n단, 사전 승인 시 예외.' | 제목 · 빈 줄 · 규정 · 예외가 그대로 |
 
 🔧 re.sub(r"[ \t]+", " ", …) · replace("\r\n", "\n") 명령어 사전에서 자세히 →
 
 ```
+text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+text = unicodedata.normalize("NFC", text)
 lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
 clean_text = "\n".join(lines).strip()
 ```
 
-| 입력 "출석 안내\r\n\r\n10분 초과" (실제 실행) | 결과 |
-|---|---|
-| 가로 공백만 정리 + 줄바꿈 통일 | '출석 안내\n\n10분 초과' — 문단 경계(빈 줄) 유지 |
-| re.sub(r"\s+", " ", …) | '출석 안내 10분 초과' — 줄바꿈까지 사라져 구조 손실 |
+정리해도 되는 것: 줄바꿈 형식 · 지나친 가로 공백 · 쪽번호 줄(사례 4). 반드시 남길 것: 10분 · 초과 · "단," · 승인 시 · 제출 불가 같은 답을 바꾸는 말, 문단 경계, 표 구조. "제출할 수 없습니다"에서 부정어가 빠지면 의미가 뒤집혀요. 표 · 코드 블록에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기가 의미).
 
-표 · 코드 블록 · TSV에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기 자체가 의미). 정제 결과는 cleaner_version · clean_hash와 함께 남기고, 두 번 적용해도 같은지(멱등성)와 보존할 구절이 살아 있는지를 확인해요(실제 실행: attendance.md 139자 → 138자, 멱등 True, "10분" · "초과" 보존 True). 멱등성은 의미 보존의 증명이 아니에요.
+정제 결과는 cleaner_version · clean_hash와 함께 남기고, 두 번 적용해도 같은지(멱등성)와 보존할 구절이 살아 있는지 확인해요(실제: attendance.md 139자 → 138자, 멱등 True, "10분" · "초과" 보존 True). 짧아졌다고 좋아진 게 아니고, 멱등이라고 의미가 보존된 것도 아니에요.
 
-### 유니코드 정규화 — NFC와 NFKC는 다르다
+### 유니코드 정규화 — 눈에 같아도 다른 문자열
 
 | 규칙 | 하는 일 | 실제 실행 |
 |---|---|---|
 | NFC | 같은 글자의 다른 표현을 완성형으로 합침 | 자모 분리형 "한"(3글자) → 1글자. 분리형은 눈엔 같아도 == "한"이 False |
 | NFKC | 호환 문자까지 변환 | '① x²' → '1 x2' — 번호 · 위첨자 의미가 사라짐 |
-| CRLF/CR → LF | 줄바꿈 통일 | 문단 사이 빈 줄은 유지 |
 
 🔧 unicodedata.normalize() 명령어 사전에서 자세히 →
 
@@ -20453,7 +20611,7 @@ clean_text = "\n".join(lines).strip()
 unicodedata.normalize("NFC", text)       # 일반 본문 기본값
 ```
 
-🤔 왜 NFC가 필요해? macOS 등에서 온 파일명 · 텍스트는 자모가 분리된 형태(NFD)일 수 있어요. 그대로 두면 같은 단어인데 검색 · 해시 · 비교가 어긋나요. NFC는 의미를 "교정"하는 기능이 아니라 표현만 맞춰요.
+macOS 등에서 온 파일명 · 텍스트는 자모가 분리된 형태(NFD)일 수 있어요. 그대로 두면 같은 단어인데 검색 · 해시가 어긋나요. NFC는 의미를 "교정"하는 기능이 아니라 표현만 맞춰요.
 
 ### Offset은 문자 위치 — 바이트 위치가 아니에요
 
@@ -20864,7 +21022,8 @@ Context에 201을 실제로 넣었을 때만 → source_ids: [201] 허용       
 | 표준 라이브러리 | 파일 목록 · 해시 · 유니코드 정규화 · 정규식 · JSON | pathlib · hashlib · unicodedata · re · json |
 | markdown-it-py | CommonMark Markdown 파서 — 제목 · 코드 블록 토큰 | from markdown_it import MarkdownIt |
 | beautifulsoup4 | HTML 트리 · CSS 선택자 · 텍스트 추출 | from bs4 import BeautifulSoup |
-| pypdf | PDF 페이지별 텍스트층 추출 (OCR 아님) | from pypdf import PdfReader |
+| pypdf | PDF 페이지별 텍스트층 추출 (OCR 아님) · 페이지 속 이미지 꺼내기 | from pypdf import PdfReader |
+| pytesseract + Tesseract 프로그램 | 이미지 → 글자 (OCR). 한국어는 kor.traineddata 언어팩 필요 — pip가 아니라 Tesseract 설치 폴더(또는 --tessdata-dir)에 | pytesseract.image_to_string(img, lang="kor") |
 | sentence-transformers | E5 모델 · Tokenizer — 토큰 수 검사 · Embedding | SentenceTransformer(…).tokenizer |
 | psycopg[binary] · pgvector | PostgreSQL 연결 · 트랜잭션 · vector 타입 | conn.transaction() · register_vector(conn) |
 
@@ -20877,7 +21036,7 @@ python -m pip show pypdf beautifulsoup4 markdown-it-py sentence-transformers psy
 
 🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 명령어 사전에서 보기 →
 
-결과값은 예제 문서 6건과 개정본으로 실제 실행한 값이에요(pathlib · hashlib · unicodedata · markdown-it-py · pypdf, PostgreSQL 18.6 + pgvector 0.8.7 노트 전용 DB). Beautiful Soup는 이 PC 환경에 없어 실행 결과를 싣지 않았고, E5 모델은 내려받지 않아 토큰 수는 다른 모델의 Tokenizer로만 확인했어요. 저장 · 검색의 벡터는 임의 단위 벡터예요.
+결과값은 예제 문서 6건과 개정본으로 실제 실행한 값이에요(pathlib · hashlib · unicodedata · markdown-it-py · Beautiful Soup · pypdf · Tesseract OCR, PostgreSQL 18.6 + pgvector 0.8.7 노트 전용 DB). E5 모델은 내려받지 않아 토큰 수는 다른 모델의 Tokenizer로만 확인했어요. 저장 · 검색의 벡터는 임의 단위 벡터예요.
 
 ## 이어서 볼 주제
 
@@ -20893,15 +21052,15 @@ python -m pip show pypdf beautifulsoup4 markdown-it-py sentence-transformers psy
 
 - 원본: Day24_20261119_v2.html (생성형 AI · LLM 및 RAG 엔지니어링 · Day24 Document Parsing · Chunking · Indexing 인터랙티브 교안). 예제 문서 6건 · 개정본 · 표 보존 예시 · 실패 분류표는 원본 자료와 함께 제공된 예제 데이터의 것.
 
-- 결과 값: 이 PC에서 실제 실행 (Python 3.13 · markdown-it-py 4.3.0 · pypdf 6.21.4 · numpy 2.3.5 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). DB는 노트 전용 DB를 만들어 쓰고 지웠음. Beautiful Soup 미설치로 HTML 항목은 실행 결과 없음. E5 모델은 내려받지 않음 — 토큰 수는 로컬 캐시의 bert-base-multilingual-cased Tokenizer로 확인. 스크립트 tools/io_day24.py, 그림 tools/visuals/make_day24.py
+- 결과 값: 이 PC에서 실제 실행 (Python 3.13 · markdown-it-py 4.3.0 · beautifulsoup4 4.15.0 · pypdf 6.21.4 · Tesseract 5.4.0 + kor 언어팩(tessdata) · pytesseract 0.3.13 · OpenCV · numpy 2.3.5 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). OCR의 "흐린 사본"은 예제 scan.pdf 이미지를 축소 · 회전 · 잡음으로 직접 만든 것(seed 0). DB는 노트 전용 DB를 만들어 쓰고 지웠음. E5 모델은 내려받지 않음 — 토큰 수는 로컬 캐시의 bert-base-multilingual-cased Tokenizer로 확인. 스크립트 tools/io_day24.py, 그림 tools/visuals/make_day24.py
 
-- 공식 문서: pathlib · hashlib · unicodedata · pypdf 텍스트 추출 · Beautiful Soup · CommonMark · multilingual-e5-small · Sentence Transformers · pgvector · pgvector-python · Psycopg 트랜잭션 · PostgreSQL JSONB · INSERT / ON CONFLICT · LangChain Text Splitter
+- 공식 문서: pathlib · hashlib · unicodedata · pypdf 텍스트 추출 · Beautiful Soup · CommonMark · multilingual-e5-small · Sentence Transformers · pgvector · pgvector-python · Psycopg 트랜잭션 · PostgreSQL JSONB · INSERT / ON CONFLICT · LangChain Text Splitter · Tesseract 문서 · tessdata (언어팩) · pytesseract
 
 ## 🔧 Day24 명령어 (명령어 사전: https://yiji-1015.github.io/sesac-notes/commands.html#day24)
 | 이론 | 대응 명령어 |
 |---|---|
 | ① 수집 — 원본 · Manifest | Path.iterdir() · suffix · stat().st_size, read_bytes(), hashlib.sha256().hexdigest(), as_uri() |
-| ② Parsing — 형식별 읽기 | bytes.decode("utf-8"), MarkdownIt().parse(), BeautifulSoup · select_one · get_text, PdfReader · extract_text() |
+| ② Parsing — 형식별 읽기 | bytes.decode("utf-8"), MarkdownIt().parse(), BeautifulSoup · select_one · get_text, PdfReader · extract_text(), pytesseract.image_to_string · image_to_data |
 | ③ Cleaning — 의미는 남기고 잡음만 | unicodedata.normalize("NFC"), re.sub(r"[ \t]+", " ", …), sha256(text.encode()) |
 | ④ Chunking — 검색 단위로 나누기 | text[start:end] 창, tokenizer(…, truncation=False)["input_ids"] |
 | ⑤ 검증 — Span · Coverage | clean_text[a:b] == body, sorted() 구간 병합, type(x) is int |
@@ -21057,11 +21216,21 @@ for tr in main.select("table tr"):
     cells = [c.get_text(strip=True) for c in tr.select("th, td")]
 ```
 
+▶ 실제로 돌려 보면 facility.html 로 실제 실행 · beautifulsoup4 4.15.0
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| BeautifulSoup(html).get_text('\n', strip=True) # 전체 | '시설 안내\n홈 \| 뉴스 \| 로그인 \| 연혁\n시설 안내\n컴퓨터 실습실은 안내에 따라 이용합니다.\n시설 이용 시' … | <title> 과 <h1> 이 겹쳐 '시설 안내' 두 번 · 메뉴 · 꼬리말까지 섞임 |
+| 'menu marker' in 전체 텍스트 # <script> 안의 글자 | False | bs4 4.x 의 get_text() 는 script · style 안 글자를 기본으로 뺌 — 그래도 decompose() 로 명시적으로 지우는 편이 안전 |
+| 전체 텍스트 마지막 줄 | '문의는 운영실로 연락하세요.' | <footer> 꼬리말 |
+| main 선택 + script/style decompose() | '시설 안내\n컴퓨터 실습실은 안내에 따라 이용합니다.\n시설 이용 시간\n시설\n안내\n실습실\n담당자 안내에 따라 운영\n회의실\n예약 승인 후 이용\n장비 이상은 운영실에 알립니다.' | 본문만 — 하지만 표는 칸이 줄마다 흩어짐 |
+| 표를 행마다 '열1: 열2' 로 바꾼 뒤 | '시설 안내\n컴퓨터 실습실은 안내에 따라 이용합니다.\n시설 이용 시간\n실습실: 담당자 안내에 따라 운영\n회의실: 예약 승인 후 이용\n장비 이상은 운영실에 알립니다.' | 어느 시설의 안내인지 한 줄로 묶임 |
+
 | 부분 | 뜻 |
 |---|---|
 | BeautifulSoup(html, "html.parser") | HTML을 태그 트리로. "html.parser"는 표준 라이브러리 파서 (추가 설치 없음) |
 | select_one("main") | CSS 선택자로 첫 요소 — 메뉴(nav) · 꼬리말(footer) 제외 |
-| tag.decompose() | 트리에서 완전히 삭제 — script · style 글자가 본문에 섞이지 않게 |
+| tag.decompose() | 트리에서 완전히 삭제. bs4 4.x의 get_text()는 script · style 글자를 기본으로 빼 주지만, 다른 방식(.strings · 다른 파서)에서도 안전하도록 명시적으로 지움 |
 | get_text("\n", strip=True) | 태그 사이를 줄바꿈으로 이어 텍스트만. 표의 행 · 열 관계는 복원하지 않음 |
 
 ### PDF 페이지별 — PdfReader(path).pages · page.extract_text()
@@ -21099,6 +21268,79 @@ for page_number, page in enumerate(reader.pages, start=1):
 | enumerate(…, start=1) | 사람이 읽는 페이지 번호는 1부터 |
 
 ⚠️ 빈 결과 = 스캔 · 빈 페이지 · 손상 중 무엇인지 아직 몰라요. 확인 후 needs_ocr 등으로 상태를 정해요. 쪽번호 · 머리말도 본문처럼 섞여 나와요.
+
+### 스캔 PDF OCR — page.images → pytesseract.image_to_string(lang, config) · image_to_data()['conf']
+
+```
+import numpy as np, cv2, pytesseract
+from pypdf import PdfReader
+from pytesseract import Output
+
+page = PdfReader(str(path)).pages[0]
+if not (page.extract_text() or "").strip():               # 텍스트층이 없을 때만
+    img = cv2.cvtColor(np.array(page.images[0].image), cv2.COLOR_RGB2GRAY)
+    cfg = "--psm 6 -c preserve_interword_spaces=1"
+    text = pytesseract.image_to_string(img, lang="kor", config=cfg)
+    data = pytesseract.image_to_data(img, lang="kor", config=cfg, output_type=Output.DICT)
+    low = [(t, c) for t, c in zip(data["text"], data["conf"]) if t.strip() and float(c) < 60]
+```
+
+▶ 실제로 돌려 보면 Tesseract 5.4.0.20240606 · kor 언어팩 · 예제 scan.pdf 의 이미지로 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| PdfReader(scan.pdf).pages[0].extract_text() | '' | 텍스트층 없음 → 이미지를 꺼내 OCR |
+| page.images[0].image.size | (1200, 1700) | PDF 안에 든 스캔 이미지 |
+| image_to_string(깨끗한 스캔, lang='kor') | '스 캔 된 안 내 문 ( 이 미 지 0 마 ) / 이 문 서는 텍 스 트 층 이 없 습 니 다 . / 00 필 요 여 부는 실 제 원 본 을 확 인 합 니 다 .' | CER 0.55 |
+| image_to_string(깨끗한 스캔, lang='kor', preserve_interword_spaces=1) | '스캔된 안내문 (이미지 0마) / 이 문서는 텍스트층이 없습니다. / 00 필요 여부는 실제 원본을 확인합니다.' | CER 0.1 |
+| image_to_string(깨끗한 스캔, lang='kor+eng', preserve_interword_spaces=1) | '스캔된 안내문 (이미지 PDF) / 이 문서는 텍스트층이 없습니다. / OCR HQ 여부는 실제 원본을 확인합니다.' | CER 0.033 |
+| image_to_string(흐린 스캔, lang='kor', preserve_interword_spaces=1) | '스캔된 안내문 (이미지 『마) / 이 문서는 텍스트충이 없습니다. / 0<8필요 여부는 실제 원본을 확인합니다.' | CER 0.133 |
+| image_to_string(흐린 스캔, lang='kor+eng', preserve_interword_spaces=1) | '스캔된 안내문 (이미지 PDF) / 이 문서는 BASSO 없습니다. / OCR HE 여부는 실제 원본을 확인합니다.' | CER 0.117 |
+| image_to_string(흐린 스캔 → 확대·잡음제거·이진화, lang='kor+eng', preserve_interword_spaces=1) | '스켄된 안내문 (이미지 POF) / 여 문서는 BAKES 없습니다. / OCR HR 여부는 실제 원본를 확인합니다' | CER 0.2 |
+| image_to_data(…)['conf'] < 60 # 흐린 스캔 · kor | [('충', 33), ('0<8', 0), ('필', 52)] | 신뢰도 낮은 글자 = 검토 후보 |
+
+| 부분 | 뜻 |
+|---|---|
+| page.images[0].image | PDF 안에 들어 있는 스캔 이미지를 PIL 이미지로 꺼냄 (페이지를 다시 그리지 않음) |
+| lang="kor" · "kor+eng" | 쓸 언어팩 (kor.traineddata가 tessdata 폴더에 있어야 함). 섞으면 영어 단어는 살지만 한글이 영어로 오인될 수 있음 |
+| --psm 6 | 페이지를 "균일한 글 덩어리 하나"로 보고 읽기 (페이지 분할 방식) |
+| -c preserve_interword_spaces=1 | 한국어에서 글자마다 끼는 공백을 줄이고 원래 띄어쓰기를 살림 |
+| image_to_data(…, Output.DICT) | 단어마다 글자 · 위치(left/top/width/height) · 신뢰도 conf(0~100) |
+| --tessdata-dir 경로 | 언어팩을 다른 폴더에 둔 경우 그 위치 (Windows는 슬래시 경로 · 따옴표 없이) |
+
+⚠️ OCR 결과는 "원문"이 아니라 추정이에요. 엔진 · 버전 · 언어 · psm을 pipeline_version으로 기록하고, 원래 OCR 결과와 신뢰도를 함께 남겨요.
+
+### OCR 결과 다루기 — 기울기 cv2.minAreaRect · 신뢰도로 검토 표시 · 정규식으로 고치지 않을 것
+
+```
+import cv2, numpy as np, re
+
+# 기울기 추정 (글자 픽셀을 감싸는 최소 회전 사각형)
+_, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+ys, xs = np.where(bw < 128)
+angle = cv2.minAreaRect(np.column_stack([xs, ys]).astype(np.float32))[-1]
+
+# ❌ 글자 사이 공백을 정규식으로 지우기 — 진짜 띄어쓰기까지 사라짐
+bad_fix = re.sub(r"(?<=[가-힣]) (?=[가-힣])", "", ocr_text)
+
+# ✅ 오인식은 규칙으로 바꾸지 말고 검토 대상으로 표시
+review = [(t, c) for t, c in words if c < 60]
+```
+
+▶ 실제로 돌려 보면 위 OCR 결과로 실제 실행
+
+| 📥 입력 | 📤 출력 | 뜻 |
+|---|---|---|
+| re.sub(r'(?<=[가-힣]) (?=[가-힣])', '', 기본 OCR 결과) | '스캔된안내문 ( 이미지 0 마 ) / 이문서는텍스트층이없습니다 . / 00 필요여부는실제원본을확인합니다 .' | 글자 사이 공백을 정규식으로 지우면 진짜 띄어쓰기까지 사라짐 · CER 0.3 |
+| minAreaRect 로 잰 기울기 | -1.76° | 일부러 1.8° 돌린 사본 — 각도는 잡아냄 |
+| 흐린 스캔 단어별 conf (일부) | [('지', 82), ('『', 81), ('마', 87), (')', 91), ('이', 93), ('문', 93), ('서는', 93), ('텍', 92), ('스', 93), ('트', 93), ('충', 33), ('이', 93)] | '『' 81 처럼 틀렸는데 신뢰도가 높은 경우도 있음 |
+
+| 부분 | 뜻 |
+|---|---|
+| cv2.minAreaRect(points) | 점들을 감싸는 최소 회전 사각형 → (중심, (폭, 높이), 각도). 각도로 기울기를 추정 |
+| THRESH_BINARY + THRESH_OTSU | 밝기 기준값을 자동으로 정해 흑백으로 |
+| (?<=[가-힣]) (?=[가-힣]) | 한글 사이 공백 — 글자 간 공백과 단어 간 공백을 구분하지 못함 |
+| conf < 60 | 검토 후보 (기준값은 예시 설정) — 틀렸는데 신뢰도가 높은 글자도 있어 사람 대조가 필요 |
 
 ### 유니코드 정규화 — unicodedata.normalize("NFC" | "NFKC", s)
 
@@ -21343,7 +21585,7 @@ chunk_id = hashlib.sha256(payload).hexdigest()
 | json.dumps(identity, sort_keys=True, separators=(',', ':'), ensure_ascii=False) | {"doc_id":"DOC-ATTEND","pipeline_version":"ingest-e5-v1","source_version":"v1","span":[0,40],"unit_id":"sec-1"} | 키 순서 · 공백이 고정된 직렬화 |
 | sha256(payload).hexdigest()[:16] | f8290ff2d605009a… | 같은 입력 → 언제 돌려도 같은 chunk_id |
 | source_version 만 v2 로 | 2dcfe15c1f4037ab… | 버전이 다르면 다른 ID |
-| 두 프로세스에서 hash('DOC-ATTEND') | -6668765536654053889 / 5869132473351698419 | Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀 |
+| 두 프로세스에서 hash('DOC-ATTEND') | -7766343271965289275 / -8145272665599836368 | Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀 |
 
 | 부분 | 뜻 |
 |---|---|

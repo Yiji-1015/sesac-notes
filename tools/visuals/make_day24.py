@@ -116,3 +116,40 @@ def fig_publish():
 
 if __name__ == "__main__":
     fig_flow(); fig_windows(); fig_publish()
+
+
+def fig_ocr():
+    import cv2
+    tmp = Path(tempfile.gettempdir())
+    clean = cv2.imread(str(tmp / "d24_scan_clean.png"), cv2.IMREAD_GRAYSCALE)
+    bad = cv2.imread(str(tmp / "d24_scan_bad.png"), cv2.IMREAD_GRAYSCALE)
+    boxes = json.loads((tmp / "d24_bad_boxes.json").read_text(encoding="utf-8"))
+    D = R["cases"]["D"]
+    fig = plt.figure(figsize=(12.6, 6.4))
+    gs = fig.add_gridspec(2, 2, height_ratios=[1, 1.05], hspace=0.35, wspace=0.12)
+    a1 = fig.add_subplot(gs[0, 0]); a1.imshow(clean, cmap="gray"); a1.axis("off")
+    a1.set_title("① 스캔 이미지 (PDF 안에 든 그림 · 텍스트층 없음)", fontsize=10.5)
+    a2 = fig.add_subplot(gs[0, 1]); a2.imshow(bad, cmap="gray"); a2.axis("off")
+    a2.set_title("② 흐린 사본 (1/3 축소 · 1.8° 기울임 · 잡음) + 단어별 conf", fontsize=10.5)
+    for t, c, (x, y, w, h) in boxes:
+        col = C["red"] if c < 60 else ("#ff922b" if t == "『" else None)
+        if col:
+            a2.add_patch(Rectangle((x, y), w, h, fill=False, ec=col, lw=2))
+            a2.text(x, y - 3, f"{t} {round(c)}", color=col, fontsize=8.5, fontweight="bold")
+    a2.text(2, bad.shape[0] - 4, "빨강 = conf < 60 (검토 후보) · 주황 = 틀렸는데 conf 81", fontsize=8.4, color=C["ink"],
+            bbox=dict(fc="white", ec="none", alpha=0.8))
+    a3 = fig.add_subplot(gs[1, :])
+    labels = [f"{r['img']}\n{r['lang']}{' · 띄어쓰기 보존' if r['pis'] else ''}" for r in D["runs"]]
+    vals = [r["cer"] for r in D["runs"]]
+    cols = [C["gray"], C["purple"], C["mint"], C["purple"], C["mint"], C["orange"]]
+    bars = a3.bar(range(len(vals)), vals, color=cols)
+    for b, v in zip(bars, vals):
+        a3.text(b.get_x() + b.get_width() / 2, v + 0.01, f"{v:.3f}", ha="center", fontsize=9)
+    a3.set_xticks(range(len(vals))); a3.set_xticklabels(labels, fontsize=8.3)
+    a3.set_ylabel("CER (낮을수록 정확)")
+    a3.set_title("③ 설정별 글자 오류율 — 정답 문장과 비교한 실제 값", fontsize=10.5)
+    save(fig, 24, "ocr")
+
+
+if __name__ == "__main__":
+    fig_ocr()

@@ -34,8 +34,8 @@
       <table>
         <tr><th>단계</th><th>하는 일</th><th>핵심 질문</th></tr>
         <tr><td><a href="#collect">① 수집</a></td><td>파일 목록 · 원본 바이트 · SHA-256</td><td>무엇을 처리했고, 원문이 바뀌었나?</td></tr>
-        <tr><td><a href="#parse">② Parsing</a></td><td>형식별로 텍스트와 구조 꺼내기</td><td>글자만이 아니라 제목 · 표 · 페이지가 살아 있나?</td></tr>
-        <tr><td><a href="#clean">③ Cleaning</a></td><td>줄바꿈 · 공백 · 유니코드 정리</td><td>잡음만 지웠고 의미는 그대로인가?</td></tr>
+        <tr><td><a href="#parse">② Parsing</a></td><td>형식별로 텍스트와 구조 꺼내기 · 스캔은 OCR — <b>실제 출력 사례 5개</b></td><td>그대로 읽으면 무엇이 섞이고 무엇이 깨지나?</td></tr>
+        <tr><td><a href="#clean">③ Cleaning</a></td><td>줄바꿈 · 공백 · 유니코드 정리 — Before / After</td><td>잡음만 지웠고 의미는 그대로인가?</td></tr>
         <tr><td><a href="#chunk">④ Chunking</a></td><td>검색 단위로 나누기</td><td>조건과 결과가 한 조각에 있나? 모델 한도 안인가?</td></tr>
         <tr><td><a href="#validate">⑤ 검증</a></td><td>Span · Coverage · 중복 · 빈 조각</td><td>조각이 원문과 정확히 대응하고, 빠진 곳이 없나?</td></tr>
         <tr><td><a href="#metadata">⑥ Metadata</a></td><td>출처 · 버전 · 위치 · 결정적 ID</td><td>이 조각은 어느 문서 어느 판의 어디서 왔나?</td></tr>
@@ -99,22 +99,18 @@ record = {"doc_id": "DOC-ASSIGN", "source_version": "v1", "source_uri": path.as_
       <p><b>입력 수 = 완료 + 보류 + 실패 + 건너뜀</b>이 맞아야 해요. 예제 6건이면 parsed 4 · needs_ocr 1 · unsupported 1. 빠진 파일이 조용히 사라지면 "검색에 없는 이유"를 아무도 설명할 수 없어요.</p>
 
       <!-- ============================================================ -->
-      <h2 id="parse">② Parsing — 글자만이 아니라 구조까지</h2>
-      <p><b>Parsing</b>은 파일 형식을 해석해 텍스트와 함께 <b>제목 · 문단 · 표 · 페이지</b> 같은 구조를 꺼내는 일이에요. 문자열이 나왔다고 원문의 순서 · 관계가 보존됐다는 뜻은 아니에요.</p>
-<pre><code>원문:        [지각과 결석]  10분 초과 → 결석
-잘못 추출:   10분 / 결석 / (다른 행의 값)     ← 조건 관계가 사라짐</code></pre>
-
-      <h3 id="formats">형식마다 지킬 구조가 달라요</h3>
+      <h2 id="parse">② Parsing — 실제로 읽으면 이렇게 나온다</h2>
+      <p><b>Parsing</b>은 파일 형식을 해석해 텍스트와 함께 <b>제목 · 문단 · 표 · 페이지</b> 같은 구조를 꺼내는 일이에요. 규칙을 외우기보다, 예제 문서를 <b>그대로 읽었을 때 실제로 무엇이 나오는지</b> 보고, 무엇이 문제인지, 어떻게 고치는지 순서로 볼게요. 아래 출력은 모두 실제 실행 결과 그대로예요.</p>
       <table>
-        <tr><th>형식</th><th>도구</th><th>지킬 것 · 주의</th></tr>
-        <tr><td>TXT</td><td><code>bytes.decode("utf-8")</code></td><td>인코딩 오류 · 줄바꿈</td></tr>
-        <tr><td>Markdown</td><td>Markdown 파서 (markdown-it-py)</td><td>제목 경계 · 목록 · 코드 블록</td></tr>
-        <tr><td>HTML</td><td>Beautiful Soup — <code>main</code> 선택</td><td>메뉴 · 스크립트 제외 · 표의 행 · 열</td></tr>
-        <tr><td>PDF</td><td>pypdf — 페이지별 추출</td><td>읽기 순서 · 이미지 글자 · 표</td></tr>
-        <tr><td>DOCX (참고)</td><td>python-docx</td><td>문단만 돌면 표가 빠짐</td></tr>
+        <tr><th>형식</th><th>도구</th><th>그대로 읽으면 생기는 문제 (아래 사례)</th></tr>
+        <tr><td>TXT</td><td><code>bytes.decode("utf-8")</code></td><td>인코딩이 틀리면 글자가 깨지거나 조용히 사라짐</td></tr>
+        <tr><td>Markdown</td><td>markdown-it-py</td><td>제목과 본문의 소속이 사라짐 · 코드 속 <code>#</code>를 제목으로 착각</td></tr>
+        <tr><td>HTML</td><td>Beautiful Soup</td><td>메뉴 · 꼬리말 · 제목 중복이 섞이고, 표가 칸 단위로 흩어짐</td></tr>
+        <tr><td>텍스트 PDF</td><td>pypdf</td><td>쪽번호 · 머리말이 본문에 섞임</td></tr>
+        <tr><td>스캔 PDF</td><td>pypdf → OCR(Tesseract)</td><td>텍스트가 0자 → OCR 결과는 띄어쓰기 · 오인식투성이</td></tr>
       </table>
 
-      <h3 id="txt">TXT — 인코딩을 명시하고, 실패를 숨기지 않기</h3>
+      <h3 id="txt">사례 1 · TXT — 인코딩을 명시하고 실패를 숨기지 않기</h3>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>bytes.decode("utf-8")</code> <a href="../commands.html#d24-decode">명령어 사전에서 자세히 →</a></div>
 <pre><code>try: text = raw.decode("utf-8")
@@ -122,96 +118,212 @@ except UnicodeDecodeError: status = "decode_error"</code></pre>
       </div>
       <table>
         <tr><th>입력 (실제 실행)</th><th>결과</th></tr>
-        <tr><td>잘린 UTF-8 바이트 <code>.decode("utf-8")</code></td><td><code>UnicodeDecodeError</code> → <code>decode_error</code> 기록</td></tr>
-        <tr><td>같은 바이트 <code>errors="ignore"</code></td><td><code>'과 ok'</code> — 깨진 글자가 <b>조용히 사라짐</b></td></tr>
-        <tr><td>빈 바이트</td><td><code>''</code> — 오류가 아니라 <code>empty</code></td></tr>
+        <tr><td>assignment.txt</td><td>parsed · 113자 / 267바이트 (한글 1자 = 3바이트)</td></tr>
+        <tr><td>끝이 잘린 UTF-8 바이트</td><td><code>UnicodeDecodeError</code> → <code>decode_error</code>로 기록</td></tr>
+        <tr><td>같은 바이트를 <code>errors="ignore"</code>로</td><td><code>'과 ok'</code> — "과제"의 "제"가 <b>오류 없이 사라짐</b></td></tr>
       </table>
-      <p>TXT에는 페이지가 없어요. <code>page_number=1</code>을 억지로 넣지 않고 비워 둬요(None).</p>
+      <p>그래서 <code>errors="ignore"</code>는 쓰지 않아요. TXT에는 페이지가 없으니 <code>page_number</code>도 비워 둬요(None).</p>
 
-      <h3 id="markdown">Markdown — 제목 경로(Heading Path)를 함께</h3>
-      <p>제목 다음의 문장은 그 절에 속하고, 다음 제목을 만나면 구역이 바뀌어요. 이 소속을 <b>Heading Path</b>로 남기면, 비슷한 문장이 여러 절에 있어도 어느 규정인지 설명할 수 있어요.</p>
+      <h3 id="markdown">사례 2 · Markdown — 제목 경로를 같이 들고 가기</h3>
+<pre><code># 출석 안내
+## 지각과 결석
+수업 시작 후 10분까지 입실하면 지각으로 기록합니다.
+10분을 초과하면 결석으로 기록합니다.
+## 출석 문의
+출석 기록에 오류가 있다면 운영실에 문의하세요.</code></pre>
+      <p>본문만 뽑으면 "10분을 초과하면 결석"이 <b>어느 절의 규정인지</b>가 사라져요. 파서로 제목 토큰을 읽어 <b>Heading Path</b>를 붙여요.</p>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>MarkdownIt().parse()</code> <a href="../commands.html#d24-markdown">명령어 사전에서 자세히 →</a></div>
 <pre><code>tokens = MarkdownIt().parse(md_text)      # heading_open → inline → heading_close …</code></pre>
       </div>
-      <p>실제 실행(attendance.md): <code>출석 안내</code> · <code>출석 안내 &gt; 지각과 결석</code> · <code>출석 안내 &gt; 출석 문의</code>. 🤔 <b>정규식으로 <code>#</code> 줄을 찾으면 안 돼?</b> 코드 블록 안의 <code># 주석</code>도 제목으로 잡혀요. 파서는 그 부분을 <code>fence</code> 토큰으로 따로 줘요(실제 실행: <code>('fence', 'code')</code>, 진짜 제목만 <code>('heading_open', 'h1')</code>).</p>
+      <p>실제 결과: <code>출석 안내</code> · <code>출석 안내 &gt; 지각과 결석</code> · <code>출석 안내 &gt; 출석 문의</code>. 정규식으로 <code>#</code> 줄을 찾으면 코드 블록 안의 <code># 주석</code>도 제목으로 잡히지만, 파서는 그 부분을 <code>fence</code> 토큰으로 따로 줘요(실제: <code>('fence', 'code')</code>, 진짜 제목만 <code>('heading_open', 'h1')</code>).</p>
 
-      <h3 id="html">HTML — 본문 영역만, 표는 행 · 열 관계를 살려서</h3>
+      <h3 id="html">사례 3 · HTML — 본문만 고르고, 표는 행으로 묶기</h3>
+      <p><b>원본</b> (facility.html, 일부):</p>
+<pre><code>&lt;title&gt;시설 안내&lt;/title&gt; … &lt;nav&gt;홈 | 뉴스 | 로그인 | 연혁&lt;/nav&gt;
+&lt;main&gt;&lt;h1&gt;시설 안내&lt;/h1&gt;&lt;p&gt;컴퓨터 실습실은 안내에 따라 이용합니다.&lt;/p&gt;
+  &lt;table&gt;&lt;tr&gt;&lt;th&gt;시설&lt;/th&gt;&lt;th&gt;안내&lt;/th&gt;&lt;/tr&gt;
+         &lt;tr&gt;&lt;td&gt;실습실&lt;/td&gt;&lt;td&gt;담당자 안내에 따라 운영&lt;/td&gt;&lt;/tr&gt; …&lt;/table&gt;
+  &lt;script&gt;console.log('menu marker …')&lt;/script&gt;&lt;/main&gt;
+&lt;footer&gt;문의는 운영실로 연락하세요.&lt;/footer&gt;</code></pre>
+      <p><b>① 그대로 전체 텍스트</b> — <code>BeautifulSoup(html).get_text("\n", strip=True)</code>:</p>
+<pre><code>시설 안내                  ← &lt;title&gt;
+홈 | 뉴스 | 로그인 | 연혁    ← 메뉴
+시설 안내                  ← &lt;h1&gt; (같은 말이 두 번)
+컴퓨터 실습실은 안내에 따라 이용합니다.
+시설 이용 시간
+시설
+안내
+실습실
+담당자 안내에 따라 운영
+회의실
+예약 승인 후 이용
+장비 이상은 운영실에 알립니다.
+문의는 운영실로 연락하세요.   ← 꼬리말</code></pre>
+      <p><b>무엇이 문제?</b> 메뉴 · 꼬리말 · 중복 제목이 Embedding에 섞여 검색을 흐려요. 그리고 표가 <b>칸마다 한 줄씩</b> 흩어져서, "예약 승인 후 이용"이 어느 시설 얘기인지 조각만 보고는 알 수 없어요. (<code>&lt;script&gt;</code> 안 글자는 Beautiful Soup 4.x가 기본으로 빼 줘서 실제로는 안 섞였어요 — 그래도 명시적으로 지우는 편이 안전해요.)</p>
+      <p><b>② 고치기</b> — 본문 영역만 고르고, 표는 행마다 "열1: 열2"로:</p>
       <div class="cmdref">
-        <div class="cmdref-head">🔧 <code>BeautifulSoup</code> · <code>select_one("main")</code> · <code>decompose()</code> <a href="../commands.html#d24-html">명령어 사전에서 자세히 →</a></div>
+        <div class="cmdref-head">🔧 <code>select_one("main")</code> · <code>decompose()</code> · 표 행 단위 <a href="../commands.html#d24-html">명령어 사전에서 자세히 →</a></div>
 <pre><code>main = BeautifulSoup(html_text, "html.parser").select_one("main")
 for tag in main.select("script, style"): tag.decompose()
+table = main.select_one("table")
+lines = [f"{tds[0].get_text(strip=True)}: {tds[1].get_text(strip=True)}"
+         for tds in (tr.select("td") for tr in table.select("tbody tr"))]
+table.replace_with("\n".join(lines))
 text = main.get_text("\n", strip=True)</code></pre>
       </div>
-      <p>facility.html에는 <code>&lt;nav&gt;홈 | 뉴스 | 로그인&lt;/nav&gt;</code>, <code>&lt;footer&gt;</code>, <code>&lt;script&gt;</code>가 섞여 있어요. 전체 <code>get_text()</code>를 쓰면 메뉴 글자까지 Embedding돼 검색을 흐려요. 그리고 <code>get_text()</code>는 <b>표의 행 · 열 관계를 복원하지 않아요</b>:</p>
-      <table>
-        <tr><th>원문 표</th><th>잘못된 텍스트</th><th>보존한 텍스트</th></tr>
-        <tr><td>시설 / 운영시간</td><td>09:00 18:00</td><td>도서관: 09:00~18:00</td></tr>
-        <tr><td>요일 / 장소</td><td>월 화 2층 3층</td><td>월: 2층 / 화: 3층</td></tr>
-        <tr><td>비고 / 예외</td><td>휴관 허용</td><td>일요일: 휴관 (예외 조건 보존)</td></tr>
-      </table>
-      <p>(위 표는 구조 보존을 설명하는 가상 예시.) 표는 행 단위로 읽어 <b>열 이름과 값을 붙여</b> 문장화하거나 행을 그대로 보존해요.</p>
+<pre><code>시설 안내
+컴퓨터 실습실은 안내에 따라 이용합니다.
+시설 이용 시간
+실습실: 담당자 안내에 따라 운영
+회의실: 예약 승인 후 이용
+장비 이상은 운영실에 알립니다.</code></pre>
+      <p><b>남는 한계:</b> 열이 3개 이상이거나 칸이 합쳐진(rowspan · colspan) 표는 이 방식으로 부족해요. "열 이름: 값" 형태로 모든 열을 붙이거나 표를 별도 Chunk로 두고, 원본 표와 대조해요. <code>&lt;main&gt;</code>이 없는 페이지는 <code>main_not_found</code>로 기록하고 어떤 영역을 쓸지 따로 정해요.</p>
 
-      <h3 id="pdf">PDF — 페이지별 추출과 위치, 그리고 한계</h3>
+      <h3 id="pdf">사례 4 · 텍스트 PDF — 쪽번호를 지우고, 페이지 위치는 남기기</h3>
+      <p><b>① 그대로 추출</b> — <code>page.extract_text()</code> (career.pdf):</p>
+<pre><code>[page 1]
+진로 상담 안내
+진로 상담은 운영실에 신청할 수 있습니다.
+상담 신청 시 희망 날짜와 문의 주제를 함께 적습니다.
+상담 일정은 담당자 확인 후 확정됩니다.
+1 / 2                               ← 쪽번호가 본문처럼 섞임
+
+[page 2]
+진로 상담 안내 - 두 번째 페이지       ← 페이지마다 반복되는 머리말
+신청한 상담을 변경하려면 담당자에게 미리 연락하세요.
+상담 내용에는 개인정보가 포함될 수 있으므로 공개 게시판에 적지 않습니다.
+2 / 2</code></pre>
+      <p><b>무엇이 문제?</b> "1 / 2" 같은 쪽번호는 의미 없는 글자인데 Chunk에 들어가 검색 · 토큰을 차지해요. 페이지를 그냥 이어 붙이면 page 1 끝과 page 2 머리말이 한 조각으로 붙어요.</p>
+      <p><b>② 고치기</b> — "숫자 / 숫자"만 있는 줄만 지우고, 페이지는 따로 둬요:</p>
+<pre><code>PAGE_NO = re.compile(r"^\s*\d+\s*/\s*\d+\s*$")        # 줄 전체가 "1 / 2" 꼴일 때만
+clean = "\n".join(ln for ln in raw.splitlines() if not PAGE_NO.match(ln)).strip()
+# unit_id = f"page-{n}", source_locator = f"career.pdf#page={n}"  ← 페이지마다 출처 유지</code></pre>
+<pre><code>[page 1]  진로 상담 안내 / 진로 상담은 운영실에 신청할 수 있습니다. / … / 상담 일정은 담당자 확인 후 확정됩니다.
+[page 2]  진로 상담 안내 - 두 번째 페이지 / 신청한 상담을 변경하려면 … / … 공개 게시판에 적지 않습니다.</code></pre>
+      <p><b>왜 이렇게 좁게?</b> "줄 안 어디든 숫자/숫자"를 지우면 "2/3 이상 출석"같은 진짜 조건까지 지워져요. 규칙은 <b>줄 전체가 그 꼴일 때만</b> 걸리게 좁히고, 지운 줄 수를 기록해 확인해요. 머리말 "진로 상담 안내 - 두 번째 페이지"는 문서마다 다르니, 여러 페이지에 똑같이 반복되는 줄을 찾아 지우는 건 문서별로 확인한 뒤 적용해요.</p>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>PdfReader(path).pages</code> · <code>extract_text()</code> <a href="../commands.html#d24-pdf">명령어 사전에서 자세히 →</a></div>
 <pre><code>for page_number, page in enumerate(PdfReader(str(path)).pages, start=1):
-    units.append({"unit_id": f"page-{page_number}", "source_locator": f"career.pdf#page={page_number}",
-                  "raw_text": page.extract_text() or ""})</code></pre>
+    raw_text = page.extract_text() or ""</code></pre>
       </div>
       <table>
-        <tr><th>파일 · 페이지 (실제 실행)</th><th>추출 결과</th><th>상태</th></tr>
-        <tr><td>career.pdf p.1</td><td>93자 · 첫 줄 "진로 상담 안내"</td><td>page-1 unit</td></tr>
-        <tr><td>career.pdf p.2</td><td>98자 · 첫 줄 "진로 상담 안내 - 두 번째 페이지"</td><td>page-2 unit</td></tr>
-        <tr><td>scan.pdf p.1</td><td><b>0자</b></td><td><code>needs_ocr</code> 보류</td></tr>
-      </table>
-      <table>
-        <tr><th>PDF 종류</th><th>주의</th></tr>
-        <tr><td>텍스트 PDF</td><td>글자는 나와도 다단 순서 · 머리말 · 쪽번호(실제로 "1 / 2"가 본문에 섞여 나옴) · 표는 검수 필요</td></tr>
-        <tr><td>스캔 PDF</td><td>글자가 이미지 → pypdf는 못 읽음. OCR이 별도로 필요 (<a href="day16.html#ocr">OCR</a>)</td></tr>
-        <tr><td>OCR 텍스트층 있는 PDF</td><td>글자는 나와도 오인식 가능</td></tr>
+        <tr><th>PDF 종류</th><th>그대로 읽으면</th></tr>
+        <tr><td>텍스트 PDF</td><td>글자는 나오지만 다단 순서 · 머리말 · 쪽번호 · 표는 검수 필요 (위 사례)</td></tr>
+        <tr><td>스캔 PDF</td><td>0자 — 글자가 그림이라 OCR이 필요 (다음 사례)</td></tr>
+        <tr><td>OCR 텍스트층이 이미 있는 PDF</td><td>글자는 나오지만 예전 OCR의 오인식이 그대로 들어 있을 수 있음</td></tr>
         <tr><td>혼합 PDF</td><td>페이지마다 상태가 다름 → 문서 전체를 한 번에 승인하지 않음</td></tr>
       </table>
-      <p>🤔 <b>빈 결과면 스캔 PDF라고 확정해도 돼?</b> 아니요. 실제 빈 페이지 · 파일 손상 · 스캔 중 무엇인지 원본을 확인한 뒤 상태를 정해요. PDF는 화면에 "보이는" 배치가 중심이라, 화면 순서와 추출 순서가 다를 수 있어요.</p>
+
+      <h3 id="case-ocr">사례 5 · 스캔 PDF → OCR — 결과를 어떻게 정제하나</h3>
+      <figure id="fig-ocr"><img class="smooth" src="img/day24/ocr.png" alt="scan.pdf 안의 스캔 이미지, 흐린 사본에 단어별 신뢰도 표시(충 33, OCR→0<8 0, 필 52 빨강, 『 81 주황), 설정별 CER 막대(0.55, 0.10, 0.033, 0.133, 0.117, 0.20)"><figcaption><b>무엇을 보나:</b> ① scan.pdf에 들어 있는 실제 스캔 이미지. ② 같은 이미지를 1/3로 줄이고 1.8° 기울이고 잡음을 넣은 "복사기 사본" — 빨간 칸은 Tesseract가 신뢰도 60 미만이라고 한 글자, 주황은 틀렸는데 신뢰도 81로 자신 있게 낸 글자. ③ 설정마다 정답 문장과 비교한 글자 오류율(CER). Tesseract 5.4 · kor 언어팩 실제 실행.</figcaption></figure>
+
+      <p><b>Step 1 · 텍스트층 확인</b> — <code>extract_text()</code>가 <code>''</code>. 페이지 안의 그림(<code>page.images[0]</code>, 1200×1700)을 꺼내 OCR해요. 정답 문장은:</p>
+<pre><code>스캔된 안내문 (이미지 PDF)
+이 문서는 텍스트층이 없습니다.
+OCR 필요 여부는 실제 원본을 확인합니다.</code></pre>
+
+      <p><b>Step 2 · 그대로 OCR</b> — <code>image_to_string(img, lang="kor")</code> (깨끗한 스캔인데도):</p>
+<pre><code>스 캔 된 안 내 문 ( 이 미 지 0 마 )
+이 문 서는 텍 스 트 층 이 없 습 니 다 .
+00 필 요 여 부는 실 제 원 본 을 확 인 합 니 다 .          CER 0.55</code></pre>
+      <p><b>무엇이 문제?</b> ① 한국어 글자마다 공백이 끼었어요. ② 영어 "PDF" → "0 마", "OCR" → "00" — 한국어 언어팩만으로 영어를 읽어서요. 이대로 Chunk에 넣으면 "문서는"으로 검색해도 "문 서는"과 안 맞고, 토큰 수도 불어나요.</p>
+
+      <p><b>Step 3 · ❌ 흔한 잘못된 정제</b> — "한글 사이 공백을 정규식으로 지우자":</p>
+<pre><code>re.sub(r"(?&lt;=[가-힣]) (?=[가-힣])", "", ocr_text)
+
+스캔된안내문 ( 이미지 0 마 )
+이문서는텍스트층이없습니다 .
+00 필요여부는실제원본을확인합니다 .                    CER 0.30</code></pre>
+      <p>숫자(CER)는 좋아졌지만, OCR이 낀 공백과 <b>원래 있던 띄어쓰기</b>를 구분할 수 없어서 진짜 띄어쓰기까지 다 사라졌어요. "PDF" · "OCR"은 여전히 틀려 있고요. 🤔 <b>교훈:</b> 정제 단계에서 OCR 결과의 모양을 억지로 맞추면, 다른 정보가 망가져요. <b>원인 쪽(OCR 설정)에서 고치는 게</b> 먼저예요.</p>
+
+      <p><b>Step 4 · ✅ 원인에서 고치기 — OCR 설정</b></p>
+      <table>
+        <tr><th>설정 (깨끗한 스캔)</th><th>실제 결과</th><th>CER</th></tr>
+        <tr><td><code>kor</code> + <code>preserve_interword_spaces=1</code></td><td>스캔된 안내문 (이미지 <b>0마</b>) / 이 문서는 텍스트층이 없습니다. / <b>00</b> 필요 여부는 실제 원본을 확인합니다.</td><td>0.100</td></tr>
+        <tr><td><code>kor+eng</code> + 띄어쓰기 보존</td><td>스캔된 안내문 (이미지 PDF) / 이 문서는 텍스트층이 없습니다. / OCR <b>HQ</b> 여부는 실제 원본을 확인합니다.</td><td>0.033</td></tr>
+      </table>
+      <p>띄어쓰기는 <code>preserve_interword_spaces=1</code> 한 줄로 해결됐어요. 영어 언어팩을 함께 쓰면 "PDF" · "OCR"은 살지만, 이번엔 한국어 "필요"를 영어 "HQ"로 읽었어요. <b>설정 하나로 모든 게 좋아지지 않아요</b> — 자기 문서로 비교해서 골라요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 <code>pytesseract.image_to_string(lang, config)</code> · <code>image_to_data()</code> <a href="../commands.html#d24-ocr">명령어 사전에서 자세히 →</a></div>
+<pre><code>cfg = "--psm 6 -c preserve_interword_spaces=1"
+text = pytesseract.image_to_string(img, lang="kor", config=cfg)</code></pre>
+      </div>
+
+      <p><b>Step 5 · 실제 스캔은 더 흐리다</b> — 같은 이미지를 1/3 축소 · 1.8° 기울임 · 잡음을 넣은 사본:</p>
+      <table>
+        <tr><th>설정 (흐린 사본)</th><th>실제 결과</th><th>CER</th></tr>
+        <tr><td><code>kor</code> + 띄어쓰기 보존</td><td>스캔된 안내문 (이미지 <b>『마</b>) / 이 문서는 텍스트<b>충</b>이 없습니다. / <b>0&lt;8</b>필요 여부는 실제 원본을 확인합니다.</td><td>0.133</td></tr>
+        <tr><td><code>kor+eng</code> + 띄어쓰기 보존</td><td>스캔된 안내문 (이미지 PDF) / 이 문서는 <b>BASSO</b> 없습니다. / OCR <b>HE</b> 여부는 실제 원본을 확인합니다.</td><td>0.117</td></tr>
+        <tr><td>확대 · 잡음 제거 · 이진화 후 <code>kor+eng</code></td><td><b>스켄된</b> 안내문 (이미지 <b>POF</b>) / <b>여</b> 문서는 <b>BAKES</b> 없습니다. / OCR <b>HR</b> 여부는 실제 원본<b>를</b> 확인합니다</td><td>0.200</td></tr>
+      </table>
+      <p>흐린 사본에서는 "층"이 "충"(받침 하나 차이)으로, 영어 섞인 설정은 "텍스트층이"를 통째로 "BASSO"로 읽었어요. 그리고 흔히 권하는 <b>이미지 전처리(확대 · 잡음 제거 · 이진화)가 오히려 더 나빠졌어요</b>(CER 0.117 → 0.200). 전처리도 "하면 좋아진다"가 아니라 <b>측정해서 정하는</b> 설정이에요. 기울기는 <code>cv2.minAreaRect</code>로 −1.76°로 잡아냈어요(일부러 1.8° 돌림).</p>
+
+      <p><b>Step 6 · 고칠 수 없는 오류는 표시한다 — 신뢰도</b></p>
+      <table>
+        <tr><th>흐린 사본 단어 (실제 <code>conf</code>)</th><th>정답</th><th>판정</th></tr>
+        <tr><td><code>충</code> 33</td><td>층</td><td>🔴 낮음 → 검토 대상으로 잡힘</td></tr>
+        <tr><td><code>0&lt;8</code> 0</td><td>OCR</td><td>🔴 낮음 → 잡힘</td></tr>
+        <tr><td><code>필</code> 52</td><td>필 (맞음)</td><td>🔴 낮음 — 맞는데 의심받음</td></tr>
+        <tr><td><code>『</code> 81 · <code>마</code> 87</td><td>PDF</td><td>🟠 <b>틀렸는데 신뢰도 높음</b> → 못 잡음</td></tr>
+      </table>
+      <p>"충"을 "층"으로 바꾸는 규칙을 만들면 진짜 "충"이 있는 문장(충전 · 충분)을 망가뜨려요. 그래서 오인식은 <b>규칙으로 고치지 않고</b> 신뢰도가 낮은 단어를 표시해 사람이 원본과 대조해요. 다만 신뢰도도 완벽하지 않아서(『 81) 중요한 문서는 표본을 사람이 직접 읽어요.</p>
+      <div class="cmdref">
+        <div class="cmdref-head">🔧 신뢰도 · 기울기 · 하지 말 정규식 <a href="../commands.html#d24-ocr-clean">명령어 사전에서 자세히 →</a></div>
+<pre><code>data = pytesseract.image_to_data(img, lang="kor", config=cfg, output_type=Output.DICT)
+review = [(t, c) for t, c in zip(data["text"], data["conf"]) if t.strip() and float(c) &lt; 60]</code></pre>
+      </div>
+
+      <p><b>Step 7 · OCR 문서의 정제 원칙 정리</b></p>
+      <table>
+        <tr><th>문제</th><th>어디서 고치나</th><th>방법</th></tr>
+        <tr><td>글자마다 낀 공백</td><td>OCR 설정</td><td><code>preserve_interword_spaces=1</code> — 정규식으로 지우지 않음</td></tr>
+        <tr><td>영어 · 숫자 오인식</td><td>OCR 설정</td><td>언어 조합(<code>kor+eng</code>) 비교 — 대신 한글이 영어로 바뀌는지 확인</td></tr>
+        <tr><td>기울기 · 흐림</td><td>이미지 전처리</td><td>기울기 보정 · 확대 · 이진화를 <b>CER로 비교해서</b> 채택</td></tr>
+        <tr><td>줄바꿈 · 연속 공백 · NFC</td><td>텍스트 정제</td><td>일반 정제 규칙(③)으로 안전하게</td></tr>
+        <tr><td>글자 오인식 (층→충)</td><td>사람 검토</td><td>신뢰도 낮은 단어 표시 · 원본 이미지와 대조 · 규칙 치환 금지</td></tr>
+        <tr><td>재현성</td><td>Metadata</td><td>OCR 엔진 · 버전 · 언어 · psm · 전처리를 <code>pipeline_version</code>에 기록, OCR 원문과 신뢰도 보존</td></tr>
+      </table>
+      <p>그래서 스캔 문서는 처음에 <code>needs_ocr</code>로 <b>보류</b>해 두고, 위 과정을 거친 OCR 결과만 별도 버전으로 넣어요 — 텍스트 PDF와 같은 신뢰도로 섞지 않아요. OCR 원리 · 엔진 비교는 <a href="day16.html#ocr">OCR</a>.</p>
 
       <!-- ============================================================ -->
       <h2 id="clean">③ Cleaning — 잡음만 지우고 의미는 남기기</h2>
-      <h3 id="cleanwhy">짧게 만드는 작업이 아니에요</h3>
+      <h3 id="cleanwhy">사례 · 줄바꿈과 공백이 섞인 텍스트</h3>
+      <p><b>원본</b> (예제 fixture, <code>repr</code>로 보이지 않는 글자까지):</p>
+<pre><code>'출석   안내\r\n\r\n10분  초과는 결석.\r\n단,  사전 승인 시 예외.\r\n'</code></pre>
+      <p>Windows 줄바꿈(<code>\r\n</code>), 두세 칸짜리 공백이 섞여 있어요. 그대로 두면 같은 문장이 공백 수만 달라 다른 문자열이 되고, 해시 · 비교가 어긋나요.</p>
       <table>
-        <tr><th>정리해도 되는 것</th><th>반드시 남길 것</th></tr>
-        <tr><td>CRLF · CR 줄바꿈, 지나친 가로 공백, 반복되는 머리말 일부</td><td>10분 · 초과 · "단," · 승인 시 · 제출 불가 같은 <b>답을 바꾸는 정보</b>, 문단 경계, 표 구조</td></tr>
+        <tr><th>정제 방법 (실제 실행)</th><th>결과</th><th>판정</th></tr>
+        <tr><td>❌ <code>re.sub(r"\s+", " ", text)</code></td><td><code>'출석 안내 10분 초과는 결석. 단, 사전 승인 시 예외.'</code></td><td>문단 · 줄 구분이 사라져 제목과 규정이 한 줄로 붙음</td></tr>
+        <tr><td>✅ 줄바꿈 통일 + 줄마다 가로 공백만 1칸</td><td><code>'출석 안내\n\n10분 초과는 결석.\n단, 사전 승인 시 예외.'</code></td><td>제목 · 빈 줄 · 규정 · 예외가 그대로</td></tr>
       </table>
-<pre><code>원문:        "제출할 수 없습니다."
-잘못된 정제: "제출할 수 있습니다."   ← 부정어 하나로 의미가 뒤집힘</code></pre>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>re.sub(r"[ \t]+", " ", …)</code> · <code>replace("\r\n", "\n")</code> <a href="../commands.html#d24-clean">명령어 사전에서 자세히 →</a></div>
-<pre><code>lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+<pre><code>text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+text = unicodedata.normalize("NFC", text)
+lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
 clean_text = "\n".join(lines).strip()</code></pre>
       </div>
-      <table>
-        <tr><th>입력 <code>"출석   안내\r\n\r\n10분  초과"</code> (실제 실행)</th><th>결과</th></tr>
-        <tr><td>가로 공백만 정리 + 줄바꿈 통일</td><td><code>'출석 안내\n\n10분 초과'</code> — 문단 경계(빈 줄) 유지</td></tr>
-        <tr><td><code>re.sub(r"\s+", " ", …)</code></td><td><code>'출석 안내 10분 초과'</code> — 줄바꿈까지 사라져 구조 손실</td></tr>
-      </table>
-      <p>표 · 코드 블록 · TSV에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기 자체가 의미). 정제 결과는 <code>cleaner_version</code> · <code>clean_hash</code>와 함께 남기고, <b>두 번 적용해도 같은지(멱등성)</b>와 <b>보존할 구절이 살아 있는지</b>를 확인해요(실제 실행: attendance.md 139자 → 138자, 멱등 True, "10분" · "초과" 보존 True). 멱등성은 의미 보존의 증명이 아니에요.</p>
+      <p><b>정리해도 되는 것:</b> 줄바꿈 형식 · 지나친 가로 공백 · 쪽번호 줄(사례 4). <b>반드시 남길 것:</b> 10분 · 초과 · "단," · 승인 시 · 제출 불가 같은 <b>답을 바꾸는 말</b>, 문단 경계, 표 구조. "제출할 수 없습니다"에서 부정어가 빠지면 의미가 뒤집혀요. 표 · 코드 블록에는 같은 공백 규칙을 쓰지 않아요(정렬 · 들여쓰기가 의미).</p>
+      <p>정제 결과는 <code>cleaner_version</code> · <code>clean_hash</code>와 함께 남기고, 두 번 적용해도 같은지(멱등성)와 보존할 구절이 살아 있는지 확인해요(실제: attendance.md 139자 → 138자, 멱등 True, "10분" · "초과" 보존 True). <b>짧아졌다고 좋아진 게 아니고, 멱등이라고 의미가 보존된 것도 아니에요.</b></p>
 
-      <h3 id="normalize">유니코드 정규화 — NFC와 NFKC는 다르다</h3>
+      <h3 id="normalize">유니코드 정규화 — 눈에 같아도 다른 문자열</h3>
       <table>
         <tr><th>규칙</th><th>하는 일</th><th>실제 실행</th></tr>
         <tr><td><b>NFC</b></td><td>같은 글자의 다른 표현을 완성형으로 합침</td><td>자모 분리형 "한"(3글자) → 1글자. 분리형은 눈엔 같아도 <code>== "한"</code>이 False</td></tr>
         <tr><td><b>NFKC</b></td><td>호환 문자까지 변환</td><td><code>'① x²'</code> → <code>'1 x2'</code> — 번호 · 위첨자 의미가 사라짐</td></tr>
-        <tr><td>CRLF/CR → LF</td><td>줄바꿈 통일</td><td>문단 사이 빈 줄은 유지</td></tr>
       </table>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>unicodedata.normalize()</code> <a href="../commands.html#d24-normalize">명령어 사전에서 자세히 →</a></div>
 <pre><code>unicodedata.normalize("NFC", text)       # 일반 본문 기본값</code></pre>
       </div>
-      <p>🤔 <b>왜 NFC가 필요해?</b> macOS 등에서 온 파일명 · 텍스트는 자모가 분리된 형태(NFD)일 수 있어요. 그대로 두면 같은 단어인데 검색 · 해시 · 비교가 어긋나요. NFC는 의미를 "교정"하는 기능이 아니라 표현만 맞춰요.</p>
+      <p>macOS 등에서 온 파일명 · 텍스트는 자모가 분리된 형태(NFD)일 수 있어요. 그대로 두면 같은 단어인데 검색 · 해시가 어긋나요. NFC는 의미를 "교정"하는 기능이 아니라 표현만 맞춰요.</p>
 
       <h3 id="offset">Offset은 문자 위치 — 바이트 위치가 아니에요</h3>
 <pre><code>text = "가나다 라마바"
 text[4:7]  → '라마바'        len(text) = 7      len(text.encode("utf-8")) = 19   (실제 실행)</code></pre>
       <p>Chunk의 <code>char_start</code> · <code>char_end</code>는 <b>그 CleanUnit의 clean_text</b>에서 센 Python 문자 위치(끝 제외)예요. 원본 PDF의 바이트 위치도, 화면 좌표도 아니에요. 원문 위치(PDF 페이지 · Markdown 제목)는 <code>source_locator</code>로 따로 남겨요. 정제 전후 좌표를 정확히 되짚으려면 별도의 위치 대응표(span map)가 필요해요.</p>
+
 
       <!-- ============================================================ -->
       <h2 id="chunk">④ Chunking — 답이 들어 있는 단위로 나누기</h2>
@@ -569,7 +681,8 @@ Context에 201을 실제로 넣었을 때만 → source_ids: [201] 허용       
         <tr><td>표준 라이브러리</td><td>파일 목록 · 해시 · 유니코드 정규화 · 정규식 · JSON</td><td><code>pathlib</code> · <code>hashlib</code> · <code>unicodedata</code> · <code>re</code> · <code>json</code></td></tr>
         <tr><td><code>markdown-it-py</code></td><td>CommonMark Markdown 파서 — 제목 · 코드 블록 토큰</td><td><code>from markdown_it import MarkdownIt</code></td></tr>
         <tr><td><code>beautifulsoup4</code></td><td>HTML 트리 · CSS 선택자 · 텍스트 추출</td><td><code>from bs4 import BeautifulSoup</code></td></tr>
-        <tr><td><code>pypdf</code></td><td>PDF 페이지별 텍스트층 추출 (OCR 아님)</td><td><code>from pypdf import PdfReader</code></td></tr>
+        <tr><td><code>pypdf</code></td><td>PDF 페이지별 텍스트층 추출 (OCR 아님) · 페이지 속 이미지 꺼내기</td><td><code>from pypdf import PdfReader</code></td></tr>
+        <tr><td><code>pytesseract</code> + Tesseract 프로그램</td><td>이미지 → 글자 (OCR). 한국어는 <code>kor.traineddata</code> 언어팩 필요 — pip가 아니라 Tesseract 설치 폴더(또는 <code>--tessdata-dir</code>)에</td><td><code>pytesseract.image_to_string(img, lang="kor")</code></td></tr>
         <tr><td><code>sentence-transformers</code></td><td>E5 모델 · Tokenizer — 토큰 수 검사 · Embedding</td><td><code>SentenceTransformer(…).tokenizer</code></td></tr>
         <tr><td><code>psycopg[binary]</code> · <code>pgvector</code></td><td>PostgreSQL 연결 · 트랜잭션 · vector 타입</td><td><code>conn.transaction()</code> · <code>register_vector(conn)</code></td></tr>
       </table>
@@ -580,7 +693,7 @@ python -m pip show pypdf beautifulsoup4 markdown-it-py sentence-transformers psy
       </div>
       <div class="cmdref">
         <div class="cmdref-head">🔧 이 주제의 명령어 전체 — 코드 · 인자 설명 · 실제 실행 결과 <a href="../commands.html#day24">명령어 사전에서 보기 →</a></div>
-        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">결과값은 예제 문서 6건과 개정본으로 실제 실행한 값이에요(pathlib · hashlib · unicodedata · markdown-it-py · pypdf, PostgreSQL 18.6 + pgvector 0.8.7 노트 전용 DB). Beautiful Soup는 이 PC 환경에 없어 실행 결과를 싣지 않았고, E5 모델은 내려받지 않아 토큰 수는 다른 모델의 Tokenizer로만 확인했어요. 저장 · 검색의 벡터는 임의 단위 벡터예요.</p>
+        <p style="margin:6px 0 0;color:var(--muted);font-size:0.9rem">결과값은 예제 문서 6건과 개정본으로 실제 실행한 값이에요(pathlib · hashlib · unicodedata · markdown-it-py · Beautiful Soup · pypdf · Tesseract OCR, PostgreSQL 18.6 + pgvector 0.8.7 노트 전용 DB). E5 모델은 내려받지 않아 토큰 수는 다른 모델의 Tokenizer로만 확인했어요. 저장 · 검색의 벡터는 임의 단위 벡터예요.</p>
       </div>
 
       <h2 id="next">이어서 볼 주제</h2>
@@ -597,8 +710,8 @@ python -m pip show pypdf beautifulsoup4 markdown-it-py sentence-transformers psy
       <h2>원본 자료</h2>
       <ul>
         <li>원본: <code>Day24_20261119_v2.html</code> (생성형 AI · LLM 및 RAG 엔지니어링 · Day24 Document Parsing · Chunking · Indexing 인터랙티브 교안). 예제 문서 6건 · 개정본 · 표 보존 예시 · 실패 분류표는 원본 자료와 함께 제공된 예제 데이터의 것.</li>
-        <li>결과 값: 이 PC에서 실제 실행 (Python 3.13 · markdown-it-py 4.3.0 · pypdf 6.21.4 · numpy 2.3.5 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). DB는 노트 전용 DB를 만들어 쓰고 지웠음. Beautiful Soup 미설치로 HTML 항목은 실행 결과 없음. E5 모델은 내려받지 않음 — 토큰 수는 로컬 캐시의 bert-base-multilingual-cased Tokenizer로 확인. 스크립트 <code>tools/io_day24.py</code>, 그림 <code>tools/visuals/make_day24.py</code></li>
-        <li>공식 문서: <a href="https://docs.python.org/3/library/pathlib.html" target="_blank">pathlib</a> · <a href="https://docs.python.org/3/library/hashlib.html" target="_blank">hashlib</a> · <a href="https://docs.python.org/3/library/unicodedata.html" target="_blank">unicodedata</a> · <a href="https://pypdf.readthedocs.io/en/stable/user/extract-text.html" target="_blank">pypdf 텍스트 추출</a> · <a href="https://www.crummy.com/software/BeautifulSoup/bs4/doc/" target="_blank">Beautiful Soup</a> · <a href="https://spec.commonmark.org/0.31.2/" target="_blank">CommonMark</a> · <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a> · <a href="https://sbert.net/docs/package_reference/sentence_transformer/model.html" target="_blank">Sentence Transformers</a> · <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector</a> · <a href="https://github.com/pgvector/pgvector-python" target="_blank">pgvector-python</a> · <a href="https://www.psycopg.org/psycopg3/docs/basic/transactions.html" target="_blank">Psycopg 트랜잭션</a> · <a href="https://www.postgresql.org/docs/current/datatype-json.html" target="_blank">PostgreSQL JSONB</a> · <a href="https://www.postgresql.org/docs/current/sql-insert.html" target="_blank">INSERT / ON CONFLICT</a> · <a href="https://docs.langchain.com/oss/python/integrations/splitters/recursive_text_splitter" target="_blank">LangChain Text Splitter</a></li>
+        <li>결과 값: 이 PC에서 실제 실행 (Python 3.13 · markdown-it-py 4.3.0 · beautifulsoup4 4.15.0 · pypdf 6.21.4 · Tesseract 5.4.0 + kor 언어팩(tessdata) · pytesseract 0.3.13 · OpenCV · numpy 2.3.5 · psycopg 3.3.8 · pgvector-python 0.5.1 · PostgreSQL 18.6 · pgvector 0.8.7). OCR의 "흐린 사본"은 예제 scan.pdf 이미지를 축소 · 회전 · 잡음으로 직접 만든 것(seed 0). DB는 노트 전용 DB를 만들어 쓰고 지웠음. E5 모델은 내려받지 않음 — 토큰 수는 로컬 캐시의 bert-base-multilingual-cased Tokenizer로 확인. 스크립트 <code>tools/io_day24.py</code>, 그림 <code>tools/visuals/make_day24.py</code></li>
+        <li>공식 문서: <a href="https://docs.python.org/3/library/pathlib.html" target="_blank">pathlib</a> · <a href="https://docs.python.org/3/library/hashlib.html" target="_blank">hashlib</a> · <a href="https://docs.python.org/3/library/unicodedata.html" target="_blank">unicodedata</a> · <a href="https://pypdf.readthedocs.io/en/stable/user/extract-text.html" target="_blank">pypdf 텍스트 추출</a> · <a href="https://www.crummy.com/software/BeautifulSoup/bs4/doc/" target="_blank">Beautiful Soup</a> · <a href="https://spec.commonmark.org/0.31.2/" target="_blank">CommonMark</a> · <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank">multilingual-e5-small</a> · <a href="https://sbert.net/docs/package_reference/sentence_transformer/model.html" target="_blank">Sentence Transformers</a> · <a href="https://github.com/pgvector/pgvector" target="_blank">pgvector</a> · <a href="https://github.com/pgvector/pgvector-python" target="_blank">pgvector-python</a> · <a href="https://www.psycopg.org/psycopg3/docs/basic/transactions.html" target="_blank">Psycopg 트랜잭션</a> · <a href="https://www.postgresql.org/docs/current/datatype-json.html" target="_blank">PostgreSQL JSONB</a> · <a href="https://www.postgresql.org/docs/current/sql-insert.html" target="_blank">INSERT / ON CONFLICT</a> · <a href="https://docs.langchain.com/oss/python/integrations/splitters/recursive_text_splitter" target="_blank">LangChain Text Splitter</a> · <a href="https://tesseract-ocr.github.io/tessdoc/" target="_blank">Tesseract 문서</a> · <a href="https://github.com/tesseract-ocr/tessdata" target="_blank">tessdata (언어팩)</a> · <a href="https://pypi.org/project/pytesseract/" target="_blank">pytesseract</a></li>
       </ul>
     </article>
 
