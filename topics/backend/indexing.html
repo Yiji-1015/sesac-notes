@@ -175,7 +175,7 @@
       <h2 id="practice">🛠️ 실제로 할 때</h2>
       <table>
         <tr><th>상황</th><th>어떻게</th></tr>
-        <tr><td>다른 Embedding 모델로 바꾸기</td><td>2쪽 ⑨의 <code>MODEL</code> 한 줄만 바꾸면 토큰 세기와 벡터가 같이 바뀌어요. <code>DIM</code>도 모델에서 읽어요. 단, 이미 저장된 벡터와 새 모델의 벡터는 섞어 쓸 수 없어서 전부 다시 만들어요. 접두어(<code>query: </code>, <code>passage: </code>) 같은 사용법은 모델마다 달라서 그 모델의 문서를 확인해요. 자세한 내용은 <a href="../../notes/day23.html">Embedding 노트</a>를 보세요.</td></tr>
+        <tr><td>다른 Embedding 모델로 바꾸기</td><td>2쪽 ⑨의 <code>MODEL</code> 한 줄만 바꾸면 토큰 세기와 벡터가 같이 바뀌어요. <code>DIM</code>도 모델에서 읽어요. 단, 이미 저장된 벡터와 새 모델의 벡터는 섞어 쓸 수 없어서 전부 다시 만들어요. 접두어(<code>query: </code>, <code>passage: </code>) 같은 사용법은 모델마다 달라서 그 모델의 문서를 확인해요. 자세한 내용은 <a href="embedding.html">Embedding과 벡터 검색</a>를 보세요.</td></tr>
         <tr><td>조각이 아주 많다</td><td>지금은 모든 조각과 거리를 재요. 수십만 개가 되면 <code>CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops)</code>로 근사 검색 인덱스를 만들어요. 아주 조금 덜 정확한 대신 훨씬 빨라요.</td></tr>
         <tr><td>판마다 조각을 전부 다시 넣는 게 아깝다</td><td>지금은 판 2에도 바뀌지 않은 조각까지 다시 넣어요(단순하고 확인이 쉬워요). 조각이 많으면 2쪽의 <code>chunk_id</code>로 바뀐 조각만 찾아 새로 벡터를 만들고, 나머지는 재사용하는 방식도 있어요.</td></tr>
         <tr><td>옛 판 정리</td><td>공개가 바뀐 뒤에도 옛 판은 잠시 남겨 두면, 문제가 생겼을 때 <code>published</code>만 되돌려 바로 복구할 수 있어요. 일정 기간이 지나면 지워요.</td></tr>
@@ -197,8 +197,8 @@
       <table>
         <tr><th>주제</th><th>연결</th></tr>
         <tr><td><a href="chunking.html">2쪽 Chunking</a></td><td>여기서 넣은 조각을 만드는 과정</td></tr>
-        <tr><td><a href="../../notes/day23.html">Embedding과 Vector Search</a></td><td>뜻을 반영하는 진짜 Embedding, 유사도, HNSW</td></tr>
-        <tr><td><a href="../../notes/day18.html">PostgreSQL</a></td><td>트랜잭션, 기본 키, 제약 조건</td></tr>
+        <tr><td><a href="embedding.html">Embedding과 벡터 검색</a></td><td>뜻을 반영하는 진짜 Embedding, 유사도, HNSW</td></tr>
+        <tr><td><a href="postgres.html">PostgreSQL 기초</a></td><td>트랜잭션, 기본 키, 제약 조건</td></tr>
         <tr><td>RAG</td><td>검색한 조각을 근거로 LLM에게 답하게 하기 (다음 주제)</td></tr>
       </table>
 

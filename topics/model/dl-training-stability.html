@@ -41,7 +41,7 @@
       <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>⑥⑦</td><td><code>torch.optim.SGD</code>, <code>torch.optim.Adam</code></td><td>Optimizer</td></tr><tr><td>⑨</td><td><code>nn.Dropout</code>, <code>weight_decay=</code></td><td>규제</td></tr><tr><td>⑩</td><td><code>state_dict()</code>, <code>load_state_dict()</code>, <code>copy.deepcopy</code></td><td>가중치 저장과 복원</td></tr></table>
       <p><code>run</code>, <code>train_early</code>는 이 파일 안에서 정의한 함수예요.</p>
       <h2 id="next">이어서 볼 주제</h2>
-      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="dl-tensor-training.html">Tensor와 신경망 학습</a></td><td>학습 루프의 기본</td></tr><tr><td><a href="../../notes/day11.html">CNN과 이미지 분류</a></td><td>그림을 다루는 신경망</td></tr></table>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="dl-tensor-training.html">Tensor와 신경망 학습</a></td><td>학습 루프의 기본</td></tr><tr><td><a href="cnn.html">CNN과 이미지 분류</a></td><td>그림을 다루는 신경망</td></tr></table>
       <h2>원본 자료</h2>
       <ul><li>다루는 범위: Day10 (2026-10-30) Optimizer, 학습률, Batch, Epoch, 과적합, Dropout, Early Stopping</li><li>데이터: <code>examples/dl/data/points.csv</code> (점 400개, 두 무리. 기존 노트와 같은 예제)</li><li>결과 값: <code>tools/pages/dl_basics.py</code> (seed 0)</li><li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/optim.html" target="_blank">torch.optim</a>, <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout.html" target="_blank">nn.Dropout</a></li><li>실행 환경: <span id="env"></span></li></ul>
     </article>

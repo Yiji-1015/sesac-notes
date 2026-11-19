@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>전이학습과 오류 분석 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>전이학습과 오류 분석: 미리 배운 특징을 빌려 쓰기</h1>
+      <div class="meta">모델 &gt; 이미지</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">데이터가 적으면 처음부터 배우기 어려워요. <b>다른 데이터로 미리 배운 Backbone</b>을 빌려 오고 <b>Head만 새로</b> 배우면 적은 데이터로도 잘 맞혀요. 결과는 <b>종류별로</b> 보고, 틀린 그림을 직접 봐요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>세 가지 도형(원, 네모, 세모)을 구분하려고 해요. 그런데 그림이 180장뿐이고, 종류마다 개수도 달라요.</p><div class="out" data-out="data"></div>
+<p>사람은 처음 보는 물건도 "모서리가 있고 둥글지 않다" 같은 이미 아는 특징으로 알아봐요. 모델도 마찬가지로, <b>다른 데이터로 미리 배운 특징 뽑기 부분</b>을 빌려 쓸 수 있어요. 이걸 <b>전이학습</b>이라고 해요. 실제로 비교하면:</p><div class="out" data-out="why"></div>
+<p>CNN은 보통 두 부분이에요. 그림에서 특징을 뽑는 <b>Backbone</b>(합성곱 층들)과, 특징으로 종류를 정하는 <b>Head</b>(마지막 Linear)예요. 전이학습은 Backbone을 빌려 오고 Head는 우리 종류에 맞게 새로 만들어요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>데이터 보기 → 처음부터 학습(기준선) → Backbone 빌려 오기 → Head만 학습 → 전체 미세조정 → 종류별로 보기 → 적은 종류에 무게 → test. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 데이터 읽고 개수 세기</h3><p class="does">그림을 빌려 올 모델과 같은 32×32로 맞춰 읽고, 종류마다 몇 장인지 세요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>transforms.Resize((32, 32))</code></td><td>크기 맞추기</td></tr><tr><td><code>ds.targets</code></td><td>그림마다 정답 번호 (폴더 순서대로 0, 1, 2)</td></tr><tr><td><code>Counter(y_train.tolist())</code></td><td>번호별 개수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 처음부터 학습하기</h3><p class="does">같은 구조를 무작위 가중치에서 시작해 5번 학습해요. 기준선이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>make_backbone()</code></td><td>합성곱 두 번 + 평균 풀링으로 특징 256개를 뽑는 부분</td></tr><tr><td><code>nn.Sequential(make_backbone(), nn.Linear(256, 3))</code></td><td>[0] Backbone, [1] Head</td></tr><tr><td><code>fit(model, epochs, lr)</code></td><td>32장씩 섞어 학습. <code>requires_grad</code>가 켜진 가중치만 고쳐요.</td></tr><tr><td><code>f1_score(..., average=&quot;macro&quot;)</code></td><td>종류별 F1의 평균</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 미리 배운 Backbone 빌려 오기</h3><p class="does">저장된 가중치 배열을 읽어 같은 구조의 Backbone에 끼워요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.load(&quot;source_backbone.npz&quot;)</code></td><td>이름별 가중치 배열 묶음</td></tr><tr><td><code>load_state_dict({이름: Tensor})</code></td><td>이름과 모양이 모두 맞아야 끼워져요. 하나라도 다르면 오류</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ Backbone 고정하고 Head만 학습하기</h3><p class="does">빌려 온 가중치는 그대로 두고, 우리 종류를 고르는 Head만 배워요 (특징 추출).</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>frozen[0].load_state_dict(pretrained.state_dict())</code></td><td>새 모델의 Backbone 자리에 빌려 온 가중치</td></tr><tr><td><code>p.requires_grad = False</code></td><td>이 가중치는 학습하지 않음</td></tr><tr><td><code>if p.requires_grad</code></td><td>학습할 가중치만 세기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 전체를 조금씩 고치기 (미세조정)</h3><p class="does">고정을 풀고, 작은 학습률로 Backbone까지 우리 데이터에 맞게 살짝 고쳐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>p.requires_grad = True</code></td><td>다시 학습 대상으로</td></tr><tr><td><code>lr=0.001</code></td><td>이미 좋은 가중치를 크게 망가뜨리지 않게 작게</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 종류별로 보기</h3><p class="does">정확도 하나 대신 종류마다 precision, recall을 보고, 틀린 그림을 직접 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>classification_report(..., output_dict=True)</code></td><td>종류별 precision, recall, F1, 장수를 dict로</td></tr><tr><td><code>confusion_matrix(y, pred)</code></td><td>실제 × 예측 표</td></tr></table><div class="out" data-out="s6img"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 적은 종류에 무게 주기</h3><p class="does">개수가 적은 종류를 틀리면 손실을 더 크게 쳐서, 많은 종류 쪽으로 기우는 걸 줄여요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>len(y_train) / (3 * n)</code></td><td>종류 수가 고르면 모두 1, 적은 종류일수록 커요.</td></tr><tr><td><code>F.cross_entropy(..., weight=weight)</code></td><td>정답 종류의 무게만큼 손실을 곱해요.</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section><section class="step" data-step="8" id="s8"><span class="label">코드의 ⑧ 부분</span><h3>⑧ 마지막 한 번: test</h3><p class="does">아껴 둔 test 30장으로 세 방법을 한 번 채점해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>load(&quot;test&quot;)</code></td><td>①의 함수로 test 읽기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s8"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/transfer/shapes_transfer.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>진짜 사진</td><td>ImageNet 같은 큰 사진 데이터로 배운 ResNet, EfficientNet 등을 <code>torchvision.models</code>에서 불러와요 (처음 한 번 가중치를 내려받아요). 그 모델이 배운 크기와 정규화(평균, 표준편차)를 그대로 맞춰요.</td></tr><tr><td>얼마나 풀어서 고칠까</td><td>데이터가 적고 원래 데이터와 비슷하면 Head만, 데이터가 많거나 많이 다르면 뒤쪽 층부터 조금씩 풀어서 고쳐요.</td></tr><tr><td>모델이 어디를 봤나</td><td>Grad-CAM은 마지막 합성곱 층의 기울기로 "판단에 영향을 준 자리"를 그림 위에 칠해 보여 줘요. 배경을 보고 맞힌 건 아닌지 확인할 때 써요 (<a href="../../notes/day14.html">옛 Day14 노트</a>).</td></tr><tr><td>불균형이 심하다</td><td>무게 주기 말고도, 적은 종류를 더 자주 뽑아 학습하거나(oversampling), 증강으로 늘리는 방법이 있어요. 효과는 꼭 종류별 지표로 확인해요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>datasets.ImageFolder</code>, <code>transforms.Resize</code>, <code>collections.Counter</code></td><td>읽기, 세기</td></tr><tr><td>②</td><td><code>nn.Conv2d</code>, <code>nn.BatchNorm2d</code>, <code>nn.AdaptiveAvgPool2d</code>, <code>F.cross_entropy</code></td><td>모델과 학습</td></tr><tr><td>③④⑤</td><td><code>np.load</code>, <code>load_state_dict</code>, <code>state_dict</code>, <code>requires_grad</code></td><td>가중치 빌려 오기, 고정</td></tr><tr><td>⑥⑦</td><td><code>classification_report</code>, <code>confusion_matrix</code>, <code>f1_score(average="macro")</code>, <code>weight=</code></td><td>종류별 평가, 무게 (scikit-learn, torch)</td></tr></table>
+      <p><code>load</code>, <code>make_backbone</code>, <code>make_model</code>, <code>fit</code>, <code>predict</code>, <code>report</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="cnn.html">CNN과 이미지 분류</a></td><td>Backbone이 하는 일, 합성곱</td></tr><tr><td><a href="object-detection.html">객체 탐지</a></td><td>종류뿐 아니라 위치까지 찾기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day14 (2026-11-05) 데이터셋 설계, 전이학습, Fine-tuning, 불균형 평가, 오류 분석</li><li>데이터: <code>examples/transfer/data/</code> (합성 도형 그림과 미리 학습한 작은 Backbone. 기존 노트와 같은 실습 데이터)</li><li>결과 값: <code>tools/pages/transfer.py</code> (seed 0)</li><li>공식 문서: <a href="https://docs.pytorch.org/tutorials/beginner/transfer_learning_tutorial.html" target="_blank">Transfer Learning for Computer Vision</a>, <a href="https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html" target="_blank">classification_report</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="transfer-learning-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

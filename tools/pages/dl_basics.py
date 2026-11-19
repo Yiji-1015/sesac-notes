@@ -128,7 +128,7 @@ K.build(ROOT / "topics" / "model" / "dl-training-stability.html", title="학습�
         crumb="모델 &gt; 딥러닝 기초 2/2쪽 &nbsp;|&nbsp; 이전: <a href=\"dl-tensor-training.html\" style=\"color:inherit\">Tensor와 신경망 학습</a>",
         one_line="학습이 잘 내려가려면 <b>학습률과 Optimizer</b>가 맞아야 하고, 학습 데이터를 외우지 않으려면 <b>규제와 조기 종료</b>가 필요해요. 문제는 train과 valid 손실을 <b>같이</b> 봐야 보여요.",
         why=why2, whole=whole2, steps=steps2, code_file="examples/dl/points_net.py", practice=practice2, libs=libs2, libs_note="<code>run</code>, <code>train_early</code>는 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"dl-tensor-training.html\">Tensor와 신경망 학습</a>", "학습 루프의 기본"), ("<a href=\"../../notes/day11.html\">CNN과 이미지 분류</a>", "그림을 다루는 신경망")],
+        next_rows=[("<a href=\"dl-tensor-training.html\">Tensor와 신경망 학습</a>", "학습 루프의 기본"), ("<a href=\"cnn.html\">CNN과 이미지 분류</a>", "그림을 다루는 신경망")],
         sources=["다루는 범위: Day10 (2026-10-30) Optimizer, 학습률, Batch, Epoch, 과적합, Dropout, Early Stopping", SRC_DATA, "결과 값: <code>tools/pages/dl_basics.py</code> (seed 0)",
                  "공식 문서: <a href=\"https://docs.pytorch.org/docs/stable/optim.html\" target=\"_blank\">torch.optim</a>, <a href=\"https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout.html\" target=\"_blank\">nn.Dropout</a>"])
 print("ok")

@@ -40,7 +40,7 @@
       <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>⑬</td><td><code>predict_proba()</code>, <code>confusion_matrix().ravel()</code></td><td>확률과 기준</td></tr><tr><td>⑭</td><td><code>roc_auc_score</code></td><td>확률의 순서 품질</td></tr><tr><td>⑮</td><td><code>FunctionTransformer</code>, <code>np.log1p</code></td><td>특성 변환</td></tr><tr><td>⑯</td><td><code>KMeans</code>, <code>silhouette_score</code></td><td>군집</td></tr><tr><td>⑰</td><td><code>clone()</code>, <code>fit()</code>, <code>predict()</code></td><td>최종 학습과 평가</td></tr></table>
       <p><code>cost_at</code>, <code>build_fe</code>는 이 파일 안에서 정의한 함수예요.</p>
       <h2 id="next">이어서 볼 주제</h2>
-      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="ml-trees-cv.html">트리와 앙상블, 교차검증</a></td><td>후보 모델과 교차검증</td></tr><tr><td><a href="../../notes/day09.html">딥러닝 기초</a></td><td>신경망으로 넘어가기</td></tr></table>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="ml-trees-cv.html">트리와 앙상블, 교차검증</a></td><td>후보 모델과 교차검증</td></tr><tr><td><a href="dl-tensor-training.html">딥러닝 기초</a></td><td>신경망으로 넘어가기</td></tr></table>
       <h2>원본 자료</h2>
       <ul><li>다루는 범위: Day08 (2026-10-28) 평가지표, 특성 설계, K-Means, 최종 평가</li><li>데이터: <code>examples/ml/data/requests.csv</code> (가상의 업무 요청 100건)와 <code>split_manifest.csv</code> (train 60, valid 20, test 20). 기존 노트와 같은 예제</li><li>결과 값: <code>tools/pages/ml_basics.py</code></li><li>공식 문서: <a href="https://scikit-learn.org/stable/modules/classification_threshold.html" target="_blank">Tuning the decision threshold</a>, <a href="https://scikit-learn.org/stable/modules/clustering.html#k-means" target="_blank">K-means</a></li><li>실행 환경: <span id="env"></span></li></ul>
     </article>

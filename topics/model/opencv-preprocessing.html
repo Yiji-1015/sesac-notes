@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCV 이미지 전처리 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>OpenCV 이미지 전처리: 잡음, 조명, 모양 다루기</h1>
+      <div class="meta">모델 &gt; 이미지</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">사진은 잡음, 고르지 않은 조명, 섞인 물체 때문에 그대로 쓰기 어려워요. <b>OpenCV</b>로 잡음을 줄이고, 물체와 배경을 나누고, 모양을 세고, 그림을 늘려요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>모델에 사진을 넣기 전에, 사진은 대개 그대로 쓰기 어려운 상태예요. 이 한 장에 흔한 문제가 다 들어 있어요.</p><div class="out" data-out="why"></div>
+<p><b>OpenCV</b>는 그림을 숫자 배열로 다루는 라이브러리예요. 잡음을 줄이고, 물체와 배경을 나누고, 모양을 세고, 그림을 늘리는 <b>전처리</b>를 맡아요. 전처리를 잘하면 모델이 배울 것이 줄고, 모델 없이 규칙만으로 풀리는 문제도 많아요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>읽기 → 밝기와 색으로 고르기 → 잡음 줄이기 → 흑백 두 값으로 나누기 → 모양 다듬기 → 세기 → 늘리기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 그림 읽기</h3><p class="does">그림 파일을 (세로, 가로, 채널) 숫자 배열로 읽어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.imread(path)</code></td><td>컬러 그림을 BGR 순서의 uint8(0~255) 배열로. 파일이 없으면 오류 대신 <code>None</code>을 돌려줘서 꼭 확인해요.</td></tr><tr><td><code>img[40, 40]</code></td><td>(세로 40, 가로 40) 자리의 픽셀. 좌표 순서가 (y, x)예요.</td></tr><tr><td><code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code></td><td>채널 순서 바꾸기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 밝기와 색으로 고르기</h3><p class="does">흑백으로 바꾸거나, HSV로 바꿔 특정 색 범위만 골라요.</p><p><b>HSV</b>는 색을 색상(Hue, 무슨 색), 채도(Saturation, 얼마나 진한지), 밝기(Value)로 나눠요. 조명이 바뀌면 RGB 세 값이 다 바뀌지만, 색상은 비교적 그대로라 색으로 고르기 쉬워요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.COLOR_BGR2GRAY</code></td><td>밝기 하나로</td></tr><tr><td><code>cv2.COLOR_BGR2HSV</code></td><td>색상, 채도, 밝기로. OpenCV의 색상은 0~179</td></tr><tr><td><code>cv2.inRange(hsv, low, high)</code></td><td>세 값이 모두 범위 안이면 255, 아니면 0</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 잡음 줄이기</h3><p class="does">주변 픽셀을 보고 값을 고쳐서 튀는 점을 줄여요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.GaussianBlur(gray, (5, 5), 0)</code></td><td>5×5 주변의 가중 평균. 0이면 퍼짐 정도를 크기에 맞춰 자동</td></tr><tr><td><code>cv2.medianBlur(gray, 5)</code></td><td>5×5 주변의 가운데 값</td></tr><tr><td><code>cv2.PSNR(a, b)</code></td><td>두 그림이 얼마나 비슷한지 (dB). 클수록 비슷</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 이진화: 기준 하나 vs 자리마다 다른 기준</h3><p class="does">픽셀을 기준보다 밝으면 흰색, 어두우면 검은색으로 나눠요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.threshold(..., cv2.THRESH_BINARY + cv2.THRESH_OTSU)</code></td><td>Otsu가 그림 전체를 보고 두 무리를 가장 잘 나누는 기준을 하나 정해요. 앞 값이 그 기준</td></tr><tr><td><code>cv2.adaptiveThreshold(img, 255, GAUSSIAN_C, BINARY, 31, 5)</code></td><td>자리마다 주변 31×31의 가중 평균에서 5를 뺀 값을 기준으로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 형태학: 작은 점 지우고 구멍 메우기</h3><p class="does">흰 영역을 깎고 불리는 연산으로 마스크를 다듬어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))</code></td><td>깎고 불릴 때 쓸 5×5 원 모양</td></tr><tr><td><code>cv2.MORPH_OPEN</code></td><td>열기 = 깎기 후 불리기. 깎을 때 사라진 작은 점은 다시 안 생겨요.</td></tr><tr><td><code>cv2.MORPH_CLOSE</code></td><td>닫기 = 불리기 후 깎기. 불릴 때 메워진 작은 구멍은 다시 안 열려요.</td></tr><tr><td><code>cv2.connectedComponents(m)</code></td><td>이어진 흰 덩어리 수 (배경 포함이라 1을 빼요)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 물체 세고 모양 보기</h3><p class="does">흰 덩어리의 윤곽을 찾아, 위치, 넓이, 꼭짓점 수를 재요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)</code></td><td>바깥 윤곽만, 직선 구간은 끝점만 남겨서</td></tr><tr><td><code>cv2.boundingRect(c)</code></td><td>윤곽을 감싸는 네모 (x, y, 가로, 세로)</td></tr><tr><td><code>cv2.approxPolyDP(c, 0.02 * 둘레, True)</code></td><td>윤곽을 둘레의 2% 오차 안에서 꼭짓점이 적은 다각형으로 줄이기</td></tr></table><div class="out" data-out="s6img"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 증강: 같은 그림을 조금씩 바꿔 늘리기</h3><p class="does">뒤집기, 회전, 밝기 바꾸기로 학습용 그림을 늘려요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cv2.flip(img, 1)</code></td><td>좌우 뒤집기 (0이면 상하)</td></tr><tr><td><code>cv2.getRotationMatrix2D(중심, 각도, 배율)</code></td><td>회전을 나타내는 2×3 행렬</td></tr><tr><td><code>cv2.warpAffine(img, M, (가로, 세로), borderMode=BORDER_REFLECT)</code></td><td>행렬대로 옮기고, 빈 가장자리는 거울처럼 채우기</td></tr><tr><td><code>cv2.convertScaleAbs(img, alpha=1.0, beta=40)</code></td><td>모든 픽셀에 40을 더하고 0~255로 자르기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/opencv/preprocess.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>어떤 잡음인지 먼저 본다</td><td>점처럼 튀는 잡음은 Median, 고르게 자글자글한 잡음은 Gaussian이 잘 맞아요. 줄이면 선과 모서리도 같이 흐려지니 커널 크기를 작게 시작해요.</td></tr><tr><td>조명이 고르지 않다</td><td>기준 하나(Otsu)는 조명을 갈라요. adaptive 이진화를 쓰거나, 배경을 크게 흐린 그림을 빼서 조명을 먼저 평평하게 해요.</td></tr><tr><td>모델에 넣을 그림</td><td>크기를 맞추고(<code>cv2.resize</code>), BGR을 RGB로 바꾸고, 0~1이나 평균 0으로 맞춰요. 학습과 실제 사용에서 전처리가 <b>똑같아야</b> 해요.</td></tr><tr><td>영상</td><td><code>cv2.VideoCapture</code>로 한 장씩 꺼내 같은 전처리를 해요. 자세한 내용은 <a href="../../notes/day13.html">옛 Day13 노트</a>를 보세요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①②</td><td><code>cv2.imread</code>, <code>cv2.cvtColor</code>, <code>cv2.inRange</code></td><td>읽기, 색 바꾸기, 색 고르기</td></tr><tr><td>③</td><td><code>cv2.GaussianBlur</code>, <code>cv2.medianBlur</code>, <code>cv2.PSNR</code></td><td>잡음</td></tr><tr><td>④</td><td><code>cv2.threshold</code>, <code>cv2.adaptiveThreshold</code></td><td>이진화</td></tr><tr><td>⑤⑥</td><td><code>cv2.morphologyEx</code>, <code>cv2.connectedComponents</code>, <code>cv2.findContours</code>, <code>cv2.approxPolyDP</code>, <code>cv2.boundingRect</code></td><td>형태학, 윤곽</td></tr><tr><td>⑦</td><td><code>cv2.flip</code>, <code>cv2.warpAffine</code>, <code>cv2.getRotationMatrix2D</code>, <code>cv2.convertScaleAbs</code></td><td>증강</td></tr></table>
+      <p><code>iou</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="cnn.html">CNN과 이미지 분류</a></td><td>다듬은 그림을 모델로 분류하기</td></tr><tr><td><a href="ocr-documents.html">OCR과 문서 구조화</a></td><td>글자를 읽기 전 문서 그림 다듬기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day13 (2026-11-04) 이미지 표현, 색공간, 필터, 형태학, 증강</li><li>데이터: <code>examples/opencv/data/</code> (수업용으로 만든 합성 도형 그림. 기존 노트와 같은 예제)</li><li>결과 값: <code>tools/pages/opencv_pre.py</code></li><li>공식 문서: <a href="https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html" target="_blank">OpenCV-Python Tutorials</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="opencv-preprocessing-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

@@ -211,7 +211,7 @@ steps = [
                            ("CREATE INDEX ... ON knowledge (title)", "제목으로 찾기 쉽게 정렬된 찾아보기를 만들어요. 대신 넣고 고칠 때마다 인덱스도 고쳐야 해서 쓰기가 조금 느려져요.")]), "s8"),
 ]
 practice = [
-    ("같은 스크립트를 두 번 실행한다", "②의 <code>CREATE TABLE</code>이 \"이미 있음\" 오류로 멈춰요. 테이블 구조를 바꾸고 기록하는 일은 Alembic 같은 마이그레이션 도구로 해요 (<a href=\"../../notes/day19.html\">FastAPI와 PostgreSQL 연동</a>)."),
+    ("같은 스크립트를 두 번 실행한다", "②의 <code>CREATE TABLE</code>이 \"이미 있음\" 오류로 멈춰요. 테이블 구조를 바꾸고 기록하는 일은 Alembic 같은 마이그레이션 도구로 해요 (<a href=\"fastapi-postgres.html\">FastAPI와 PostgreSQL 연동</a>)."),
     ("API에서 DB를 쓴다", "⑥처럼 0행은 오류가 아니라서, API가 직접 404로 바꿔야 해요. 반대로 ②의 규칙 위반 오류는 409나 422 같은 응답으로 바꿔요."),
     ("NULL과 빈 글", "<code>NULL</code>은 \"값이 없음\", <code>''</code>는 \"빈 글이라는 값\"이에요. <code>WHERE x = NULL</code>은 아무것도 안 걸려요. <code>WHERE x IS NULL</code>로 써요."),
     ("인덱스를 어디에 거나", "자주 찾는 조건(<code>WHERE</code>)과 연결(<code>JOIN</code>)에 쓰는 열에 걸어요. 기본 키에는 자동으로 있어요. 많이 걸수록 쓰기가 느려지니 실행 계획을 보고 정해요."),
@@ -227,7 +227,7 @@ K.build(ROOT / "topics" / "backend" / "postgres.html", title="PostgreSQL 기초"
         one_line="<b>PostgreSQL</b>은 데이터를 표(테이블)로 저장하는 DB예요. 여러 요청이 <b>동시에 써도 안전</b>하고, <b>규칙을 DB가 지키고</b>, 여러 작업을 <b>한 묶음으로 확정하거나 취소</b>할 수 있어요.",
         why=why, whole=whole, steps=steps, code_file="examples/db/basics.py", practice=practice, libs=libs,
         next_rows=[("<a href=\"fastapi.html\">FastAPI로 지식 API 만들기</a>", "지금은 파일에 저장하는 API"),
-                   ("<a href=\"../../notes/day19.html\">FastAPI와 PostgreSQL 연동</a>", "API를 이 DB에 연결하기, Alembic"),
+                   ("<a href=\"fastapi-postgres.html\">FastAPI와 PostgreSQL 연동</a>", "API를 이 DB에 연결하기, Alembic"),
                    ("<a href=\"indexing.html\">인덱싱</a>", "pgvector로 벡터를 저장하고 뜻으로 찾기")],
         sources=["다루는 범위: Day18 (2026-11-11) PostgreSQL 입문, 지식 관리 DB",
                  "예제: <code>examples/db/basics.py</code> (기존 노트의 분류 세 개, 지식 세 개)",

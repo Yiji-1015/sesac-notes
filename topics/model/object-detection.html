@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>객체 탐지 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>객체 탐지: 박스를 채점하고 정리하고 잇기</h1>
+      <div class="meta">모델 &gt; 이미지</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">객체 탐지는 물체마다 <b>종류, 점수, 박스</b>를 답해요. 박스는 <b>IoU</b>로 채점하고, 겹친 후보는 <b>NMS</b>로 지우고, 점수 기준으로 precision과 recall을 조절하고, 영상에서는 프레임끼리 박스를 <b>이어서</b> 추적해요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>사진 속에 무엇이 <b>어디에</b> 있는지 찾는 일을 <b>객체 탐지</b>라고 해요. 결과는 물체마다 종류, 점수(확신), 박스예요.</p><div class="out" data-out="why"></div>
+<p>YOLO 같은 탐지 모델은 그림 한 장에서 수많은 후보 박스를 한 번에 내요. 그 뒤에는 언제나 같은 일이 따라와요. 박스를 좌표로 다루고, 정답과 얼마나 겹치는지 재고, 중복을 지우고, 점수 기준을 정하고, 영상이면 프레임끼리 이어요. 이 쪽에서는 모델 없이 이 과정을 직접 계산해요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>라벨 읽기 → 겹친 정도 재기 → 정답과 짝짓기 → 중복 지우기 → 점수 기준 정하기 → 프레임끼리 잇기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① YOLO 라벨을 픽셀 박스로</h3><p class="does">비율로 적힌 중심, 너비, 높이를 픽셀 좌표 (x1, y1, x2, y2)로 바꿔요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>(cx - w / 2) * img_w</code></td><td>왼쪽 끝 x. 중심에서 너비 절반을 빼고 그림 너비를 곱해요.</td></tr><tr><td><code>label_file.read_text().splitlines()</code></td><td>물체 하나가 한 줄. 빈 파일이면 물체 0개라는 뜻이에요.</td></tr></table><div class="out" data-out="s1img"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 겹친 정도 재기 (IoU)</h3><p class="does">두 박스의 겹친 넓이를 합친 넓이로 나눠요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>min(a[2], b[2]) - max(a[0], b[0])</code></td><td>겹친 부분의 가로. 음수면 안 겹친 것이라 0으로</td></tr><tr><td><code>inter / union</code></td><td>합친 넓이 = 두 넓이의 합 − 겹친 넓이</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 예측과 정답 짝짓기</h3><p class="does">점수 높은 예측부터, 같은 종류이면서 IoU 0.5 이상인 정답 중 가장 많이 겹치는 것과 짝지어요.</p><table><tr><th>결과</th><th>뜻</th></tr><tr><td>TP</td><td>정답과 짝지어진 예측 (맞게 찾음)</td></tr><tr><td>FP</td><td>짝이 없는 예측 (헛탐지, 중복)</td></tr><tr><td>FN</td><td>짝을 못 찾은 정답 (놓침)</td></tr></table><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>sort_values(&quot;confidence&quot;, ascending=False)</code></td><td>확신 높은 예측이 먼저 정답을 가져가요.</td></tr><tr><td><code>used</code></td><td>이미 짝지어진 정답 번호</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 겹친 후보 정리하기 (NMS)</h3><p class="does">같은 물체에 겹쳐 나온 후보 중 점수가 가장 높은 것만 남겨요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nms(boxes, scores, iou_threshold=0.5)</code></td><td>남길 박스 번호를 점수 순으로 (torchvision)</td></tr><tr><td><code>pred.iloc[keep]</code></td><td>남은 예측만</td></tr></table><div class="out" data-out="s4img"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 확신 기준을 바꾸며 보기</h3><p class="does">점수 기준을 바꿔 가며 precision과 recall이 어떻게 변하는지 봐요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>after_nms[after_nms.confidence &gt;= t]</code></td><td>기준 t 이상인 예측만</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 영상에서 같은 물체 이어 붙이기 (추적)</h3><p class="does">프레임마다 나온 박스를 직전 프레임의 박스와 IoU로 이어서 같은 ID를 붙여요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>frames.sample(frac=1)</code></td><td>탐지 결과처럼 순서를 섞어서, 순서에 기대지 않게</td></tr><tr><td><code>max(cand)</code></td><td>직전 박스 중 IoU가 가장 큰 것</td></tr><tr><td><code>if v &lt; thr: 새 ID</code></td><td>이어 붙일 곳이 없으면 새 물체로</td></tr><tr><td><code>track_id.nunique() - 1</code></td><td>한 물체(정답 ID)에 붙은 ID 종류 − 1 = ID가 바뀐 횟수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/detection/boxes.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>YOLO로 직접 학습한다</td><td>Ultralytics의 <code>YOLO("yolov8n.pt").train(data="dataset.yaml", epochs=…)</code>로 학습하고 <code>model.predict()</code>, <code>model.val()</code>로 박스와 mAP를 받아요. 미리 학습된 가중치를 처음 한 번 내려받아요. 자세한 명령은 <a href="../../notes/day15.html">옛 Day15 노트</a>를 보세요.</td></tr><tr><td>NMS는 종류별로</td><td>다른 종류의 물체끼리는 겹쳐도 지우면 안 돼서, 실제로는 종류별로 NMS를 해요 (<code>torchvision.ops.batched_nms</code>).</td></tr><tr><td>작은 물체</td><td>몇 픽셀만 어긋나도 IoU가 크게 떨어져요. mAP50-95가 낮으면 작은 물체의 박스 정확도를 의심해요.</td></tr><tr><td>추적이 끊긴다</td><td>빠른 물체, 가려짐, 낮은 프레임률에서 끊겨요. 움직임을 예측하는 추적기(ByteTrack, BoT-SORT 등)를 쓰면 더 잘 이어져요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>Path.read_text()</code>, <code>str.split()</code></td><td>라벨 읽기</td></tr><tr><td>②③⑤</td><td><code>pandas.read_csv</code>, <code>sort_values</code>, 직접 짠 <code>iou</code>, <code>match</code></td><td>채점</td></tr><tr><td>④</td><td><code>torchvision.ops.nms</code></td><td>중복 지우기</td></tr><tr><td>⑥</td><td><code>DataFrame.sample</code>, <code>groupby</code>, <code>nunique</code></td><td>추적 점검</td></tr></table>
+      <p><code>yolo_to_xyxy</code>, <code>iou</code>, <code>match</code>, <code>iou_tracker</code>, <code>id_switches</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="transfer-learning.html">전이학습과 오류 분석</a></td><td>그림 분류와 종류별 평가</td></tr><tr><td><a href="ocr-documents.html">OCR과 문서 구조화</a></td><td>글자 박스를 읽어 값으로</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: Day15 (2026-11-06) 객체 탐지, IoU, mAP, NMS, YOLO 학습과 추론, 추적</li><li>데이터: <code>examples/detection/data/</code> (합성 도형 그림과 라벨. 예측 박스는 원리 연습용으로 손으로 정한 값이고 YOLO 예측이 아니에요)</li><li>결과 값: <code>tools/pages/detection.py</code>. YOLO 모델 학습은 이 쪽에서 실행하지 않았어요</li><li>공식 문서: <a href="https://docs.ultralytics.com/datasets/detect/" target="_blank">Ultralytics 탐지 데이터 형식</a>, <a href="https://docs.ultralytics.com/guides/yolo-performance-metrics/" target="_blank">YOLO 성능 지표</a>, <a href="https://docs.pytorch.org/vision/stable/generated/torchvision.ops.nms.html" target="_blank">torchvision.ops.nms</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="object-detection-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

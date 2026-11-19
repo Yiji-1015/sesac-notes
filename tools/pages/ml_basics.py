@@ -199,7 +199,7 @@ K.build(ROOT / "topics" / "model" / "ml-metrics-clustering.html", title="평가�
         crumb="모델 &gt; 머신러닝 기초 3/3쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-trees-cv.html\" style=\"color:inherit\">트리와 교차검증</a>",
         one_line="분류 모델은 사실 <b>확률</b>을 내고, \"실패\"라고 부를 <b>기준은 오류 비용으로</b> 정해요. 모델과 기준을 다 고른 뒤에 <b>test로 딱 한 번</b> 채점해요.",
         why=why3, whole=whole3, steps=steps3, code_file="examples/ml/requests_model.py", practice=practice3, libs=libs3, libs_note="<code>cost_at</code>, <code>build_fe</code>는 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"ml-trees-cv.html\">트리와 앙상블, 교차검증</a>", "후보 모델과 교차검증"), ("<a href=\"../../notes/day09.html\">딥러닝 기초</a>", "신경망으로 넘어가기")],
+        next_rows=[("<a href=\"ml-trees-cv.html\">트리와 앙상블, 교차검증</a>", "후보 모델과 교차검증"), ("<a href=\"dl-tensor-training.html\">딥러닝 기초</a>", "신경망으로 넘어가기")],
         sources=["다루는 범위: Day08 (2026-10-28) 평가지표, 특성 설계, K-Means, 최종 평가", DATA_SRC, "결과 값: <code>tools/pages/ml_basics.py</code>",
                  "공식 문서: <a href=\"https://scikit-learn.org/stable/modules/classification_threshold.html\" target=\"_blank\">Tuning the decision threshold</a>, <a href=\"https://scikit-learn.org/stable/modules/clustering.html#k-means\" target=\"_blank\">K-means</a>"])
 print("ok")
