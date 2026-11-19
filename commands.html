@@ -10346,7 +10346,7 @@ chunk_id = hashlib.sha256(payload).hexdigest()</code></pre>
     <tr><td><code>json.dumps(identity, sort_keys=True, separators=(&#x27;,&#x27;, &#x27;:&#x27;), ensure_ascii=False)</code></td><td><code>{&quot;doc_id&quot;:&quot;DOC-ATTEND&quot;,&quot;pipeline_version&quot;:&quot;ingest-e5-v1&quot;,&quot;source_version&quot;:&quot;v1&quot;,&quot;span&quot;:[0,40],&quot;unit_id&quot;:&quot;sec-1&quot;}</code></td><td>키 순서 · 공백이 고정된 직렬화</td></tr>
     <tr><td><code>sha256(payload).hexdigest()[:16]</code></td><td><code>f8290ff2d605009a…</code></td><td>같은 입력 → 언제 돌려도 같은 chunk_id</td></tr>
     <tr><td><code>source_version 만 v2 로</code></td><td><code>2dcfe15c1f4037ab…</code></td><td>버전이 다르면 다른 ID</td></tr>
-    <tr><td><code>두 프로세스에서 hash(&#x27;DOC-ATTEND&#x27;)</code></td><td><code>-7766343271965289275 / -8145272665599836368</code></td><td>Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀</td></tr>
+    <tr><td><code>두 프로세스에서 hash(&#x27;DOC-ATTEND&#x27;)</code></td><td><code>1998780692699886972 / 8631936279781951068</code></td><td>Python 내장 hash() 는 실행마다 달라짐 → 저장용 ID 로 못 씀</td></tr>
   </table>
 </div>
       <table>

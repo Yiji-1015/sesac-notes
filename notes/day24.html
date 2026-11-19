@@ -36,11 +36,11 @@
         <tr><td><a href="#collect">① 수집</a></td><td>파일 목록 · 원본 바이트 · SHA-256</td><td>무엇을 처리했고, 원문이 바뀌었나?</td></tr>
         <tr><td><a href="#parse">② Parsing</a></td><td>형식별로 텍스트와 구조 꺼내기 · 스캔은 OCR — <b>실제 출력 사례 5개</b></td><td>그대로 읽으면 무엇이 섞이고 무엇이 깨지나?</td></tr>
         <tr><td><a href="#clean">③ Cleaning</a></td><td>줄바꿈 · 공백 · 유니코드 정리 — Before / After</td><td>잡음만 지웠고 의미는 그대로인가?</td></tr>
-        <tr><td><a href="#chunk">④ Chunking</a></td><td>검색 단위로 나누기</td><td>조건과 결과가 한 조각에 있나? 모델 한도 안인가?</td></tr>
-        <tr><td><a href="#validate">⑤ 검증</a></td><td>Span · Coverage · 중복 · 빈 조각</td><td>조각이 원문과 정확히 대응하고, 빠진 곳이 없나?</td></tr>
-        <tr><td><a href="#metadata">⑥ Metadata</a></td><td>출처 · 버전 · 위치 · 결정적 ID</td><td>이 조각은 어느 문서 어느 판의 어디서 왔나?</td></tr>
+        <tr><td><a href="#chunk">④ Chunking</a></td><td>검색 단위로 나누기 — 고정 창 vs 구조 분할 실제 비교</td><td>질문의 답이 한 조각에 같이 들어 있나? 모델 한도 안인가?</td></tr>
+        <tr><td><a href="#validate">⑤ 검증</a></td><td>Span · Coverage · 중복 · 빈 조각 — 일부러 넣은 실수로 확인</td><td>조각이 원문과 정확히 대응하고, 빠진 곳이 없나?</td></tr>
+        <tr><td><a href="#metadata">⑥ Metadata</a></td><td>출처 · 버전 · 위치 · 결정적 ID · 필터 순서</td><td>이 조각은 어느 문서 어느 판의 어디서 왔나?</td></tr>
         <tr><td><a href="#index">⑦ 저장 · 공개</a></td><td>staging → 확인 → 공개 포인터 전환</td><td>반쯤 적재된 판이 검색되지 않나?</td></tr>
-        <tr><td><a href="#pipeline">⑧ 전체 연결</a></td><td>문서 하나 끝까지 · 실패 범위 · 인용 ID</td><td>다음 단계(RAG)가 받을 결과는 무엇인가?</td></tr>
+        <tr><td><a href="#pipeline">⑧ 전체 연결</a></td><td>문서 6건 처리 보고서 · 실패 범위 · 인용 ID</td><td>다음 단계(RAG)가 받을 결과는 무엇인가?</td></tr>
       </table>
 <pre><code>원본 파일 (data/raw)            ← 절대 덮어쓰지 않음
   → ParsedUnit  raw_text          (페이지 · 절 단위, source_locator)
@@ -326,38 +326,54 @@ text[4:7]  → '라마바'        len(text) = 7      len(text.encode("utf-8")) =
 
 
       <!-- ============================================================ -->
-      <h2 id="chunk">④ Chunking — 답이 들어 있는 단위로 나누기</h2>
-      <h3 id="unit">왜 문서를 통째로 Embedding하지 않나</h3>
+      <h2 id="chunk">④ Chunking — 어떻게 자르느냐로 답이 갈린다</h2>
+      <p>검색은 <b>조각 단위</b>로 일어나요. 질문에 답하려면 필요한 말이 <b>한 조각 안에 같이</b> 있어야 해요. 그래서 예제 문서 4건(파싱 성공분)에 질문 4개를 정하고, 자르는 방법마다 "답에 필요한 두 구절이 한 조각에 함께 들어 있나"를 실제로 세어 봤어요. 모델 없이 확인할 수 있는 가장 기본적인 경계 검사예요.</p>
       <table>
-        <tr><th>말</th><th>뜻</th></tr>
-        <tr><td><b>Document</b></td><td>수집 · 버전 관리 대상 (파일 하나)</td></tr>
-        <tr><td><b>ParsedUnit</b></td><td>문서 안의 페이지 · 절</td></tr>
-        <tr><td><b>Chunk</b></td><td>ParsedUnit의 clean_text에서 만든 <b>검색 · Embedding · 인용 단위</b></td></tr>
-        <tr><td><b>Token</b></td><td>모델 Tokenizer가 만드는 입력 단위 — Python 글자 수와 다름</td></tr>
+        <tr><th>질문</th><th>한 조각에 같이 있어야 할 말</th><th>출처</th></tr>
+        <tr><td>15분 늦으면 어떻게 기록돼요?</td><td>"10분을 초과하면" + "결석으로 기록"</td><td>attendance.md</td></tr>
+        <tr><td>사전 승인을 받았으면요?</td><td>"사전 승인" + "운영실에 확인"</td><td>attendance.md</td></tr>
+        <tr><td>회의실은 어떻게 이용해요?</td><td>"회의실" + "예약 승인 후 이용"</td><td>facility.html (표)</td></tr>
+        <tr><td>상담 일정을 바꾸려면?</td><td>"변경하려면" + "미리 연락"</td><td>career.pdf p.2</td></tr>
       </table>
-      <p>문서 전체를 벡터 하나로 만들면 여러 주제가 섞이고 모델 입력 한도도 넘어요. 반대로 너무 잘게 자르면 <b>조건과 결과가 다른 조각으로 갈라져요</b>. Chunk Size가 작다고 항상 정확해지는 게 아니에요.</p>
-<pre><code>원문:      "10분을 초과하면 결석으로 기록합니다."
-잘못 분할: "10분을 초과하면" | "결석으로 기록합니다."     ← 어느 쪽만 검색돼도 답이 안 됨</code></pre>
 
-      <h3 id="strategies">Chunking 전략</h3>
-      <table>
-        <tr><th>전략</th><th>나누는 기준</th><th>먼저 확인할 것</th></tr>
-        <tr><td>Fixed Character Window</td><td>일정한 글자 수</td><td>문장 · 단어 · 조건의 중간 절단</td></tr>
-        <tr><td>Token-based</td><td>Tokenizer로 센 한도</td><td>모델 입력 전체 길이</td></tr>
-        <tr><td>Structure-aware</td><td>제목 · 문단 · 목록 · 표</td><td>너무 긴 단위만 추가 분할</td></tr>
-        <tr><td>Semantic Chunking</td><td>의미 변화 · 유사도</td><td>추가 계산 · 튜닝 · 검증</td></tr>
-      </table>
-      <p>실무에서는 보통 <b>구조 경계 + 토큰 한도</b>를 함께 써요.</p>
-
-      <h3 id="window">겹치는 글자 창 — 시작 · 끝 · Overlap</h3>
+      <h3 id="window">사례 1 · 고정 글자 창 — 작으면 답이 갈라지고, 크면 주제가 섞인다</h3>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>text[start:end]</code> + 종료 조건 <a href="../commands.html#d24-windows">명령어 사전에서 자세히 →</a></div>
 <pre><code>end = min(start + size, len(text)); spans.append((start, end))
 if end == len(text): break
-start = end - overlap</code></pre>
+start = end - overlap          # 보폭 = size - overlap</code></pre>
       </div>
-      <p>크기 40 · Overlap 10이면 보폭은 30. 71자 문자열은 실제 실행에서 <code>[(0, 40), (30, 70), (60, 71)]</code> — 저장 길이 합 91자, 고유 범위 71자. <b>끝에 닿으면 종료</b>해야 겹친 꼬리 조각을 하나 더 만들지 않아요. <code>overlap ≥ size</code>면 앞으로 못 나아가니 거부해요.</p>
-      <figure id="fig-windows"><img class="smooth" src="img/day24/windows.png" alt="attendance.md clean_text 138자를 40/10 창으로 자른 5개 조각과 겹친 구간, 조건 문장을 온전히 담은 조각 표시"><figcaption><b>무엇을 보나:</b> 실제 attendance.md 정제본(138자)을 40/10 창으로 자른 5개 조각이에요. 분홍은 앞 조각과 겹친 10자. 고정 글자 창은 제목 · 문장 중간을 그냥 잘라요 — 두 번째 조각은 "까지 입실하면 지각으로…"처럼 앞 문장 중간에서 시작해요. 🤔 <b>그럼 Overlap을 크게 하면?</b> 경계 문맥은 더 붙지만 저장 · 인코딩량이 늘고, 비슷한 조각들이 Top-k 자리를 나눠 먹어요.</figcaption></figure>
+      <table>
+        <tr><th>창 크기 / Overlap (실제 실행 · 문서 4건)</th><th>조각 수</th><th>질문 4개 중 "한 조각에 같이"</th></tr>
+        <tr><td>40 / 10</td><td>18</td><td><b>2 / 4</b> — 회의실 · 상담 변경 질문은 답이 두 조각으로 갈라짐</td></tr>
+        <tr><td>60 / 10</td><td>11</td><td>4 / 4</td></tr>
+        <tr><td>110 / 20</td><td>6</td><td>4 / 4</td></tr>
+      </table>
+      <figure id="fig-windows"><img class="smooth" src="img/day24/windows.png" alt="attendance.md clean_text 138자를 40/10 창으로 자른 5개 조각과 겹친 구간, 조건 문장을 온전히 담은 조각 표시"><figcaption><b>무엇을 보나:</b> attendance.md 정제본(138자)을 40/10으로 자른 실제 5조각. 두 번째 조각은 "까지 입실하면 지각으로…"처럼 앞 문장 <b>중간</b>에서 시작해요. 조건과 결과("10분을 초과하면 결석으로 기록합니다")를 온전히 담은 건 5개 중 1개뿐이에요.</figcaption></figure>
+      <p>그럼 크게 자르면 될까요? 110 / 20으로 자른 attendance.md의 실제 첫 조각은 이래요:</p>
+<pre><code>[0, 110)
+# 출석 안내
+
+## 지각과 결석
+수업 시작 후 10분까지 입실하면 지각으로 기록합니다.
+10분을 초과하면 결석으로 기록합니다.
+단, 사전 승인을 받은 경우에는 운영실에 확인합니다.
+
+## 출석 문                ← 다음 절의 제목이 중간에서 잘림
+
+[90, 138)
+운영실에 확인합니다.         ← 앞 절의 꼬리가 다음 조각 머리에 붙음
+
+## 출석 문의
+출석 기록에 오류가 있다면 운영실에 문의하세요.</code></pre>
+      <p>질문 4개는 다 맞췄지만, <b>한 조각에 두 절이 섞이고</b> 제목이 잘렸어요. 문서가 길어지면 한 조각에 여러 주제가 들어가 벡터가 흐려지고, 인용할 때 "어느 규정"인지 말하기 어려워져요. 글자 수는 문서의 구조를 모르니까요.</p>
+      <table>
+        <tr><th>Overlap (attendance.md, 창 40 · 실제)</th><th>조각 수</th><th>저장 글자 합 (원문 138)</th></tr>
+        <tr><td>0</td><td>4</td><td>138</td></tr>
+        <tr><td>10</td><td>5</td><td>178</td></tr>
+        <tr><td>20</td><td>6</td><td>238 — 원문의 1.7배</td></tr>
+      </table>
+      <p>Overlap은 경계 문맥을 붙여 주지만 저장 · 인코딩량이 늘고, 비슷한 조각들이 Top-k 자리를 나눠 먹어요. 문서가 다르면 겹침으로 섞지 않아요(출처 경계 유지).</p>
 
       <h2 id="lab-chunk">🧪 Chunk 창 실험실</h2>
       <p>attendance.md 정제본(138자)을 크기 · Overlap을 바꿔 잘라 보세요. Coverage · 저장량 · 조건 문장 보존을 바로 계산해요. (브라우저 안의 산수 · 40/10 결과는 위 실제 실행과 같아요)</p>
@@ -371,131 +387,122 @@ start = end - overlap</code></pre>
         <p id="ck-why" style="margin:8px 0 0;font-weight:600"></p>
       </div>
 
-      <h3 id="tokens">길이는 그 모델의 Tokenizer로, 최종 입력 전체를</h3>
+
+      <h3 id="structure">사례 2 · 구조 분할 — 제목과 문단을 따라 자르기</h3>
+      <p>Markdown은 <code>##</code> 절마다, 그 외는 빈 줄로 나뉜 문단마다 자르고, <b>제목은 본문 Span에 넣지 않고 Heading Path로</b> 따로 들고 가요. 실제 결과(문서 4건 → 조각 8개):</p>
+      <table>
+        <tr><th>doc · unit</th><th>Heading Path</th><th>Span</th><th>본문 (앞부분)</th><th>토큰*</th></tr>
+        <tr><td>ATTEND</td><td>출석 안내</td><td>[7, 7)</td><td>(빈 조각)</td><td>— <b>격리</b></td></tr>
+        <tr><td>ATTEND</td><td>출석 안내 &gt; 지각과 결석</td><td>[19, 101)</td><td>수업 시작 후 10분까지 입실하면 지각으로… / 10분을 초과하면 결석으로… / 단, 사전 승인을…</td><td>62</td></tr>
+        <tr><td>ATTEND</td><td>출석 안내 &gt; 출석 문의</td><td>[112, 138)</td><td>출석 기록에 오류가 있다면 운영실에 문의하세요.</td><td>32</td></tr>
+        <tr><td>ASSIGN</td><td>—</td><td>[0, 5)</td><td><b>과제 안내</b></td><td>8</td></tr>
+        <tr><td>ASSIGN</td><td>—</td><td>[7, 106)</td><td>과제 파일은 개인 폴더에 보관합니다. / 제출 기한은…</td><td>67</td></tr>
+        <tr><td>FACILITY · main</td><td>—</td><td>[0, 90)</td><td>시설 안내 / … / 실습실: 담당자 안내에 따라 운영 / 회의실: 예약 승인 후 이용 / …</td><td>64</td></tr>
+        <tr><td>CAREER · page-1</td><td>—</td><td>[0, 86)</td><td>진로 상담 안내 / 진로 상담은 운영실에 신청할 수 있습니다. / …</td><td>57</td></tr>
+        <tr><td>CAREER · page-2</td><td>—</td><td>[0, 91)</td><td>진로 상담 안내 - 두 번째 페이지 / 신청한 상담을 변경하려면… / …</td><td>66</td></tr>
+      </table>
+      <p style="color:var(--muted);font-size:.9rem">* 토큰 = <code>"passage: " + 제목 경로 + 본문</code>을 이 PC에 있던 bert-base-multilingual-cased Tokenizer로 센 실제 값(E5 숫자 아님).</p>
+      <p>질문 4개 모두 한 조각에 답이 들어갔고(4 / 4), 절이 섞이지 않았어요. 그래도 <b>실제로 두 가지 문제가 보여요</b>:</p>
+      <ul>
+        <li><b>빈 조각:</b> <code># 출석 안내</code> 바로 다음에 <code>## 지각과 결석</code>이 와서, 본문 없는 절이 길이 0 조각이 됐어요 → 아래 ⑤ 검증이 <code>empty_chunk</code>로 격리해요.</li>
+        <li><b>제목만 있는 조각:</b> TXT에는 제목 표시가 없어서 첫 줄 "과제 안내"(5자)가 혼자 조각이 됐어요. 검색에 걸려도 정보가 없죠. → 짧은 첫 문단을 다음 문단의 제목으로 붙이거나, 최소 길이 기준을 둬요.</li>
+      </ul>
+      <p>Embedding 입력은 제목을 앞에 붙인 문자열이에요 — 본문 Span은 그대로 두고 <b>입력에만</b> 더해요:</p>
+<pre><code>passage: 출석 안내 / 지각과 결석
+수업 시작 후 10분까지 입실하면 지각으로 기록합니다.
+10분을 초과하면 결석으로 기록합니다.
+단, 사전 승인을 받은 경우에는 운영실에 확인합니다.</code></pre>
+
+      <h3 id="tokens">사례 3 · 너무 긴 조각 — 토큰을 세고, 넘으면 다시 자르기</h3>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>model.tokenizer(…, truncation=False)["input_ids"]</code> <a href="../commands.html#d24-tokens">명령어 사전에서 자세히 →</a></div>
 <pre><code>ids = model.tokenizer("passage: " + chunk_text, add_special_tokens=True, truncation=False)["input_ids"]
 if len(ids) &gt; model.max_seq_length: raise ValueError("rechunk_required")</code></pre>
       </div>
       <table>
-        <tr><th>입력 (다른 모델의 Tokenizer로 실제 실행 · E5 숫자 아님)</th><th>값</th></tr>
-        <tr><td>"10분을 초과하면 결석으로 기록합니다." 글자 수</td><td>21</td></tr>
-        <tr><td>같은 문장 토큰 수 (특수 토큰 포함)</td><td>15</td></tr>
-        <tr><td><code>"passage: "</code> + 문장</td><td>17</td></tr>
-        <tr><td><code>"passage: "</code> + Heading + 문장</td><td>27</td></tr>
+        <tr><th>입력 (다른 모델의 Tokenizer로 실제 실행)</th><th>값</th></tr>
+        <tr><td>"10분을 초과하면 결석으로 기록합니다." 글자 / 토큰</td><td>21자 / 15토큰 — 글자 수 ≠ 토큰 수</td></tr>
+        <tr><td>앞에 <code>"passage: "</code></td><td>17토큰</td></tr>
+        <tr><td>앞에 <code>"passage: "</code> + 제목 경로</td><td>27토큰 — 그래서 <b>최종 입력 전체</b>로 셈</td></tr>
+        <tr><td>예제 fixture: 줄바꿈 없는 100자 한 덩어리</td><td>104토큰 → 예시 한도 40 초과 → <code>too_many_tokens</code></td></tr>
+        <tr><td>같은 덩어리를 30자 창으로 재분할</td><td>34 · 34 · 34 · 14토큰 — 모두 한도 안</td></tr>
       </table>
-      <ul>
-        <li>384차원은 <b>출력</b> 벡터 길이예요. 입력 상한(E5-small 모델 카드상 512토큰)과 다른 속성이에요. (<a href="day23.html#shape">입력 토큰 vs 출력 shape</a>)</li>
-        <li>접두어 · 제목도 토큰을 차지해요. 그래서 <b>모델에 실제로 들어갈 최종 문자열</b>로 세요.</li>
-        <li>다른 모델의 한도 · 측정값을 빌려 쓰지 않아요. 한도를 넘으면 encode 때 뒤가 <b>잘려 사라지니</b>, 넘는 조각은 재분할하거나 이유를 남겨 격리해요 — 그냥 잘라 저장하지 않아요.</li>
-      </ul>
-
-      <h3 id="structure">구조를 먼저 따르는 분할</h3>
+      <p>한도를 넘으면 Embedding할 때 뒷부분이 <b>조용히 잘려 사라져요</b>. 그래서 넘는 조각은 구조 → 문장 → 글자 순으로 더 잘게 다시 나누고, 그래도 안 되면 이유를 남겨 격리해요. 한도는 <b>그 모델의</b> <code>max_seq_length</code>(E5-small 모델 카드상 512)로, 다른 모델 값을 빌려 쓰지 않아요. 384차원은 <b>출력</b> 길이라 입력 한도와 무관해요(<a href="day23.html#shape">입력 토큰 vs 출력 shape</a>).</p>
       <table>
-        <tr><th>원문 구조</th><th>Chunk 설계</th></tr>
-        <tr><td>Markdown 제목</td><td>절 단위로 먼저 나누고 Heading Path를 Metadata로</td></tr>
-        <tr><td>PDF 페이지</td><td>페이지 · 다단 순서를 대조, 다른 페이지를 무조건 이어 붙이지 않음</td></tr>
-        <tr><td>HTML 표</td><td>행 · 열 관계를 살린 뒤 분할</td></tr>
-        <tr><td>한 문장이 한도 초과</td><td>추가 분할 또는 이유 기록 후 격리</td></tr>
+        <tr><th>정리 · 전략</th><th>언제</th><th>실제 사례에서 본 것</th></tr>
+        <tr><td>고정 글자 창</td><td>구조가 없는 긴 덩어리의 마지막 수단</td><td>작으면 답이 갈라지고(2/4), 크면 절이 섞이고 제목이 잘림</td></tr>
+        <tr><td>구조 분할</td><td>제목 · 문단 · 표 · 페이지가 있을 때 먼저</td><td>4/4 · 절 단위 유지, 대신 빈 조각 · 제목만 조각을 걸러야 함</td></tr>
+        <tr><td>토큰 재분할</td><td>구조 단위가 한도를 넘을 때</td><td>104토큰 덩어리 → 4조각</td></tr>
+        <tr><td>Semantic Chunking</td><td>의미 변화로 경계를 찾고 싶을 때</td><td>추가 계산 · 튜닝 · 검증 필요 (여기선 비교만)</td></tr>
       </table>
-<pre><code>Heading:          출석 안내 &gt; 지각과 결석
-embedding_text:   "passage: 출석 안내 / 지각과 결석\n수업 시작 후 10분까지 …"
-body (Span):      "수업 시작 후 10분까지 …"     ← 제목은 입력에만 붙인 것, Span 길이에 더하지 않음</code></pre>
-      <table>
-        <tr><th>같이 남길 블록</th><th>함께 있어야 할 것</th><th>갈라지면</th></tr>
-        <tr><td>조건문</td><td>기준 시간 + 판정 결과</td><td>"10분 초과"가 어느 상태인지 모름</td></tr>
-        <tr><td>번호 목록</td><td>번호 + 항목 본문</td><td>설명이 다른 항목에 붙음</td></tr>
-        <tr><td>표</td><td>열 제목 + 행 값 + 단위</td><td>값이 다른 행 · 열로 연결</td></tr>
-        <tr><td>코드 블록</td><td>들여쓰기 + 줄 순서</td><td>실행 의미가 훼손</td></tr>
-      </table>
-      <table>
-        <tr><th>Overlap 설정</th><th>기대</th><th>주의</th></tr>
-        <tr><td>0</td><td>중복 적음</td><td>경계에서 조건이 갈라질 수 있음</td></tr>
-        <tr><td>적당히</td><td>인접 문맥 포함</td><td>저장 · 인코딩량 증가</td></tr>
-        <tr><td>크게</td><td>넓은 문맥 반복</td><td>비슷한 조각이 Top-k를 차지</td></tr>
-        <tr><td>Structure-aware</td><td>문장 · 절 · 표 의미 유지</td><td>구조 추출이 실패하면 추가 검증</td></tr>
-      </table>
-      <p>한 문서의 Chunk가 겹침 때문에 <b>다른 문서의 내용을 섞지 않도록</b> 출처 경계를 지켜요.</p>
 
       <!-- ============================================================ -->
-      <h2 id="validate">⑤ 검증 — 저장 전에 걸러내기</h2>
+      <h2 id="validate">⑤ 검증 — 실제로 잡히는 오류들</h2>
+      <p>④의 구조 분할 결과 8조각을 그대로 검증기에 넣었어요. 검사 순서: 출처가 있나 → 위치가 범위 안인가 → <code>body == clean_text[start:end]</code>인가 → 비어 있지 않은가.</p>
       <table>
-        <tr><th>계약</th><th>조건</th></tr>
-        <tr><td><b>Span</b></td><td><code>0 ≤ char_start &lt; char_end ≤ len(clean_text)</code>, 그리고 <code>body == clean_text[start:end]</code></td></tr>
-        <tr><td><b>Token</b></td><td>최종 입력이 모델 한도 안 · 영벡터 · NaN 벡터는 저장 안 함 (<a href="day23.html#check">벡터 검사</a>)</td></tr>
-        <tr><td><b>Identity</b></td><td><code>doc_id · source_version · unit_id · chunk_id</code>가 원문과 대응</td></tr>
-        <tr><td><b>Failure</b></td><td>실패한 조각은 정상 검색 집합에 조용히 넣지 않고 이유와 함께 격리</td></tr>
+        <tr><th>입력 (실제 실행)</th><th>결과</th></tr>
+        <tr><td>구조 분할 8조각</td><td>통과 7 · 격리 1 — <code>('DOC-ATTEND', '출석 안내', 'empty_chunk')</code></td></tr>
       </table>
-
-      <h3 id="span">Span — 길이가 같아도 글자가 달라야 실패</h3>
+      <p>이번엔 실무에서 실제로 나는 실수를 일부러 넣어 봤어요:</p>
+      <table>
+        <tr><th>일부러 넣은 실수</th><th>실제 값</th><th>검증 결과</th></tr>
+        <tr><td>정제 <b>전</b> 텍스트(raw)에서 잰 위치를 정제 <b>후</b> 텍스트에 적용</td><td>body <code>'10분  초과는 '</code> vs clean[11:20] <code>'초과는 결석.\n단'</code></td><td><code>span_mismatch</code></td></tr>
+        <tr><td>unit_id 오타 (<code>page-3</code> — 없는 페이지)</td><td>DOC-CAREER / page-3</td><td><code>missing_source</code></td></tr>
+        <tr><td>같은 입력을 두 번 적재</td><td>14개 중 고유 chunk_id 7개</td><td><code>duplicate_chunk_id</code></td></tr>
+      </table>
+      <p>🤔 <b>첫 번째가 왜 위험해?</b> 정제에서 공백 · 줄바꿈이 줄면 그 뒤의 위치가 전부 밀려요. 길이는 같아도 엉뚱한 글자를 가리켜서, 출처를 눌렀을 때 다른 문장이 보이게 돼요. 그래서 Span은 <b>Chunk를 만든 바로 그 clean_text</b>로 검증해요.</p>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>clean_text[a:b] == body</code> · <code>type(a) is int</code> <a href="../commands.html#d24-span">명령어 사전에서 자세히 →</a></div>
 <pre><code>if not 0 &lt;= a &lt; b &lt;= len(clean_text): raise ValueError("invalid span")
 if chunk["body"] != clean_text[a:b]:    raise ValueError("span mismatch")</code></pre>
       </div>
-      <p>실제 실행: <code>clean_text[22:40]</code> = <code>'시작 후 10분까지 입실하면 지각'</code>. 같은 길이의 다른 문자열은 <code>False</code> → <code>span_mismatch</code>. 🤔 <b>왜 <code>isinstance</code>가 아니라 <code>type(a) is int</code>?</b> <code>bool</code>은 <code>int</code>의 하위 타입이라 <code>isinstance(True, int)</code>가 True예요. 위치 값에 True가 섞이는 실수를 거르려고요.</p>
+      <p>(<code>type(a) is int</code>를 쓰는 이유: <code>isinstance(True, int)</code>가 True라서 위치에 bool이 섞이는 실수를 못 거르거든요.)</p>
 
-      <h3 id="coverage">Coverage — 고유 위치로 센다</h3>
+      <h3 id="span">무엇이 빠졌나 — 비율보다 빠진 글자를 본다</h3>
       <div class="cmdref">
         <div class="cmdref-head">🔧 <code>sorted()</code> 구간 병합 <a href="../commands.html#d24-coverage">명령어 사전에서 자세히 →</a></div>
 <pre><code>for s, e in sorted(spans):
     if merged and s &lt;= merged[-1][1]: merged[-1] = (merged[-1][0], max(merged[-1][1], e))
     else: merged.append((s, e))</code></pre>
       </div>
-      <table>
-        <tr><th>입력 (실제 실행)</th><th>결과</th><th>뜻</th></tr>
-        <tr><td>길이 20, [(0,8), (6,14), (12,20)]</td><td>1.0 · 병합 [(0, 20)]</td><td>길이 합 24지만 고유 위치 20 → 100%, 반복 추가량 20%</td></tr>
-        <tr><td>길이 20, [(0,8), (12,20)]</td><td>0.8</td><td>Missing Span [8, 12)</td></tr>
-        <tr><td>길이 20, [(5,25)]</td><td><code>ValueError: invalid_span</code></td><td>범위 밖</td></tr>
+      <table id="coverage">
+        <tr><th>unit (구조 분할 · 실제)</th><th>Coverage</th><th>빠진 글자</th><th>판정</th></tr>
+        <tr><td>ATTEND</td><td>0.783</td><td><code>'# 출석 안내\n\n## 지각과 결석'</code>, <code>'## 출석 문의'</code></td><td>제목 줄 — Heading Path로 옮긴 <b>의도된 누락</b></td></tr>
+        <tr><td>ASSIGN</td><td>0.981</td><td>(빈 줄만)</td><td>정상</td></tr>
+        <tr><td>FACILITY · CAREER p.1 · p.2</td><td>1.0</td><td>—</td><td>정상</td></tr>
       </table>
-      <ul>
-        <li><b>Overlap</b>(설계상 겹침)과 <b>Duplicate</b>(같은 ID · 같은 Span이 두 번 생성된 오류)는 달라요. 중복 오류가 있어도 Coverage는 100%일 수 있어요.</li>
-        <li>기준은 <code>clean_text</code>예요. 100%여도 <b>Parsing에서 빠진 내용 · 정제에서 잃은 의미</b>는 못 잡아요.</li>
-        <li>다른 출처의 같은 문장을 무조건 지우지 않아요.</li>
-      </ul>
-
-      <h3 id="errors">실패를 원인별로</h3>
+      <p>Coverage가 100%가 아니라고 다 문제는 아니에요. <b>빠진 구간의 실제 글자를 출력해</b> 의도한 누락(제목 · 빈 줄 · 쪽번호)인지, 본문이 사라진 건지 확인해요. 반대로 100%여도 Parsing 단계에서 빠진 내용(예: 표가 통째로 누락)은 못 잡아요 — 기준이 clean_text라서요. 길이 합으로 계산하면 Overlap이 중복으로 세어지니 구간을 병합해서 셉니다(길이 20, [(0,8),(6,14),(12,20)] → 길이 합 24, 고유 20 → 1.0, 실제).</p>
       <table>
-        <tr><th>검사 실패</th><th>원인 위치</th><th>조치</th></tr>
-        <tr><td><code>empty_chunk</code></td><td>Parsing · Cleaning</td><td>원문과 정제 규칙 확인</td></tr>
-        <tr><td><code>span_mismatch</code></td><td>정제 버전 · Offset</td><td>같은 기준 텍스트로 다시 계산</td></tr>
-        <tr><td><code>too_many_tokens</code></td><td>Chunker · 접두어 · 제목</td><td>재분할 또는 격리</td></tr>
-        <tr><td><code>duplicate_chunk_id</code></td><td>ID 생성</td><td>같은 ID 중복 원인 검토</td></tr>
+        <tr><th>실패</th><th>원인 위치</th><th>조치</th></tr>
+        <tr><td><code>empty_chunk</code></td><td>분할 규칙 (본문 없는 절)</td><td>격리 · 분할 규칙 수정</td></tr>
+        <tr><td><code>span_mismatch</code></td><td>정제 버전 · 위치 계산 기준</td><td>같은 clean_text로 다시 계산</td></tr>
+        <tr><td><code>too_many_tokens</code></td><td>분할 크기 · 접두어 · 제목</td><td>재분할 또는 격리</td></tr>
+        <tr><td><code>duplicate_chunk_id</code></td><td>재실행 · ID 생성</td><td>같은 ID는 한 번만 적재</td></tr>
         <tr><td><code>missing_source</code></td><td>Metadata 전달</td><td>출처 연결 복구 전 저장 보류</td></tr>
       </table>
-      <p>같은 재시도로 모든 오류가 풀리지 않아요. 검색 품질이 나쁘면 모델보다 먼저 <b>파싱 · 분할 · 출처</b>를 대조해요. 그리고 "검증 실패"는 "원본 삭제"가 아니에요 — 다른 사건으로 기록해요.</p>
-
-      <h3 id="meaning">숫자 검사 + 사람 검사</h3>
-      <table>
-        <tr><th>정량 (코드로)</th><th>정성 (사람이)</th></tr>
-        <tr><td>길이 · 위치 · Coverage · 중복 · 토큰 수</td><td>"15분 늦으면?"에 답하려면 "10분 초과"와 "결석"이 한 조각에서 함께 읽히는가 — 숫자 · 부정 · 예외 · 조건 대조</td></tr>
-      </table>
-      <p>검색 결과의 정식 평가 지표(Recall@k · MRR · nDCG)와 답변의 근거 충실도 평가는 그다음 주제예요.</p>
+      <p>"검증 실패"는 "원본 삭제"가 아니에요. 그리고 숫자 검사가 다 통과해도 "15분 늦으면?"에 답하려면 사람이 원문과 대조해 조건 · 예외 · 부정이 한 조각에 있는지 봐야 해요 — ④의 질문 표가 그 최소한의 버전이에요.</p>
 
       <!-- ============================================================ -->
-      <h2 id="metadata">⑥ Metadata · ID — 이 조각은 어디서 왔나</h2>
-      <h3 id="fields">원문 연결 · 위치 · 처리 조건</h3>
-      <table>
-        <tr><th>묶음</th><th>필드</th><th>용도</th></tr>
-        <tr><td>원문 연결</td><td><code>doc_id · source_version · source_uri · source_locator</code></td><td>사람이 원문을 다시 찾기</td></tr>
-        <tr><td>Chunk 위치</td><td><code>unit_id · char_start · char_end · chunk_index</code></td><td>clean_text 안 위치</td></tr>
-        <tr><td>처리 재현</td><td><code>pipeline_version · cleaner_version · embedding 계약</code></td><td>어떤 설정으로 만들었나</td></tr>
-        <tr><td>검색 조건</td><td><code>category · 현재 공개 버전</code></td><td>WHERE 필터</td></tr>
-      </table>
-<pre><code>DOC-ATTEND / v1 / sec-1 / [0, 40)
-source_locator:   attendance.md#지각과-결석
-pipeline_version: ingest-e5-v1
-page_number:      None        ← Markdown엔 페이지가 없음</code></pre>
-      <table>
+      <h2 id="metadata">⑥ Metadata · ID — 실제 조각 하나의 기록</h2>
+      <p>④에서 통과한 attendance.md의 "지각과 결석" 조각을 저장할 때 붙는 기록이에요(실제 값):</p>
+<pre><code>{
+  "doc_id": "DOC-ATTEND",          "source_version": "v1",
+  "pipeline_version": "ingest-e5-v1",
+  "unit_id": "doc",                "category": "학사",
+  "source_locator": "attendance.md",
+  "heading": "출석 안내 &gt; 지각과 결석",
+  "char_start": 19, "char_end": 101,          ← clean_text 안 위치 (끝 제외)
+  "chunk_id": "a1c64eb3459e…",                 ← 아래 규칙으로 만든 SHA-256
+  "embedding_text": "passage: 출석 안내 / 지각과 결석\n수업 시작 후 …"
+}</code></pre>
+      <table id="fields">
         <tr><th>필드</th><th>무엇을 구분</th><th>예</th></tr>
-        <tr><td><code>doc_id</code></td><td>문서 자체</td><td>DOC-ATTEND</td></tr>
-        <tr><td><code>source_version</code></td><td>원문 개정</td><td>v1 / v2</td></tr>
-        <tr><td><code>pipeline_version</code></td><td>Parsing · Cleaning · Chunking · Embedding 설정</td><td>ingest-e5-v1</td></tr>
-        <tr><td><code>unit_id</code></td><td>절 · 페이지</td><td>sec-1 / page-2</td></tr>
-        <tr><td><code>chunk_id</code></td><td>한 버전 · 처리조건의 조각</td><td>결정적 SHA-256</td></tr>
-        <tr><td><code>content_hash</code></td><td>본문 바이트가 같은지</td><td>SHA-256(chunk 본문)</td></tr>
+        <tr><td><code>doc_id</code> · <code>source_version</code></td><td>문서 · 원문 개정</td><td>DOC-ATTEND · v1 / v2</td></tr>
+        <tr><td><code>pipeline_version</code></td><td>Parsing · Cleaning · Chunking · Embedding(· OCR) 설정</td><td>ingest-e5-v1</td></tr>
+        <tr><td><code>unit_id</code> · <code>source_locator</code></td><td>절 · 페이지 / 사람이 원문을 찾아가는 위치</td><td>page-2 · career.pdf#page=2</td></tr>
+        <tr><td><code>char_start</code> · <code>char_end</code></td><td>clean_text 안 문자 위치</td><td>19 · 101</td></tr>
+        <tr><td><code>page_number</code></td><td>실제 페이지가 있을 때만</td><td>Markdown · TXT는 None</td></tr>
       </table>
-      <p>같은 본문이 다른 문서에 있으면 <code>content_hash</code>는 같을 수 있어요 — 출처가 다르니 자동으로 지우지 않아요.</p>
 
       <h3 id="chunkid">결정적 chunk_id — 같은 입력이면 언제나 같은 ID</h3>
       <div class="cmdref">
@@ -507,16 +514,19 @@ chunk_id = hashlib.sha256(payload.encode("utf-8")).hexdigest()</code></pre>
         <tr><th>입력 (실제 실행)</th><th>결과</th></tr>
         <tr><td>DOC-ATTEND · v1 · ingest-e5-v1 · sec-1 · [0, 40]</td><td><code>f8290ff2d605009a…</code> (몇 번을 돌려도 같음)</td></tr>
         <tr><td>source_version만 v2</td><td><code>2dcfe15c1f4037ab…</code> — 다른 ID</td></tr>
-        <tr><td>두 프로세스에서 <code>hash('DOC-ATTEND')</code></td><td>서로 다른 정수 — Python 내장 <code>hash()</code>는 실행마다 바뀌어 저장용 ID로 못 씀</td></tr>
+        <tr><td>두 프로세스에서 <code>hash('DOC-ATTEND')</code></td><td>서로 다른 정수 — Python 내장 <code>hash()</code>는 실행마다 바뀜</td></tr>
       </table>
-      <p>🤔 <b>왜 결정적이어야 해?</b> 같은 문서를 다시 처리했을 때 같은 ID가 나와야 "이미 있는 조각"임을 알고 중복 적재를 막을 수 있어요(⑦ <code>ON CONFLICT</code>).</p>
+      <p>같은 문서를 다시 처리했을 때 같은 ID가 나와야 ⑤의 "두 번 적재"를 막을 수 있어요(⑦ <code>ON CONFLICT</code>). 같은 본문이 다른 문서에 있으면 본문 해시는 같을 수 있지만, 출처가 다르니 자동으로 지우지 않아요.</p>
 
-      <h3 id="filter">Metadata Filter는 Top-k보다 먼저</h3>
+      <h3 id="filter">필터는 Top-k보다 먼저 — 실제로 비교</h3>
+      <p>④의 7조각을 DB에 넣고(카테고리: 학사 4 · 지원 2 · 시설 1, 벡터는 임의) "시설" 조각만 찾는 두 가지 순서를 실제로 돌렸어요:</p>
       <table>
-        <tr><th>필터 → Top-k</th><th>Top-k → 필터</th></tr>
-        <tr><td>조건에 맞는 조각들 안에서 거리 순위</td><td>전체 상위 k개를 고른 뒤 걸러서, 원래 대상 후보가 빠질 수 있음</td></tr>
+        <tr><th>순서 (실제 실행)</th><th>한 질의의 결과</th></tr>
+        <tr><td>전체 Top-3을 먼저 → 그다음 <code>category='시설'</code></td><td>Top-3이 [학사, 학사, 지원] → <b>0건</b></td></tr>
+        <tr><td><code>WHERE category='시설'</code> 먼저 → 그 안에서 Top-3</td><td>1건 (citation_id 12)</td></tr>
+        <tr><td>임의 질의 100개에서 "먼저 뽑고 거르기"가 덜 나온 횟수</td><td><b>50 / 100</b></td></tr>
       </table>
-      <p><code>category</code>는 콘텐츠 분류일 뿐 <b>사용자 권한 검사가 아니에요</b> — 접근 권한은 서버에서 따로 검증해요. ANN 인덱스와 필터를 함께 쓸 때의 함정은 <a href="day23.html#annfilter">ANN + 필터</a>.</p>
+      <p>대상 조각이 전체 순위 안에 못 들면 사라져요. 그래서 <code>WHERE</code>로 범위를 먼저 정하고 그 안에서 순위를 매겨요. <code>category</code>는 콘텐츠 분류일 뿐 <b>권한 검사가 아니에요</b>. ANN 인덱스와 필터를 함께 쓸 때의 함정은 <a href="day23.html#annfilter">ANN + 필터</a>.</p>
 
       <!-- ============================================================ -->
       <h2 id="index">⑦ 저장 · 공개 · 검색 — 반쯤 바뀐 판이 보이지 않게</h2>
@@ -596,17 +606,23 @@ ORDER BY c.embedding &lt;=&gt; %s ASC, c.chunk_id ASC LIMIT %s</code></pre>
       <p><code>, c.chunk_id ASC</code>는 거리가 같을 때 순서를 고정해 결과를 재현 가능하게 해요. 질문 벡터는 <a href="day23.html#prefix"><code>query:</code> 접두어</a>로, 같은 모델 · 같은 정규화로 만들어요.</p>
 
       <!-- ============================================================ -->
-      <h2 id="pipeline">⑧ 전체 연결 — 문서 하나를 끝까지</h2>
+      <h2 id="pipeline">⑧ 전체 연결 — 문서 6건을 끝까지 돌린 실제 보고서</h2>
+      <p>①~⑦을 예제 문서 6건에 한 번에 적용한 실제 결과예요(구조 분할 · 벡터는 임의 · 노트 전용 DB).</p>
       <table>
-        <tr><th>구간</th><th>DOC-ATTEND가 거치는 것</th></tr>
-        <tr><td>입력 · 전처리</td><td>Raw File → ParsedUnit(절) → CleanUnit → Chunk</td></tr>
-        <tr><td>품질 검사</td><td>Span · 토큰 길이 · Coverage · Metadata · Embedding 계약</td></tr>
-        <tr><td>저장 · 공개</td><td>staging → ready → current 포인터</td></tr>
-        <tr><td>검색 확인</td><td>query Embedding → Top-k → 조각 · 출처 · 원문 위치 대조</td></tr>
+        <tr><th>문서</th><th>상태</th><th>unit</th><th>공개된 조각</th><th>메모</th></tr>
+        <tr><td>DOC-ATTEND (md)</td><td>parsed</td><td>1</td><td>2</td><td>본문 없는 절 1개 격리 (empty_chunk)</td></tr>
+        <tr><td>DOC-ASSIGN (txt)</td><td>parsed</td><td>1</td><td>2</td><td>"과제 안내" 5자 조각 — 제목만 조각 (개선 대상)</td></tr>
+        <tr><td>DOC-FACILITY (html)</td><td>parsed</td><td>1</td><td>1</td><td>main만 · 표는 행 단위</td></tr>
+        <tr><td>DOC-CAREER (pdf)</td><td>parsed</td><td>2</td><td>2</td><td>쪽번호 줄 제거 · 페이지별 위치</td></tr>
+        <tr><td>DOC-SCAN (pdf)</td><td><code>needs_ocr</code></td><td>0</td><td>0</td><td>OCR 결과는 검토 후 별도 버전으로 (② 사례 5)</td></tr>
+        <tr><td>DOC-UNSUPPORTED (xyz)</td><td><code>unsupported</code></td><td>0</td><td>0</td><td>원본 보존 · 기록만</td></tr>
+        <tr><td><b>합계</b></td><td>입력 6 = parsed 4 + needs_ocr 1 + unsupported 1</td><td>5</td><td><b>7</b></td><td>격리 1</td></tr>
       </table>
-<pre><code>DOC-ATTEND / v1 / sec-1 / [start, end)
-"passage: …" → E5-small → vector(384)
+<pre><code>DOC-ATTEND / v1 / doc / [19, 101)  "출석 안내 &gt; 지각과 결석"
+"passage: 출석 안내 / 지각과 결석
+수업 시작 후 …" → E5-small → vector(384)
 pgvector → citation_id + chunk_id + body + source_locator</code></pre>
+      <p>보고서에서 숫자가 맞는지(입력 수 = 완료 + 보류 + 실패), 격리된 조각이 왜 격리됐는지, 공개 조각 수가 각 버전의 <code>expected_count</code>와 같은지 확인해요.</p>
 
       <h3 id="failure">실패의 범위를 나눠 처리</h3>
       <table>

@@ -353,6 +353,199 @@ IO["d24-ocr-clean"] = ("위 OCR 결과로 실제 실행", [
     ("흐린 스캔 단어별 conf (일부)", str([(t, round(c)) for t, c, _ in bad_words][9:21]), "'『' 81 처럼 틀렸는데 신뢰도가 높은 경우도 있음"),
 ])
 
+# ------------------------------------------------------------------ 전체 파이프라인 실물 (문서 6건)
+PV = "ingest-e5-v1"
+MANIFEST = json.loads((DATA / "manifest.json").read_text(encoding="utf-8"))
+
+
+def parse_doc(doc):
+    """예제 문서를 형식별로 읽어 [(unit_id, locator, raw_text)] 로. 실패는 상태로."""
+    path = RAW / doc["file"]
+    suf = path.suffix.lower()
+    if suf not in allowed:
+        return "unsupported", []
+    if suf in (".txt", ".md"):
+        return "parsed", [("doc", doc["file"], path.read_bytes().decode("utf-8"))]
+    if suf == ".html":
+        sp = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
+        mn = sp.select_one("main")
+        for tg in mn.select("script, style"):
+            tg.decompose()
+        tb = mn.select_one("table")
+        tb.replace_with(sp.new_string("\n".join(f"{tr.select('td')[0].get_text(strip=True)}: {tr.select('td')[1].get_text(strip=True)}"
+                                                for tr in tb.select("tbody tr"))))
+        return "parsed", [("main", doc["file"] + "#main", mn.get_text("\n", strip=True))]
+    units = []
+    for n, pg in enumerate(PdfReader(str(path)).pages, start=1):
+        t = pg.extract_text() or ""
+        t = "\n".join(ln for ln in t.splitlines() if not PAGE_NO.match(ln))
+        units.append((f"page-{n}", f"{doc['file']}#page={n}", t))
+    if all(not u[2].strip() for u in units):
+        return "needs_ocr", []
+    return "parsed", units
+
+
+def struct_spans(text):
+    """구조 기준 분할: Markdown 은 ## 절 본문, 그 외는 빈 줄로 나뉜 문단. 제목 줄은 Span 에 넣지 않고 heading 으로."""
+    spans, pos, head, top = [], 0, None, None
+    blocks = []
+    for line in text.split("\n"):
+        start = pos
+        pos += len(line) + 1
+        if line.startswith("# "):
+            top, head = line[2:], line[2:]
+            blocks.append(("H", start, start + len(line), head))
+        elif line.startswith("## "):
+            head = f"{top} > {line[3:]}" if top else line[3:]
+            blocks.append(("H", start, start + len(line), head))
+        elif not line.strip():
+            blocks.append(("B", start, start, head))
+        else:
+            blocks.append(("T", start, start + len(line), head))
+    cur = None
+    for kind, s0, e0, hd in blocks + [("B", len(text), len(text), None)]:
+        if kind == "T":
+            if cur and cur[2] == hd:
+                cur[1] = e0
+            else:
+                if cur:
+                    spans.append(tuple(cur))
+                cur = [s0, e0, hd]
+        else:
+            if cur:
+                spans.append(tuple(cur))
+                cur = None
+            if kind == "H":
+                spans.append(("HEAD", e0, hd))
+    with_body = {hd for s0, e0, hd in spans if s0 != "HEAD"}
+    # 본문 없이 바로 다음 제목이 오는 절(예: '# 출석 안내') → 빈 Span 하나 (검증기가 잡아야 할 실제 경우)
+    spans = [(e0, e0, hd) if s0 == "HEAD" else (s0, e0, hd) for s0, e0, hd in spans if s0 != "HEAD" or hd not in with_body]
+    out, seen = [], set()
+    for s0, e0, hd in spans:
+        key = (s0, e0)
+        if key not in seen:
+            seen.add(key)
+            out.append((s0, e0, hd))
+    return out
+
+
+def chunk_id_of(doc_id, ver, unit_id, s0, e0):
+    ident = {"doc_id": doc_id, "source_version": ver, "pipeline_version": PV, "unit_id": unit_id, "span": [s0, e0]}
+    return hashlib.sha256(json.dumps(ident, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+
+
+def validate(chunk, clean_units):
+    key = (chunk["doc_id"], chunk["unit_id"])
+    ct = clean_units.get(key)
+    if ct is None:
+        return "missing_source"
+    a_, b_ = chunk["char_start"], chunk["char_end"]
+    if type(a_) is not int or type(b_) is not int or not (0 <= a_ < b_ <= len(ct)):
+        return "invalid span" if a_ != b_ else "empty_chunk"
+    if chunk["body"] != ct[a_:b_]:
+        return "span_mismatch"
+    if not chunk["body"].strip():
+        return "empty_chunk"
+    return None
+
+
+report, clean_units, struct_chunks, window_chunks = [], {}, [], []
+for doc in MANIFEST:
+    status, units = parse_doc(doc)
+    row = {"doc_id": doc["doc_id"], "file": doc["file"], "status": status, "units": len(units), "chunks": 0}
+    for unit_id, loc, raw_t in units:
+        ct = clean_prose(raw_t)
+        clean_units[(doc["doc_id"], unit_id)] = ct
+        for s0, e0, hd in struct_spans(ct):
+            struct_chunks.append(dict(doc_id=doc["doc_id"], unit_id=unit_id, category=doc["category"], source_version=doc["source_version"],
+                                      source_locator=loc, heading=hd, char_start=s0, char_end=e0, body=ct[s0:e0]))
+        for s0, e0, body in windows(ct, 110, 20):
+            window_chunks.append(dict(doc_id=doc["doc_id"], unit_id=unit_id, char_start=s0, char_end=e0, body=body))
+    report.append(row)
+
+# 구조 분할 결과 검증 (빈 절 → empty_chunk 를 실제로 잡는지)
+struct_results = [(c, validate(c, clean_units)) for c in struct_chunks]
+passed = [c for c, e in struct_results if e is None]
+quarantined = [(c["doc_id"], c["unit_id"], c["heading"], e) for c, e in struct_results if e]
+for c in passed:
+    c["chunk_id"] = chunk_id_of(c["doc_id"], c["source_version"], c["unit_id"], c["char_start"], c["char_end"])
+    c["embedding_text"] = "passage: " + (c["heading"].replace(" > ", " / ") + "\n" if c["heading"] else "") + c["body"]
+    c["tokens"] = len(tok(c["embedding_text"], add_special_tokens=True, truncation=False)["input_ids"])
+for r in report:
+    r["chunks"] = sum(1 for c in passed if c["doc_id"] == r["doc_id"])
+
+# 질문별로 '답에 필요한 두 구절이 한 조각에 같이 있나' (모델 없이 확인하는 경계 검사)
+QUESTIONS = [("15분 늦으면 어떻게 기록돼요?", "10분을 초과하면", "결석으로 기록"),
+             ("사전 승인을 받았으면요?", "사전 승인", "운영실에 확인"),
+             ("회의실은 어떻게 이용해요?", "회의실", "예약 승인 후 이용"),
+             ("상담 일정을 바꾸려면?", "변경하려면", "미리 연락")]
+
+
+def answerable(chunks):
+    return [any(p1 in c["body"] and p2 in c["body"] for c in chunks) for _, p1, p2 in QUESTIONS]
+
+
+ans_window = answerable(window_chunks)
+ans_by_size = {}
+for sz, ovl in ((40, 10), (60, 10), (110, 20)):
+    wc = [dict(body=b_) for (d_, u_), ct in clean_units.items() for _, _, b_ in windows(ct, sz, ovl)]
+    ans_by_size[f"{sz}/{ovl}"] = (answerable(wc), len(wc))
+ans_struct = answerable(passed)
+win_attend = [(c["char_start"], c["char_end"], c["body"]) for c in window_chunks if c["doc_id"] == "DOC-ATTEND"]
+ov_cmp = []
+for ov in (0, 10, 20):
+    ws = list(windows(clean_md, 40, ov))
+    ov_cmp.append((ov, len(ws), sum(b - a for a, b, _ in ws), any("10분을 초과하면" in t and "결석으로 기록" in t for _, _, t in ws)))
+
+# 일부러 넣는 버그 3가지 → 검증기가 잡는지
+fx_raw = CASES["A"]["raw"]
+fx_clean = CASES["A"]["clean"]
+k_ = fx_raw.index("10분")
+bug_span = dict(doc_id="FX", unit_id="doc", char_start=k_, char_end=k_ + 9, body=fx_raw[k_:k_ + 9])
+bug_units = {("FX", "doc"): fx_clean}
+dup_ids = [c["chunk_id"] for c in passed] * 2
+bug_rows = [
+    ("raw_text 에서 잰 위치를 clean_text 에 적용", f"body={bug_span['body']!r} vs clean[{k_}:{k_ + 9}]={fx_clean[k_:k_ + 9]!r}", validate(bug_span, bug_units)),
+    ("unit_id 오타 (page-3)", "DOC-CAREER / page-3", validate(dict(passed[0], doc_id="DOC-CAREER", unit_id="page-3"), clean_units)),
+    ("같은 입력을 두 번 적재", f"{len(dup_ids)}개 중 고유 {len(set(dup_ids))}개", "duplicate_chunk_id" if len(dup_ids) != len(set(dup_ids)) else None),
+]
+
+# Coverage (구조 분할) — 무엇이 빠졌나
+cov_rows = []
+for (doc_id, unit_id), ct in clean_units.items():
+    sp = [(c["char_start"], c["char_end"]) for c in passed if c["doc_id"] == doc_id and c["unit_id"] == unit_id]
+    ratio, merged = coverage(len(ct), sp)
+    gaps = [(merged[i][1], merged[i + 1][0]) for i in range(len(merged) - 1)]
+    if merged and merged[0][0] > 0:
+        gaps = [(0, merged[0][0])] + gaps
+    if merged and merged[-1][1] < len(ct):
+        gaps.append((merged[-1][1], len(ct)))
+    missing_txt = [ct[a_:b_].strip() for a_, b_ in gaps if ct[a_:b_].strip()]
+    cov_rows.append((doc_id, unit_id, round(ratio, 3), missing_txt))
+
+# 토큰 한도 초과 (예시 한도 40 · 다른 모델 Tokenizer)
+long_txt = (DATA / "fixtures" / "chunk_100.txt").read_text(encoding="utf-8").strip()
+LIMIT = 40
+long_tokens = len(tok("passage: " + long_txt, add_special_tokens=True, truncation=False)["input_ids"])
+resplit = []
+for s0, e0, body in windows(long_txt, 30, 0):
+    resplit.append((s0, e0, len(tok("passage: " + body, add_special_tokens=True, truncation=False)["input_ids"])))
+
+RESULTS["pipe"] = {
+    "report": report, "quarantined": quarantined,
+    "passed": [{k: v for k, v in c.items() if k != "embedding_text"} | {"embedding_text": c["embedding_text"]} for c in passed],
+    "window_attend": win_attend, "ans_window": ans_window, "ans_struct": ans_struct,
+    "questions": [q for q, _, _ in QUESTIONS], "ov_cmp": ov_cmp, "bug_rows": bug_rows, "cov_rows": cov_rows,
+    "long": {"len": len(long_txt), "tokens": long_tokens, "limit": LIMIT, "resplit": resplit},
+    "n_window": len(window_chunks), "ans_by_size": ans_by_size,
+}
+IO["d24-pipeline"] = ("예제 문서 6건으로 실제 실행 · 구조 분할 · 토큰 수는 bert-base-multilingual-cased (E5 아님)", [
+    *[(f"{r['doc_id']} ({r['file']})", f"{r['status']} · unit {r['units']} · 통과 Chunk {r['chunks']}", "") for r in report],
+    ("격리된 조각", str([(d, u, h, e) for d, u, h, e in quarantined]), "제목 바로 뒤 본문 없는 절 → empty_chunk"),
+    *[(f"고정 창 {k} · 조각 {n}개", f"{sum(v)}/4 · {v}", "질문 4개 중 답 두 구절이 한 조각에") for k, (v, n) in ans_by_size.items()],
+    ("구조 분할 · 조각 " + str(len(passed)) + "개", f"{sum(ans_struct)}/4 · {ans_struct}", ""),
+])
+
 # ------------------------------------------------------------------ ⑦ DB
 def read_env(p):
     out = {}
@@ -552,6 +745,46 @@ try:
             ("현재 공개 본문 중 '15분' 포함", f"{body15}건", "개정 내용(10분 → 15분)이 검색 대상"),
         ])
         RESULTS["publish"] = {"v1": st1[0], "fail": fail, "after_fail": st_fail, "v2": st2}
+
+        # 문서 4건의 실제 Chunk 전체를 적재 · 공개 → 필터 순서 비교 (벡터는 임의)
+        conn.execute("TRUNCATE ingest_chunks, ingest_versions, ingest_documents")
+        by_doc = {}
+        for c in passed:
+            by_doc.setdefault(c["doc_id"], []).append(c)
+        for doc_id, cs in by_doc.items():
+            conn.execute("INSERT INTO ingest_documents (doc_id, source_uri) VALUES (%s, %s)", (doc_id, cs[0]["source_locator"]))
+            with conn.transaction():
+                conn.execute("INSERT INTO ingest_versions VALUES (%s,'v1',%s,'staging',%s)", (doc_id, PV, len(cs)))
+                for c in cs:
+                    conn.execute(INS, dict(chunk_id=c["chunk_id"], doc_id=doc_id, source_version="v1", pipeline_version=PV,
+                                           unit_id=c["unit_id"], category=c["category"], source_locator=c["source_locator"],
+                                           char_start=c["char_start"], char_end=c["char_end"], body=c["body"], embedding=unit_vec(),
+                                           metadata=json.dumps({"heading_path": c["heading"]}, ensure_ascii=False)))
+            publish(conn, doc_id, "v1")
+        cats = conn.execute("SELECT category, count(*) FROM ingest_chunks GROUP BY 1 ORDER BY 1").fetchall()
+        lost, trials = 0, 100
+        for _ in range(trials):
+            q_ = unit_vec()
+            then_ = conn.execute("""SELECT count(*) FROM (SELECT c.category FROM ingest_chunks c
+                                    ORDER BY c.embedding <=> %s LIMIT 3) t WHERE category = '시설'""", (q_,)).fetchone()[0]
+            first_ = len(conn.execute(SEARCH, (q_, "시설", q_, 3)).fetchall())
+            lost += then_ < first_
+        qv = unit_vec()
+        first_filter = conn.execute(SEARCH, (qv, "시설", qv, 3)).fetchall()
+        topk_then = conn.execute("""SELECT * FROM (SELECT c.citation_id, c.category, c.embedding <=> %s AS d FROM ingest_chunks c
+                                    ORDER BY c.embedding <=> %s LIMIT 3) t WHERE category = '시설'""", (qv, qv)).fetchall()
+        top3_cats = [r[1] for r in conn.execute("SELECT citation_id, category FROM ingest_chunks ORDER BY embedding <=> %s LIMIT 3", (qv,)).fetchall()]
+        sample = conn.execute("""SELECT citation_id, doc_id, unit_id, source_locator, char_start, char_end, metadata->>'heading_path', left(body, 30)
+                                 FROM ingest_chunks WHERE doc_id='DOC-CAREER' ORDER BY citation_id LIMIT 1""").fetchone()
+        IO["d24-filter-order"] = ("노트 전용 DB에서 실제 실행 · 예제 4건의 실제 Chunk · 벡터는 임의", [
+            ("SELECT category, count(*) … GROUP BY category", str(cats), "카테고리별 조각 수"),
+            ("전체 Top-3 의 category", str(top3_cats), "가까운 3개에 '시설' 조각이 없을 수 있음"),
+            ("Top-3 를 먼저 뽑고 WHERE category='시설'", str([r[0] for r in topk_then]), "후보가 사라짐"),
+            ("WHERE category='시설' 먼저, 그 안에서 Top-3", str([r[0] for r in first_filter]), "조건에 맞는 조각 중 가까운 것"),
+            ("DOC-CAREER 조각 한 행", str(sample), "citation_id · 출처 · 위치 · 제목 경로 · 본문"),
+            (f"임의 질의 {trials}개에서 'Top-3 먼저 → 필터'가 '필터 먼저'보다 적게 나온 횟수", f"{lost}/{trials}", "시설 조각 1개가 전체 7개 중 3위 안에 못 든 경우"),
+        ])
+        RESULTS["pipe"]["db"] = {"cats": cats, "top3": top3_cats, "then": [r[0] for r in topk_then], "first": [r[0] for r in first_filter], "sample": sample, "lost": lost, "trials": trials}
 finally:
     with connect("postgres", autocommit=True) as ad:
         ad.execute(f'DROP DATABASE IF EXISTS "{LAB}" WITH (FORCE)')
@@ -567,6 +800,10 @@ def box(title, rows):
 
 
 if __name__ == "__main__":
+    for _cid in ("d24-pipeline", "d24-filter-order"):
+        _v = IO.pop(_cid, None)
+        if _v:
+            RESULTS.setdefault("io_extra", {})[_cid] = _v   # 명령어 사전 항목이 아니라 노트 본문에 쓰는 결과
     for cid_, (title, rows) in IO.items():
         print(f"== {cid_}  [{title}]")
         for i, o, n in rows:
