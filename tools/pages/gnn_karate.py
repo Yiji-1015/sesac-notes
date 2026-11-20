@@ -172,7 +172,7 @@ libs = [("①", "<code>nx.karate_club_graph</code>, <code>g.edges()</code>, <cod
 K.build(ROOT / "topics" / "model" / "gnn.html", title="그래프 신경망 (GNN)", h1="그래프 신경망: 이웃을 모아 나를 고치기", track="모델", crumb="모델 &gt; 생성 모델과 그래프",
         one_line="<b>GNN</b>은 노드마다 <b>이웃의 값을 모아 자기 값을 고치기</b>를 층마다 반복해요. 같은 가중치를 모든 노드에 쓰니 그래프 크기와 번호 매기기에 상관없이 동작해요. 너무 많이 쌓으면 모두가 같아져요(과평활).",
         why=why, whole=whole, steps=steps, code_file="examples/gnn/karate_gcn.py", practice=practice, libs=libs, libs_note="<code>acc</code>, <code>fit</code>, <code>avg_cosine</code>은 이 파일 안에서 정의한 함수, <code>GCN</code>은 클래스예요.",
-        next_rows=[("<a href=\"cnn.html\">CNN과 이미지 분류</a>", "격자 위의 가중치 공유"), ("<a href=\"llm-principles.html\">LLM 원리</a>", "Attention으로 모으기"), ("<a href=\"generative-models.html\">생성 모델</a>", "같은 갈래의 다른 쪽")],
+        next_rows=[("<a href=\"cnn.html\">CNN과 이미지 분류</a>", "격자 위의 가중치 공유"), ("<a href=\"llm-principles.html\">Transformer 구조</a>", "Attention으로 모으기"), ("<a href=\"generative-models.html\">생성 모델</a>", "같은 갈래의 다른 쪽")],
         sources=["함께 정리한 자료: Simon J. D. Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 13장(그래프 신경망). 그래프 표현, 노드, 엣지, 그래프 수준 과제, 번호 매기기에 대한 불변성과 등변성, GCN, 모으는 방법, 귀납적 학습과 변환적 학습, readout, 과평활을 가져왔어요. 부트캠프 수업에서 따로 다루지 않은 주제라 예제는 새로 만들었어요",
                  "데이터: networkx에 들어 있는 Zachary 가라테 클럽 그래프 (W. W. Zachary, 1977)",
                  "결과 값과 그림: <code>tools/pages/gnn_karate.py</code>가 <code>examples/gnn/karate_gcn.py</code>를 단계별로 실제 실행한 결과 (seed 0)",

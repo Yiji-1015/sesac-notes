@@ -57,7 +57,11 @@
 
 위에서부터 차례로 할 계획이에요. 한 번에 한 묶음씩 하고, 묶음이 끝나면 확인한 뒤 커밋해요.
 
-1. **NLP with Transformers 11장**: LLM 원리, 순서 모델 페이지에 보강하고, 필요하면 새 페이지를 만들어요.
+1. **NLP with Transformers 11장** (진행 중). 나누는 방법을 정했어요.
+   - 끝남: 1, 3, 11장 → "LLM 원리"를 **Transformer 구조**로 다시 씀 (`llm-principles.html`, 주소는 그대로)
+   - 남음, 새 쪽 넷: 문장 분류와 미세조정(2, 9장), 토큰 분류와 질문 답변(4, 7장), 작은 GPT를 처음부터 학습하고 디코딩 비교(5, 10장), 모델 가볍게(8장: 지식 정제, 양자화, 가지치기)
+   - 6장 요약은 생성 쪽에 추출 요약과 ROUGE로, 11장의 나머지는 이미 Transformer 구조 쪽에 넣었어요
+   - 모델은 받지 않고 이 PC에 있는 `multilingual-e5-small`로 해요. GPT는 작은 말뭉치로 직접 학습해요
 2. **FML 이론 17장**
    - 커널, 부스팅: 머신러닝 2쪽과 4쪽에 보강해요.
    - PAC, VC 차원: 학습 이론 페이지를 새로 만들어요.
@@ -98,7 +102,7 @@
 ### 실행 환경
 
 - 시스템 Python 3.13에 scikit-learn, torch(CPU), torchvision을 설치해서 빌드했어요. 수업용 가상환경은 지금 PC에 없어요.
-- `llm_principles.py`는 e5-small 모델이 없으면 기존 `llm-principles-data.js`의 결과를 다시 써요. 그래서 그 페이지의 일부 값은 예전 PC에서 낸 값이에요.
+- `llm_principles.py`(Transformer 구조 쪽)는 e5-small 모델로 층 안의 계산을 직접 해 보는 쪽이라, 모델이 없는 PC에서는 아무 파일도 바꾸지 않고 끝나요. 이 쪽을 고치려면 e5-small이 있는 PC에서 빌드해요.
 - `gen_models.py`는 모델 다섯 개를 학습해서 CPU로 2~4분 걸려요.
 - 다른 PC(`C:\practice_assignment\.venv`, Python 3.13.16, PyTorch 2.14 cu130, scikit-learn 1.8)에서 다시 빌드한 적이 있어요. 그때 생성 모델 쪽과 CNN ⑦의 값이 PyTorch 버전 차이로 조금 바뀌었고, 말로 쓴 주장은 모두 그대로 맞았어요.
 - 로컬에서 보기: 저장소 폴더에서 `python -m http.server 5174`를 실행하고 http://localhost:5174 를 열어요.

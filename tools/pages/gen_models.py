@@ -260,7 +260,7 @@ libs = [("①②", "<code>torch.cdist</code>, <code>kthvalue</code>, <code>Multi
 K.build(ROOT / "topics" / "model" / "generative-models.html", title="생성 모델", h1="생성 모델: 데이터를 닮은 새 데이터 만들기", track="모델", crumb="모델 &gt; 생성 모델",
         one_line="<b>생성 모델</b>은 데이터가 어떻게 생겼는지 배워서 새 데이터를 만들어요. 잠재 공간으로 줄였다 되살리거나(<b>VAE</b>), 가려내는 쪽과 시합하거나(<b>GAN</b>), 되돌릴 수 있는 변환을 겹치거나(<b>Flow</b>), 잡음을 걷어내요(<b>Diffusion</b>).",
         why=why, whole=whole, steps=steps, code_file="examples/gen/gen_points.py", practice=practice, libs=libs, libs_note="<code>mlp</code>, <code>quality</code>, <code>flow_loglik</code>는 이 파일 안에서 정의한 함수, <code>Coupling</code>은 클래스예요.",
-        next_rows=[("<a href=\"sequence-models.html\">순서 모델</a>", "Autoencoder: VAE의 출발점"), ("<a href=\"dl-training-stability.html\">학습을 안정시키기</a>", "Adam, 학습률"), ("<a href=\"llm-principles.html\">LLM 원리</a>", "글을 만드는 생성 모델")],
+        next_rows=[("<a href=\"sequence-models.html\">순서 모델</a>", "Autoencoder: VAE의 출발점"), ("<a href=\"dl-training-stability.html\">학습을 안정시키기</a>", "Adam, 학습률"), ("<a href=\"llm-principles.html\">Transformer 구조</a>", "글을 만드는 생성 모델")],
         sources=["함께 정리한 자료: Simon J. D. Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 14장(비지도 학습과 생성 모델 평가), 15장(GAN), 16장(Normalizing Flow), 17장(VAE), 18장(Diffusion). 부트캠프 수업에서 따로 다루지 않은 주제라, 딥러닝 기초의 점 예제로 직접 실험했어요",
                  "데이터: <code>examples/gen/data/points.csv</code> (딥러닝 기초의 <code>examples/dl/data/points.csv</code>와 같은 파일)",
                  "결과 값과 그림: <code>tools/pages/gen_models.py</code>가 <code>examples/gen/gen_points.py</code>를 단계별로 실제 실행한 결과 (seed 0, CPU)",

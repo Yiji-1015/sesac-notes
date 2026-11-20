@@ -37,12 +37,12 @@
         </aside>
       </div>
       <h2 id="practice">🛠️ 실제로 할 때</h2>
-      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>문장을 다룬다</td><td>글자를 숫자로 바꾸는 단계(Tokenizer, Embedding)가 앞에 붙어요. 요즘은 RNN보다 Attention을 쌓은 Transformer를 주로 써요 (<a href="llm-principles.html">LLM 원리</a>).</td></tr><tr><td>앞을 예측한다</td><td>지금까지의 창으로 다음 값을 맞히는 회귀로 바꾸면 돼요. 미래 값이 입력에 섞이지 않게, 시간 순서대로 train, valid, test를 나눠요.</td></tr><tr><td>이상 기준</td><td>평균 + 3σ는 출발점일 뿐이에요. 알람이 너무 많거나 적으면 업무 비용을 보고 조정해요.</td></tr></table>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>문장을 다룬다</td><td>글자를 숫자로 바꾸는 단계(Tokenizer, Embedding)가 앞에 붙어요. 요즘은 RNN보다 Attention을 쌓은 Transformer를 주로 써요 (<a href="llm-principles.html">Transformer 구조</a>).</td></tr><tr><td>앞을 예측한다</td><td>지금까지의 창으로 다음 값을 맞히는 회귀로 바꾸면 돼요. 미래 값이 입력에 섞이지 않게, 시간 순서대로 train, valid, test를 나눠요.</td></tr><tr><td>이상 기준</td><td>평균 + 3σ는 출발점일 뿐이에요. 알람이 너무 많거나 적으면 업무 비용을 보고 조정해요.</td></tr></table>
       <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
       <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>pad_sequence</code>, <code>torch.arange</code></td><td>묶기 (torch)</td></tr><tr><td>③④</td><td><code>nn.RNN</code>, <code>nn.LSTM</code>, <code>pack_padded_sequence</code></td><td>순서 모델</td></tr><tr><td>⑤</td><td><code>torch.softmax</code>, <code>masked_fill</code></td><td>Attention</td></tr><tr><td>⑥</td><td><code>Tensor.unfold</code>, <code>nn.Sequential</code></td><td>Autoencoder</td></tr></table>
       <p><code>batch</code>, <code>fit</code>, <code>windows</code>와 모델 클래스들은 이 파일 안에서 정의했어요.</p>
       <h2 id="next">이어서 볼 주제</h2>
-      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="llm-principles.html">LLM 원리</a></td><td>Attention을 쌓은 Transformer와 LLM</td></tr><tr><td><a href="dl-tensor-training.html">Tensor와 신경망 학습</a></td><td>학습 루프의 기본</td></tr></table>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="llm-principles.html">Transformer 구조</a></td><td>Attention을 쌓은 Transformer와 LLM</td></tr><tr><td><a href="dl-tensor-training.html">Tensor와 신경망 학습</a></td><td>학습 루프의 기본</td></tr></table>
       <h2>원본 자료</h2>
       <ul><li>다루는 범위: Day12 (2026-11-02) Sequence Tensor, RNN, LSTM, Autoencoder, Transformer 입문</li><li>데이터: <code>examples/seq/data/</code> (기존 노트와 같은 센서 기록 예제). ⑥의 튀는 값은 확인을 위해 일부러 넣은 것</li><li>결과 값: <code>tools/pages/seq_models.py</code> (seed 0)</li><li>공식 문서: <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.LSTM.html" target="_blank">nn.LSTM</a>, <a href="https://docs.pytorch.org/docs/stable/generated/torch.nn.utils.rnn.pack_padded_sequence.html" target="_blank">pack_padded_sequence</a></li><li>실행 환경: <span id="env"></span></li></ul>
     </article>

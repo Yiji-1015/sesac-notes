@@ -64,14 +64,14 @@ steps = [
            K.code_table([("v.unfold(0, 12, 1)", "길이 12짜리 창을 한 칸씩 밀며 잘라내기"), ("nn.Sequential(nn.Linear(12, 4), nn.Tanh(), nn.Linear(4, 12))", "12 → 4로 압축(encoder) → 12로 복원(decoder)"),
                          ("((ae(W) - W) ** 2).mean(1)", "창마다 복원 오차"), ("err_train.mean() + 3 * err_train.std()", "정상 데이터 오차의 범위 밖을 이상으로")]), "s6"),
 ]
-practice = [("문장을 다룬다", "글자를 숫자로 바꾸는 단계(Tokenizer, Embedding)가 앞에 붙어요. 요즘은 RNN보다 Attention을 쌓은 Transformer를 주로 써요 (<a href=\"llm-principles.html\">LLM 원리</a>)."),
+practice = [("문장을 다룬다", "글자를 숫자로 바꾸는 단계(Tokenizer, Embedding)가 앞에 붙어요. 요즘은 RNN보다 Attention을 쌓은 Transformer를 주로 써요 (<a href=\"llm-principles.html\">Transformer 구조</a>)."),
             ("앞을 예측한다", "지금까지의 창으로 다음 값을 맞히는 회귀로 바꾸면 돼요. 미래 값이 입력에 섞이지 않게, 시간 순서대로 train, valid, test를 나눠요."),
             ("이상 기준", "평균 + 3σ는 출발점일 뿐이에요. 알람이 너무 많거나 적으면 업무 비용을 보고 조정해요.")]
 libs = [("①", "<code>pad_sequence</code>, <code>torch.arange</code>", "묶기 (torch)"), ("③④", "<code>nn.RNN</code>, <code>nn.LSTM</code>, <code>pack_padded_sequence</code>", "순서 모델"), ("⑤", "<code>torch.softmax</code>, <code>masked_fill</code>", "Attention"), ("⑥", "<code>Tensor.unfold</code>, <code>nn.Sequential</code>", "Autoencoder")]
 K.build(ROOT / "topics" / "model" / "sequence-models.html", title="순서 모델", h1="순서 모델: RNN, LSTM, Attention, Autoencoder", track="모델", crumb="모델 &gt; 순서와 언어 모델",
         one_line="순서가 있는 데이터는 <b>순서를 읽어야</b> 구분돼요. RNN과 LSTM은 <b>차례로 읽으며 기억</b>하고, Attention은 <b>중요한 시점을 골라</b> 보고, Autoencoder는 <b>잘 되살려지지 않는 구간</b>을 이상으로 찾아요.",
         why=why, whole=whole, steps=steps, code_file="examples/seq/seq_models.py", practice=practice, libs=libs, libs_note="<code>batch</code>, <code>fit</code>, <code>windows</code>와 모델 클래스들은 이 파일 안에서 정의했어요.",
-        next_rows=[("<a href=\"llm-principles.html\">LLM 원리</a>", "Attention을 쌓은 Transformer와 LLM"), ("<a href=\"dl-tensor-training.html\">Tensor와 신경망 학습</a>", "학습 루프의 기본")],
+        next_rows=[("<a href=\"llm-principles.html\">Transformer 구조</a>", "Attention을 쌓은 Transformer와 LLM"), ("<a href=\"dl-tensor-training.html\">Tensor와 신경망 학습</a>", "학습 루프의 기본")],
         sources=["다루는 범위: Day12 (2026-11-02) Sequence Tensor, RNN, LSTM, Autoencoder, Transformer 입문", "데이터: <code>examples/seq/data/</code> (기존 노트와 같은 센서 기록 예제). ⑥의 튀는 값은 확인을 위해 일부러 넣은 것",
                  "결과 값: <code>tools/pages/seq_models.py</code> (seed 0)", "공식 문서: <a href=\"https://docs.pytorch.org/docs/stable/generated/torch.nn.LSTM.html\" target=\"_blank\">nn.LSTM</a>, <a href=\"https://docs.pytorch.org/docs/stable/generated/torch.nn.utils.rnn.pack_padded_sequence.html\" target=\"_blank\">pack_padded_sequence</a>"])
 print("ok")
