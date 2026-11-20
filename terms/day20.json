@@ -659,5 +659,41 @@
   "analogy": "",
   "day": 20,
   "key": false
+ },
+ {
+  "term": "양자화",
+  "aliases": [
+   "Quantization"
+  ],
+  "full": "Quantization",
+  "short": "가중치(와 계산)를 32비트 실수 대신 8비트 정수처럼 더 적은 비트로 나타내는 것. 저장 크기가 줄고, 전용 계산이 있는 기기에서는 빨라지지만 반올림 오차로 정확도가 조금 떨어질 수 있어요.",
+  "analogy": "키를 cm 단위 대신 5cm 단위 눈금으로 적는 것.",
+  "day": 20,
+  "key": false
+ },
+ {
+  "term": "부드러운 라벨",
+  "aliases": [
+   "Soft Label",
+   "soft target"
+  ],
+  "full": "Soft Label",
+  "short": "정답 하나(0 또는 1) 대신, 큰 모델이 낸 종류별 확률 전체를 라벨로 쓰는 것. 정답이 아닌 종류와 얼마나 닮았는지까지 알려 줘서 지식 정제에 써요.",
+  "analogy": "",
+  "day": 20,
+  "key": false
+ },
+ {
+  "term": "희소 행렬",
+  "aliases": [
+   "Sparse Matrix",
+   "sparsity",
+   "희소성"
+  ],
+  "full": "Sparse Matrix",
+  "short": "대부분이 0인 행렬. 0이 아닌 값과 위치만 저장하면 크기와 계산을 줄일 수 있지만, 그걸 빨리 계산하는 전용 방식이 있어야 효과가 나요.",
+  "analogy": "",
+  "day": 20,
+  "key": false
  }
 ]

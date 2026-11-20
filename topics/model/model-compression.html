@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>모델 가볍게 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>모델 가볍게: 어휘 줄이기, 지식 정제, 양자화, 가지치기</h1>
+      <div class="meta">모델 &gt; 순서와 언어 모델</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">모델을 가볍게 만드는 방법은 줄이는 곳이 저마다 달라요. 안 쓰는 <b>어휘</b>를 덜면 정확도 그대로 크기가 줄고, 큰 모델의 답을 작은 <b>학생</b>에게 가르치면 빨라지고, 숫자를 <b>8비트</b>로 바꾸면 크기가 4분의 1이 돼요. 작은 가중치를 <b>지우기</b>만 해서는 크기도 시간도 안 줄어요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p><a href="text-classification.html">문장 분류</a>에서 만든 문의 분류기는 정확하지만 무거워요. 서버 한 대가 하루 수백만 건을 처리하거나, 휴대폰이나 작은 기기에서 인터넷 없이 돌려야 한다면 크기와 속도가 정확도만큼 중요해져요. 큰 모델을 비싸게 돌리는 대신, <b>필요한 만큼만 남긴</b> 모델을 만드는 방법들이 있어요.</p>
+<div class="out" data-out="why"></div>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>기준과 잣대 정하기 → 무게가 어디 있나 → 안 쓰는 어휘 덜기 → 작은 학생에게 가르치기 → 숫자를 8비트로 → 작은 가중치 지우기 → 합치기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 기준 모델과 재는 방법</h3><p class="does">문장 분류 쪽과 같은 방법으로 분류기를 만들고, 크기, 문장 하나의 시간, 정확도를 재는 함수를 만들어요.</p><p><b>왜 잣대부터?</b> 가볍게 만드는 방법은 늘 무언가를 내줘요. 같은 잣대로 재지 않으면 "빨라졌는데 정확도가 얼마나 떨어졌나"를 말할 수 없어요. 시간은 기기와 상황(한 번에 몇 개, 스레드 몇 개)에 따라 크게 달라서, 실제로 쓸 상황과 비슷하게 재요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.save(model.state_dict(), buf)</code></td><td>가중치를 메모리 속 파일(<code>io.BytesIO</code>)에 저장해 크기 재기</td></tr><tr><td><code>time.perf_counter()</code></td><td>짧은 시간을 정밀하게 재는 시계</td></tr><tr><td><code>torch.set_num_threads(4)</code></td><td>CPU 스레드 수 고정. 바꾸면 시간이 달라져요</td></tr><tr><td><code>def train(..., soft=None, T=2.0, alpha=0.5)</code></td><td>④의 정제까지 함께 쓰는 학습 함수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 무게가 어디에 있나</h3><p class="does">모델의 부분마다 가중치 수를 세요.</p><p>줄일 곳을 고르기 전에 무게가 어디에 있는지 봐요. 큰 LLM은 대부분 Transformer 층에 있지만, 여러 언어를 다루는 작은 모델은 어휘 표가 훨씬 큰 몫을 차지해요.</p><div class="out" data-out="f_w"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>sum(p.numel() for p in module.parameters())</code></td><td>그 부분의 가중치 개수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 어휘 줄이기: 이 일에 나오는 토큰만 남기기</h3><p class="does">데이터에 나오는 토큰 번호만 모아 Embedding 표를 그 줄들로 줄이고, 들어오는 번호를 새 번호로 바꿔 넣어요.</p><p>Embedding 표는 "번호로 줄을 찾는" 표라서, 한 번도 찾지 않는 줄은 결과에 아무 영향이 없어요. 쓰는 줄만 남기면 계산은 똑같고 크기만 줄어요. 다국어 모델을 한 언어, 한 분야에만 쓸 때 효과가 커요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>{i for row in tok(...)[&quot;input_ids&quot;] for i in row}</code></td><td>데이터 전체에서 나온 토큰 번호 모으기</td></tr><tr><td><code>remap[torch.tensor(used)] = torch.arange(len(used))</code></td><td>원래 번호 → 새 번호 표</td></tr><tr><td><code>torch.nn.Embedding(len(used), 384, _weight=...)</code></td><td>쓰는 줄만 담은 새 표</td></tr><tr><td><code>remap[b[&quot;input_ids&quot;]]</code></td><td>들어온 번호를 한 번에 새 번호로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 지식 정제: 큰 모델의 답을 작은 모델에게 가르치기</h3><p class="does">선생(①)의 아래 6층만 떼어 학생을 만들고, 정답만으로 배울 때와 선생의 점수를 따라 배울 때를 비교해요. 분류 층의 처음 값을 4가지로 바꿔 가며 재요.</p><p><b>지식 정제</b>(Knowledge Distillation)는 큰 모델(선생)이 낸 확률을 작은 모델(학생)이 따라 하게 배우는 방법이에요. 정답 라벨은 "버그다" 하나뿐이지만, 선생의 확률은 "버그 0.9, 기능 요청 0.08, 질문 0.02"처럼 <b>어느 쪽과 얼마나 닮았나</b>까지 알려 줘요. 이걸 부드러운 라벨(soft label)이라고 해요.</p><p>점수를 <b>온도 T</b>로 나눠 확률을 펴면 이 차이가 더 잘 보여요. 손실은 정답과의 손실과, 학생과 선생의 펴진 확률 사이의 차이(KL 발산)를 섞어요. 선생은 라벨 없는 문장에도 점수를 붙여 줄 수 있어서, 라벨 없는 문장까지 학습에 쓸 수 있어요.</p><p>학생은 선생의 층을 일부 떼어 시작하면 처음부터 배우는 것보다 훨씬 빨리 좋아져요. DistilBERT가 BERT의 층을 절반으로 줄여 이렇게 만들었어요(크기 40% 감소, 속도 60% 향상, 성능 97% 유지라고 발표됐어요).</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>body.encoder.layer[:n]</code></td><td>아래 n개 층만 남기기</td></tr><tr><td><code>F.kl_div(F.log_softmax(logits / T, -1), F.softmax(soft / T, -1), ...) * T * T</code></td><td>학생과 선생의 펴진 확률 차이. T²를 곱해 크기를 맞춰요</td></tr><tr><td><code>alpha * loss + (1 - alpha) * kd</code></td><td>정답 손실과 정제 손실을 반반</td></tr><tr><td><code>torch.full((n,), -1)</code></td><td>라벨 없는 문장의 정답 자리는 -1 (정답 손실에서 빼기)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 양자화: 32비트 실수를 8비트 정수로</h3><p class="does">③의 모델에서 몸통의 Linear 층 가중치를 -128~127 정수로 바꿔 저장하고 계산해요.</p><p>가중치는 보통 32비트 실수(4바이트)예요. 대부분의 가중치는 좁은 범위에 모여 있어서, 그 범위를 256칸으로 나눈 <b>8비트 정수</b>(1바이트)로 바꿔도 크게 틀리지 않아요. 저장 크기는 4분의 1이 되고, int8 계산을 빠르게 하는 기기에서는 빨라져요.</p><p>눈금(scale)을 층 전체에 하나 쓰면 값이 넓게 퍼진 층에서 오차가 커져요. 출력 칸마다 눈금을 따로 잡으면(per-channel) 더 정확해요. 여기서는 쓸 때 입력도 그때그때 정수로 바꾸는 <b>동적 양자화</b>를 썼어요. 미리 데이터를 넣어 입력 범위까지 정해 두는 정적 양자화, 학습할 때부터 반올림을 흉내 내는 양자화 인지 학습(QAT)은 정확도를 더 지켜요.</p><div class="out" data-out="s5w"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.ao.quantization.quantize_dynamic(body, {torch.nn.Linear: qconfig}, dtype=torch.qint8)</code></td><td>Linear 층만 int8로 바꾸기</td></tr><tr><td><code>per_channel_dynamic_qconfig</code></td><td>출력 칸마다 눈금</td></tr><tr><td><code>(w / scale).round().clamp(-128, 127) * scale</code></td><td>직접 해 보는 양자화: 눈금으로 나눠 반올림하고 범위를 자른 뒤 되돌리기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 가지치기: 크기가 작은 가중치를 0으로</h3><p class="does">몸통의 모든 Linear 가중치를 절댓값 순으로 세워, 작은 쪽 30%, 50%, 70%를 0으로 만들어요.</p><p>학습이 끝난 신경망에는 0에 가까운 가중치가 많아요. 이런 가중치는 지워도 결과가 거의 안 바뀐다는 생각이에요. 절댓값이 작은 순으로 지우는 걸 magnitude pruning이라고 해요. 하나씩 지우는 비정형 가지치기와, 층이나 head, 칸을 통째로 지우는 정형 가지치기가 있어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>prune.global_unstructured(targets, pruning_method=prune.L1Unstructured, amount=0.5)</code></td><td>모든 대상 층을 한데 모아 절댓값 하위 50%를 0으로</td></tr><tr><td><code>prune.remove(mod, &quot;weight&quot;)</code></td><td>가리개(mask)를 가중치에 확정</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 합쳐 보기</h3><p class="does">④의 가장 좋은 학생에 ③의 어휘 줄이기와 ⑤의 int8을 차례로 더해요.</p><p>방법들은 줄이는 곳이 달라서 겹쳐 쓸 수 있어요. 어휘 줄이기는 Embedding 표를, 학생은 층 수를, int8은 남은 Linear 층의 숫자 크기를 줄여요.</p><div class="out" data-out="f_all"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/compress/compress_classifier.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>어디서부터 할까</td><td>먼저 ①처럼 잣대를 정하고 ②처럼 무게를 봐요. 정확도를 잃지 않는 것(③ 어휘 줄이기, 짧은 입력은 짧게 채우기)부터 하고, 그다음 정제와 양자화를 시험해요.</td></tr><tr><td>ONNX와 ONNX Runtime</td><td>모델을 프레임워크와 상관없는 계산 그래프(ONNX)로 내보내면, ONNX Runtime이 층을 합치는 등 그래프를 최적화해 CPU에서도 빨라지는 경우가 많아요. 양자화와 같이 쓰기도 해요 (<code>optimum</code> 라이브러리).</td></tr><tr><td>하이퍼파라미터 찾기</td><td>정제의 온도 T, 섞는 비율 alpha, 학생의 층 수는 데이터마다 맞는 값이 달라요. Optuna 같은 도구로 여러 조합을 자동으로 시험해요.</td></tr><tr><td>GPU에서의 LLM</td><td>큰 LLM은 4비트, 8비트 양자화(GPTQ, AWQ, bitsandbytes)로 GPU 메모리를 줄여 돌려요. 같은 원리지만 층마다, 묶음마다 눈금을 정교하게 잡아요.</td></tr><tr><td>들어오는 글의 길이</td><td>한 묶음을 가장 긴 문장에 맞춰 채우는 대신 비슷한 길이끼리 묶으면(동적 padding) 같은 모델로도 빨라져요.</td></tr><tr><td>정확도가 얼마나 떨어져도 되나</td><td>쓰는 곳이 정해요. 실시간, 기기 안, 비용이 중요하면 가볍게, 틀리면 큰일인 곳이면 정확도를 지켜요. 정확도뿐 아니라 틀리는 모양(⑥ 오류 분석)도 바뀌지 않았는지 봐요 (<a href="text-classification.html">문장 분류</a>).</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>torch.save</code>, <code>io.BytesIO</code>, <code>time.perf_counter</code>, <code>torch.set_num_threads</code></td><td>잣대</td></tr><tr><td>③</td><td><code>torch.nn.Embedding(_weight=...)</code></td><td>작은 어휘 표</td></tr><tr><td>④</td><td><code>F.kl_div</code>, <code>F.log_softmax</code></td><td>지식 정제</td></tr><tr><td>⑤</td><td><code>torch.ao.quantization.quantize_dynamic</code>, <code>per_channel_dynamic_qconfig</code></td><td>동적 양자화</td></tr><tr><td>⑥</td><td><code>torch.nn.utils.prune.global_unstructured</code>, <code>L1Unstructured</code>, <code>prune.remove</code></td><td>가지치기</td></tr></table>
+      <p><code>encode</code>, <code>train</code>, <code>benchmark</code>, <code>first_layers</code>, <code>int8</code>, <code>pruned</code>은 이 파일 안에서 정의한 함수, <code>Classifier</code>, <code>SmallVocab</code>은 클래스예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="text-classification.html">문장 분류와 미세조정</a></td><td>가볍게 만든 그 분류기</td></tr><tr><td><a href="ocr-documents.html">OCR과 엣지 배포</a></td><td>기기 안에서 돌리기</td></tr><tr><td><a href="gpt-generation.html">작은 GPT와 디코딩</a></td><td>처음부터 작게 만들기</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>함께 정리한 자료: Lewis Tunstall 외, <i>Natural Language Processing with Transformers</i> 8장(효율적인 Transformer: 벤치마크 만들기, 지식 정제와 온도, DistilBERT, 학생 초기화, 양자화와 부동 소수점, 동적 양자화, ONNX와 ONNX Runtime, magnitude pruning과 movement pruning, Optuna). 부트캠프 수업에서 따로 다루지 않은 주제라 예제는 새로 만들었어요. 어휘 줄이기(③)는 이 예제의 무게 분포를 보고 더한 방법이에요</li><li>데이터: <code>examples/classify/data/issues.csv</code> (문장 분류 쪽과 같은 가상의 문의)</li><li>결과 값과 그림: <code>tools/pages/compress.py</code>가 <code>examples/compress/compress_classifier.py</code>를 단계별로 실제 실행한 결과 (CPU, 스레드 4개). 시간은 PC마다, 재는 때마다 달라요</li><li>공식 문서: <a href="https://pytorch.org/docs/stable/quantization.html" target="_blank">PyTorch Quantization</a>, <a href="https://pytorch.org/tutorials/intermediate/pruning_tutorial.html" target="_blank">Pruning tutorial</a>, <a href="https://arxiv.org/abs/1910.01108" target="_blank">DistilBERT 논문</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="model-compression-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

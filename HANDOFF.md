@@ -57,12 +57,13 @@
 
 위에서부터 차례로 할 계획이에요. 한 번에 한 묶음씩 하고, 묶음이 끝나면 확인한 뒤 커밋해요.
 
-1. **NLP with Transformers 11장** (진행 중). 나누는 방법을 정했어요.
+1. **NLP with Transformers 11장** (끝남). 나눈 방법과 결과:
    - 끝남: 1, 3, 11장 → "LLM 원리"를 **Transformer 구조**로 다시 씀 (`llm-principles.html`, 주소는 그대로)
    - 끝남: 2, 9장 → 새 쪽 **문장 분류와 미세조정** (`text-classification.html`, 예제 `examples/classify/`, 데이터는 `tools/make_issue_examples.py`로 만듦)
    - 끝남: 4, 7장 → 새 쪽 **토큰 분류와 질문 답변** (`token-classification.html`, 예제 `examples/tokens/`, 데이터는 `tools/make_token_examples.py`로 만듦)
    - 끝남: 5, 10, 6장 → 새 쪽 **작은 GPT와 디코딩** (`gpt-generation.html`, 예제 `examples/gpt/`, 말뭉치는 `tools/make_gpt_corpus.py`가 `all-notes.md`와 주제 페이지에서 만듦)
-   - 남음, 새 쪽 하나: 모델 가볍게(8장: 지식 정제, 양자화, 가지치기)
+   - 끝남: 8장 → 새 쪽 **모델 가볍게** (`model-compression.html`, 예제 `examples/compress/`, 문장 분류 쪽 데이터를 그대로 씀)
+     - 시간은 모델마다 기준 모델과 번갈아 재서 "기준의 몇 배"로 봐요. 모델을 따로따로 다른 때에 재면 PC 상태 때문에 계산이 똑같은 모델끼리도 40%까지 달라졌어요. 번갈아 재니 11% 안쪽
    - 모델은 받지 않고 이 PC에 있는 `multilingual-e5-small`로 해요. GPT는 작은 말뭉치로 직접 학습해요
 2. **FML 이론 17장**
    - 커널, 부스팅: 머신러닝 2쪽과 4쪽에 보강해요.

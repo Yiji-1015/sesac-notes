@@ -17,7 +17,7 @@
     .lane .node { display: inline-block; padding: 7px 12px; border-radius: 10px; font-size: .88rem; font-weight: 700; border: 2px solid var(--line); background: var(--bg); color: var(--text); }
     .lane a.node:hover { text-decoration: none; transform: translateY(-1px); }
     .lane .node.model { border-color: var(--t-model); background: var(--t-model-soft); }
-    .lane .node.back { border-color: var(--t-back); background: var(--t-back-soft); }
+    .lane .node.backend { border-color: var(--t-back); background: var(--t-back-soft); }
     .lane .node.plain { border-style: dashed; color: var(--muted); font-weight: 600; }
     .lane .arr { color: var(--muted); font-weight: 800; }
     .legend2 { font-size: .8rem; color: var(--muted); margin-top: 6px; }
@@ -28,11 +28,11 @@
     .track > h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 4px; font-size: 1.45rem; }
     .track > p { margin: 0 0 14px; color: var(--muted); }
     .track.model > h2 { color: var(--t-model); }
-    .track.back > h2 { color: var(--t-back); }
+    .track.backend > h2 { color: var(--t-back); }
     .cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
     .cat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; border-top: 5px solid; }
     .track.model .cat { border-top-color: var(--t-model); }
-    .track.back .cat { border-top-color: var(--t-back); }
+    .track.backend .cat { border-top-color: var(--t-back); }
     .cat h3 { margin: 0 0 2px; font-size: 1.1rem; }
     .cat > p { margin: 0 0 10px; color: var(--muted); font-size: .88rem; }
     .item { display: block; padding: 9px 10px; border-radius: 10px; color: var(--text); border: 1px solid transparent; }
@@ -77,18 +77,18 @@
       <div class="lane">
         <span class="lname">문서를 쌓을 때</span>
         <span class="node plain">문서 파일</span><span class="arr">→</span>
-        <a class="node back" href="topics/backend/document-reading.html">문서 읽기</a><span class="arr">→</span>
-        <a class="node back" href="topics/backend/chunking.html">Chunking</a><span class="arr">→</span>
-        <a class="node back" href="topics/backend/indexing.html">인덱싱</a><span class="arr">→</span>
-        <a class="node back" href="topics/backend/postgres.html">PostgreSQL + pgvector</a>
+        <a class="node backend" href="topics/backend/document-reading.html">문서 읽기</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/chunking.html">Chunking</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/indexing.html">인덱싱</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/postgres.html">PostgreSQL + pgvector</a>
       </div>
       <div class="lane">
         <span class="lname">질문에 답할 때</span>
         <span class="node plain">질문</span><span class="arr">→</span>
-        <a class="node back" href="topics/backend/fastapi.html">API 서버</a><span class="arr">→</span>
-        <a class="node back" href="topics/backend/embedding.html">벡터 검색</a><span class="arr">→</span>
-        <a class="node back" href="topics/backend/prompt-contract.html">Prompt와 Context</a><span class="arr">→</span>
-        <a class="node back" href="topics/backend/llm-client.html">LLM API 호출</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/fastapi.html">API 서버</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/embedding.html">벡터 검색</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/prompt-contract.html">Prompt와 Context</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/llm-client.html">LLM API 호출</a><span class="arr">→</span>
         <span class="node plain">답</span>
       </div>
       <div class="lane">
@@ -135,6 +135,7 @@
           <a class="item" href="topics/model/text-classification.html"><b>문장 분류와 미세조정</b><span class="badge new">새 형식</span><small>단어 세기 기준선, e5 문장 벡터, 고정 vs 미세조정, 오류 분석, 라벨이 적을 때, 자기 학습</small></a>
           <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><span class="badge new">새 형식</span><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
           <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><span class="badge new">새 형식</span><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
+          <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><span class="badge new">새 형식</span><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
         </div>
         <div class="cat">
           <h3>생성 모델과 그래프</h3>
@@ -146,7 +147,7 @@
     </section>
 
     <!-- ===================== 백엔드 ===================== -->
-    <section class="track back" data-track="back">
+    <section class="track backend" data-track="back">
       <h2>🛠️ 백엔드</h2>
       <p>모델을 서비스로 감싸는 것. 저장, 호출, 검색, 오류 처리가 중심이에요.</p>
       <div class="cats">
@@ -186,6 +187,7 @@
       <h2>🕒 업데이트 기록</h2>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/20</td><td><a href="topics/model/model-compression.html">모델 가볍게</a> 새로 씀: NLP with Transformers 8장. 문장 분류 쪽의 분류기를 어휘 줄이기, 지식 정제, int8 양자화, 가지치기로 가볍게 만들며 크기, 시간, 정확도를 같은 잣대로 비교. 메인 페이지의 백엔드 블록이 공통 CSS의 <code>.back</code>(돌아가기 링크용)에 걸려 한 줄로 좁게 보이던 것을 고침</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/gpt-generation.html">작은 GPT와 디코딩</a> 새로 씀: NLP with Transformers 5, 10, 6장. 이 노트의 옛 Day 글로 Tokenizer와 GPT를 처음부터 학습하고, 디코딩 일곱 가지를 반복, 다양성, 뜻밖의 정도로 비교. 주제 페이지의 '한 문장'으로 추출 요약을 ROUGE로 재기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/token-classification.html">토큰 분류와 질문 답변</a> 새로 씀: NLP with Transformers 4, 7장. 가상의 업무 메시지로 사람, 회사, 날짜, 금액 찾기(개체 단위 채점, 조사 떼기, 한국어로만 배워 영어에 쓰기)와 답의 시작과 끝 찾기, 찾아서 읽기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/text-classification.html">문장 분류와 미세조정</a> 새로 씀: NLP with Transformers 2, 9장. 가상의 문의 780개(버그, 기능 요청, 질문, test는 처음 보는 말투)로 단어 세기, e5 고정 + 로지스틱, 12층 전체와 위쪽 4층 미세조정을 비교하고, 라벨이 적을 때와 자기 학습까지</td></tr>
