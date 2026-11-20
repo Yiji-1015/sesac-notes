@@ -1,4 +1,4 @@
-# 업무 요청 실패 예측: 다른 모델 셋(SVM, 판별분석, PCA). 노트 4쪽의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
+# 업무 요청 실패 예측: 다른 모델 셋(SVM, 판별분석, PCA)과 커널 더 깊이. 노트 4쪽의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
 # 1~3쪽의 requests_model.py와 같은 데이터, 같은 나누기, 같은 교차검증을 써서 바로 비교할 수 있어요.
 # 데이터: data/requests.csv (요청 100건), data/split_manifest.csv (train 60, valid 20, test 20)
 # 줄 끝의 "#@N" 표시는 노트가 "이 줄은 N단계에서 추가됨"을 알기 위한 표시예요(실행과 무관).
@@ -18,6 +18,10 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis            
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis         #@5
 from sklearn.decomposition import PCA                                           #@6
 from sklearn.model_selection import StratifiedKFold, cross_validate             #@7
+from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, rbf_kernel   #@8
+from sklearn.metrics.pairwise import sigmoid_kernel, laplacian_kernel, euclidean_distances   #@8
+from sklearn.model_selection import LeaveOneOut, cross_val_predict            #@9
+from sklearn.kernel_approximation import RBFSampler                            #@10
 
 DATA = Path(__file__).resolve().parent / "data"                                 #@1
 
@@ -91,3 +95,38 @@ candidates = {"logistic": build(LogisticRegression(max_iter=1000)),
               f"pca{k70}+logistic": pca_logit}
 cv_scores = {name: cross_validate(m, dev[FEATURES], dev["failed"], cv=cv, scoring="f1")["test_score"]
              for name, m in candidates.items()}
+
+# ⑧ 커널이 되는 조건: 커널 행렬의 고윳값
+Z = Z_train                                                     # ⑥에서 크기를 맞춘 train 60건, 8열
+pairs = np.einsum("ni,nj->nij", Z, Z).reshape(len(Z), -1)       # 열 두 개씩 곱한 64열 (x₁x₁, x₁x₂, ..., x₈x₈)
+trick_gap = np.abs(pairs @ pairs.T - polynomial_kernel(Z, degree=2, gamma=1, coef0=0)).max()   # 64열의 내적 vs 8열 내적의 제곱
+dist = euclidean_distances(Z)                                   # 점 사이 거리 ‖x − z‖
+gram = {"linear": linear_kernel(Z), "poly (2차)": polynomial_kernel(Z, degree=2), "rbf": rbf_kernel(Z),
+        "laplacian": laplacian_kernel(Z), "sigmoid": sigmoid_kernel(Z), "exp(−‖x−z‖³)": np.exp(-dist ** 3)}
+eig = {name: np.linalg.eigvalsh(G) for name, G in gram.items()}  # 대칭 행렬의 고윳값 (작은 것부터)
+svm_sig = build(SVC(kernel="sigmoid", C=1.0)).fit(X_train, y_train)   # 커널이 아닌 함수로도 학습은 돼요
+sig_scores = score(svm_sig)
+
+# ⑨ 커널 SVM의 답: 서포트 벡터 위의 합
+rbf = svm_rbf.named_steps["model"]                              # ③의 RBF SVM (8열, C=1, gamma="scale")
+g = 1 / (Z.shape[1] * Z.var())                                  # gamma="scale"이 정한 값: 1 ÷ (열 수 × 분산)
+Z_valid = svm_rbf.named_steps["pre"].transform(X_valid)
+by_hand = rbf_kernel(Z_valid, rbf.support_vectors_, gamma=g) @ rbf.dual_coef_[0] + rbf.intercept_[0]   # Σ αᵢyᵢ K(xᵢ, x) + b
+hand_gap = np.abs(by_hand - svm_rbf.decision_function(X_valid)).max()
+alpha = np.abs(rbf.dual_coef_[0])                               # 서포트 벡터마다 α (dual_coef_에는 αᵢ × yᵢ가 들어 있어요)
+n_at_C = int((alpha > 1.0 - 1e-8).sum())                        # α = C인 점: 도로 안이나 반대편으로 넘어온 점
+loo_pred = cross_val_predict(SVC(kernel="rbf", C=1.0, gamma=g), Z, y_train, cv=LeaveOneOut())   # 한 건씩 빼고 60번 배워서 뺀 건 맞히기
+loo_wrong = np.flatnonzero(loo_pred != y_train.to_numpy())
+
+# ⑩ 데이터가 많을 때: 커널을 흉내 내는 열 만들기
+rff_gap = {}
+for D in (10, 100, 1000, 10000):
+    P = RBFSampler(gamma=g, n_components=D, random_state=0).fit(Z).transform(Z)   # 무작위 방향 D개로 만든 cos 열
+    diff = np.abs(P @ P.T - rbf_kernel(Z, gamma=g))             # 흉내 낸 내적과 진짜 커널의 차이 (60 × 60칸)
+    rff_gap[D] = (diff.mean(), diff.max())
+svm_rff = Pipeline([("pre", build(LogisticRegression()).named_steps["pre"]),
+                    ("rff", RBFSampler(gamma=g, n_components=1000, random_state=0)),
+                    ("model", SVC(kernel="linear", C=1.0))]).fit(X_train, y_train)
+dev_X = pd.concat([X_train, X_valid])
+same_answer = (svm_rff.predict(dev_X) == svm_rbf.predict(dev_X)).mean()   # ③의 커널 SVM과 같은 답을 낸 비율 (80건)
+rff_scores = score(svm_rff)

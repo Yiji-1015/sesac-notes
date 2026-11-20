@@ -65,8 +65,9 @@
    - 끝남: 8장 → 새 쪽 **모델 가볍게** (`model-compression.html`, 예제 `examples/compress/`, 문장 분류 쪽 데이터를 그대로 씀)
      - 시간은 모델마다 기준 모델과 번갈아 재서 "기준의 몇 배"로 봐요. 모델을 따로따로 다른 때에 재면 PC 상태 때문에 계산이 똑같은 모델끼리도 40%까지 달라졌어요. 번갈아 재니 11% 안쪽
    - 모델은 받지 않고 이 PC에 있는 `multilingual-e5-small`로 해요. GPT는 작은 말뭉치로 직접 학습해요
-2. **FML 이론 17장**
-   - 커널, 부스팅: 머신러닝 2쪽과 4쪽에 보강해요.
+2. **FML 이론 17장** (진행 중). 원본은 위키 요약(1.3KB)이 아니라 `source_file:`이 가리키는 OneDrive `자료/md/Foundations-ML/`의 장별 노트(11~23KB)를 읽어요.
+   - 끝남: 커널(5, 6장) → 머신러닝 4쪽 `ml-svm-lda-pca.html`에 ⑧~⑩ 추가 (커널 행렬의 고윳값, Representer 정리와 leave-one-out, 랜덤 푸리에 특성). ①~⑦ 값은 그대로
+   - 남음: 부스팅(7장) → 머신러닝 2쪽 `ml-trees-cv.html`에 보강해요.
    - PAC, VC 차원: 학습 이론 페이지를 새로 만들어요.
 3. **Elastic ANN, Elasticsearch**: 백엔드의 embedding, indexing 페이지에 보강해요.
 4. **llm-internals, vLLM, Solar Open 2, llm-judge**: LLM 쪽 페이지에 넣어요.

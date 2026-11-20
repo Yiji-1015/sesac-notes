@@ -61,6 +61,22 @@ window.PAGE = {
    "s": 7
   },
   {
+   "t": "from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, rbf_kernel",
+   "s": 8
+  },
+  {
+   "t": "from sklearn.metrics.pairwise import sigmoid_kernel, laplacian_kernel, euclidean_distances",
+   "s": 8
+  },
+  {
+   "t": "from sklearn.model_selection import LeaveOneOut, cross_val_predict",
+   "s": 9
+  },
+  {
+   "t": "from sklearn.kernel_approximation import RBFSampler",
+   "s": 10
+  },
+  {
    "t": "",
    "s": 1
   },
@@ -351,6 +367,146 @@ window.PAGE = {
   {
    "t": "             for name, m in candidates.items()}",
    "s": 7
+  },
+  {
+   "t": "",
+   "s": 7
+  },
+  {
+   "t": "# ⑧ 커널이 되는 조건: 커널 행렬의 고윳값",
+   "s": 8
+  },
+  {
+   "t": "Z = Z_train  # ⑥에서 크기를 맞춘 train 60건, 8열",
+   "s": 8
+  },
+  {
+   "t": "pairs = np.einsum(\"ni,nj->nij\", Z, Z).reshape(len(Z), -1)  # 열 두 개씩 곱한 64열 (x₁x₁, x₁x₂, ..., x₈x₈)",
+   "s": 8
+  },
+  {
+   "t": "trick_gap = np.abs(pairs @ pairs.T - polynomial_kernel(Z, degree=2, gamma=1, coef0=0)).max()  # 64열의 내적 vs 8열 내적의 제곱",
+   "s": 8
+  },
+  {
+   "t": "dist = euclidean_distances(Z)  # 점 사이 거리 ‖x − z‖",
+   "s": 8
+  },
+  {
+   "t": "gram = {\"linear\": linear_kernel(Z), \"poly (2차)\": polynomial_kernel(Z, degree=2), \"rbf\": rbf_kernel(Z),",
+   "s": 8
+  },
+  {
+   "t": "        \"laplacian\": laplacian_kernel(Z), \"sigmoid\": sigmoid_kernel(Z), \"exp(−‖x−z‖³)\": np.exp(-dist ** 3)}",
+   "s": 8
+  },
+  {
+   "t": "eig = {name: np.linalg.eigvalsh(G) for name, G in gram.items()}  # 대칭 행렬의 고윳값 (작은 것부터)",
+   "s": 8
+  },
+  {
+   "t": "svm_sig = build(SVC(kernel=\"sigmoid\", C=1.0)).fit(X_train, y_train)  # 커널이 아닌 함수로도 학습은 돼요",
+   "s": 8
+  },
+  {
+   "t": "sig_scores = score(svm_sig)",
+   "s": 8
+  },
+  {
+   "t": "",
+   "s": 8
+  },
+  {
+   "t": "# ⑨ 커널 SVM의 답: 서포트 벡터 위의 합",
+   "s": 9
+  },
+  {
+   "t": "rbf = svm_rbf.named_steps[\"model\"]  # ③의 RBF SVM (8열, C=1, gamma=\"scale\")",
+   "s": 9
+  },
+  {
+   "t": "g = 1 / (Z.shape[1] * Z.var())  # gamma=\"scale\"이 정한 값: 1 ÷ (열 수 × 분산)",
+   "s": 9
+  },
+  {
+   "t": "Z_valid = svm_rbf.named_steps[\"pre\"].transform(X_valid)",
+   "s": 9
+  },
+  {
+   "t": "by_hand = rbf_kernel(Z_valid, rbf.support_vectors_, gamma=g) @ rbf.dual_coef_[0] + rbf.intercept_[0]  # Σ αᵢyᵢ K(xᵢ, x) + b",
+   "s": 9
+  },
+  {
+   "t": "hand_gap = np.abs(by_hand - svm_rbf.decision_function(X_valid)).max()",
+   "s": 9
+  },
+  {
+   "t": "alpha = np.abs(rbf.dual_coef_[0])  # 서포트 벡터마다 α (dual_coef_에는 αᵢ × yᵢ가 들어 있어요)",
+   "s": 9
+  },
+  {
+   "t": "n_at_C = int((alpha > 1.0 - 1e-8).sum())  # α = C인 점: 도로 안이나 반대편으로 넘어온 점",
+   "s": 9
+  },
+  {
+   "t": "loo_pred = cross_val_predict(SVC(kernel=\"rbf\", C=1.0, gamma=g), Z, y_train, cv=LeaveOneOut())  # 한 건씩 빼고 60번 배워서 뺀 건 맞히기",
+   "s": 9
+  },
+  {
+   "t": "loo_wrong = np.flatnonzero(loo_pred != y_train.to_numpy())",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "# ⑩ 데이터가 많을 때: 커널을 흉내 내는 열 만들기",
+   "s": 10
+  },
+  {
+   "t": "rff_gap = {}",
+   "s": 10
+  },
+  {
+   "t": "for D in (10, 100, 1000, 10000):",
+   "s": 10
+  },
+  {
+   "t": "    P = RBFSampler(gamma=g, n_components=D, random_state=0).fit(Z).transform(Z)  # 무작위 방향 D개로 만든 cos 열",
+   "s": 10
+  },
+  {
+   "t": "    diff = np.abs(P @ P.T - rbf_kernel(Z, gamma=g))  # 흉내 낸 내적과 진짜 커널의 차이 (60 × 60칸)",
+   "s": 10
+  },
+  {
+   "t": "    rff_gap[D] = (diff.mean(), diff.max())",
+   "s": 10
+  },
+  {
+   "t": "svm_rff = Pipeline([(\"pre\", build(LogisticRegression()).named_steps[\"pre\"]),",
+   "s": 10
+  },
+  {
+   "t": "                    (\"rff\", RBFSampler(gamma=g, n_components=1000, random_state=0)),",
+   "s": 10
+  },
+  {
+   "t": "                    (\"model\", SVC(kernel=\"linear\", C=1.0))]).fit(X_train, y_train)",
+   "s": 10
+  },
+  {
+   "t": "dev_X = pd.concat([X_train, X_valid])",
+   "s": 10
+  },
+  {
+   "t": "same_answer = (svm_rff.predict(dev_X) == svm_rbf.predict(dev_X)).mean()  # ③의 커널 SVM과 같은 답을 낸 비율 (80건)",
+   "s": 10
+  },
+  {
+   "t": "rff_scores = score(svm_rff)",
+   "s": 10
   }
  ],
  "names": {
@@ -360,11 +516,14 @@ window.PAGE = {
   "4": "LDA: 분포를 가정하고 경계 긋기",
   "5": "QDA: 종류마다 다른 모양 허용",
   "6": "PCA: 정답 없이 열 줄이기",
-  "7": "같은 교차검증으로 비교하기"
+  "7": "같은 교차검증으로 비교하기",
+  "8": "커널이 되는 조건: 커널 행렬의 고윳값",
+  "9": "커널 SVM의 답: 서포트 벡터 위의 합",
+  "10": "데이터가 많을 때: 커널을 흉내 내는 열 만들기"
  },
  "range": [
   1,
-  7
+  10
  ],
  "outs": {
   "s1": {
@@ -740,6 +899,140 @@ window.PAGE = {
     "오른쪽은 8열을 주성분 두 개로 줄여 평면에 그린 거예요. 두 개가 원래 분산의 62%를 담아요. 실패와 성공이 섞여 있는데, PCA는 정답을 보지 않고 \"가장 많이 퍼진 방향\"만 찾기 때문이에요. 정답을 보고 \"가장 잘 갈리는 방향\"을 찾는 건 ④의 LDA예요."
    ],
    "chart": true
+  },
+  "s8": {
+   "title": "⑧ (xᵀz)²를 두 길로 계산하기 (train 60건, 8열)",
+   "lines": [
+    [
+     "64열을 만들어 내적 vs 8열 내적의 제곱 → 가장 큰 차이 1.4e-14",
+     1
+    ],
+    [
+     "sigmoid 커널 SVM → valid F1 0.20 (③의 RBF는 0.36)",
+     2,
+     "newf"
+    ]
+   ],
+   "notes": [
+    "두 값의 차이가 컴퓨터 반올림 수준이에요. 열 8개를 열 두 개씩 곱한 64열로 옮겨 내적한 것과, 원래 8열의 내적을 제곱한 것이 같은 계산이에요. 열이 d개면 옮긴 공간은 d²열인데, 커널은 d열 계산 한 번으로 끝나요.",
+    "sklearn은 커널이 아닌 함수도 막지 않아서 학습은 끝나요. 다만 아래 표처럼 고윳값이 음수라 \"가장 좋은 답을 찾았다\"는 보장이 없어요. 이 데이터에서는 RBF보다 낮게 나왔어요."
+   ]
+  },
+  "t8": {
+   "title": "커널 행렬 60 × 60의 고윳값",
+   "cols": [
+    "함수",
+    "가장 작은 고윳값",
+    "음수 고윳값 수",
+    "커널인가"
+   ],
+   "rows": [
+    [
+     "<code>linear</code>",
+     "+0.0000",
+     0,
+     "커널"
+    ],
+    [
+     "<code>poly (2차)</code>",
+     "+0.0000",
+     0,
+     "커널"
+    ],
+    [
+     "<code>rbf</code>",
+     "+0.0000",
+     0,
+     "커널"
+    ],
+    [
+     "<code>laplacian</code>",
+     "+0.0011",
+     0,
+     "커널"
+    ],
+    [
+     "<code>sigmoid</code>",
+     "-0.6025",
+     20,
+     "<b>아님</b>"
+    ],
+    [
+     "<code>exp(−‖x−z‖³)</code>",
+     "-0.1071",
+     6,
+     "<b>아님</b>"
+    ]
+   ],
+   "notes": [
+    "대칭 행렬의 고윳값이 모두 0 이상이면 양의 준정부호(PSD)예요. 어떤 점들을 골라도 커널 행렬이 PSD인 함수가 커널(PDS 커널)이에요. 0에 아주 가까운 음수(−0.000000000001 같은)는 컴퓨터 반올림이라 0으로 적었어요.",
+    "sigmoid는 음수 고윳값이 20개예요. 여기서는 tanh(a × xᵀz + b)의 a = 1 ÷ 8, b = 1로 둘 다 양수인데도 그래요. 이름은 커널이지만 엄밀히는 커널이 아니에요.",
+    "<code>exp(−‖x−z‖³)</code>는 RBF(<code>exp(−γ‖x−z‖²)</code>)에서 지수만 2를 3으로 바꿨는데 커널이 아니에요(음수 6개). 유클리드 거리의 p제곱은 p가 2 이하일 때만 커널을 만들어요. laplacian(맨해튼 거리를 쓴 exp(−γ × 거리))은 커널이에요."
+   ]
+  },
+  "s9": {
+   "title": "⑨ ③의 RBF SVM을 손으로 다시 계산하기",
+   "lines": [
+    [
+     "gamma=\"scale\" → 1 ÷ (8열 × 분산 0.4375) = 0.2857",
+     1
+    ],
+    [
+     "Σ αᵢyᵢ K(xᵢ, x) + b vs decision_function (valid 20건) → 가장 큰 차이 3.3e-15",
+     2,
+     "newf"
+    ],
+    [
+     "서포트 벡터 45개 / 60건 → α = C(넘어온 점) 25개, 0 < α < C(도로 끝선 위) 20개",
+     3
+    ],
+    [
+     "leave-one-out → 틀린 건 13개 / 60건 (오류율 0.22), 서포트 벡터 비율 0.75",
+     4,
+     "newf"
+    ]
+   ],
+   "notes": [
+    "크기를 맞춘 숫자 열은 분산이 1이지만, 원-핫 열은 0과 1뿐이라 분산이 작아요. 그래서 전체 분산이 1보다 작고, gamma가 1 ÷ 8보다 커요.",
+    "SVM이 배운 건 서포트 벡터 45개와 그 무게(<code>dual_coef_</code>), 절편 하나뿐이에요. 이걸로 새 점과 서포트 벡터 사이의 RBF 값을 무게 붙여 더하니, sklearn의 답과 반올림 수준까지 같아요.",
+    "α가 상한 C에 닿은 25개는 도로 안이나 반대편으로 넘어온 점이에요. C는 \"넘어온 점 하나가 경계를 얼마나 세게 당길 수 있나\"의 한도예요. 나머지 20개는 도로 끝선에 딱 닿아 있어요.",
+    "틀린 13건은 모두 서포트 벡터예요. 서포트 벡터가 아닌 점은 빼고 다시 배워도 답이 그대로라 반드시 맞히거든요. 그래서 leave-one-out 오류율은 언제나 서포트 벡터 비율 이하예요. 여기서는 0.22 ≤ 0.75라 맞지만 꽤 느슨해요. 두 무리가 많이 섞여 서포트 벡터가 많기 때문이에요."
+   ]
+  },
+  "s10": {
+   "title": "⑩ RBF 커널을 무작위 cos 열 D개로 흉내 내기 (train 60 × 60칸)",
+   "cols": [
+    "D (만든 열 수)",
+    "평균 차이",
+    "가장 큰 차이"
+   ],
+   "rows": [
+    [
+     "10",
+     "0.251",
+     "0.997"
+    ],
+    [
+     "100",
+     "0.066",
+     "0.271"
+    ],
+    [
+     "1,000",
+     "0.020",
+     "0.092"
+    ],
+    [
+     "10,000",
+     "0.009",
+     "0.042"
+    ]
+   ],
+   "notes": [
+    "D를 10배 늘릴 때마다 평균 차이가 3.8배, 3.3배, 2.2배 줄었어요. 무작위로 뽑은 방향의 평균이라, 차이는 대략 1 ÷ √D로 줄어요(10배면 √10 ≈ 3.2배).",
+    "D = 1,000 열 위에 선형 SVM을 올리니 train과 valid 80건 중 78건에서 ③의 커널 SVM과 같은 답을 냈어요. 다른 답 2건 중 1건이 valid에 있어서 valid F1이 달라 보여요(③ 0.36, 흉내 낸 쪽 0.20). valid의 실패가 6건뿐이라 답 하나에도 F1이 크게 움직여요.",
+    "이 예제는 60건이라 커널 행렬이 3,600칸뿐이지만, 100,000건이면 10,000,000,000칸이라 실수 하나에 8바이트씩 80GB가 필요해요. 흉내 낸 열은 건수 × D칸이라, D가 1,000이면 0.8GB로 줄어요."
+   ]
   }
  },
  "flow": [
@@ -784,6 +1077,24 @@ window.PAGE = {
    "비교",
    "같은 교차검증",
    "균형 SVM이 1등"
+  ],
+  [
+   8,
+   "커널의 조건",
+   "고윳값이 0 이상",
+   "sigmoid는 아님"
+  ],
+  [
+   9,
+   "커널 SVM의 답",
+   "서포트 벡터 위의 합",
+   "leave-one-out"
+  ],
+  [
+   10,
+   "많은 데이터",
+   "무작위 cos 열",
+   "RBFSampler"
   ]
  ],
  "env": "Python 3.13.16, scikit-learn 1.8.0, pandas 2.2.3"

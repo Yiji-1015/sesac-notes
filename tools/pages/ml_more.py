@@ -1,4 +1,4 @@
-"""모델 > 머신러닝 기초 4쪽: SVM, 판별분석, PCA. examples/ml/more_models.py 하나가 ①~⑦로 자란다.
+"""모델 > 머신러닝 기초 4쪽: SVM, 판별분석, PCA, 커널 더 깊이. examples/ml/more_models.py 하나가 ①~⑩으로 자란다.
 1~3쪽(requests_model.py, tools/pages/ml_basics.py)과 같은 데이터, 같은 나누기, 같은 교차검증을 쓴다.
 실행: python tools/pages/ml_more.py
 """
@@ -29,7 +29,7 @@ code = S.parse((EX / "more_models.py").read_text(encoding="utf-8"))
 run = lambda k, patch=None: S.run(code, k, S.workdir(EX), patch, filename="more_models.py")  # noqa: E731
 f3 = lambda x: f"{float(x):.3f}"  # noqa: E731
 ENV = f"Python {sys.version.split()[0]}, scikit-learn {sklearn.__version__}, pandas {pd.__version__}"
-ns = run(7)
+ns = run(10)
 # 1~3쪽 값을 인용할 때도 손으로 옮겨 적지 않고, 그 쪽 예제(requests_model.py)를 ⑫까지 실제로 돌려서 가져와요
 REF = S.run(S.parse((EX / "requests_model.py").read_text(encoding="utf-8")), 12, S.workdir(EX), filename="requests_model.py")
 p1_f1 = REF["scores"]["f1"]           # 1쪽 ⑤ 로지스틱의 valid F1
@@ -227,17 +227,73 @@ outs["f_qda"] = chart("숫자 두 열로 본 LDA와 QDA의 경계", P_QDA, "", [
 outs["f_pca"] = chart("PCA: 주성분마다 담은 분산과, 처음 두 주성분 위의 train", P_PCA, "",
                       [f"왼쪽 막대가 주성분마다 담은 분산 비율, 선이 누적이에요. {ns['k70']}개에서 70%를 넘어요. {', '.join(map(str, zero_pc))}번째는 0이에요.",
                        f"오른쪽은 8열을 주성분 두 개로 줄여 평면에 그린 거예요. 두 개가 원래 분산의 {cum[1]:.0%}를 담아요. 실패와 성공이 섞여 있는데, PCA는 정답을 보지 않고 \"가장 많이 퍼진 방향\"만 찾기 때문이에요. 정답을 보고 \"가장 잘 갈리는 방향\"을 찾는 건 ④의 LDA예요."])
+
+# ---------------- ⑧ 커널이 되는 조건
+eig = ns["eig"]
+PDS_OK = ["linear", "poly (2차)", "rbf", "laplacian"]
+NOT_K = ["sigmoid", "exp(−‖x−z‖³)"]
+tol = 1e-9                                                          # 이보다 작은 음수는 컴퓨터 반올림으로 봐요
+S.claim(ns["trick_gap"] < 1e-10, "⑧ 64열 내적과 8열 내적의 제곱이 반올림 수준에서 같다")
+S.claim(all(eig[k].min() > -tol for k in PDS_OK) and all(eig[k].min() < -0.05 for k in NOT_K), "⑧ 네 커널은 고윳값이 모두 0 이상, sigmoid와 세제곱 거리는 뚜렷한 음수")
+S.claim(ns["sig_scores"]["f1"] < ns["rbf_scores"]["f1"], "⑧ sigmoid SVM이 RBF보다 valid F1이 낮다")
+n_neg = {k: int((v < -tol).sum()) for k, v in eig.items()}
+outs["s8"] = S.box("⑧ (xᵀz)²를 두 길로 계산하기 (train 60건, 8열)", [(f"64열을 만들어 내적 vs 8열 내적의 제곱 → 가장 큰 차이 {ns['trick_gap']:.1e}", 1),
+                                                                (f"sigmoid 커널 SVM → valid F1 {ns['sig_scores']['f1']:.2f} (③의 RBF는 {ns['rbf_scores']['f1']:.2f})", 2, "newf")],
+                   [f"두 값의 차이가 컴퓨터 반올림 수준이에요. 열 {ns['Z'].shape[1]}개를 열 두 개씩 곱한 {ns['pairs'].shape[1]}열로 옮겨 내적한 것과, 원래 {ns['Z'].shape[1]}열의 내적을 제곱한 것이 같은 계산이에요. 열이 d개면 옮긴 공간은 d²열인데, 커널은 d열 계산 한 번으로 끝나요.",
+                    "sklearn은 커널이 아닌 함수도 막지 않아서 학습은 끝나요. 다만 아래 표처럼 고윳값이 음수라 \"가장 좋은 답을 찾았다\"는 보장이 없어요. 이 데이터에서는 RBF보다 낮게 나왔어요."])
+outs["t8"] = S.table("커널 행렬 60 × 60의 고윳값", ["함수", "가장 작은 고윳값", "음수 고윳값 수", "커널인가"],
+                     [[f"<code>{k}</code>", f"{(max(eig[k].min(), 0.0) if eig[k].min() > -tol else eig[k].min()):+.4f}", n_neg[k], "커널" if k in PDS_OK else "<b>아님</b>"] for k in eig],
+                     ["대칭 행렬의 고윳값이 모두 0 이상이면 양의 준정부호(PSD)예요. 어떤 점들을 골라도 커널 행렬이 PSD인 함수가 커널(PDS 커널)이에요. 0에 아주 가까운 음수(−0.000000000001 같은)는 컴퓨터 반올림이라 0으로 적었어요.",
+                      f"sigmoid는 음수 고윳값이 {n_neg['sigmoid']}개예요. 여기서는 tanh(a × xᵀz + b)의 a = 1 ÷ {ns['Z'].shape[1]}, b = 1로 둘 다 양수인데도 그래요. 이름은 커널이지만 엄밀히는 커널이 아니에요.",
+                      f"<code>exp(−‖x−z‖³)</code>는 RBF(<code>exp(−γ‖x−z‖²)</code>)에서 지수만 2를 3으로 바꿨는데 커널이 아니에요(음수 {n_neg['exp(−‖x−z‖³)']}개). 유클리드 거리의 p제곱은 p가 2 이하일 때만 커널을 만들어요. laplacian(맨해튼 거리를 쓴 exp(−γ × 거리))은 커널이에요."])
+
+# ---------------- ⑨ 커널 SVM의 답
+rbf_m = ns["rbf"]
+n_sv9 = len(rbf_m.support_)
+m60 = len(ns["y_train"])
+loo_rate = len(ns["loo_wrong"]) / m60
+S.claim(ns["hand_gap"] < 1e-10, "⑨ 손으로 만든 예측이 decision_function과 같다")
+S.claim(0 < ns["n_at_C"] < n_sv9, "⑨ 서포트 벡터 중 일부는 α = C, 나머지는 0 < α < C")
+S.claim(loo_rate <= n_sv9 / m60 and set(ns["loo_wrong"]) <= set(rbf_m.support_), "⑨ LOO 오류율이 서포트 벡터 비율 이하이고, 틀린 점은 모두 서포트 벡터")
+S.claim(ns["Z"].var() < 1 and ns["g"] > 1 / ns["Z"].shape[1], "⑨ 전체 분산이 1보다 작아 gamma가 1 ÷ 열 수보다 크다")
+outs["s9"] = S.box("⑨ ③의 RBF SVM을 손으로 다시 계산하기", [(f"gamma=\"scale\" → 1 ÷ ({ns['Z'].shape[1]}열 × 분산 {ns['Z'].var():.4f}) = {ns['g']:.4f}", 1),
+                                                       (f"Σ αᵢyᵢ K(xᵢ, x) + b vs decision_function (valid 20건) → 가장 큰 차이 {ns['hand_gap']:.1e}", 2, "newf"),
+                                                       (f"서포트 벡터 {n_sv9}개 / {m60}건 → α = C(넘어온 점) {ns['n_at_C']}개, 0 < α < C(도로 끝선 위) {n_sv9 - ns['n_at_C']}개", 3),
+                                                       (f"leave-one-out → 틀린 건 {len(ns['loo_wrong'])}개 / {m60}건 (오류율 {loo_rate:.2f}), 서포트 벡터 비율 {n_sv9 / m60:.2f}", 4, "newf")],
+                   [f"크기를 맞춘 숫자 열은 분산이 1이지만, 원-핫 열은 0과 1뿐이라 분산이 작아요. 그래서 전체 분산이 1보다 작고, gamma가 1 ÷ {ns['Z'].shape[1]}보다 커요.",
+                    f"SVM이 배운 건 서포트 벡터 {n_sv9}개와 그 무게(<code>dual_coef_</code>), 절편 하나뿐이에요. 이걸로 새 점과 서포트 벡터 사이의 RBF 값을 무게 붙여 더하니, sklearn의 답과 반올림 수준까지 같아요.",
+                    f"α가 상한 C에 닿은 {ns['n_at_C']}개는 도로 안이나 반대편으로 넘어온 점이에요. C는 \"넘어온 점 하나가 경계를 얼마나 세게 당길 수 있나\"의 한도예요. 나머지 {n_sv9 - ns['n_at_C']}개는 도로 끝선에 딱 닿아 있어요.",
+                    f"틀린 {len(ns['loo_wrong'])}건은 모두 서포트 벡터예요. 서포트 벡터가 아닌 점은 빼고 다시 배워도 답이 그대로라 반드시 맞히거든요. 그래서 leave-one-out 오류율은 언제나 서포트 벡터 비율 이하예요. 여기서는 {loo_rate:.2f} ≤ {n_sv9 / m60:.2f}{K.josa(f'{n_sv9 / m60:.2f}', '이라', '라')} 맞지만 꽤 느슨해요. 두 무리가 많이 섞여 서포트 벡터가 많기 때문이에요."])
+
+# ---------------- ⑩ 커널을 흉내 내는 열
+rg = ns["rff_gap"]
+Ds = sorted(rg)
+drops = [rg[a][0] / rg[b][0] for a, b in zip(Ds, Ds[1:])]          # D를 10배 늘릴 때 평균 차이가 줄어든 배수
+n_dev = len(ns["dev_X"])
+n_same = int(round(ns["same_answer"] * n_dev))
+v_diff = int((ns["svm_rff"].predict(ns["X_valid"]) != ns["svm_rbf"].predict(ns["X_valid"])).sum())
+S.claim(all(rg[a][0] > rg[b][0] and rg[a][1] > rg[b][1] for a, b in zip(Ds, Ds[1:])), "⑩ D가 클수록 평균, 최대 차이가 모두 줄어든다")
+S.claim(all(1.8 < d < 4.5 for d in drops), "⑩ 10배마다 2~4배쯤 줄어든다")
+S.claim(ns["same_answer"] >= 0.9, "⑩ 80건 중 90% 넘게 같은 답")
+big_m = 100_000
+outs["s10"] = S.table("⑩ RBF 커널을 무작위 cos 열 D개로 흉내 내기 (train 60 × 60칸)", ["D (만든 열 수)", "평균 차이", "가장 큰 차이"],
+                      [[f"{D:,}", f"{rg[D][0]:.3f}", f"{rg[D][1]:.3f}"] for D in Ds],
+                      [f"D를 10배 늘릴 때마다 평균 차이가 {', '.join(f'{d:.1f}배' for d in drops)} 줄었어요. 무작위로 뽑은 방향의 평균이라, 차이는 대략 1 ÷ √D로 줄어요(10배면 √10 ≈ 3.2배).",
+                       f"D = 1,000 열 위에 선형 SVM을 올리니 train과 valid {n_dev}건 중 {n_same}건에서 ③의 커널 SVM과 같은 답을 냈어요. 다른 답 {n_dev - n_same}건 중 {v_diff}건이 valid에 있어서 valid F1이 달라 보여요(③ {ns['rbf_scores']['f1']:.2f}, 흉내 낸 쪽 {ns['rff_scores']['f1']:.2f}). valid의 실패가 {int(ns['y_valid'].sum())}건뿐이라 답 하나에도 F1이 크게 움직여요.",
+                       f"이 예제는 {m60}건이라 커널 행렬이 {m60 * m60:,}칸뿐이지만, {big_m:,}건이면 {big_m * big_m:,}칸이라 실수 하나에 8바이트씩 {big_m * big_m * 8 / 1e9:,.0f}GB가 필요해요. 흉내 낸 열은 건수 × D칸이라, D가 1,000이면 {big_m * 1000 * 8 / 1e9:.1f}GB로 줄어요."])
 flow = [[1, "준비", "1쪽과 같은 나누기", "drop=first"], [2, "선형 SVM", "가장 넓은 도로", "서포트 벡터, C"], [3, "커널 SVM", "곡선 경계", "gamma, 균형"], [4, "LDA", "분포 가정, 베이즈", "한 줄로 사영"],
-        [5, "QDA", "종류마다 다른 모양", "곡선 경계"], [6, "PCA", "정답 없이 열 줄이기", "분산 비율"], [7, "비교", "같은 교차검증", "균형 SVM이 1등"]]
-S.save(ROOT / "topics" / "model" / "ml-svm-lda-pca-data.js", {"code": code, "names": S.names(code), "range": [1, 7], "outs": outs, "flow": flow, "env": ENV})
+        [5, "QDA", "종류마다 다른 모양", "곡선 경계"], [6, "PCA", "정답 없이 열 줄이기", "분산 비율"], [7, "비교", "같은 교차검증", "균형 SVM이 1등"],
+        [8, "커널의 조건", "고윳값이 0 이상", "sigmoid는 아님"], [9, "커널 SVM의 답", "서포트 벡터 위의 합", "leave-one-out"], [10, "많은 데이터", "무작위 cos 열", "RBFSampler"]]
+S.save(ROOT / "topics" / "model" / "ml-svm-lda-pca-data.js", {"code": code, "names": S.names(code), "range": [1, 10], "outs": outs, "flow": flow, "env": ENV})
 
 why = f"""<p>1~3쪽에서 선형 모델, KNN, 트리와 앙상블을 봤어요. 표 데이터 분류에는 오래 쓰여 온 모델이 셋 더 있어요. 서로 생각하는 방식이 달라요.</p>
 {K.table(["모델", "한 문장", "1~3쪽과 닮은 점"], [["<b>SVM</b> (②③)", "두 무리 사이에 <b>가장 넓은 도로</b>를 내요", "로지스틱처럼 곧은 경계에서 시작해요. 커널을 쓰면 곡선 경계도 돼요"],
                                                  ["<b>LDA, QDA</b> (④⑤)", "무리마다 <b>어떻게 퍼져 있는지</b>를 배우고, 새 점이 어느 무리에서 나왔을 확률이 높은지 따져요", "확률을 내는 건 로지스틱과 같지만, 계산하는 길이 반대예요"],
-                                                 ["<b>PCA</b> (⑥)", "정답 없이, 열을 <b>정보가 많은 몇 개로</b> 줄여요", "3쪽 K-Means처럼 비지도 학습이에요. 1쪽에서 말한 차원의 저주를 덜어요"]])}
+                                                 ["<b>PCA</b> (⑥)", "정답 없이, 열을 <b>정보가 많은 몇 개로</b> 줄여요", "3쪽 K-Means처럼 비지도 학습이에요. 1쪽에서 말한 차원의 저주를 덜어요"],
+                                                 ["<b>커널 더 깊이</b> (⑧~⑩)", "③의 커널이 <b>언제 되고, 무엇을 배우고, 데이터가 많으면 어떻게 하는지</b> 봐요", "1쪽 KNN처럼 train 점들과의 유사도로 예측해요. 다만 서포트 벡터만, 무게를 붙여서요"]])}
 <p>예제는 1~3쪽과 같은 업무 요청 100건, 같은 train/valid 나누기, 같은 교차검증이에요. 그래서 마지막 ⑦에서 2쪽 ⑫의 점수와 바로 비교할 수 있어요. 다만 3쪽 ⑰에서 test를 이미 한 번 썼기 때문에, 이 쪽에서는 test를 쓰지 않아요.</p>
 """
-whole = """<p>같은 준비 위에 SVM 둘, 판별분석 둘, PCA 하나를 차례로 올리고, 마지막에 같은 교차검증으로 비교해요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+whole = """<p>같은 준비 위에 SVM 둘, 판별분석 둘, PCA 하나를 차례로 올리고, 같은 교차검증으로 비교해요. ⑧~⑩은 ③의 커널을 한 번 더 깊이 들여다봐요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
 <p>이 쪽의 코드는 새 파일 <code>more_models.py</code>예요. 1~3쪽의 <code>requests_model.py</code>는 3쪽 ⑰의 최종 평가로 끝났거든요.</p>"""
 steps = [
     K.step(1, "데이터와 전처리 준비", "1쪽 ①③과 같은 나누기와 전처리를 다시 만들어요. 원-핫에서 한 열씩 빼는 선택만 더해요.",
@@ -297,6 +353,34 @@ steps = [
     K.step(7, "같은 교차검증으로 비교하기", "2쪽 ⑫와 같은 80건, 같은 다섯 덩어리로 이 쪽 모델들을 재요.",
            "<p>valid 20건 한 번으로는 점수가 크게 흔들린다는 걸 2쪽에서 봤어요. 그래서 2쪽 ⑫와 같은 <code>StratifiedKFold(random_state=0)</code>로 나눠, 2쪽 표와 줄 단위로 비교할 수 있게 해요.</p>"
            + K.code_table([("cross_validate(m, X, y, cv=cv, scoring=\"f1\")", "다섯 번 배우고 재서 점수 목록. 전처리와 PCA도 매번 그 차례의 train으로만 다시 배워요")]), "s7"),
+    K.step(8, "커널이 되는 조건: 커널 행렬의 고윳값", "아무 유사도 함수나 커널이 되는 건 아니에요. 점들끼리의 커널 값을 모은 표(커널 행렬)의 고윳값으로 확인해요.",
+           "<p>③에서 커널 K(x, z)는 \"점을 새 공간으로 옮긴 뒤의 내적\"이라고 했어요. 먼저 그게 정말인지 숫자로 봐요. 2차 다항 커널 (xᵀz)²는, 열 두 개씩 곱한 새 열(x₁x₁, x₁x₂, ...)을 모두 만들어 내적한 것과 같아요. 아래 상자처럼 두 길의 값이 반올림 수준까지 같아요. RBF는 옮긴 공간의 열이 끝없이 많은 경우(무한 차원)에 해당해서, 열을 만드는 길로는 아예 계산할 수 없어요.</p>"
+           + K.out("s8")
+           + "<p>그러면 어떤 함수가 \"어떤 공간의 내적\"일까요? 답은 이래요. 어떤 점들 x₁, ..., xₘ을 골라도, 커널 값을 모은 m × m 표 <b>커널 행렬</b>(그람 행렬) [K(xᵢ, xⱼ)]가 대칭이고 <b>고윳값이 모두 0 이상</b>이면 돼요. 이런 행렬을 양의 준정부호(PSD), 이런 함수를 <b>PDS 커널</b>(양의 정부호 대칭 커널)이라고 해요. 이 조건만 맞으면 그 내적을 내는 공간(재생 커널 힐베르트 공간, RKHS)이 반드시 있어요. 공간을 몰라도 함수만 확인하면 되는 거예요.</p>"
+           "<p>🤔 <b>왜 중요한가</b>: ②의 쌍대 문제에서 비용은 커널 행렬이 들어간 이차식이에요. 커널 행렬이 PSD면 비용이 그릇 모양(볼록)이라, 바닥이 하나고 SVM은 반드시 그 바닥을 찾아요. 음수 고윳값이 있으면 그 방향으로는 말안장처럼 내려가서, 찾은 답이 가장 좋은 답이라는 보장이 사라져요.</p>"
+           + K.out("t8")
+           + "<p><b>커널을 만드는 규칙</b>: 커널끼리 더해도, 곱해도, 양수를 곱해도 커널이에요. exp(커널)도 커널이에요. 그래서 exp(γ xᵀz)가 커널이고, 이걸 크기로 나눠 맞춘 것이 RBF예요. 거리 쪽에서 보면, 제곱 거리 ‖x − z‖²는 \"음의 정부호\"(NDS)라는 성질이 있고, NDS인 d에 대해 exp(−t × d)는 언제나 커널이에요. 거리의 p제곱은 p ≤ 2일 때만 NDS라서, 위 표의 세제곱은 커널이 안 돼요.</p>"
+           "<p><b>숫자가 아닌 데이터</b>에도 커널을 정의할 수 있어요. 예를 들어 두 글에 함께 나오는 글자 두 개짜리 조각(bigram)의 개수를 곱해 더하면, \"bigram 개수 열\"의 내적이라 커널이에요. DNA 서열, 문장, 그래프를 SVM으로 다룰 때 이런 커널을 써요.</p>"
+           + K.code_table([("polynomial_kernel(Z, degree=2)", "(γ xᵀz + c)ᵈ 를 모든 점 쌍에. 기본 γ = 1 ÷ 열 수, c = 1"), ("rbf_kernel(Z, gamma=g)", "exp(−γ‖x − z‖²)"), ("laplacian_kernel(Z)", "exp(−γ‖x − z‖₁), 거리의 1제곱"),
+                           ("sigmoid_kernel(Z)", "tanh(γ xᵀz + c)"), ("euclidean_distances(Z)", "모든 점 쌍의 거리 ‖x − z‖"), ("np.linalg.eigvalsh(G)", "대칭 행렬의 고윳값을 작은 것부터"),
+                           ("np.einsum(\"ni,nj->nij\", Z, Z)", "점마다 열 두 개씩 곱한 표")]), "s8"),
+    K.step(9, "커널 SVM의 답: 서포트 벡터 위의 합", "커널 SVM이 배운 것은 서포트 벡터마다 붙은 무게뿐이에요. 그 무게로 예측을 손으로 다시 만들어요.",
+           "<p>②의 선형 SVM은 가중치 θ를 직접 가졌어요. RBF는 옮긴 공간이 무한 차원이라 θ를 저장할 수 없어요. 대신 쌍대 문제의 답인 무게 αᵢ로 예측해요.</p>"
+           "<p><code>h(x) = Σ αᵢ yᵢ K(xᵢ, x) + b</code></p>"
+           "<p>새 점 x와 train 점 xᵢ의 커널 값(유사도)에 무게를 붙여 더하는 거예요. 1쪽 KNN이 가까운 점들의 답으로 투표한 것과 닮았는데, SVM은 α가 0이 아닌 서포트 벡터만 쓰고 점마다 무게가 달라요.</p>"
+           "<p><b>Representer 정리</b>: \"함수의 크기(‖h‖) 규제 + train 점에서의 손실\"을 가장 작게 하는 함수는, 공간이 아무리 커도 언제나 <b>train 점 xᵢ마다 K(xᵢ, x)를 무게 붙여 더한 꼴</b>이에요. 그래서 무한 차원 공간에서 함수를 찾는 문제가 m개 무게를 찾는 문제로 줄어요. SVM뿐 아니라 커널 Ridge 회귀, 커널 로지스틱 회귀가 되는 것도 같은 이유예요.</p>"
+           + K.out("s9")
+           + "<p><b>α가 말해 주는 것</b>: α = 0이면 도로 바깥, 예측에 안 쓰여요. 0 < α < C면 도로 끝선에 딱 닿은 점이고, α = C면 도로 안이나 반대편으로 넘어온 점이에요. ②의 C는 이 α의 상한이에요.</p>"
+           "<p><b>leave-one-out</b>은 한 건씩 빼고 배운 뒤 뺀 건을 맞혀 보기를 m번 하는 교차검증이에요. SVM에서는 \"leave-one-out 오류율 ≤ 서포트 벡터 비율\"이 늘 성립해요. 서포트 벡터가 적을수록(희소할수록) 처음 보는 데이터에 강하다는 근거예요.</p>"
+           "<p><b>도로가 넓으면 왜 좋은가 (마진 이론)</b>: SVM이 처음 보는 데이터에서 틀릴 확률의 상한은, 열 수가 아니라 <b>도로 폭과 데이터 수</b>로 정해져요. 그래서 무한 차원인 RBF 공간에서도 넓은 도로를 찾는 게 의미가 있어요. 열이 많아서 생기는 과적합을 도로 폭이 막아 주는 셈이에요.</p>"
+           + K.code_table([("dual_coef_", "서포트 벡터마다 αᵢ × yᵢ"), ("support_vectors_", "서포트 벡터의 좌표 (크기 맞춘 8열)"), ("intercept_", "절편 b"), ("decision_function(X)", "경계까지의 부호 있는 값. 0보다 크면 실패"),
+                           ("cross_val_predict(m, X, y, cv=LeaveOneOut())", "한 건씩 빼고 배워서, 뺀 건마다 예측")]), "s9"),
+    K.step(10, "데이터가 많을 때: 커널을 흉내 내는 열 만들기", "커널 행렬은 건수의 제곱만큼 커져요. 무작위 방향 D개로 만든 cos 열이 RBF 커널을 흉내 내게 하고, 그 위에서 선형 모델을 써요.",
+           "<p>커널 SVM은 모든 점 쌍의 커널 값을 다뤄서, 건수가 늘면 메모리와 시간이 제곱 이상으로 늘어요(아래 표의 마지막 설명). 반대로 선형 모델은 건수에 비례해서만 늘어요. 그러면 \"커널과 비슷한 효과를 내는 열\"을 직접 만들어 선형 모델에 넣으면 어떨까요?</p>"
+           "<p><b>랜덤 푸리에 특성</b>: RBF처럼 두 점의 차이 x − z만으로 정해지는 커널은, 무작위 방향 ω로 잰 cos 값들의 평균으로 쓸 수 있어요(Bochner 정리). 그래서 ω를 정규분포에서 D개 뽑아 열 <code>√(2/D) × cos(ωᵀx + b)</code>를 만들면(b는 무작위 위치), 두 점의 이 열끼리 내적이 RBF 값에 가까워져요. D가 클수록 정확하고, 차이는 대략 1 ÷ √D로 줄어요.</p>"
+           + K.out("s10")
+           + "<p>무작위로 뽑은 방향이라 <code>random_state</code>에 따라 값이 조금씩 달라요. 비슷한 방법으로 train 점 일부만 골라 커널 행렬을 근사하는 <code>Nystroem</code>도 있어요. 데이터가 수만 건 넘으면 이 둘 중 하나로 열을 만들고 <code>LinearSVC</code>나 <code>SGDClassifier</code> 같은 빠른 선형 모델을 올려요.</p>"
+           + K.code_table([("RBFSampler(gamma=g, n_components=D, random_state=0)", "RBF 커널을 흉내 내는 cos 열 D개. gamma는 흉내 낼 RBF의 γ"), ("Pipeline([... (\"rff\", RBFSampler(...)), (\"model\", SVC(kernel=\"linear\"))])", "전처리 → 열 만들기 → 선형 SVM을 한 번에")]), "s10"),
 ]
 practice = [("SVM 앞에는 꼭 크기 맞추기", "SVM은 거리와 내적으로 판단해서, 큰 단위 열이 도로 방향을 다 정해 버려요. RBF는 특히 그래요."),
             ("데이터가 수만 건 넘으면 (SVM)", "커널 SVM은 모든 점 쌍의 커널 값을 다뤄서 건수의 제곱에서 세제곱만큼 느려져요. 곧은 경계로 충분하면 <code>LinearSVC</code>나 로지스틱을 써요."),
@@ -306,10 +390,14 @@ practice = [("SVM 앞에는 꼭 크기 맞추기", "SVM은 거리와 내적으�
             ("LDA에 좋은 입력", "서로 닮지 않은(상관이 낮은) 열이 좋아요. 닮은 열이 있으면 공분산의 역행렬이 불안정해져요. ①의 <code>drop=\"first\"</code>가 그 이유예요."),
             ("PCA 전에", "크기 맞추기가 필수예요. 안 하면 단위가 큰 열 하나가 분산을 독차지해서 1번 주성분이 그 열 자체가 돼요."),
             ("PCA가 분류를 좋게 하나", "보장은 없어요. 분산이 큰 방향이 정답을 가르는 방향이라는 법은 없거든요. 열이 아주 많거나 서로 닮았을 때 흔들림을 줄이는 데 주로 도움이 돼요 (⑦에서 표준편차가 가장 작았어요). 늘 교차검증으로 확인해요."),
-            ("그림으로 보고 싶다", "PCA 두 개로 먼저 보고, 휘어진 구조가 의심되면 t-SNE나 UMAP을 써요. 이 둘은 그림용이고, 축 값 자체에는 뜻이 없어요.")]
+            ("그림으로 보고 싶다", "PCA 두 개로 먼저 보고, 휘어진 구조가 의심되면 t-SNE나 UMAP을 써요. 이 둘은 그림용이고, 축 값 자체에는 뜻이 없어요."),
+            ("커널을 직접 만들었다", "몇백 개 점으로 커널 행렬을 만들어 <code>np.linalg.eigvalsh</code>의 가장 작은 값이 0 이상인지 봐요(⑧). 이미 있는 커널을 더하거나 곱해서 만들면 늘 커널이에요."),
+            ("커널 SVM이 너무 느리다", "건수가 수만을 넘으면 <code>RBFSampler</code>나 <code>Nystroem</code>으로 열을 만들고 선형 모델을 올려요(⑩). 정확도가 조금 내려갈 수 있으니 D를 늘려 가며 교차검증으로 확인해요.")]
 libs = [("①", "<code>OneHotEncoder(drop=\"first\")</code>", "같은 정보 열 빼기"), ("②③", "<code>SVC</code>, <code>coef_</code>, <code>n_support_</code>, <code>class_weight</code>", "SVM (scikit-learn)"),
         ("④⑤", "<code>LinearDiscriminantAnalysis</code>, <code>QuadraticDiscriminantAnalysis</code>, <code>transform</code>", "판별분석"), ("⑥", "<code>PCA</code>, <code>explained_variance_ratio_</code>, <code>components_</code>", "주성분 분석"),
-        ("⑦", "<code>StratifiedKFold</code>, <code>cross_validate</code>", "교차검증")]
+        ("⑦", "<code>StratifiedKFold</code>, <code>cross_validate</code>", "교차검증"),
+        ("⑧", "<code>polynomial_kernel</code>, <code>rbf_kernel</code>, <code>laplacian_kernel</code>, <code>sigmoid_kernel</code>, <code>np.linalg.eigvalsh</code>", "커널 행렬과 고윳값"),
+        ("⑨", "<code>dual_coef_</code>, <code>support_vectors_</code>, <code>LeaveOneOut</code>, <code>cross_val_predict</code>", "커널 SVM의 답, leave-one-out"), ("⑩", "<code>RBFSampler</code>", "커널 근사 (scikit-learn)")]
 K.build(ROOT / "topics" / "model" / "ml-svm-lda-pca.html", title="SVM, 판별분석, 차원 축소", h1="SVM, 판별분석, 차원 축소: 도로, 분포, 방향으로 가르기", track="모델",
         crumb="모델 &gt; 머신러닝 기초 4/4쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-metrics-clustering.html\" style=\"color:inherit\">평가지표와 군집</a>",
         one_line="<b>SVM</b>은 두 무리 사이에 가장 넓은 도로를 내고, <b>LDA와 QDA</b>는 무리마다 퍼진 모양을 배워 확률로 판단하고, <b>PCA</b>는 정답 없이 데이터가 가장 많이 퍼진 방향 몇 개로 열을 줄여요.",
@@ -318,7 +406,8 @@ K.build(ROOT / "topics" / "model" / "ml-svm-lda-pca.html", title="SVM, 판별분
                    ("<a href=\"dl-tensor-training.html\">딥러닝 기초</a>", "신경망으로 넘어가기")],
         sources=["다루는 범위: 부트캠프 Day05~08의 머신러닝 기초를 넓힌 쪽이에요. 수업에서 따로 다루지 않은 모델이라, 그 Day의 예제를 그대로 이어 썼어요",
                  "함께 정리한 자료: 경희대 Pattern Recognition and Machine Learning 7강(판별분석), 9강(SVM), 11강(차원축소). 최대 마진, 서포트 벡터, 소프트 마진과 힌지 손실, 라그랑주 쌍대와 KKT, 커널 트릭과 커널 종류, 베이즈 정리, 생성 모델과 판별 모델, LDA의 가정과 피셔 기준, QDA, 차원의 저주, PCA의 순서와 고유값, 주성분 개수 고르기, PCA와 LDA 비교, MDS를 가져왔어요. 값과 그림은 모두 이 예제로 계산했어요",
+                 "함께 정리한 자료: Mohri, Rostamizadeh, Talwalkar, <i>Foundations of Machine Learning</i> 2판 5장(서포트 벡터의 두 종류, leave-one-out 보장, 마진 이론), 6장(PDS 커널과 커널 행렬, RKHS, 닫힘 성질, Representer 정리, NDS 커널, 시퀀스 커널, 랜덤 푸리에 특성). ⑧~⑩의 값은 이 예제로 계산했어요",
                  "데이터: <code>examples/ml/data/requests.csv</code> (가상의 업무 요청 100건)와 <code>split_manifest.csv</code>. 1~3쪽과 같은 예제",
                  "결과 값과 그림: <code>tools/pages/ml_more.py</code>가 <code>examples/ml/more_models.py</code>를 단계별로 실제 실행한 결과",
-                 "공식 문서: <a href=\"https://scikit-learn.org/stable/modules/svm.html\" target=\"_blank\">Support Vector Machines</a>, <a href=\"https://scikit-learn.org/stable/modules/lda_qda.html\" target=\"_blank\">Linear and Quadratic Discriminant Analysis</a>, <a href=\"https://scikit-learn.org/stable/modules/decomposition.html#pca\" target=\"_blank\">PCA</a>"])
+                 "공식 문서: <a href=\"https://scikit-learn.org/stable/modules/svm.html\" target=\"_blank\">Support Vector Machines</a>, <a href=\"https://scikit-learn.org/stable/modules/metrics.html\" target=\"_blank\">Pairwise metrics and kernels</a>, <a href=\"https://scikit-learn.org/stable/modules/kernel_approximation.html\" target=\"_blank\">Kernel Approximation</a>, <a href=\"https://scikit-learn.org/stable/modules/lda_qda.html\" target=\"_blank\">Linear and Quadratic Discriminant Analysis</a>, <a href=\"https://scikit-learn.org/stable/modules/decomposition.html#pca\" target=\"_blank\">PCA</a>"])
 print("ok")

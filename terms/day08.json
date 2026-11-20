@@ -566,5 +566,61 @@
   "analogy": "",
   "day": 8,
   "key": false
+ },
+ {
+  "term": "PDS 커널",
+  "aliases": [
+   "양의 정부호 대칭 커널",
+   "Positive Definite Symmetric Kernel",
+   "커널 행렬",
+   "그람 행렬",
+   "Gram Matrix",
+   "PSD"
+  ],
+  "full": "Positive Definite Symmetric Kernel (PDS 커널)",
+  "short": "어떤 점들을 골라도 커널 값을 모은 표(커널 행렬, 그람 행렬)가 대칭이고 고윳값이 모두 0 이상(양의 준정부호, PSD)인 함수. 이 조건이 맞아야 어떤 공간의 내적이 되고, SVM의 비용이 그릇 모양이라 가장 좋은 답을 반드시 찾아요. sigmoid 커널은 이 조건이 깨질 때가 많아요.",
+  "analogy": "자로 잰 것처럼 앞뒤가 맞는 유사도만 '거리 공간의 내적'으로 쳐 주는 검사.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "Representer 정리",
+  "aliases": [
+   "Representer Theorem",
+   "dual_coef_"
+  ],
+  "full": "Representer Theorem (Representer 정리)",
+  "short": "'함수 크기 규제 + train 점에서의 손실'을 가장 작게 하는 함수는 언제나 train 점마다 K(xᵢ, x)를 무게 붙여 더한 꼴이라는 정리. 그래서 무한 차원 공간에서도 m개 무게만 찾으면 되고, 커널 SVM의 예측은 Σ αᵢyᵢK(xᵢ, x) + b예요.",
+  "analogy": "답은 언제나 이미 본 예시들을 섞어 만든 것.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "Leave-one-out",
+  "aliases": [
+   "LOO",
+   "LeaveOneOut",
+   "한 건씩 빼기 교차검증"
+  ],
+  "full": "Leave-one-out Cross-validation",
+  "short": "한 건씩 빼고 배운 뒤 뺀 건을 맞혀 보기를 건수만큼 반복하는 교차검증. SVM에서는 이 오류율이 늘 서포트 벡터 비율 이하예요.",
+  "analogy": "반 친구 한 명씩 빼고 나머지로 공부한 뒤, 빠진 친구의 문제를 풀어 보기.",
+  "day": 8,
+  "key": false
+ },
+ {
+  "term": "랜덤 푸리에 특성",
+  "aliases": [
+   "Random Fourier Features",
+   "RFF",
+   "RBFSampler",
+   "커널 근사",
+   "Nystroem"
+  ],
+  "full": "Random Fourier Features (랜덤 푸리에 특성)",
+  "short": "무작위 방향 D개로 cos 값 열을 만들어, 그 열끼리 내적이 RBF 커널 값에 가까워지게 하는 방법. 커널 행렬(건수의 제곱 칸) 없이 선형 모델로 커널 SVM과 비슷한 답을 내요. D가 클수록 정확해요.",
+  "analogy": "모든 사람 쌍을 비교하는 대신, 무작위 질문 D개에 대한 답으로 사람마다 프로필을 만들어 비교하기.",
+  "day": 8,
+  "key": false
  }
 ]
