@@ -94,6 +94,14 @@
 
 ## 3. 작업할 때 알아 둘 것
 
+### 백엔드 외전 (2026-11-20)
+
+- `topics/backend/service-flow.html`: 로직 밖에서 서비스를 완성하기. 기존 CRUD 설명을 연결하여 설정, DB 준비, Session 수명, autobegin, Service의 트랜잭션 책임, Router와 Health, Postman 검증 순서를 설명해요.
+- 원고와 실제 실행 검증: `tools/pages/service_flow.py`. 기본은 임시 SQLite와 TestClient, `--newman`은 실제 Uvicorn 서버에 Collection을 실행해요. Python은 필요한 패키지가 있는 환경으로 실행해요.
+- 독립 예제: `examples/service_flow/service.py` 한 파일. 같은 폴더의 README, requirements, `.env.example`, Postman Collection과 Environment를 함께 사용해요. 실제 원본 프로젝트 코드나 DB에 의존하지 않아요.
+- `terms/day25.json` 용어를 추가했어요. `glossary.html`의 Day25 링크는 외전으로 연결해요. 옛 `notes/day25.html`은 만들지 않았어요.
+- 이 페이지의 검증은 실제 PostgreSQL, E5, LLM, 동시 부하 시험을 포함하지 않아요. 원본 자료는 계속 `강의자료-원본/`에만 둬요.
+
 ### 페이지 만들기
 
 - 페이지마다 `tools/pages/*.py` 빌드 스크립트가 있어요. 실행하면 예제를 단계별로 돌리고, 결과를 담아 `topics/.../*.html`과 `*-data.js`를 다시 만들어요.

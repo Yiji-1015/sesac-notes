@@ -2673,7 +2673,7 @@ for name, pred in [("A", a), ("B", b)]:
 | mean_absolute_error(y, B) | 30 | B 오차는 고르게 30 |
 | root_mean_squared_error(y, B) | 30 | 고른 오차는 MAE = RMSE |
 
-## 📖 Day8 용어 (48개)
+## 📖 Day8 용어 (52개)
 - **Precision** (Precision (정밀도)): 양성이라고 한 것 중 진짜 양성인 비율. TP ÷ (TP + FP). 헛경고가 늘면 낮아져요.
 - **Recall** (Recall (재현율)): 실제 양성 중 모델이 찾아낸 비율. TP ÷ (TP + FN). 놓침이 늘면 낮아져요.
 - **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.
@@ -2722,6 +2722,10 @@ for name, pred in [("A", a), ("B", b)]:
 - **베이즈 정리** (Bayes' Theorem (베이즈 정리)): P(A | B) = P(B | A) × P(A) ÷ P(B). 데이터를 보기 전 믿음(사전 확률)에 가능도를 곱해, 보고 난 뒤 믿음(사후 확률)으로 바꾸는 식. LDA, QDA가 이걸로 분류해요.
 - **주성분** (Principal Component (주성분)): PCA가 찾은 새 축. 데이터를 내렸을 때 분산이 가장 큰 방향부터 차례로, 서로 직각이에요. 공분산 행렬의 고유벡터이고, 고유값이 그 방향의 분산이에요. 담은 비율은 고유값 ÷ 고유값 합.
 - **class_weight** (class_weight (종류별 가중치)): 드문 종류를 틀릴 때의 값을 키우는 설정. "balanced"는 종류마다 건수에 반비례하는 무게를 줘요. 실패가 드문 데이터에서 recall을 올려요.
+- **PDS 커널** (Positive Definite Symmetric Kernel (PDS 커널)): 어떤 점들을 골라도 커널 값을 모은 표(커널 행렬, 그람 행렬)가 대칭이고 고윳값이 모두 0 이상(양의 준정부호, PSD)인 함수. 이 조건이 맞아야 어떤 공간의 내적이 되고, SVM의 비용이 그릇 모양이라 가장 좋은 답을 반드시 찾아요. sigmoid 커널은 이 조건이 깨질 때가 많아요.
+- **Representer 정리** (Representer Theorem (Representer 정리)): '함수 크기 규제 + train 점에서의 손실'을 가장 작게 하는 함수는 언제나 train 점마다 K(xᵢ, x)를 무게 붙여 더한 꼴이라는 정리. 그래서 무한 차원 공간에서도 m개 무게만 찾으면 되고, 커널 SVM의 예측은 Σ αᵢyᵢK(xᵢ, x) + b예요.
+- **Leave-one-out** (Leave-one-out Cross-validation): 한 건씩 빼고 배운 뒤 뺀 건을 맞혀 보기를 건수만큼 반복하는 교차검증. SVM에서는 이 오류율이 늘 서포트 벡터 비율 이하예요.
+- **랜덤 푸리에 특성** (Random Fourier Features (랜덤 푸리에 특성)): 무작위 방향 D개로 cos 값 열을 만들어, 그 열끼리 내적이 RBF 커널 값에 가까워지게 하는 방법. 커널 행렬(건수의 제곱 칸) 없이 선형 모델로 커널 SVM과 비슷한 답을 내요. D가 클수록 정확해요.
 
 ---
 
@@ -16090,7 +16094,7 @@ opt.zero_grad(); loss.backward(); opt.step()   # weight 변경
 
 💡 LLM도 같아요. 서비스에서 질문에 답할 때(추론)는 backward()·step()이 없어요. RAG로 문서를 넣어도 모델 가중치는 그대로 — 그때그때 입력에 붙여 줄 뿐이에요.
 
-## 📖 Day20 용어 (32개)
+## 📖 Day20 용어 (65개)
 - **Causal Mask** (Causal Mask (인과 마스크)): 다음 토큰을 예측할 때 미래 위치를 못 보게 가리는 Mask. 미래를 보면 정답을 미리 보는 셈이라서요.
 - **LLM** (Large Language Model): 글 토큰을 보고 다음 토큰을 하나씩 만들어 내는 큰 언어 모델. VLM의 답 생성 부분이에요.
 - **생성형 AI** (Generative AI): 학습한 패턴으로 텍스트·이미지·음성 등을 새로 만들어 내는 AI. LLM은 그중 언어를 다루는 것.
@@ -16123,6 +16127,39 @@ opt.zero_grad(); loss.backward(); opt.step()   # weight 변경
 - **위치 인코딩** (Positional Encoding (위치 인코딩)): 토큰 벡터에 '몇 번째 자리인가'를 더해 주는 벡터. Attention은 순서를 모르기 때문에 꼭 필요해요. 사인, 코사인 고정 벡터, 학습하는 벡터, 자리에 따라 Q와 K를 돌리는 RoPE가 있어요.
 - **ViT** (Vision Transformer): 그림을 16×16 조각으로 잘라 조각을 토큰처럼 Transformer에 넣는 모델. 데이터가 아주 많을 때 CNN만큼 또는 그 이상 잘해요.
 - **KV 캐시** (KV Cache): 글을 한 토큰씩 만들 때, 앞 토큰들의 Key와 Value를 저장해 두고 다시 쓰는 방법. 매번 처음부터 계산하지 않아 빨라요.
+- **TF-IDF** (Term Frequency - Inverse Document Frequency): 글을 숫자로 바꾸는 방법. 이 글에 자주 나오고 다른 글에는 드문 단어일수록 큰 점수를 줘요.
+- **Naive Bayes**: 종류마다 단어가 나오는 정도를 배워, 새 글의 단어들로 어느 종류일 확률이 높은지 계산하는 분류기. 단어끼리 상관없다고 가정해서 아주 빨라요.
+- **특성 추출** (Feature Extraction): 미리 학습된 모델은 고치지 않고, 그 모델이 낸 벡터만 뽑아 다른 단순한 모델의 입력으로 쓰는 방법.
+- **평균 풀링** (Mean Pooling): 토큰마다 나온 벡터들을 평균 내서 문장 하나의 벡터로 만드는 것. 채운 자리(padding)는 빼고 평균 내요.
+- **부분단어** (Subword Tokenization): 자주 나오는 말은 통째로, 드문 말은 더 작은 조각으로 나누는 토큰화. 처음 보는 단어도 아는 조각으로 쪼개서 '모르는 토큰'이 생기지 않아요.
+- **자기 학습** (Self-training): 라벨 몇 개로 배운 모델이 라벨 없는 데이터에 가짜 라벨을 붙이고, 확신이 높은 것만 더해 다시 배우는 방법.
+- **가짜 라벨** (Pseudo-label): 사람이 아니라 모델이 예측해서 붙인 라벨. 틀린 것도 섞여 있어서, 보통 확신이 높은 것만 골라 써요.
+- **GELU** (Gaussian Error Linear Unit): ReLU처럼 음수를 줄이는 활성화 함수인데, 0 근처에서 부드럽게 꺾여요. BERT, GPT 계열 Transformer의 작은 신경망에서 많이 써요.
+- **개체명 인식** (Named Entity Recognition): 문장 속에서 사람, 회사, 날짜, 금액 같은 이름이 어디부터 어디까지인지와 그 종류를 찾는 일. 토큰마다 라벨을 붙이는 토큰 분류로 풀어요.
+- **토큰 분류** (Token Classification): 문장 전체가 아니라 토큰마다 라벨을 하나씩 붙이는 과제. 개체명 인식이 대표예요.
+- **BIO 태깅** (Begin, Inside, Outside): 개체의 첫 토큰은 B-종류, 개체 안의 나머지 토큰은 I-종류, 개체가 아닌 토큰은 O로 라벨을 붙이는 방식.
+- **SentencePiece**: 띄어쓰기도 글자처럼 다루며(▁로 표시) 글을 부분단어 조각으로 나누는 Tokenizer. 띄어쓰기가 없는 언어에도 그대로 쓸 수 있어요. XLM-R, e5 다국어판이 써요.
+- **추출형 질문 답변** (Extractive Question Answering): 주어진 글 안에서 질문의 답이 시작하는 토큰과 끝나는 토큰을 찾아 그 부분을 그대로 꺼내는 방식. 답을 새로 쓰지 않아요.
+- **Reader**: 찾아 온 문서에서 질문의 답을 꺼내는 모델. Retriever가 후보를 고르면 Reader가 읽어요.
+- **언어 간 전이** (Cross-lingual Transfer): 여러 언어를 함께 배운 모델을 한 언어의 라벨로만 학습해도 다른 언어에서 어느 정도 작동하는 것.
+- **seqeval**: BIO 라벨 줄을 개체 단위로 바꿔 precision, recall, F1을 재 주는 파이썬 라이브러리. 시작, 끝, 종류가 모두 맞아야 맞은 개체로 쳐요.
+- **디코딩** (Decoding): 생성 모델이 낸 다음 토큰의 확률에서 실제로 토큰 하나를 고르는 방법. greedy, beam search, sampling, top-k, top-p가 있어요.
+- **Beam Search**: 이어 쓴 후보 여러 개(빔 수만큼)를 함께 들고 가다가, 걸음마다 전체 확률이 높은 후보만 남기는 디코딩. greedy보다 그럴듯한 글을 찾지만 같은 말을 되풀이하기 쉬워요.
+- **Perplexity**: e^(평균 다음 토큰 손실). 모델이 다음 토큰을 평균 몇 개 중에서 헷갈리는지로 읽어요. 낮을수록 그 글을 잘 맞혀요.
+- **ROUGE** (Recall-Oriented Understudy for Gisting Evaluation): 만든 요약과 정답 요약이 겹치는 조각을, 정답 쪽 기준(재현율)으로 재는 지표. ROUGE-L은 순서까지 맞는 가장 긴 공통 부분으로 재요.
+- **BLEU** (Bilingual Evaluation Understudy): 만든 글의 조각 중 정답에 있는 비율(정밀도)을 1~4개 묶음으로 재고, 너무 짧은 답에는 벌점을 주는 지표. 주로 번역에 써요.
+- **추출 요약** (Extractive Summarization): 본문에서 중요한 문장을 골라 그대로 이어 붙이는 요약. 새 문장을 쓰지 않아요.
+- **생성 요약** (Abstractive Summarization): 본문의 뜻을 새 문장으로 다시 써서 만드는 요약. 인코더-디코더 모델(BART, PEGASUS, T5)이 해요.
+- **중복 제거** (Deduplication): 말뭉치에서 똑같거나 거의 같은 글을 하나만 남기는 정리. 그대로 두면 모델이 그 글을 외워 자꾸 꺼내요.
+- **양자화** (Quantization): 가중치(와 계산)를 32비트 실수 대신 8비트 정수처럼 더 적은 비트로 나타내는 것. 저장 크기가 줄고, 전용 계산이 있는 기기에서는 빨라지지만 반올림 오차로 정확도가 조금 떨어질 수 있어요.
+- **부드러운 라벨** (Soft Label): 정답 하나(0 또는 1) 대신, 큰 모델이 낸 종류별 확률 전체를 라벨로 쓰는 것. 정답이 아닌 종류와 얼마나 닮았는지까지 알려 줘서 지식 정제에 써요.
+- **희소 행렬** (Sparse Matrix): 대부분이 0인 행렬. 0이 아닌 값과 위치만 저장하면 크기와 계산을 줄일 수 있지만, 그걸 빨리 계산하는 전용 방식이 있어야 효과가 나요.
+- **RMSNorm** (Root Mean Square Normalization): 벡터를 제곱 평균의 제곱근(RMS)으로만 나눠 크기를 맞추는 정규화. LayerNorm에서 평균 빼기와 β를 없앤 것으로, Llama 이후 LLM의 기본이에요.
+- **SwiGLU** (Swish-Gated Linear Unit): 작은 신경망을 두 갈래로 나눠, SiLU를 거친 gate 갈래를 up 갈래에 칸마다 곱하는 방식. down(SiLU(gate(x)) × up(x)). 행렬이 3개라 안쪽을 약 8/3배로 줄여 크기를 맞춰요.
+- **GQA** (Grouped-Query Attention): Query head 여러 개가 K, V head 하나를 같이 쓰는 Attention. KV 캐시가 K, V head 수만큼 줄어요. K, V head가 하나뿐이면 MQA예요. 2024년 이후 LLM의 기본이에요.
+- **MoE** (Mixture of Experts): 작은 신경망을 여러 벌(전문가) 두고, 라우터가 토큰마다 고른 몇 개만 계산하는 구조. 전체 가중치는 크지만 토큰 하나의 계산은 작아요. 대신 모든 전문가가 메모리에 있어야 해요.
+- **슬라이딩 윈도우 Attention** (Sliding Window Attention): 토큰마다 바로 앞 W개만 보는 Attention. KV 캐시가 W개에서 더 늘지 않고, 먼 토큰은 층을 거쳐 간접적으로만 닿아요. 전체 Attention 층과 번갈아 쓰기도 해요.
+- **Prefix caching** (Prefix Caching): 여러 요청이 같은 앞부분(시스템 Prompt, 긴 문서)을 가지면 그 KV 캐시를 한 번만 계산해 다시 쓰는 것. vLLM은 캐시를 블록으로 나눠 해시로 같은 앞부분을 찾아요.
 
 ---
 

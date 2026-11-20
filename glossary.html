@@ -28,6 +28,9 @@
       const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       const slug = t => 't-' + encodeURIComponent(t.toLowerCase());
       const pad = n => String(n).padStart(2, '0');
+      const dayLink = day => day === 25
+        ? '<a href="topics/backend/service-flow.html">백엔드 외전</a>'
+        : `<a href="notes/day${pad(day)}.html">Day${day}</a>`;
       const list = document.getElementById('list'), q = document.getElementById('q');
 
       function render() {
@@ -44,7 +47,7 @@
                 ${e.aliases.length ? `<div class="term-full">다른 이름: ${e.aliases.map(esc).join(', ')}</div>` : ''}
                 <p>${esc(e.short)}</p>
                 ${e.analogy ? `<p class="term-analogy">💭 ${esc(e.analogy)}</p>` : ''}
-                <div class="days">${e.days.sort((a, b) => a - b).map(x => `<a href="notes/day${pad(x)}.html">Day${x}</a>`).join('')}</div>
+                <div class="days">${e.days.sort((a, b) => a - b).map(dayLink).join('')}</div>
               </div>`).join('')}
           </section>`).join('');
         document.getElementById('count').textContent = `${hit.length}개 용어` + (k ? ` (검색: "${q.value}")` : '');

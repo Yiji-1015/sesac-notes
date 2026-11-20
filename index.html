@@ -180,6 +180,11 @@
           <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
           <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
         </div>
+        <div class="cat">
+          <h3>외전: 서비스를 완성하는 흐름</h3>
+          <p>기능 구현을 실행 준비, 저장 책임, 검증과 연결하기</p>
+          <a class="item" href="topics/backend/service-flow.html"><b>로직 밖에서 서비스를 완성하기</b><small>환경 설정, DB 준비, Session 수명, 계층 분리, 트랜잭션, Health, Postman JSON과 전체 검증</small></a>
+        </div>
       </div>
     </section>
 
@@ -190,6 +195,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/20</td><td>백엔드 외전 <a href="topics/backend/service-flow.html">로직 밖에서 서비스를 완성하기</a> 추가. 설정과 DB 준비, Session과 트랜잭션의 책임, 계층 연결, Health, Postman Collection과 Environment를 작은 서비스 하나로 정리. 실행 가능한 독립 예제와 검증용 JSON 제공</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/llm-architectures.html">요즘 LLM의 부품</a> 새로 씀: LLM internals(언어 모델의 계보) 발표와 vLLM 사용자 모임 노트. GPT-2와 Llama를 설정만으로 같은 크기로 만들어 RMSNorm, SwiGLU, RoPE, GQA를 나란히 보고, KV 캐시(prefill과 decode, 앞부분 다시 쓰기), 슬라이딩 윈도우, MoE를 직접 재기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑧~⑩ 추가: Foundations of Machine Learning 5, 6장. 커널 행렬의 고윳값으로 커널이 되는 조건 확인(sigmoid는 아님), 서포트 벡터 위의 합으로 예측을 손으로 다시 계산하고 leave-one-out 보장 확인, RBF 커널을 무작위 cos 열로 흉내 내기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/model-compression.html">모델 가볍게</a> 새로 씀: NLP with Transformers 8장. 문장 분류 쪽의 분류기를 어휘 줄이기, 지식 정제, int8 양자화, 가지치기로 가볍게 만들며 크기, 시간, 정확도를 같은 잣대로 비교. 메인 페이지의 백엔드 블록이 공통 CSS의 <code>.back</code>(돌아가기 링크용)에 걸려 한 줄로 좁게 보이던 것을 고침</td></tr>

@@ -1,0 +1,394 @@
+{
+  "info": {
+    "name": "백엔드 외전 - 노트 서비스",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 DB 준비 확인",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"DB ready\", () => pm.expect(pm.response.json().db).to.eql(\"ready\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 시작 상태 기록",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/notes"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.environment.get(\"created_id\")) { throw new Error(\"이전 생성 ID를 먼저 확인하고 정리해 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"시작 데이터 배열\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));",
+              "pm.environment.set(\"baseline_count\", String(pm.response.json().length));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 등록하고 ID 저장",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/notes",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\": \"DB 세션을 서비스에 연결하기\", \"content\": \"요청마다 Session을 열고 닫아요.\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+              "pm.test(\"입력값과 응답 일치\", () => {",
+              "  const b = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+              "  const r = pm.response.json();",
+              "  pm.expect(r.title).to.eql(b.title); pm.expect(r.content).to.eql(b.content);",
+              "});",
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "  pm.environment.set(\"created_id\", String(pm.response.json().id));",
+              "  pm.environment.set(\"expected_note\", JSON.stringify(pm.response.json()));",
+              "}",
+              "pm.test(\"첫 revision\", () => pm.expect(pm.response.json().revision).to.eql(1));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 저장값 재조회",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/notes/{{created_id}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"다른 요청으로 다시 읽은 저장값 일치\", () => {",
+              "  pm.expect(pm.response.json()).to.eql(JSON.parse(pm.environment.get(\"expected_note\")));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 중복 제목 거부",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/notes",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\": \"DB 세션을 서비스에 연결하기\", \"content\": \"요청마다 Session을 열고 닫아요.\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+              "pm.test(\"충돌 코드\", () => pm.expect(pm.response.json().error.code).to.eql(\"TITLE_CONFLICT\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 잘못된 수정 거부",
+      "request": {
+        "method": "PUT",
+        "url": "{{base_url}}/notes/{{created_id}}",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\": \"DB 세션을 서비스에 연결하기\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
+              "pm.test(\"입력 오류 코드\", () => pm.expect(pm.response.json().error.code).to.eql(\"INVALID_INPUT\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 실패 후 원래 값 유지",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/notes/{{created_id}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"다른 요청으로 다시 읽은 저장값 일치\", () => {",
+              "  pm.expect(pm.response.json()).to.eql(JSON.parse(pm.environment.get(\"expected_note\")));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 정상 수정",
+      "request": {
+        "method": "PUT",
+        "url": "{{base_url}}/notes/{{created_id}}",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\": \"DB 세션을 서비스에 연결하기\", \"content\": \"Service가 저장과 기록을 함께 확정해요.\"}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"입력값과 응답 일치\", () => {",
+              "  const b = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+              "  const r = pm.response.json();",
+              "  pm.expect(r.title).to.eql(b.title); pm.expect(r.content).to.eql(b.content);",
+              "});",
+              "if (pm.response.code === 201 || pm.response.code === 200) {",
+              "  pm.environment.set(\"created_id\", String(pm.response.json().id));",
+              "  pm.environment.set(\"expected_note\", JSON.stringify(pm.response.json()));",
+              "}",
+              "pm.test(\"revision 증가\", () => pm.expect(pm.response.json().revision).to.eql(2));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 수정값 재조회",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/notes/{{created_id}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"다른 요청으로 다시 읽은 저장값 일치\", () => {",
+              "  pm.expect(pm.response.json()).to.eql(JSON.parse(pm.environment.get(\"expected_note\")));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 이번 생성 데이터 삭제",
+      "request": {
+        "method": "DELETE",
+        "url": "{{base_url}}/notes/{{created_id}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));",
+              "pm.test(\"본문 없음\", () => pm.expect(pm.response.text()).to.eql(\"\"));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 삭제 후 404 확인",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/notes/{{created_id}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get(\"created_id\")) { throw new Error(\"먼저 등록 요청을 성공시켜 주세요.\"); }"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+              "pm.test(\"미존재 코드\", () => pm.expect(pm.response.json().error.code).to.eql(\"NOTE_NOT_FOUND\"));",
+              "if (pm.response.code === 404) { pm.environment.unset(\"created_id\"); pm.environment.unset(\"expected_note\"); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 시작 수량 복귀",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/notes"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "pm.test(\"시작 수량과 일치\", () => pm.expect(pm.response.json().length).to.eql(Number(pm.environment.get(\"baseline_count\"))));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
