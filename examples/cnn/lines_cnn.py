@@ -69,3 +69,33 @@ scores = {"MLP": acc(mlp, X_valid, y_valid), "CNN": acc(cnn, X_valid, y_valid)}
 # ⑥ 선의 위치가 바뀌면
 shifted = {k: torch.roll(X_valid, shifts=(k, k), dims=(2, 3)) for k in (0, 8, 16)}  # k칸씩 아래, 오른쪽으로
 shift_scores = {k: {"MLP": acc(mlp, Xs, y_valid), "CNN": acc(cnn, Xs, y_valid)} for k, Xs in shifted.items()}
+
+# ⑦ 깊게 쌓기: 잔차 연결과 BatchNorm
+class Block(nn.Module):  # 3×3 합성곱 하나짜리 블록
+    def __init__(self, ch, residual, bn):
+        super().__init__()
+        self.conv = nn.Conv2d(ch, ch, 3, padding=1)
+        self.bn = nn.BatchNorm2d(ch) if bn else nn.Identity()  # 끄면 아무것도 안 하는 층
+        self.residual = residual
+
+    def forward(self, x):
+        h = self.bn(self.conv(x))
+        return F.relu(x + h) if self.residual else F.relu(h)  # 잔차 연결: 입력을 그대로 더하기
+
+def make_deep(depth, residual, bn):
+    return nn.Sequential(nn.Conv2d(1, 8, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+                         *[Block(8, residual, bn) for _ in range(depth)],
+                         nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(8, 2))
+
+DEPTH = 16
+deep_runs = {}
+for name, (residual, bn) in {"그냥 쌓기": (False, False), "잔차 연결": (True, False), "잔차 + BatchNorm": (True, True)}.items():
+    torch.manual_seed(0)
+    m = make_deep(DEPTH, residual, bn)
+    F.cross_entropy(m(X_train), y_train).backward()
+    grad0 = m[0].weight.grad.norm().item()  # 학습 전, 맨 앞 층까지 내려온 기울기 크기
+    torch.manual_seed(0)
+    m = fit(make_deep(DEPTH, residual, bn)).eval()
+    with torch.no_grad():
+        deep_runs[name] = {"grad0": grad0, "train_loss": F.cross_entropy(m(X_train), y_train).item(),
+                           "valid_acc": acc(m, X_valid, y_valid)}

@@ -133,6 +133,12 @@
           <a class="item" href="topics/model/sequence-models.html"><b>순서 모델</b><span class="badge new">새 형식</span><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
           <a class="item" href="topics/model/llm-principles.html"><b>LLM 원리</b><span class="badge new">새 형식</span><small>Token, Context Window, Self-Attention, 학습과 추론, 디코딩</small></a>
         </div>
+        <div class="cat">
+          <h3>생성 모델과 그래프</h3>
+          <p>새 데이터를 만드는 모델과, 연결된 데이터를 다루는 모델</p>
+          <a class="item" href="topics/model/generative-models.html"><b>생성 모델</b><span class="badge new">새 형식</span><small>VAE, GAN, Normalizing Flow, Diffusion, 정밀도와 재현율</small></a>
+          <a class="item" href="topics/model/gnn.html"><b>그래프 신경망 (GNN)</b><span class="badge new">새 형식</span><small>인접 행렬, 이웃 모으기, GCN, 과평활</small></a>
+        </div>
       </div>
     </section>
 
@@ -177,6 +183,9 @@
       <h2>🕒 업데이트 기록</h2>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/20</td><td>새 카테고리 "생성 모델과 그래프": <a href="topics/model/generative-models.html">생성 모델</a>(정규분포, VAE, GAN, Flow, Diffusion을 같은 점 데이터와 같은 기준으로 비교, Understanding Deep Learning 14~18장), <a href="topics/model/gnn.html">그래프 신경망</a>(가라테 클럽 그래프로 GCN과 과평활, 13장) 새로 씀</td></tr>
+        <tr><td class="when">11/20</td><td><a href="topics/model/cnn.html">CNN과 이미지 분류</a>에 Understanding Deep Learning 10~11장을 합침(padding, stride, dilation, 채널, 수용 영역, 학습된 무늬 그림, ⑦ 잔차 연결과 BatchNorm 실험 새로 추가). <a href="topics/model/llm-principles.html">LLM 원리</a>에 12장을 합침(√d, 여러 head, 위치 벡터, 인코더와 디코더, Transformer 층 구조, ViT, 긴 문맥 비용)</td></tr>
+        <tr><td class="when">11/20</td><td>딥러닝 기초에 Understanding Deep Learning 2~9장, 20장 내용을 합침: <a href="topics/model/dl-tensor-training.html">Tensor와 신경망 학습</a>(은닉 칸과 꺾은선 경계, 보편 근사 정리, 폭과 깊이, 최대우도로 손실 고르기, 역전파, 초기화), <a href="topics/model/dl-training-stability.html">학습을 안정시키기</a>(학습률 스케줄, 모멘텀, Adam, 편향과 분산, 이중 하강, AdamW, Dropout, 암묵적 규제). 예제로 직접 그린 그림 6장 추가</td></tr>
         <tr><td class="when">11/20</td><td>머신러닝 기초에 PRML(경희대) 4~12강 내용을 합침: <a href="topics/model/ml-regression-classification.html">회귀와 분류</a>(최소제곱, 경사하강, 규제, 로그 손실, odds, k와 거리), <a href="topics/model/ml-trees-cv.html">트리와 앙상블</a>(불순도, 가지치기, 배깅, 부스팅), <a href="topics/model/ml-metrics-clustering.html">평가지표와 군집</a>(ROC 곡선, K-Means, 계층적 군집, DBSCAN). 예제로 직접 그린 그림 추가. 4쪽 <a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a> 새로 씀</td></tr>
         <tr><td class="when">11/19</td><td>Day06~23을 모두 새 형식 주제 페이지로 다시 씀 (옛 Day 노트는 아래 기록에서). 메인 페이지를 모델과 백엔드, 카테고리로 다시 짬. Day24를 <a href="topics/backend/document-reading.html">문서 적재 1~3쪽</a>(새 형식)으로 다시 씀 (<a href="notes/day24.html">옛 Day24 노트</a>)</td></tr>
         <tr><td class="when">11/18</td><td>Day23 <a href="notes/day23.html">Embedding과 Vector Search</a></td></tr>

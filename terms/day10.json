@@ -463,5 +463,55 @@
   "analogy": "",
   "day": 10,
   "key": false
+ },
+ {
+  "term": "학습률 스케줄",
+  "aliases": [
+   "Learning Rate Schedule",
+   "lr_scheduler",
+   "warmup",
+   "코사인 스케줄"
+  ],
+  "full": "Learning Rate Schedule (학습률 스케줄)",
+  "short": "학습 중에 학습률을 바꾸는 규칙. 처음엔 작게 시작해 키우고(warmup), 뒤로 갈수록 줄여요.",
+  "analogy": "",
+  "day": 10,
+  "key": false
+ },
+ {
+  "term": "이중 하강",
+  "aliases": [
+   "Double Descent"
+  ],
+  "full": "Double Descent (이중 하강)",
+  "short": "모델을 데이터를 외울 수 있는 크기보다 훨씬 크게 키우면, valid 오차가 한 번 올랐다가 다시 내려가는 현상. 'U자 곡선'만으로는 큰 신경망을 설명하지 못한다는 예예요.",
+  "analogy": "",
+  "day": 10,
+  "key": false
+ },
+ {
+  "term": "암묵적 규제",
+  "aliases": [
+   "Implicit Regularization",
+   "암묵적 편향"
+  ],
+  "full": "Implicit Regularization (암묵적 규제)",
+  "short": "벌점을 따로 넣지 않아도, SGD의 흔들림이나 조기 종료처럼 학습 방법 자체가 덜 복잡한 해를 고르게 하는 효과.",
+  "analogy": "",
+  "day": 10,
+  "key": false
+ },
+ {
+  "term": "지식 증류",
+  "aliases": [
+   "Knowledge Distillation",
+   "증류",
+   "distillation"
+  ],
+  "full": "Knowledge Distillation (지식 증류)",
+  "short": "큰 모델(선생)의 출력 확률을 작은 모델(학생)이 따라 배우게 해서, 작은 모델로 비슷한 성능을 내는 방법.",
+  "analogy": "",
+  "day": 10,
+  "key": false
  }
 ]

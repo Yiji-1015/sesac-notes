@@ -552,5 +552,42 @@
   "analogy": "스톱워치.",
   "day": 11,
   "key": false
+ },
+ {
+  "term": "수용 영역",
+  "aliases": [
+   "Receptive Field",
+   "receptive field"
+  ],
+  "full": "Receptive Field (수용 영역)",
+  "short": "CNN의 한 칸이 입력 그림에서 보는 넓이. 3×3 합성곱 하나 뒤에는 3×3, 풀링과 층을 거칠수록 넓어져요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "이동 등변성",
+  "aliases": [
+   "Translation Equivariance",
+   "등변성",
+   "이동 불변성",
+   "Translation Invariance"
+  ],
+  "full": "Translation Equivariance (이동 등변성)",
+  "short": "입력을 옮기면 출력도 똑같이 옮겨지는 성질. 합성곱이 그래요. 마지막에 자리를 평균 내 버리면 옮겨도 답이 안 바뀌어요(이동 불변성).",
+  "analogy": "",
+  "day": 11,
+  "key": false
+ },
+ {
+  "term": "U-Net",
+  "aliases": [
+   "UNet"
+  ],
+  "full": "U-Net",
+  "short": "그림을 줄였다가 다시 키우면서, 같은 크기 층끼리 이어 주는 신경망. 칸마다 물체를 맞히는 분할에 많이 써요.",
+  "analogy": "",
+  "day": 11,
+  "key": false
  }
 ]

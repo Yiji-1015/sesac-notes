@@ -3695,7 +3695,7 @@ epoch_loss = total_loss / len(loader.dataset)  # 샘플 수로 가중한 평균 
 
 🤔 왜 둘 다 필요해? — 둘은 다른 스위치예요. eval()은 Dropout·BatchNorm 같은 층이 학습용 동작(무작위로 끄기, batch 통계 쓰기)을 멈추게 해서 예측이 매번 같고 공정하게 만들어요. no_grad()는 평가 땐 backward를 안 하니 그래프를 안 만들어 메모리·시간을 아껴요. no_grad를 빠뜨려도 결과 숫자는 같을 수 있지만 불필요한 그래프가 생겨요. 이 예시 모델엔 Dropout·BatchNorm이 없지만, 습관을 들여 두면 그런 층이 든 모델(Dropout · BatchNorm)에서 바로 효과를 봐요.
 
-## 📖 Day9 용어 (70개)
+## 📖 Day9 용어 (73개)
 - **특성** (Feature (특성, 입력 열)): 모델에 넣는 입력 정보 한 가지. 표에서 열 하나가 특성 하나예요(예: 글자수, 허용 도구수). 행 = 사례, 열 = 특성.
 - **Accuracy** (Accuracy (정확도)): 전체 중 맞힌 비율. (TP + TN) ÷ 전체. 한쪽 클래스가 많으면 그쪽만 찍어도 높게 나와 속기 쉬워요.
 - **가상환경** (Virtual environment (가상환경, .venv)): 프로젝트마다 따로 쓰는 파이썬과 패키지 묶음. 버전이 섞이지 않게 해 같은 코드가 같은 결과를 내도록 도와요.
@@ -3766,6 +3766,9 @@ epoch_loss = total_loss / len(loader.dataset)  # 샘플 수로 가중한 평균 
 - **RNN** (Recurrent Neural Network (순환 신경망)): 문장·시계열처럼 순서가 있는 데이터를 앞에서부터 차례로 읽는 신경망.
 - **Transformer**: 문장 속 단어들이 서로 얼마나 관련 있는지(attention)를 계산해 처리하는 신경망 구조. 요즘 언어 모델의 기본 구조예요.
 - **임베딩** (Embedding (임베딩)): 단어 같은 기호를 의미를 담은 숫자 벡터로 바꾼 것. 문장은 (batch, sequence, feature) shape가 돼요.
+- **은닉 칸** (Hidden Unit (은닉 칸)): 신경망 가운데 층의 칸 하나. 입력에 가중치를 곱해 더한 뒤 ReLU 같은 함수를 거쳐요. ReLU 칸 하나는 어떤 직선 한쪽에서는 꺼지고 다른 쪽에서는 커지는 꺾인 면을 만들어요.
+- **보편 근사 정리** (Universal Approximation Theorem (보편 근사 정리)): 은닉 칸이 충분하면 층 하나짜리 신경망으로도 어떤 연속 함수든 원하는 만큼 가깝게 흉내 낼 수 있다는 정리. 그 가중치를 학습으로 찾을 수 있는지, 일반화되는지는 말해 주지 않아요.
+- **He 초기화** (He (Kaiming) Initialization): ReLU 신경망의 가중치를 표준편차 √(2 ÷ 입력 칸 수)로 시작하는 방법. 층을 지나도 값과 기울기의 크기가 유지돼요. tanh 같은 대칭 함수에는 Xavier 초기화를 써요.
 
 ---
 
@@ -4597,7 +4600,7 @@ model.load_state_dict(best_state)                   # 멈춘 시점이 아니라
 
 🤔 왜 Early Stopping patience가 더 길어야 해? — 둘 다 "정체"를 보고 반응해요. Early Stopping이 먼저 끝나 버리면 Scheduler가 lr을 낮춰 볼 기회가 없어요. Scheduler가 먼저 lr을 줄이고, 그래도 안 좋아질 때 Early Stopping이 멈추게 하려면 기다리는 시간이 더 길어야 해요.
 
-## 📖 Day10 용어 (42개)
+## 📖 Day10 용어 (46개)
 - **규제** (Regularization (규제)): 계수가 지나치게 커지지 않게 벌점을 줘서 학습을 제어하는 것. 로지스틱회귀에선 C로 조절하며, C가 작을수록 규제가 세요. 스케일링과는 다른 개념.
 - **수렴** (Convergence (수렴)): 학습이 반복하며 더 나아지지 않는 안정된 답에 도달하는 것. max_iter(반복 상한)가 너무 작으면 도달 전에 멈춰 수렴 경고가 나요.
 - **F1** (F1 score): Precision과 Recall의 조화평균. 2TP ÷ (2TP + FP + FN). 둘 중 하나라도 낮으면 같이 낮아지고 TN은 반영하지 않아요. 예시 분류의 주 지표.
@@ -4640,6 +4643,10 @@ model.load_state_dict(best_state)                   # 멈춘 시점이 아니라
 - **OOM** (Out Of Memory (메모리 부족)): GPU 메모리(VRAM)가 모자라 생기는 오류. batch 크기를 줄이는 게 첫 처방이에요.
 - **gradient accumulation** (Gradient accumulation (기울기 누적)): 작은 batch 여러 개의 기울기를 일부러 모은 뒤 한 번에 갱신하는 방법. GPU 메모리가 부족할 때 큰 batch처럼 학습하려고 써요.
 - **gradient clipping** (Gradient clipping (기울기 자르기)): 기울기 크기가 너무 커지면 정해진 크기로 잘라서 갱신이 폭발하지 않게 하는 방법. NaN 대처법 중 하나예요.
+- **학습률 스케줄** (Learning Rate Schedule (학습률 스케줄)): 학습 중에 학습률을 바꾸는 규칙. 처음엔 작게 시작해 키우고(warmup), 뒤로 갈수록 줄여요.
+- **이중 하강** (Double Descent (이중 하강)): 모델을 데이터를 외울 수 있는 크기보다 훨씬 크게 키우면, valid 오차가 한 번 올랐다가 다시 내려가는 현상. 'U자 곡선'만으로는 큰 신경망을 설명하지 못한다는 예예요.
+- **암묵적 규제** (Implicit Regularization (암묵적 규제)): 벌점을 따로 넣지 않아도, SGD의 흔들림이나 조기 종료처럼 학습 방법 자체가 덜 복잡한 해를 고르게 하는 효과.
+- **지식 증류** (Knowledge Distillation (지식 증류)): 큰 모델(선생)의 출력 확률을 작은 모델(학생)이 따라 배우게 해서, 작은 모델로 비슷한 성능을 내는 방법.
 
 ---
 
@@ -5813,7 +5820,7 @@ valid_tf = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor(
 | valid_tf(img) 두 번이 같나? | True | 평가용은 항상 똑같이 |
 | valid_tf(img).min(), max() | 0.000, 0.698 | ToTensor가 0~255를 0~1로 |
 
-## 📖 Day11 용어 (47개)
+## 📖 Day11 용어 (50개)
 - **가중합** (Weighted sum (가중합)): 각 입력에 가중치(계수)를 곱해 모두 더한 값. w₁x₁ + w₂x₂ + … + b.
 - **혼동행렬** (Confusion Matrix (혼동행렬)): 실제(행) × 예측(열)으로 맞힘·틀림을 네 칸(TN, FP, FN, TP)에 세어 둔 표. 어떤 종류의 오류인지 나눠 볼 수 있어요.
 - **transform** (transform / fit_transform): transform은 이미 배운 규칙(평균·중앙값 등)으로 데이터를 바꾸기만 하는 것. fit_transform은 배우기와 바꾸기를 한 번에(train에만).
@@ -5861,6 +5868,9 @@ valid_tf = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor(
 - **synchronize** (torch.cuda.synchronize() (GPU 작업 끝날 때까지 기다리기)): GPU는 명령만 받아 두고 파이썬은 바로 다음 줄로 넘어가요(비동기). 이걸 시간 재기 전후에 불러야 GPU 계산이 진짜 끝난 시점까지 잴 수 있어요.
 - **Peak VRAM** (Peak VRAM (GPU 메모리 최대 사용량)): 측정 구간에서 GPU 메모리(VRAM)를 가장 많이 쓴 순간의 양. 빨라도 메모리가 모자라면 못 돌리니 시간과 함께 기록해요. CPU에선 N/A로 적어요.
 - **perf_counter** (time.perf_counter() (정밀 시계)): 짧은 구간의 시간을 정밀하게 재는 파이썬 시계(초 단위). 시작·끝 값의 차이가 걸린 시간이에요.
+- **수용 영역** (Receptive Field (수용 영역)): CNN의 한 칸이 입력 그림에서 보는 넓이. 3×3 합성곱 하나 뒤에는 3×3, 풀링과 층을 거칠수록 넓어져요.
+- **이동 등변성** (Translation Equivariance (이동 등변성)): 입력을 옮기면 출력도 똑같이 옮겨지는 성질. 합성곱이 그래요. 마지막에 자리를 평균 내 버리면 옮겨도 답이 안 바뀌어요(이동 불변성).
+- **U-Net**: 그림을 줄였다가 다시 키우면서, 같은 크기 층끼리 이어 주는 신경망. 칸마다 물체를 맞히는 분할에 많이 써요.
 
 ---
 
@@ -6722,7 +6732,7 @@ peak = torch.cuda.max_memory_allocated(x.device) if x.device.type == "cuda" else
 
 💡 공정한 비교 조건 — 같은 길이 분포·Batch size·dtype·Device·Warm-up을 쓰고, 데이터 로딩·Padding 생성·장치 전송 시간을 포함할지 측정 범위를 적어요. 결과엔 평균 시간·samples/s·Peak VRAM·하드웨어·버전·Mask·Padding 비율을 함께 남겨요. 장치(CPU/GPU) 비교는 같은 모델·가중치·입력을 유지하고, 작은 입력에선 Launch·전송 오버헤드가 계산 시간을 지배할 수 있다는 점도 같이 해석해요.
 
-## 📖 Day12 용어 (48개)
+## 📖 Day12 용어 (58개)
 - **MSE** (Mean Squared Error (평균 제곱 오차)): (실제 − 예측)²의 평균. 큰 오차에 더 큰 벌점을 주지만 단위가 제곱(ms²)이 돼요.
 - **임계값** (Threshold (판단 기준값)): 확률이 이 값 이상(또는 초과)이면 양성(실패)이라고 부르는 선. 낮추면 놓침(FN)은 줄고 헛경고(FP)는 늘어요. valid에서만 정해요.
 - **누수** (Data Leakage (데이터 누수)): 검증·테스트용 정보나 예측 시점에 알 수 없는 값(예: 실행 후에야 생기는 elapsed_ms)이 학습에 섞여 들어가 점수가 실제보다 좋게 나오는 문제.
@@ -6771,6 +6781,16 @@ peak = torch.cuda.max_memory_allocated(x.device) if x.device.type == "cuda" else
 - **Feedforward** (Feedforward Network (피드포워드 층)): Transformer 층 안에서 위치마다 따로 적용하는 작은 Linear–활성화–Linear 망. Attention이 위치끼리 섞었다면, FFN은 각 위치 안을 변환해요. dim_feedforward는 중간 크기(기본 2048)예요.
 - **d_model** (d_model / embed_dim (임베딩 차원 E)): Transformer에서 위치 하나를 나타내는 벡터의 길이 E. head 수(nhead)로 나누어떨어져야 해요(예: 16 ÷ 4 = head당 4).
 - **O(T²)** (Big-O 표기 (길이에 따른 계산량)): 길이 T가 늘 때 계산량이 어떻게 늘어나는지 나타낸 표기. RNN·LSTM은 O(T)(길이 2배 → 2배), Attention은 모든 위치 쌍을 비교해서 O(T²)(길이 2배 → 4배)예요.
+- **생성 모델** (Generative Model (생성 모델)): 데이터가 어떻게 생겼는지 배워서, 그 데이터를 닮은 새 데이터를 만드는 모델. VAE, GAN, Flow, Diffusion, LLM이 모두 여기에 들어가요.
+- **VAE** (Variational Autoencoder): encoder가 데이터를 잠재 공간의 작은 분포로 보내고, decoder가 되살리는 생성 모델. 잠재 공간을 표준정규분포 쪽으로 당겨서, 아무 점이나 뽑아 새 데이터를 만들 수 있어요. 손실은 되살리기 오차 + KL 항(= −ELBO).
+- **GAN** (Generative Adversarial Network): 새 데이터를 만드는 G와, 진짜와 가짜를 가려내는 D가 시합하며 배우는 생성 모델. 그럴듯한 결과를 잘 만들지만 학습이 불안정하고, 일부 모습만 만드는 모드 붕괴가 생기기 쉬워요.
+- **Normalizing Flow**: 정규분포의 점을 되돌릴 수 있는 변환으로 여러 번 구부려 데이터 모양을 만드는 생성 모델. 변환이 되돌릴 수 있어서 데이터의 확률을 정확히 계산할 수 있어요.
+- **Diffusion** (Diffusion Model (확산 모델)): 데이터에 잡음을 조금씩 섞어 완전한 잡음으로 만드는 과정을 정해 두고, 신경망이 섞인 잡음을 맞히게 배우는 생성 모델. 만들 때는 순수한 잡음에서 한 걸음씩 걷어내요. 품질이 좋지만 걸음 수만큼 느려요.
+- **KL 발산** (Kullback-Leibler Divergence): 두 확률분포가 얼마나 다른지 재는 값. 같으면 0이고 늘 0 이상이에요. VAE의 손실, 교차 엔트로피와 엔트로피의 차이로 나와요.
+- **FID** (Fréchet Inception Distance): 만든 그림과 진짜 그림을 미리 학습한 CNN의 특징으로 바꿔, 두 특징 분포의 거리를 잰 값. 작을수록 좋아요. 그림 생성 모델의 표준 지표예요.
+- **GNN** (Graph Neural Network): 노드마다 이웃의 값을 모아 자기 값을 고치기를 층마다 반복하는 신경망. 모든 노드에 같은 가중치를 써서 그래프 크기와 번호 매기기에 상관없이 동작해요. GCN은 정규화한 합으로, GAT는 Attention으로 모아요.
+- **인접 행렬** (Adjacency Matrix (인접 행렬)): 노드 수 × 노드 수 표. i번과 j번이 연결됐으면 A[i, j] = 1. 방향 없는 그래프면 대각선을 기준으로 대칭이에요.
+- **과평활** (Oversmoothing (과평활)): GNN 층을 너무 많이 쌓아 이웃 모으기를 반복하면, 모든 노드의 값이 비슷해져서 구별할 수 없게 되는 현상.
 
 ---
 
@@ -16070,7 +16090,7 @@ opt.zero_grad(); loss.backward(); opt.step()   # weight 변경
 
 💡 LLM도 같아요. 서비스에서 질문에 답할 때(추론)는 backward()·step()이 없어요. RAG로 문서를 넣어도 모델 가중치는 그대로 — 그때그때 입력에 붙여 줄 뿐이에요.
 
-## 📖 Day20 용어 (29개)
+## 📖 Day20 용어 (32개)
 - **Causal Mask** (Causal Mask (인과 마스크)): 다음 토큰을 예측할 때 미래 위치를 못 보게 가리는 Mask. 미래를 보면 정답을 미리 보는 셈이라서요.
 - **LLM** (Large Language Model): 글 토큰을 보고 다음 토큰을 하나씩 만들어 내는 큰 언어 모델. VLM의 답 생성 부분이에요.
 - **생성형 AI** (Generative AI): 학습한 패턴으로 텍스트·이미지·음성 등을 새로 만들어 내는 AI. LLM은 그중 언어를 다루는 것.
@@ -16100,6 +16120,9 @@ opt.zero_grad(); loss.backward(); opt.step()   # weight 변경
 - **Causal Language Modeling**: 앞의 Token만 보고 다음 Token을 맞히도록 Loss를 줄이는 LLM의 대표 사전학습 방식.
 - **Instruction Tuning** (Instruction Tuning / Preference Alignment): 사전학습 뒤 지시→응답 예시로 추가 학습(Instruction Tuning)하거나, 사람이 고른 좋은 응답 쪽으로 조정(Preference Alignment). Prompting은 가중치를 안 바꾸고 입력만 바꿔요.
 - **Agent** (AI Agent): LLM에 도구 선택·상태·작업 단계 실행을 더한 처리 시스템. 실제 실행 권한·승인은 Backend가 판단해요.
+- **위치 인코딩** (Positional Encoding (위치 인코딩)): 토큰 벡터에 '몇 번째 자리인가'를 더해 주는 벡터. Attention은 순서를 모르기 때문에 꼭 필요해요. 사인, 코사인 고정 벡터, 학습하는 벡터, 자리에 따라 Q와 K를 돌리는 RoPE가 있어요.
+- **ViT** (Vision Transformer): 그림을 16×16 조각으로 잘라 조각을 토큰처럼 Transformer에 넣는 모델. 데이터가 아주 많을 때 CNN만큼 또는 그 이상 잘해요.
+- **KV 캐시** (KV Cache): 글을 한 토큰씩 만들 때, 앞 토큰들의 Key와 Value를 저장해 두고 다시 쓰는 방법. 매번 처음부터 계산하지 않아 빨라요.
 
 ---
 

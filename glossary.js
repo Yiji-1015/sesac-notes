@@ -3680,6 +3680,53 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "은닉 칸",
+  "aliases": [
+   "Hidden Unit",
+   "은닉 유닛",
+   "hidden"
+  ],
+  "full": "Hidden Unit (은닉 칸)",
+  "short": "신경망 가운데 층의 칸 하나. 입력에 가중치를 곱해 더한 뒤 ReLU 같은 함수를 거쳐요. ReLU 칸 하나는 어떤 직선 한쪽에서는 꺼지고 다른 쪽에서는 커지는 꺾인 면을 만들어요.",
+  "analogy": "종이를 접는 선 하나. 선이 많을수록 더 복잡한 모양으로 접을 수 있어요.",
+  "first": 9,
+  "days": [
+   9
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "보편 근사 정리",
+  "aliases": [
+   "Universal Approximation Theorem"
+  ],
+  "full": "Universal Approximation Theorem (보편 근사 정리)",
+  "short": "은닉 칸이 충분하면 층 하나짜리 신경망으로도 어떤 연속 함수든 원하는 만큼 가깝게 흉내 낼 수 있다는 정리. 그 가중치를 학습으로 찾을 수 있는지, 일반화되는지는 말해 주지 않아요.",
+  "analogy": "",
+  "first": 9,
+  "days": [
+   9
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "He 초기화",
+  "aliases": [
+   "Kaiming 초기화",
+   "kaiming_normal_",
+   "Xavier 초기화",
+   "Glorot 초기화"
+  ],
+  "full": "He (Kaiming) Initialization",
+  "short": "ReLU 신경망의 가중치를 표준편차 √(2 ÷ 입력 칸 수)로 시작하는 방법. 층을 지나도 값과 기울기의 크기가 유지돼요. tanh 같은 대칭 함수에는 Xavier 초기화를 써요.",
+  "analogy": "",
+  "first": 9,
+  "days": [
+   9
+  ],
+  "keyDays": []
+ },
+ {
   "term": "SGD",
   "aliases": [],
   "full": "Stochastic Gradient Descent (확률적 경사 하강법)",
@@ -4062,6 +4109,68 @@ window.GLOSSARY = [
   "aliases": [],
   "full": "Gradient clipping (기울기 자르기)",
   "short": "기울기 크기가 너무 커지면 정해진 크기로 잘라서 갱신이 폭발하지 않게 하는 방법. NaN 대처법 중 하나예요.",
+  "analogy": "",
+  "first": 10,
+  "days": [
+   10
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "학습률 스케줄",
+  "aliases": [
+   "Learning Rate Schedule",
+   "lr_scheduler",
+   "warmup",
+   "코사인 스케줄"
+  ],
+  "full": "Learning Rate Schedule (학습률 스케줄)",
+  "short": "학습 중에 학습률을 바꾸는 규칙. 처음엔 작게 시작해 키우고(warmup), 뒤로 갈수록 줄여요.",
+  "analogy": "",
+  "first": 10,
+  "days": [
+   10
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "이중 하강",
+  "aliases": [
+   "Double Descent"
+  ],
+  "full": "Double Descent (이중 하강)",
+  "short": "모델을 데이터를 외울 수 있는 크기보다 훨씬 크게 키우면, valid 오차가 한 번 올랐다가 다시 내려가는 현상. 'U자 곡선'만으로는 큰 신경망을 설명하지 못한다는 예예요.",
+  "analogy": "",
+  "first": 10,
+  "days": [
+   10
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "암묵적 규제",
+  "aliases": [
+   "Implicit Regularization",
+   "암묵적 편향"
+  ],
+  "full": "Implicit Regularization (암묵적 규제)",
+  "short": "벌점을 따로 넣지 않아도, SGD의 흔들림이나 조기 종료처럼 학습 방법 자체가 덜 복잡한 해를 고르게 하는 효과.",
+  "analogy": "",
+  "first": 10,
+  "days": [
+   10
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "지식 증류",
+  "aliases": [
+   "Knowledge Distillation",
+   "증류",
+   "distillation"
+  ],
+  "full": "Knowledge Distillation (지식 증류)",
+  "short": "큰 모델(선생)의 출력 확률을 작은 모델(학생)이 따라 배우게 해서, 작은 모델로 비슷한 성능을 내는 방법.",
   "analogy": "",
   "first": 10,
   "days": [
@@ -4628,6 +4737,52 @@ window.GLOSSARY = [
   "full": "time.perf_counter() (정밀 시계)",
   "short": "짧은 구간의 시간을 정밀하게 재는 파이썬 시계(초 단위). 시작·끝 값의 차이가 걸린 시간이에요.",
   "analogy": "스톱워치.",
+  "first": 11,
+  "days": [
+   11
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "수용 영역",
+  "aliases": [
+   "Receptive Field",
+   "receptive field"
+  ],
+  "full": "Receptive Field (수용 영역)",
+  "short": "CNN의 한 칸이 입력 그림에서 보는 넓이. 3×3 합성곱 하나 뒤에는 3×3, 풀링과 층을 거칠수록 넓어져요.",
+  "analogy": "",
+  "first": 11,
+  "days": [
+   11
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "이동 등변성",
+  "aliases": [
+   "Translation Equivariance",
+   "등변성",
+   "이동 불변성",
+   "Translation Invariance"
+  ],
+  "full": "Translation Equivariance (이동 등변성)",
+  "short": "입력을 옮기면 출력도 똑같이 옮겨지는 성질. 합성곱이 그래요. 마지막에 자리를 평균 내 버리면 옮겨도 답이 안 바뀌어요(이동 불변성).",
+  "analogy": "",
+  "first": 11,
+  "days": [
+   11
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "U-Net",
+  "aliases": [
+   "UNet"
+  ],
+  "full": "U-Net",
+  "short": "그림을 줄였다가 다시 키우면서, 같은 크기 층끼리 이어 주는 신경망. 칸마다 물체를 맞히는 분할에 많이 써요.",
+  "analogy": "",
   "first": 11,
   "days": [
    11
@@ -5247,6 +5402,171 @@ window.GLOSSARY = [
   "full": "Big-O 표기 (길이에 따른 계산량)",
   "short": "길이 T가 늘 때 계산량이 어떻게 늘어나는지 나타낸 표기. RNN·LSTM은 O(T)(길이 2배 → 2배), Attention은 모든 위치 쌍을 비교해서 O(T²)(길이 2배 → 4배)예요.",
   "analogy": "반 학생이 2배가 되면 출석 부르기는 2배, 서로 악수하기는 약 4배.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "생성 모델",
+  "aliases": [
+   "Generative Model",
+   "generative"
+  ],
+  "full": "Generative Model (생성 모델)",
+  "short": "데이터가 어떻게 생겼는지 배워서, 그 데이터를 닮은 새 데이터를 만드는 모델. VAE, GAN, Flow, Diffusion, LLM이 모두 여기에 들어가요.",
+  "analogy": "많은 얼굴 사진을 보고 세상에 없는 얼굴을 그리는 화가.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "VAE",
+  "aliases": [
+   "Variational Autoencoder",
+   "변분 오토인코더",
+   "ELBO",
+   "재파라미터화",
+   "reparameterization"
+  ],
+  "full": "Variational Autoencoder",
+  "short": "encoder가 데이터를 잠재 공간의 작은 분포로 보내고, decoder가 되살리는 생성 모델. 잠재 공간을 표준정규분포 쪽으로 당겨서, 아무 점이나 뽑아 새 데이터를 만들 수 있어요. 손실은 되살리기 오차 + KL 항(= −ELBO).",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "GAN",
+  "aliases": [
+   "Generative Adversarial Network",
+   "적대적 생성 신경망",
+   "모드 붕괴",
+   "mode collapse",
+   "WGAN"
+  ],
+  "full": "Generative Adversarial Network",
+  "short": "새 데이터를 만드는 G와, 진짜와 가짜를 가려내는 D가 시합하며 배우는 생성 모델. 그럴듯한 결과를 잘 만들지만 학습이 불안정하고, 일부 모습만 만드는 모드 붕괴가 생기기 쉬워요.",
+  "analogy": "위조지폐범과 감별사의 시합.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Normalizing Flow",
+  "aliases": [
+   "Flow",
+   "결합층",
+   "coupling layer",
+   "RealNVP",
+   "변수 바꾸기 공식"
+  ],
+  "full": "Normalizing Flow",
+  "short": "정규분포의 점을 되돌릴 수 있는 변환으로 여러 번 구부려 데이터 모양을 만드는 생성 모델. 변환이 되돌릴 수 있어서 데이터의 확률을 정확히 계산할 수 있어요.",
+  "analogy": "고무판에 물감을 고르게 칠하고 늘이고 비틀어 원하는 무늬를 만드는 것.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Diffusion",
+  "aliases": [
+   "Diffusion Model",
+   "확산 모델",
+   "DDPM",
+   "DDIM",
+   "classifier-free guidance"
+  ],
+  "full": "Diffusion Model (확산 모델)",
+  "short": "데이터에 잡음을 조금씩 섞어 완전한 잡음으로 만드는 과정을 정해 두고, 신경망이 섞인 잡음을 맞히게 배우는 생성 모델. 만들 때는 순수한 잡음에서 한 걸음씩 걷어내요. 품질이 좋지만 걸음 수만큼 느려요.",
+  "analogy": "모래 그림이 바람에 흩어지는 걸 거꾸로 돌려 보기.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "KL 발산",
+  "aliases": [
+   "KL Divergence",
+   "Kullback-Leibler",
+   "KL"
+  ],
+  "full": "Kullback-Leibler Divergence",
+  "short": "두 확률분포가 얼마나 다른지 재는 값. 같으면 0이고 늘 0 이상이에요. VAE의 손실, 교차 엔트로피와 엔트로피의 차이로 나와요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "FID",
+  "aliases": [
+   "Fréchet Inception Distance"
+  ],
+  "full": "Fréchet Inception Distance",
+  "short": "만든 그림과 진짜 그림을 미리 학습한 CNN의 특징으로 바꿔, 두 특징 분포의 거리를 잰 값. 작을수록 좋아요. 그림 생성 모델의 표준 지표예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "GNN",
+  "aliases": [
+   "Graph Neural Network",
+   "그래프 신경망",
+   "GCN",
+   "Graph Convolutional Network",
+   "GAT"
+  ],
+  "full": "Graph Neural Network",
+  "short": "노드마다 이웃의 값을 모아 자기 값을 고치기를 층마다 반복하는 신경망. 모든 노드에 같은 가중치를 써서 그래프 크기와 번호 매기기에 상관없이 동작해요. GCN은 정규화한 합으로, GAT는 Attention으로 모아요.",
+  "analogy": "친구들 의견을 듣고 내 생각을 조금씩 고치기.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "인접 행렬",
+  "aliases": [
+   "Adjacency Matrix",
+   "adjacency"
+  ],
+  "full": "Adjacency Matrix (인접 행렬)",
+  "short": "노드 수 × 노드 수 표. i번과 j번이 연결됐으면 A[i, j] = 1. 방향 없는 그래프면 대각선을 기준으로 대칭이에요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "과평활",
+  "aliases": [
+   "Oversmoothing",
+   "over-smoothing"
+  ],
+  "full": "Oversmoothing (과평활)",
+  "short": "GNN 층을 너무 많이 쌓아 이웃 모으기를 반복하면, 모든 노드의 값이 비슷해져서 구별할 수 없게 되는 현상.",
+  "analogy": "같은 소문을 계속 돌리면 모두가 같은 이야기를 하게 되는 것.",
   "first": 12,
   "days": [
    12
@@ -8585,6 +8905,53 @@ window.GLOSSARY = [
   "full": "AI Agent",
   "short": "LLM에 도구 선택·상태·작업 단계 실행을 더한 처리 시스템. 실제 실행 권한·승인은 Backend가 판단해요.",
   "analogy": "제안하는 비서 + 결재를 거쳐야 움직이는 실행 팀.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "위치 인코딩",
+  "aliases": [
+   "Positional Encoding",
+   "위치 벡터",
+   "RoPE",
+   "position embedding"
+  ],
+  "full": "Positional Encoding (위치 인코딩)",
+  "short": "토큰 벡터에 '몇 번째 자리인가'를 더해 주는 벡터. Attention은 순서를 모르기 때문에 꼭 필요해요. 사인, 코사인 고정 벡터, 학습하는 벡터, 자리에 따라 Q와 K를 돌리는 RoPE가 있어요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "ViT",
+  "aliases": [
+   "Vision Transformer"
+  ],
+  "full": "Vision Transformer",
+  "short": "그림을 16×16 조각으로 잘라 조각을 토큰처럼 Transformer에 넣는 모델. 데이터가 아주 많을 때 CNN만큼 또는 그 이상 잘해요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "KV 캐시",
+  "aliases": [
+   "KV Cache",
+   "kv cache",
+   "FlashAttention"
+  ],
+  "full": "KV Cache",
+  "short": "글을 한 토큰씩 만들 때, 앞 토큰들의 Key와 Value를 저장해 두고 다시 쓰는 방법. 매번 처음부터 계산하지 않아 빨라요.",
+  "analogy": "",
   "first": 20,
   "days": [
    20

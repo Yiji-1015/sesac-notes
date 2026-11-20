@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>그래프 신경망 (GNN) | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>그래프 신경망: 이웃을 모아 나를 고치기</h1>
+      <div class="meta">모델 &gt; 생성 모델과 그래프</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line"><b>GNN</b>은 노드마다 <b>이웃의 값을 모아 자기 값을 고치기</b>를 층마다 반복해요. 같은 가중치를 모든 노드에 쓰니 그래프 크기와 번호 매기기에 상관없이 동작해요. 너무 많이 쌓으면 모두가 같아져요(과평활).</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>표 데이터는 행끼리 따로따로예요. 그림은 픽셀이 격자로, 글은 토큰이 한 줄로 이어져 있어요. 그런데 사람 사이 친구 관계, 분자 속 원자의 결합, 도로망, 논문 인용, 지식 그래프처럼 <b>연결 모양이 제각각인</b> 데이터도 많아요. 이런 데이터를 <b>그래프</b>라고 하고, 점을 <b>노드</b>, 선을 <b>엣지</b>라고 해요.</p>
+<div class="out" data-out="data"></div>
+<p>그래프에서 맞히는 것은 세 가지예요.</p>
+<table><tr><th>수준</th><th>맞히는 것</th><th>예</th></tr><tr><td>노드</td><td>점 하나하나의 성질</td><td>이 회원은 어느 쪽으로 갔나 (이 쪽), 이 계정은 스팸인가</td></tr><tr><td>엣지</td><td>두 점 사이 관계</td><td>이 두 사람은 친구가 될까 (추천), 이 두 약은 함께 쓰면 위험한가</td></tr><tr><td>그래프 전체</td><td>그래프 하나의 성질</td><td>이 분자는 독성이 있나</td></tr></table>
+<p>그래프에는 그림처럼 "왼쪽 위" 같은 자리가 없어요. 회원 번호를 다시 매겨도 같은 그래프예요. 그래서 모델도 <b>번호를 어떻게 매기든 같은 답</b>을 내야 해요. 그래프 신경망(<b>GNN</b>)은 "이웃의 값을 모아 내 값을 고친다"는 방식으로 이걸 지켜요. 이웃을 모으는 데는 순서가 없거든요(합, 평균, 최댓값).</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>그래프를 행렬로 → 연결을 무시하면 못 맞힘 → 이웃을 따라 퍼뜨리기만 해도 맞힘 → 퍼뜨리는 방법을 배우는 GCN → 모으는 방법과 깊이. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 그래프를 Tensor로</h3><p class="does">누가 누구와 연결됐는지를 34×34 표(인접 행렬)로 만들고, 소속을 알려 줄 4명과 채점할 30명을 나눠요.</p><p><b>인접 행렬</b> A는 i번과 j번이 연결됐으면 A[i, j] = 1인 표예요. 친구 관계는 방향이 없어서 표가 대각선을 기준으로 대칭이에요. 노드마다 특성(나이, 글 내용 등)이 있으면 노드 수 × 특성 수 표 X로 둬요. 이 예제에는 특성이 없어서 회원마다 자기 자리에만 1인 "이름표"(단위행렬)를 써요. 엣지에도 특성(관계의 종류, 거리)이 있을 수 있어요.</p><p>이 쪽처럼 그래프 하나 안에서 일부 노드의 답만 알려 주고 나머지를 맞히는 걸 <b>변환적</b>(transductive) 학습이라고 해요. 학습할 때 채점할 노드도 그래프 안에 있어서, 그 노드들의 연결은 볼 수 있어요. 정답만 안 보는 거예요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>nx.karate_club_graph()</code></td><td>networkx에 들어 있는 가라테 클럽 그래프</td></tr><tr><td><code>A[u, v] = A[v, u] = 1.0</code></td><td>방향 없는 관계라 양쪽에</td></tr><tr><td><code>torch.eye(n)</code></td><td>n×n 단위행렬. 사람마다 다른 한 칸짜리 이름표</td></tr><tr><td><code>test_mask[train_idx] = False</code></td><td>알려 준 4명은 채점에서 빼기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 연결을 무시하면</h3><p class="does">노드 특성만 보는 보통 신경망으로 해 봐요. 기준선이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>model(X)[train_idx]</code></td><td>34명 모두 계산하고, 손실은 아는 4명으로만</td></tr><tr><td><code>weight_decay=5e-4</code></td><td>가중치 규제 (<a href="dl-training-stability.html">학습을 안정시키기</a>)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 이웃 정보 모으기를 손으로</h3><p class="does">알려 준 4명의 소속을 친구 관계를 따라 퍼뜨려 봐요. 학습은 하지 않아요.</p><p>"친구끼리는 비슷하다"는 가정을 써요. 알려 준 4명의 소속을 한 칸짜리 표로 두고, 인접 행렬을 곱하면 "내 친구들의 소속을 더한 값"이 돼요. 한 번 더 곱하면 친구의 친구까지 닿아요.</p><p>그냥 A를 곱하면 친구가 많은 사람의 값이 커지고, 자기 값은 빠져요. 그래서 자기 자신과도 연결해(A + I) 자기 값을 남기고, i번과 j번 사이 값을 √(i의 친구 수 × j의 친구 수)로 나눠 크기를 맞춰요. 이게 <code>A_norm</code>이에요.</p><div class="out" data-out="f_spread"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>A + torch.eye(n)</code></td><td>자기 자신도 이웃으로 (자기 고리)</td></tr><tr><td><code>A_hat / torch.sqrt(deg[:, None] * deg[None, :])</code></td><td>D^(−½) Â D^(−½). 친구 수로 양쪽을 나눠 크기 맞추기</td></tr><tr><td><code>torch.linalg.matrix_power(A_norm, k) @ known</code></td><td>k번 퍼뜨리기</td></tr><tr><td><code>(s.sum(1) &gt; 0).sum()</code></td><td>값이 0이 아닌, 정보가 닿은 사람 수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ GCN: 이웃을 모으는 층을 학습하기</h3><p class="does">층마다 "모든 사람에게 같은 가중치로 값을 바꾸고, 이웃끼리 모으기"를 해요. 바꾸는 가중치를 아는 4명의 정답으로 학습해요.</p><p><b>GCN</b>(Graph Convolutional Network)의 층 하나는 <code>H' = ReLU(A_norm × H × W)</code>예요. H × W는 노드마다 같은 가중치로 값을 바꾸는 보통 Linear 층이고, A_norm을 곱하는 건 ③의 "이웃 모으기"예요. <a href="cnn.html">CNN</a>이 "모든 자리에 같은 3×3 무늬"를 쓰듯, GCN은 "모든 노드에 같은 W"를 써요(가중치 공유). 그래서 그래프 크기와 상관없이 가중치 수가 같고, 노드 번호를 바꿔도 결과가 그대로 따라 바뀌어요.</p><p>2층이면 각 노드의 답은 2칸 안에 있는 노드들의 정보로 정해져요. 마지막 층의 두 값이 두 쪽의 점수예요. 손실은 아는 4명에 대해서만 계산하지만, A_norm을 거치면서 기울기가 이웃들로 퍼져서 다른 사람들의 표현도 같이 움직여요.</p><div class="out" data-out="f_gcn"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>class GCN(nn.Module)</code></td><td>층 목록과 모으기 방법을 가진 모델</td></tr><tr><td><code>self.gather(lin(x))</code></td><td>바꾸고(Linear) 모으기(A_norm 곱하기)</td></tr><tr><td><code>nn.ModuleList(...)</code></td><td>층 여러 개를 목록으로 (PyTorch가 가중치를 찾을 수 있게)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 모으는 방법과 층 수 바꾸기</h3><p class="does">이웃을 모으는 방법(정규화한 합, 평균, 합, 최댓값)과 층 수를 바꿔 봐요.</p><p>모으는 방법은 순서와 상관없는 계산이면 돼요. 합, 평균, 최댓값이 기본이고, 이웃마다 "얼마나 중요한가"를 Attention처럼 계산해 가중 평균하는 GAT(Graph Attention Network)도 있어요. <a href="llm-principles.html">Transformer</a>는 사실 "모든 토큰이 서로 연결된 그래프"에 Attention으로 모으는 GNN으로 볼 수도 있어요.</p><details class="try"><summary>🔁 바꿔 보기: 모으는 방법만 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t5a"></div></details><p>층을 쌓으면 더 멀리 있는 노드의 정보까지 볼 수 있지만, 그만큼 모두와 섞여요.</p><details class="try"><summary>🔁 바꿔 보기: 층을 4, 8, 16개로 쌓으면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t5b"></div><div class="out" data-out="f_smooth"></div></details><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>(A_hat @ h) / A_hat.sum(1, keepdim=True)</code></td><td>평균: 합을 이웃 수로 나누기</td></tr><tr><td><code>h[A_hat[i] &gt; 0].max(0).values</code></td><td>최댓값: i의 이웃들 중 칸마다 가장 큰 값</td></tr><tr><td><code>F.normalize(h, dim=1)</code></td><td>줄마다 길이 1로. 그 뒤 내적이 코사인 유사도</td></tr></table></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/gnn/karate_gcn.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>새 그래프나 새 노드가 계속 들어온다</td><td>GCN의 W는 노드 수와 상관없어서, 학습한 W를 새 그래프에 그대로 쓸 수 있어요(귀납적 학습). 단, 이 쪽처럼 이름표(단위행렬)를 특성으로 쓰면 새 노드의 이름표가 없어서 안 돼요. 실제로는 나이, 글 내용 같은 진짜 특성을 써요.</td></tr><tr><td>그래프 전체를 분류한다</td><td>노드 표현을 다 모아(평균이나 합) 그래프 하나의 벡터로 만든 뒤 분류해요(readout). 그래프 여러 개를 한 묶음으로 학습할 때는 작은 그래프들을 서로 연결 없는 큰 그래프 하나로 합쳐 계산해요.</td></tr><tr><td>두 노드가 연결될지 맞힌다 (추천)</td><td>두 노드의 표현을 내적하거나 이어 붙여 점수를 내요. 학습할 때 일부 엣지를 숨기고 그걸 맞히게 해요.</td></tr><tr><td>그래프가 아주 크다</td><td>노드 수 × 노드 수인 A를 그대로 쓰면 메모리가 넘쳐요. 연결된 것만 저장하는 희소 행렬과, 이웃을 일부만 뽑아 쓰는 방법(GraphSAGE)을 써요. PyTorch Geometric, DGL 같은 라이브러리가 이걸 해 줘요.</td></tr><tr><td>지식 그래프와 GNN</td><td>지식 그래프는 "무엇과 무엇이 어떤 관계인가"를 저장하는 데이터 구조이고, GNN은 그래프 위에서 배우는 모델이에요. 둘 다 그래프지만 역할이 달라요. 지식 그래프 위에서 GNN으로 빠진 관계를 맞히기도 해요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>nx.karate_club_graph</code>, <code>g.edges()</code>, <code>torch.eye</code></td><td>그래프 (networkx)</td></tr><tr><td>③</td><td><code>torch.linalg.matrix_power</code></td><td>행렬 거듭제곱</td></tr><tr><td>④⑤</td><td><code>nn.ModuleList</code>, <code>F.normalize</code></td><td>GCN 층, 유사도</td></tr></table>
+      <p><code>acc</code>, <code>fit</code>, <code>avg_cosine</code>은 이 파일 안에서 정의한 함수, <code>GCN</code>은 클래스예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="cnn.html">CNN과 이미지 분류</a></td><td>격자 위의 가중치 공유</td></tr><tr><td><a href="llm-principles.html">LLM 원리</a></td><td>Attention으로 모으기</td></tr><tr><td><a href="generative-models.html">생성 모델</a></td><td>같은 갈래의 다른 쪽</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>함께 정리한 자료: Simon J. D. Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 13장(그래프 신경망). 그래프 표현, 노드, 엣지, 그래프 수준 과제, 번호 매기기에 대한 불변성과 등변성, GCN, 모으는 방법, 귀납적 학습과 변환적 학습, readout, 과평활을 가져왔어요. 부트캠프 수업에서 따로 다루지 않은 주제라 예제는 새로 만들었어요</li><li>데이터: networkx에 들어 있는 Zachary 가라테 클럽 그래프 (W. W. Zachary, 1977)</li><li>결과 값과 그림: <code>tools/pages/gnn_karate.py</code>가 <code>examples/gnn/karate_gcn.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>공식 문서: <a href="https://networkx.org/documentation/stable/reference/generated/networkx.generators.social.karate_club_graph.html" target="_blank">karate_club_graph</a>, <a href="https://arxiv.org/abs/1609.02907" target="_blank">GCN 논문</a></li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="gnn-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

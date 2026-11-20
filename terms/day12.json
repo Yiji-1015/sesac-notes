@@ -573,5 +573,140 @@
   "analogy": "",
   "day": 12,
   "key": false
+ },
+ {
+  "term": "생성 모델",
+  "aliases": [
+   "Generative Model",
+   "generative"
+  ],
+  "full": "Generative Model (생성 모델)",
+  "short": "데이터가 어떻게 생겼는지 배워서, 그 데이터를 닮은 새 데이터를 만드는 모델. VAE, GAN, Flow, Diffusion, LLM이 모두 여기에 들어가요.",
+  "analogy": "많은 얼굴 사진을 보고 세상에 없는 얼굴을 그리는 화가.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "VAE",
+  "aliases": [
+   "Variational Autoencoder",
+   "변분 오토인코더",
+   "ELBO",
+   "재파라미터화",
+   "reparameterization"
+  ],
+  "full": "Variational Autoencoder",
+  "short": "encoder가 데이터를 잠재 공간의 작은 분포로 보내고, decoder가 되살리는 생성 모델. 잠재 공간을 표준정규분포 쪽으로 당겨서, 아무 점이나 뽑아 새 데이터를 만들 수 있어요. 손실은 되살리기 오차 + KL 항(= −ELBO).",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "GAN",
+  "aliases": [
+   "Generative Adversarial Network",
+   "적대적 생성 신경망",
+   "모드 붕괴",
+   "mode collapse",
+   "WGAN"
+  ],
+  "full": "Generative Adversarial Network",
+  "short": "새 데이터를 만드는 G와, 진짜와 가짜를 가려내는 D가 시합하며 배우는 생성 모델. 그럴듯한 결과를 잘 만들지만 학습이 불안정하고, 일부 모습만 만드는 모드 붕괴가 생기기 쉬워요.",
+  "analogy": "위조지폐범과 감별사의 시합.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Normalizing Flow",
+  "aliases": [
+   "Flow",
+   "결합층",
+   "coupling layer",
+   "RealNVP",
+   "변수 바꾸기 공식"
+  ],
+  "full": "Normalizing Flow",
+  "short": "정규분포의 점을 되돌릴 수 있는 변환으로 여러 번 구부려 데이터 모양을 만드는 생성 모델. 변환이 되돌릴 수 있어서 데이터의 확률을 정확히 계산할 수 있어요.",
+  "analogy": "고무판에 물감을 고르게 칠하고 늘이고 비틀어 원하는 무늬를 만드는 것.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "Diffusion",
+  "aliases": [
+   "Diffusion Model",
+   "확산 모델",
+   "DDPM",
+   "DDIM",
+   "classifier-free guidance"
+  ],
+  "full": "Diffusion Model (확산 모델)",
+  "short": "데이터에 잡음을 조금씩 섞어 완전한 잡음으로 만드는 과정을 정해 두고, 신경망이 섞인 잡음을 맞히게 배우는 생성 모델. 만들 때는 순수한 잡음에서 한 걸음씩 걷어내요. 품질이 좋지만 걸음 수만큼 느려요.",
+  "analogy": "모래 그림이 바람에 흩어지는 걸 거꾸로 돌려 보기.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "KL 발산",
+  "aliases": [
+   "KL Divergence",
+   "Kullback-Leibler",
+   "KL"
+  ],
+  "full": "Kullback-Leibler Divergence",
+  "short": "두 확률분포가 얼마나 다른지 재는 값. 같으면 0이고 늘 0 이상이에요. VAE의 손실, 교차 엔트로피와 엔트로피의 차이로 나와요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "FID",
+  "aliases": [
+   "Fréchet Inception Distance"
+  ],
+  "full": "Fréchet Inception Distance",
+  "short": "만든 그림과 진짜 그림을 미리 학습한 CNN의 특징으로 바꿔, 두 특징 분포의 거리를 잰 값. 작을수록 좋아요. 그림 생성 모델의 표준 지표예요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "GNN",
+  "aliases": [
+   "Graph Neural Network",
+   "그래프 신경망",
+   "GCN",
+   "Graph Convolutional Network",
+   "GAT"
+  ],
+  "full": "Graph Neural Network",
+  "short": "노드마다 이웃의 값을 모아 자기 값을 고치기를 층마다 반복하는 신경망. 모든 노드에 같은 가중치를 써서 그래프 크기와 번호 매기기에 상관없이 동작해요. GCN은 정규화한 합으로, GAT는 Attention으로 모아요.",
+  "analogy": "친구들 의견을 듣고 내 생각을 조금씩 고치기.",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "인접 행렬",
+  "aliases": [
+   "Adjacency Matrix",
+   "adjacency"
+  ],
+  "full": "Adjacency Matrix (인접 행렬)",
+  "short": "노드 수 × 노드 수 표. i번과 j번이 연결됐으면 A[i, j] = 1. 방향 없는 그래프면 대각선을 기준으로 대칭이에요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "과평활",
+  "aliases": [
+   "Oversmoothing",
+   "over-smoothing"
+  ],
+  "full": "Oversmoothing (과평활)",
+  "short": "GNN 층을 너무 많이 쌓아 이웃 모으기를 반복하면, 모든 노드의 값이 비슷해져서 구별할 수 없게 되는 현상.",
+  "analogy": "같은 소문을 계속 돌리면 모두가 같은 이야기를 하게 되는 것.",
+  "day": 12,
+  "key": false
  }
 ]
