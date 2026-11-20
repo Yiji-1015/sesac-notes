@@ -10,6 +10,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def josa(word, with_final, without_final):
+    """f-string으로 넣은 말 뒤의 조사. 받침이 있으면 앞의 것, 없으면 뒤의 것 (예: josa(x, "이에요", "예요")).
+    숫자는 읽는 소리로 봐요 (0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔은 받침 있음)."""
+    ch = str(word).strip(" '\".,)")[-1]
+    if "가" <= ch <= "힣":
+        return with_final if (ord(ch) - 0xAC00) % 28 else without_final
+    return with_final if ch in "013678" else without_final
+
+
 def out(key):
     return f'<div class="out" data-out="{key}"></div>'
 

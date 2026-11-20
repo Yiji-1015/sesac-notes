@@ -194,7 +194,7 @@ ax.legend(fontsize=9)
 P_LAY = fig_save(fig, "bae_by_layer")
 low_layer = int(by.min(1).argmin())
 outs["f_layers"] = chart("세 문장의 '▁배' 벡터, 층마다", P_LAY, "", [f"0층(표에서 찾은 벡터 + 위치)에서는 셋 다 1이에요. 층을 지나며 내려가서(가장 낮은 곳은 {low_layer}층), 12층에서는 {cos_txt(last)}{josa(cos_txt(last), '이에요', '예요')}.",
-                                                                    "벡터가 달라졌다는 것까지가 이 그림이 보여 주는 거예요. 그 차이가 \"몸, 탈것, 과일\"을 잘 가르는지는 따로 재야 해요. 그 벡터 위에 분류용 층을 얹어 학습시키는 게 미세조정이에요."])
+                                                                    "벡터가 달라졌다는 것까지가 이 그림이 보여 주는 거예요. 그 차이가 \"몸, 탈것, 과일\"을 잘 가르는지는 따로 재야 해요. 그 벡터 위에 분류용 층을 얹어 정답으로 더 학습시키는 게 미세조정이에요 (<a href=\"text-classification.html\">문장 분류와 미세조정</a>)."])
 diffL = float((ns["h"] - ns["out"].last_hidden_state).abs().max())
 outs["s6"] = S.box("⑥ 12층", [(f"모델의 last_hidden_state와 같은가 → {ns['same_model']} (가장 큰 차이 {diffL:.1e})", 1, "newf"), *(f"{k}층 뒤 '▁배' 코사인 ({', '.join(pn)}) → {cos_txt(ns['bae_by_layer'][k])}" for k in (0, 1, 6, 12))],
                    ["⑤의 층 함수를 12번 부른 결과가 모델의 마지막 출력과 같아요. Transformer 인코더는 결국 이 층의 반복이에요.", "층마다 주변 토큰의 정보가 조금씩 더 섞여요."])
@@ -302,7 +302,7 @@ steps = [
                            ("F.gelu(layer.intermediate.dense(h))", "384 → 1536으로 넓히고 GELU"), ("layer.output.dense(...)", "1536 → 384로 되돌리기")])
            + K.try_("토큰 순서를 섞어서 넣으면 결과가 달라질까?", "t5"), "s5"),
     K.step(6, "12층 쌓기: 문맥이 섞인 벡터", "⑤의 층 함수를 e5의 12개 층 가중치로 차례로 불러요. 층마다 세 문장의 '▁배' 벡터를 비교해요.",
-           "<p>층은 입력과 출력의 모양이 같아서 몇 번이고 쌓을 수 있어요. 층마다 가중치는 따로예요. 층을 지날 때마다 각 토큰 벡터에 주변 토큰의 정보가 더 섞여서, 마지막에는 \"이 문장 안에서의 이 토큰\"을 나타내는 벡터가 돼요. 이걸 <b>문맥이 섞인 Embedding</b>이라고 해요. 이 벡터들을 평균 내면 문장 하나의 벡터가 되고(<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>), 첫 토큰의 벡터 위에 작은 층을 얹으면 문장 분류기가 돼요.</p>"
+           "<p>층은 입력과 출력의 모양이 같아서 몇 번이고 쌓을 수 있어요. 층마다 가중치는 따로예요. 층을 지날 때마다 각 토큰 벡터에 주변 토큰의 정보가 더 섞여서, 마지막에는 \"이 문장 안에서의 이 토큰\"을 나타내는 벡터가 돼요. 이걸 <b>문맥이 섞인 Embedding</b>이라고 해요. 이 벡터들을 평균 내면 문장 하나의 벡터가 되고(<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>), 그 위에 작은 층을 얹어 학습시키면 문장 분류기가 돼요(<a href=\"text-classification.html\">문장 분류와 미세조정</a>).</p>"
            "<p>그림도 같은 방식으로 다룰 수 있어요. 그림을 16×16 조각으로 잘라 조각 하나를 토큰처럼 넣으면 <b>Vision Transformer</b>(ViT)예요.</p>"
            + K.out("f_layers")
            + K.code_table([("for layer in model.encoder.layer:", "e5의 12개 층을 차례로"), ("torch.allclose(h, out.last_hidden_state, atol=1e-3)", "12층을 다 지난 결과가 모델의 마지막 출력과 같은가")])
@@ -339,7 +339,7 @@ K.build(ROOT / "topics" / "model" / "llm-principles.html", title="Transformer �
         one_line="Transformer는 토큰 벡터에 위치를 더한 뒤, <b>Attention</b>(토큰끼리 정보 나누기)과 <b>작은 신경망</b>(토큰마다 생각하기)을 잔차 연결과 LayerNorm으로 묶은 층을 여러 번 쌓아요. 뒤를 가리면 글을 만드는 디코더가 돼요.",
         why=why, whole=whole, steps=steps, code_file="examples/llm_theory/llm_parts.py", practice=practice, libs=libs,
         libs_note="<code>cos</code>, <code>split</code>, <code>encoder_layer</code>는 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"sequence-models.html\">순서 모델</a>", "RNN과 Attention의 출발점"), ("<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>", "같은 e5로 문장 벡터 만들기"),
+        next_rows=[("<a href=\"text-classification.html\">문장 분류와 미세조정</a>", "이 벡터로 분류기 만들기"), ("<a href=\"sequence-models.html\">순서 모델</a>", "RNN과 Attention의 출발점"), ("<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>", "같은 e5로 문장 벡터 만들기"),
                    ("<a href=\"../backend/llm-client.html\">LLM API 클라이언트</a>", "실제 디코더 LLM 부르기")],
         sources=["다루는 범위: Day20 (2026-11-13) LLM 생태계, Token, Context, Transformer, Attention, 학습과 추론",
                  "함께 정리한 자료: Simon J. D. Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 12장(Transformer). Lewis Tunstall 외, <i>Natural Language Processing with Transformers</i> 1장(인코더-디코더와 Attention의 출발, Hugging Face 생태계), 3장(Scaled Dot-Product Attention, 여러 head, Feed Forward, Post-LN과 Pre-LN, 위치 Embedding, 디코더와 교차 Attention, 세 갈래 모델), 11장(스케일링 법칙, 희소 Attention과 선형 Attention, ViT, CLIP, wav2vec 2.0, LayoutLM)",
