@@ -46,6 +46,12 @@ def fig_save(fig, name):
     return f"img/ml/{name}.png"
 
 
+def legend_below(fig, ax):
+    # 왼쪽 아래 점 줄을 가리지 않게 범례를 그림 아래 바깥에 둬요
+    h, lab = ax.get_legend_handles_labels()
+    fig.legend(h, lab, loc="upper center", bbox_to_anchor=(0.5, 0.0), ncol=len(lab), fontsize=9, frameon=False)
+
+
 def chart(title, path, cap, notes):
     o = S.images(title, [(path, cap)], notes)
     o["chart"] = True
@@ -79,7 +85,7 @@ ax.contourf(g1, g2, (F >= 0).astype(int), levels=[-.5, .5, 1.5], cmap=BG)
 ax.contour(g1, g2, F, levels=[-1, 0, 1], colors=[C["gray"], C["ink"], C["gray"]], linestyles=["--", "-", "--"], linewidths=[1.2, 2, 1.2])
 scatter2(ax, lin2.support_)
 ax.set(ylabel="allowed_tools (크기 맞춤)", title=f"선형 SVM (C=1): 서포트 벡터 {len(lin2.support_)}개 / 60건")
-ax.legend(fontsize=9, loc="lower left")
+legend_below(fig, ax)
 P_LIN = fig_save(fig, "svm_linear_margin")
 # ③ RBF gamma 그림
 fig, axs = plt.subplots(1, 3, figsize=(13, 3.9), sharey=True)
@@ -89,7 +95,7 @@ for ax, g in zip(axs, (0.1, 1, 10)):
     scatter2(ax)
     ax.set(title=f"gamma = {g}  (train 정확도 {ACC(y2, m.predict(X2)):.2f})")
 axs[0].set_ylabel("allowed_tools (크기 맞춤)")
-axs[0].legend(fontsize=9, loc="lower left")
+legend_below(fig, axs[0])
 P_RBF = fig_save(fig, "svm_rbf_gamma")
 # ④ LDA 한 줄 사영
 z, yt = ns["lda_z"], ns["y_train"].to_numpy()
@@ -111,7 +117,7 @@ for ax, (nm, m) in zip(axs, [("LDA: 공통 모양 → 직선 경계", LinearDisc
     scatter2(ax)
     ax.set(title=nm)
 axs[0].set_ylabel("allowed_tools (크기 맞춤)")
-axs[0].legend(fontsize=9, loc="lower left")
+legend_below(fig, axs[0])
 P_QDA = fig_save(fig, "lda_vs_qda")
 # ⑥ PCA
 ratio = ns["ratio"]
@@ -179,7 +185,7 @@ cvs = ns["cv_scores"]
 best_name = max(cvs, key=lambda k: cvs[k].mean())
 outs["s7"] = S.table("⑦ 5-fold 교차검증 F1 (train+valid 80건, 2쪽 ⑫와 같은 나누기)", ["model", "다섯 번의 점수", "평균", "표준편차"],
                      [[f"<b>{m}</b>" if m == best_name else m, ", ".join(f3(x) for x in v), f"<b>{f3(v.mean())}</b>" if m == best_name else f3(v.mean()), f3(v.std())] for m, v in cvs.items()],
-                     [f"<b>{best_name}</b>이 평균 {cvs[best_name].mean():.3f}로 가장 높아요. 2쪽 ⑫의 xgboost(0.511)보다도 높고, 흔들림도 작아요. 모델 종류보다 \"드문 실패를 얼마나 중요하게 치느냐\"(class_weight)가 더 크게 작용했어요.",
+                     [f"<b>{best_name}</b>이 평균 {cvs[best_name].mean():.3f}로 가장 높아요. 2쪽 ⑫의 xgboost(0.511)보다도 높아요. 다만 표준편차는 {cvs[best_name].std():.3f}로 xgboost(0.082)보다 커서, 덩어리마다 점수가 더 오르내려요. 모델 종류보다 \"드문 실패를 얼마나 중요하게 치느냐\"(class_weight)가 더 크게 작용했어요.",
                       "선형 SVM과 LDA는 다섯 점수가 완전히 같아요. 둘 다 곧은 경계를 긋고, 이 데이터에서는 같은 쪽으로 판단했어요. 로지스틱도 거의 같아요.",
                       f"PCA {ns['k70']}개 + 로지스틱은 평균이 8열 로지스틱보다 조금 높고, 표준편차가 가장 작아요. 열을 줄이니 덜 흔들렸어요.",
                       "⚠️ 3쪽 ⑰에서 test는 이미 한 번 썼어요. 이 결과를 보고 test로 다시 채점하면 test로 모델을 고르는 셈이라 하지 않아요. 실제 작업이라면 이 후보들을 ⑰ 전에 함께 비교했어야 해요."])

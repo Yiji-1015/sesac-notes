@@ -177,7 +177,6 @@ outs["t6"] = S.table("걸음 수 T를 100에서 20으로 줄이면 (끝에 거�
                      ["걸음을 줄이면 한 걸음에 걷어낼 잡음이 커져서 신경망이 맞혀야 할 일이 어려워져요. 만드는 시간은 5분의 1이 됐고, 이 쉬운 2차원 데이터에서는 정밀도만 조금(0.911 → 0.894) 떨어졌어요. 그림처럼 복잡한 데이터에서는 걸음 수가 품질에 훨씬 크게 영향을 줘요.",
                       "실제로는 학습은 많은 걸음으로 하고, 만들 때만 걸음을 건너뛰는 방법(DDIM 같은)으로 속도와 품질을 맞춰요."])
 # ⑦ 비교
-outs["f_all"] = chart("다섯 모델이 만든 점 1,000개 (회색: 처음 보는 진짜 점)", None, "", [])
 fig, axs = plt.subplots(1, 5, figsize=(16, 3.6))
 for ax, (nm, col) in zip(axs, [("정규분포", C["gray"]), ("VAE", C["orange"]), ("GAN", C["pink"]), ("Flow", C["blue"]), ("Diffusion", C["mint"])]):
     sc(ax, ns["samples"][nm].numpy(), f"{nm} (정밀도 {sb[nm]['precision']}, 재현율 {sb[nm]['recall']})", col=col, s=4)

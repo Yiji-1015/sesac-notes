@@ -14,7 +14,7 @@ window.PAGE = {
   },
   {
    "t": "import torch.nn.functional as F",
-   "s": 2
+   "s": 1
   },
   {
    "t": "",
@@ -245,11 +245,7 @@ window.PAGE = {
    "s": 4
   },
   {
-   "t": "    def forward(self, x, keep=False):",
-   "s": 4
-  },
-  {
-   "t": "        self.hidden = []",
+   "t": "    def forward(self, x):",
    "s": 4
   },
   {
@@ -266,10 +262,6 @@ window.PAGE = {
   },
   {
    "t": "                x = F.relu(x)",
-   "s": 4
-  },
-  {
-   "t": "                self.hidden.append(x)",
    "s": 4
   },
   {
@@ -586,5 +578,5 @@ window.PAGE = {
    "과평활"
   ]
  ],
- "env": "Python 3.13.5, PyTorch 2.13.0+cpu, networkx 3.6.1, CPU (seed 0)"
+ "env": "Python 3.13.16, PyTorch 2.14.0+cu130, networkx 3.7, CPU (seed 0)"
 };

@@ -5,7 +5,7 @@
 import networkx as nx                                            #@1
 import torch                                                     #@1
 from torch import nn                                             #@2
-import torch.nn.functional as F                                  #@2
+import torch.nn.functional as F                                  #@1
 
 # ① 그래프를 Tensor로
 g = nx.karate_club_graph()
@@ -63,13 +63,11 @@ class GCN(nn.Module):
             return A_hat @ h
         return torch.stack([h[A_hat[i] > 0].max(0).values for i in range(n)])  # max
 
-    def forward(self, x, keep=False):
-        self.hidden = []
+    def forward(self, x):
         for i, lin in enumerate(self.layers):
             x = self.gather(lin(x))                # 모든 사람에게 같은 가중치로 바꾼 뒤 이웃끼리 모으기
             if i < len(self.layers) - 1:
                 x = F.relu(x)
-                self.hidden.append(x)
         return x
 
 torch.manual_seed(0)
