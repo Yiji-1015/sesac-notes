@@ -9413,6 +9413,101 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "RMSNorm",
+  "aliases": [
+   "Root Mean Square Normalization"
+  ],
+  "full": "Root Mean Square Normalization",
+  "short": "벡터를 제곱 평균의 제곱근(RMS)으로만 나눠 크기를 맞추는 정규화. LayerNorm에서 평균 빼기와 β를 없앤 것으로, Llama 이후 LLM의 기본이에요.",
+  "analogy": "키를 맞출 때 평균 키를 빼지 않고 전체 크기만 맞추기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "SwiGLU",
+  "aliases": [
+   "GLU",
+   "gate_proj",
+   "up_proj"
+  ],
+  "full": "Swish-Gated Linear Unit",
+  "short": "작은 신경망을 두 갈래로 나눠, SiLU를 거친 gate 갈래를 up 갈래에 칸마다 곱하는 방식. down(SiLU(gate(x)) × up(x)). 행렬이 3개라 안쪽을 약 8/3배로 줄여 크기를 맞춰요.",
+  "analogy": "한 사람이 정보를 올리고, 다른 사람이 그중 얼마나 통과시킬지 문을 여닫기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "GQA",
+  "aliases": [
+   "Grouped-Query Attention",
+   "MQA",
+   "Multi-Query Attention",
+   "num_key_value_heads"
+  ],
+  "full": "Grouped-Query Attention",
+  "short": "Query head 여러 개가 K, V head 하나를 같이 쓰는 Attention. KV 캐시가 K, V head 수만큼 줄어요. K, V head가 하나뿐이면 MQA예요. 2024년 이후 LLM의 기본이에요.",
+  "analogy": "학생마다 교과서를 주는 대신 네 명이 한 권을 같이 보기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "MoE",
+  "aliases": [
+   "Mixture of Experts",
+   "전문가 혼합",
+   "라우터"
+  ],
+  "full": "Mixture of Experts",
+  "short": "작은 신경망을 여러 벌(전문가) 두고, 라우터가 토큰마다 고른 몇 개만 계산하는 구조. 전체 가중치는 크지만 토큰 하나의 계산은 작아요. 대신 모든 전문가가 메모리에 있어야 해요.",
+  "analogy": "큰 병원에서 접수처가 환자마다 맞는 진료과 두 곳만 보내기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "슬라이딩 윈도우 Attention",
+  "aliases": [
+   "Sliding Window Attention",
+   "SWA",
+   "sliding_window"
+  ],
+  "full": "Sliding Window Attention",
+  "short": "토큰마다 바로 앞 W개만 보는 Attention. KV 캐시가 W개에서 더 늘지 않고, 먼 토큰은 층을 거쳐 간접적으로만 닿아요. 전체 Attention 층과 번갈아 쓰기도 해요.",
+  "analogy": "긴 회의에서 최근 몇 분의 대화만 메모에 남기기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Prefix caching",
+  "aliases": [
+   "Automatic Prefix Caching",
+   "PagedAttention",
+   "KV 캐시 offloading"
+  ],
+  "full": "Prefix Caching",
+  "short": "여러 요청이 같은 앞부분(시스템 Prompt, 긴 문서)을 가지면 그 KV 캐시를 한 번만 계산해 다시 쓰는 것. vLLM은 캐시를 블록으로 나눠 해시로 같은 앞부분을 찾아요.",
+  "analogy": "같은 교과서 앞부분은 한 번 읽어 둔 메모를 돌려 쓰기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
   "term": "Prompt",
   "aliases": [
    "프롬프트"

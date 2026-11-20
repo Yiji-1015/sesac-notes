@@ -135,6 +135,7 @@
           <a class="item" href="topics/model/text-classification.html"><b>문장 분류와 미세조정</b><span class="badge new">새 형식</span><small>단어 세기 기준선, e5 문장 벡터, 고정 vs 미세조정, 오류 분석, 라벨이 적을 때, 자기 학습</small></a>
           <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><span class="badge new">새 형식</span><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
           <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><span class="badge new">새 형식</span><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
+          <a class="item" href="topics/model/llm-architectures.html"><b>요즘 LLM의 부품</b><span class="badge new">새 형식</span><small>RMSNorm, SwiGLU, RoPE, GQA, KV 캐시와 prefill, decode, 슬라이딩 윈도우, MoE</small></a>
           <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><span class="badge new">새 형식</span><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
         </div>
         <div class="cat">
@@ -187,6 +188,7 @@
       <h2>🕒 업데이트 기록</h2>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/20</td><td><a href="topics/model/llm-architectures.html">요즘 LLM의 부품</a> 새로 씀: LLM internals(언어 모델의 계보) 발표와 vLLM 사용자 모임 노트. GPT-2와 Llama를 설정만으로 같은 크기로 만들어 RMSNorm, SwiGLU, RoPE, GQA를 나란히 보고, KV 캐시(prefill과 decode, 앞부분 다시 쓰기), 슬라이딩 윈도우, MoE를 직접 재기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑧~⑩ 추가: Foundations of Machine Learning 5, 6장. 커널 행렬의 고윳값으로 커널이 되는 조건 확인(sigmoid는 아님), 서포트 벡터 위의 합으로 예측을 손으로 다시 계산하고 leave-one-out 보장 확인, RBF 커널을 무작위 cos 열로 흉내 내기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/model-compression.html">모델 가볍게</a> 새로 씀: NLP with Transformers 8장. 문장 분류 쪽의 분류기를 어휘 줄이기, 지식 정제, int8 양자화, 가지치기로 가볍게 만들며 크기, 시간, 정확도를 같은 잣대로 비교. 메인 페이지의 백엔드 블록이 공통 CSS의 <code>.back</code>(돌아가기 링크용)에 걸려 한 줄로 좁게 보이던 것을 고침</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/gpt-generation.html">작은 GPT와 디코딩</a> 새로 씀: NLP with Transformers 5, 10, 6장. 이 노트의 옛 Day 글로 Tokenizer와 GPT를 처음부터 학습하고, 디코딩 일곱 가지를 반복, 다양성, 뜻밖의 정도로 비교. 주제 페이지의 '한 문장'으로 추출 요약을 ROUGE로 재기</td></tr>

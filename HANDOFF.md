@@ -70,7 +70,9 @@
    - 남음: 부스팅(7장) → 머신러닝 2쪽 `ml-trees-cv.html`에 보강해요.
    - PAC, VC 차원: 학습 이론 페이지를 새로 만들어요.
 3. **Elastic ANN, Elasticsearch**: 백엔드의 embedding, indexing 페이지에 보강해요.
-4. **llm-internals, vLLM, Solar Open 2, llm-judge**: LLM 쪽 페이지에 넣어요.
+4. **llm-internals, vLLM, Solar Open 2, llm-judge** (진행 중)
+   - 끝남: llm-internals, vLLM → 새 쪽 **요즘 LLM의 부품** (`llm-architectures.html`, 예제 `examples/llm_arch/`). 모델은 받지 않고 설정만으로 GPT-2, Llama, Mistral, Mixtral을 작게 만들어 비교 (CPU 10초쯤)
+   - 남음: llm-judge → 백엔드 LLM 활용 쪽, Solar Open 2
 5. **"데이터 분석 기초" 카테고리 새로 만들기**: 통계, SPSS, Data Science, ml-lifecycle, PRML 2강을 넣어요.
 6. **강화학습 카테고리 새로 만들기**: MARL 11장과 UDL 19장을 넣어요.
 7. **세미나 "읽기 노트"**: Upstage, PyCon, 가짜연구소, OSSummit, 밋업 자료를 담아요. 예제 코드 없이 가벼운 형식으로 써요.
