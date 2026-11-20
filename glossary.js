@@ -9185,6 +9185,121 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "디코딩",
+  "aliases": [
+   "Decoding",
+   "decoding strategy"
+  ],
+  "full": "Decoding",
+  "short": "생성 모델이 낸 다음 토큰의 확률에서 실제로 토큰 하나를 고르는 방법. greedy, beam search, sampling, top-k, top-p가 있어요.",
+  "analogy": "같은 메뉴판을 보고도 늘 1등만 시키는 사람과 그날 기분대로 고르는 사람.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Beam Search",
+  "aliases": [
+   "빔 서치",
+   "beam"
+  ],
+  "full": "Beam Search",
+  "short": "이어 쓴 후보 여러 개(빔 수만큼)를 함께 들고 가다가, 걸음마다 전체 확률이 높은 후보만 남기는 디코딩. greedy보다 그럴듯한 글을 찾지만 같은 말을 되풀이하기 쉬워요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Perplexity",
+  "aliases": [
+   "퍼플렉서티",
+   "PPL"
+  ],
+  "full": "Perplexity",
+  "short": "e^(평균 다음 토큰 손실). 모델이 다음 토큰을 평균 몇 개 중에서 헷갈리는지로 읽어요. 낮을수록 그 글을 잘 맞혀요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "ROUGE",
+  "aliases": [
+   "ROUGE-1",
+   "ROUGE-L"
+  ],
+  "full": "Recall-Oriented Understudy for Gisting Evaluation",
+  "short": "만든 요약과 정답 요약이 겹치는 조각을, 정답 쪽 기준(재현율)으로 재는 지표. ROUGE-L은 순서까지 맞는 가장 긴 공통 부분으로 재요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "BLEU",
+  "aliases": [],
+  "full": "Bilingual Evaluation Understudy",
+  "short": "만든 글의 조각 중 정답에 있는 비율(정밀도)을 1~4개 묶음으로 재고, 너무 짧은 답에는 벌점을 주는 지표. 주로 번역에 써요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "추출 요약",
+  "aliases": [
+   "Extractive Summarization"
+  ],
+  "full": "Extractive Summarization",
+  "short": "본문에서 중요한 문장을 골라 그대로 이어 붙이는 요약. 새 문장을 쓰지 않아요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "생성 요약",
+  "aliases": [
+   "Abstractive Summarization"
+  ],
+  "full": "Abstractive Summarization",
+  "short": "본문의 뜻을 새 문장으로 다시 써서 만드는 요약. 인코더-디코더 모델(BART, PEGASUS, T5)이 해요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "중복 제거",
+  "aliases": [
+   "Deduplication",
+   "dedup"
+  ],
+  "full": "Deduplication",
+  "short": "말뭉치에서 똑같거나 거의 같은 글을 하나만 남기는 정리. 그대로 두면 모델이 그 글을 외워 자꾸 꺼내요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
   "term": "Prompt",
   "aliases": [
    "프롬프트"

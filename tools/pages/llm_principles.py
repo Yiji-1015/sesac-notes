@@ -318,7 +318,7 @@ steps = [
            + K.out("f_mask")
            + K.code_table([("torch.triu(torch.ones(n, n, dtype=torch.bool), diagonal=1)", "대각선 위만 True. 자기보다 뒤의 자리"), ("pad + future * -1e9", "채운 자리와 미래 자리 모두 아주 큰 음수")]), "s7"),
     K.step(8, "다음 토큰 고르기 (점수 → 확률)", "디코더는 마지막 벡터를 어휘 수만큼의 점수로 바꾸고, softmax로 확률을 만든 뒤 하나를 골라요.",
-           "<p>디코더의 마지막 층 위에는 \"384칸 → 어휘 수\" 행렬이 하나 있어서, 다음 토큰 후보마다 점수(logit)를 내요. 고른 토큰을 입력 끝에 붙이고 다시 계산하기를 반복하면 글이 돼요. e5는 인코더라 이 행렬이 없어서, 여기서는 예시 점수로 고르는 부분만 계산해요.</p>"
+           "<p>디코더의 마지막 층 위에는 \"384칸 → 어휘 수\" 행렬이 하나 있어서, 다음 토큰 후보마다 점수(logit)를 내요. 고른 토큰을 입력 끝에 붙이고 다시 계산하기를 반복하면 글이 돼요. e5는 인코더라 이 행렬이 없어서, 여기서는 예시 점수로 고르는 부분만 계산해요. 작은 GPT를 직접 학습해서 실제로 고르는 방법들을 비교하는 건 <a href=\"gpt-generation.html\">작은 GPT와 디코딩</a>에서 해요.</p>"
            "<p><b>temperature</b>는 점수를 나누는 값이에요. 작으면 차이가 커져 1등에 몰리고, 크면 고르게 퍼져요.</p>"
            + K.code_table([("torch.softmax(logits / t, dim=-1)", "temperature t로 나눈 뒤 확률로"), ("logits.argmax()", "가장 높은 것 (greedy)"), ("torch.multinomial(probs, 1)", "확률대로 하나 뽑기 (sampling)")]), "s8"),
 ]
@@ -339,7 +339,7 @@ K.build(ROOT / "topics" / "model" / "llm-principles.html", title="Transformer �
         one_line="Transformer는 토큰 벡터에 위치를 더한 뒤, <b>Attention</b>(토큰끼리 정보 나누기)과 <b>작은 신경망</b>(토큰마다 생각하기)을 잔차 연결과 LayerNorm으로 묶은 층을 여러 번 쌓아요. 뒤를 가리면 글을 만드는 디코더가 돼요.",
         why=why, whole=whole, steps=steps, code_file="examples/llm_theory/llm_parts.py", practice=practice, libs=libs,
         libs_note="<code>cos</code>, <code>split</code>, <code>encoder_layer</code>는 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"text-classification.html\">문장 분류와 미세조정</a>", "이 벡터로 분류기 만들기"), ("<a href=\"sequence-models.html\">순서 모델</a>", "RNN과 Attention의 출발점"), ("<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>", "같은 e5로 문장 벡터 만들기"),
+        next_rows=[("<a href=\"text-classification.html\">문장 분류와 미세조정</a>", "이 벡터로 분류기 만들기"), ("<a href=\"gpt-generation.html\">작은 GPT와 디코딩</a>", "디코더를 직접 학습하고 고르기"), ("<a href=\"sequence-models.html\">순서 모델</a>", "RNN과 Attention의 출발점"), ("<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>", "같은 e5로 문장 벡터 만들기"),
                    ("<a href=\"../backend/llm-client.html\">LLM API 클라이언트</a>", "실제 디코더 LLM 부르기")],
         sources=["다루는 범위: Day20 (2026-11-13) LLM 생태계, Token, Context, Transformer, Attention, 학습과 추론",
                  "함께 정리한 자료: Simon J. D. Prince, <i>Understanding Deep Learning</i> (MIT Press, 2023) 12장(Transformer). Lewis Tunstall 외, <i>Natural Language Processing with Transformers</i> 1장(인코더-디코더와 Attention의 출발, Hugging Face 생태계), 3장(Scaled Dot-Product Attention, 여러 head, Feed Forward, Post-LN과 Pre-LN, 위치 Embedding, 디코더와 교차 Attention, 세 갈래 모델), 11장(스케일링 법칙, 희소 Attention과 선형 Attention, ViT, CLIP, wav2vec 2.0, LayoutLM)",
