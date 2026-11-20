@@ -40,13 +40,15 @@
     .item b { font-size: .97rem; }
     .item small { display: block; color: var(--muted); font-size: .84rem; margin-top: 1px; }
     .badge { display: inline-block; font-size: .72rem; font-weight: 800; border-radius: 999px; padding: 1px 8px; margin-left: 6px; vertical-align: 1px; }
-    .badge.new { background: #d3f9d8; color: #2b8a3e; }
     .badge.day { background: var(--accent-soft); color: var(--muted); }
     .subgroup { margin: 4px 0 2px 10px; font-size: .78rem; font-weight: 800; color: var(--muted); }
 
     /* 업데이트 기록 */
     .log { margin-top: 40px; }
-    .log h2 { font-size: 1.15rem; }
+    .log summary { cursor: pointer; padding: 12px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .log summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .log summary h2 { display: inline; margin: 0; font-size: 1.15rem; }
+    .log[open] table { margin-top: 12px; }
     .log table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
     .log th, .log td { padding: 8px 12px; border-bottom: 1px solid var(--line); text-align: left; font-size: .9rem; vertical-align: top; }
     .log th { background: var(--accent-soft); color: var(--accent); }
@@ -107,42 +109,42 @@
         <div class="cat">
           <h3>머신러닝 기초</h3>
           <p>표 데이터로 예측하고, 공정하게 평가하기</p>
-          <a class="item" href="topics/model/ml-regression-classification.html"><b>회귀, 분류, KNN, 모델 비교</b><span class="badge new">새 형식</span><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
-          <a class="item" href="topics/model/ml-trees-cv.html"><b>트리, 앙상블, 교차검증</b><span class="badge new">새 형식</span><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
-          <a class="item" href="topics/model/ml-metrics-clustering.html"><b>평가지표, 특성 설계, K-Means</b><span class="badge new">새 형식</span><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
-          <a class="item" href="topics/model/ml-svm-lda-pca.html"><b>SVM, 판별분석, 차원 축소</b><span class="badge new">새 형식</span><small>최대 마진, 커널, LDA와 QDA, 베이즈, PCA, 주성분, 커널이 되는 조건, Representer 정리, 커널 근사</small></a>
+          <a class="item" href="topics/model/ml-regression-classification.html"><b>회귀, 분류, KNN, 모델 비교</b><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
+          <a class="item" href="topics/model/ml-trees-cv.html"><b>트리, 앙상블, 교차검증</b><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
+          <a class="item" href="topics/model/ml-metrics-clustering.html"><b>평가지표, 특성 설계, K-Means</b><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
+          <a class="item" href="topics/model/ml-svm-lda-pca.html"><b>SVM, 판별분석, 차원 축소</b><small>최대 마진, 커널, LDA와 QDA, 베이즈, PCA, 주성분, 커널이 되는 조건, Representer 정리, 커널 근사</small></a>
         </div>
         <div class="cat">
           <h3>딥러닝 기초</h3>
           <p>신경망이 배우는 원리와 학습을 안정시키는 방법</p>
-          <a class="item" href="topics/model/dl-tensor-training.html"><b>GPU, Tensor, ANN</b><span class="badge new">새 형식</span><small>GPU 확인, Tensor 연산, 역전파, 학습 루프</small></a>
-          <a class="item" href="topics/model/dl-training-stability.html"><b>Optimizer와 Regularization</b><span class="badge new">새 형식</span><small>학습률, Batch와 Epoch, 과적합, Dropout, BatchNorm, 조기 종료</small></a>
+          <a class="item" href="topics/model/dl-tensor-training.html"><b>GPU, Tensor, ANN</b><small>GPU 확인, Tensor 연산, 역전파, 학습 루프</small></a>
+          <a class="item" href="topics/model/dl-training-stability.html"><b>Optimizer와 Regularization</b><small>학습률, Batch와 Epoch, 과적합, Dropout, BatchNorm, 조기 종료</small></a>
         </div>
         <div class="cat">
           <h3>이미지</h3>
           <p>사진을 분류하고, 물체를 찾고, 글자를 읽기</p>
-          <a class="item" href="topics/model/cnn.html"><b>CNN과 이미지 분류</b><span class="badge new">새 형식</span><small>합성곱, Pooling, ResNet 전이학습</small></a>
-          <a class="item" href="topics/model/opencv-preprocessing.html"><b>OpenCV 이미지와 영상 전처리</b><span class="badge new">새 형식</span><small>색공간, 필터, 이진화, 형태학, 증강</small></a>
-          <a class="item" href="topics/model/transfer-learning.html"><b>전이학습과 오류 분석</b><span class="badge new">새 형식</span><small>Backbone과 Head, 불균형 데이터, Macro F1, Grad-CAM</small></a>
-          <a class="item" href="topics/model/object-detection.html"><b>객체 탐지와 YOLO</b><span class="badge new">새 형식</span><small>박스 좌표, IoU, NMS, mAP, 학습과 추적</small></a>
-          <a class="item" href="topics/model/ocr-documents.html"><b>OCR, 문서 구조화, VLM, 엣지 배포</b><span class="badge new">새 형식</span><small>Tesseract, 근거 검증, TensorRT, Jetson</small></a>
+          <a class="item" href="topics/model/cnn.html"><b>CNN과 이미지 분류</b><small>합성곱, Pooling, ResNet 전이학습</small></a>
+          <a class="item" href="topics/model/opencv-preprocessing.html"><b>OpenCV 이미지와 영상 전처리</b><small>색공간, 필터, 이진화, 형태학, 증강</small></a>
+          <a class="item" href="topics/model/transfer-learning.html"><b>전이학습과 오류 분석</b><small>Backbone과 Head, 불균형 데이터, Macro F1, Grad-CAM</small></a>
+          <a class="item" href="topics/model/object-detection.html"><b>객체 탐지와 YOLO</b><small>박스 좌표, IoU, NMS, mAP, 학습과 추적</small></a>
+          <a class="item" href="topics/model/ocr-documents.html"><b>OCR, 문서 구조화, VLM, 엣지 배포</b><small>Tesseract, 근거 검증, TensorRT, Jetson</small></a>
         </div>
         <div class="cat">
           <h3>순서와 언어 모델</h3>
           <p>순서가 있는 데이터를 읽는 모델에서 LLM까지</p>
-          <a class="item" href="topics/model/sequence-models.html"><b>순서 모델</b><span class="badge new">새 형식</span><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
-          <a class="item" href="topics/model/llm-principles.html"><b>Transformer 구조</b><span class="badge new">새 형식</span><small>Token, 위치 벡터, Attention과 head, 층 하나 직접 계산, 인코더와 디코더, 다음 토큰</small></a>
-          <a class="item" href="topics/model/text-classification.html"><b>문장 분류와 미세조정</b><span class="badge new">새 형식</span><small>단어 세기 기준선, e5 문장 벡터, 고정 vs 미세조정, 오류 분석, 라벨이 적을 때, 자기 학습</small></a>
-          <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><span class="badge new">새 형식</span><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
-          <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><span class="badge new">새 형식</span><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
-          <a class="item" href="topics/model/llm-architectures.html"><b>요즘 LLM의 부품</b><span class="badge new">새 형식</span><small>RMSNorm, SwiGLU, RoPE, GQA, KV 캐시와 prefill, decode, 슬라이딩 윈도우, MoE</small></a>
-          <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><span class="badge new">새 형식</span><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
+          <a class="item" href="topics/model/sequence-models.html"><b>순서 모델</b><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
+          <a class="item" href="topics/model/llm-principles.html"><b>Transformer 구조</b><small>Token, 위치 벡터, Attention과 head, 층 하나 직접 계산, 인코더와 디코더, 다음 토큰</small></a>
+          <a class="item" href="topics/model/text-classification.html"><b>문장 분류와 미세조정</b><small>단어 세기 기준선, e5 문장 벡터, 고정 vs 미세조정, 오류 분석, 라벨이 적을 때, 자기 학습</small></a>
+          <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
+          <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
+          <a class="item" href="topics/model/llm-architectures.html"><b>요즘 LLM의 부품</b><small>RMSNorm, SwiGLU, RoPE, GQA, KV 캐시와 prefill, decode, 슬라이딩 윈도우, MoE</small></a>
+          <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
         </div>
         <div class="cat">
           <h3>생성 모델과 그래프</h3>
           <p>새 데이터를 만드는 모델과, 연결된 데이터를 다루는 모델</p>
-          <a class="item" href="topics/model/generative-models.html"><b>생성 모델</b><span class="badge new">새 형식</span><small>VAE, GAN, Normalizing Flow, Diffusion, 정밀도와 재현율</small></a>
-          <a class="item" href="topics/model/gnn.html"><b>그래프 신경망 (GNN)</b><span class="badge new">새 형식</span><small>인접 행렬, 이웃 모으기, GCN, 과평활</small></a>
+          <a class="item" href="topics/model/generative-models.html"><b>생성 모델</b><small>VAE, GAN, Normalizing Flow, Diffusion, 정밀도와 재현율</small></a>
+          <a class="item" href="topics/model/gnn.html"><b>그래프 신경망 (GNN)</b><small>인접 행렬, 이웃 모으기, GCN, 과평활</small></a>
         </div>
       </div>
     </section>
@@ -155,28 +157,28 @@
         <div class="cat">
           <h3>API 서버</h3>
           <p>요청을 받아 검증하고 응답하기</p>
-          <a class="item" href="topics/backend/fastapi.html"><b>FastAPI 지식 관리 API</b><span class="badge new">새 형식</span><small>HTTP 요청과 응답, CRUD, Pydantic 검증, 상태 코드</small></a>
+          <a class="item" href="topics/backend/fastapi.html"><b>FastAPI 지식 관리 API</b><small>HTTP 요청과 응답, CRUD, Pydantic 검증, 상태 코드</small></a>
         </div>
         <div class="cat">
           <h3>데이터베이스</h3>
           <p>데이터를 안전하게 저장하고 꺼내기</p>
-          <a class="item" href="topics/backend/postgres.html"><b>PostgreSQL 입문</b><span class="badge new">새 형식</span><small>SQL 조회, 기본 키와 외래 키, JOIN, 제약 조건, 트랜잭션, 인덱스</small></a>
-          <a class="item" href="topics/backend/fastapi-postgres.html"><b>FastAPI와 PostgreSQL 연동</b><span class="badge new">새 형식</span><small>SQLAlchemy ORM, Session, 트랜잭션, Alembic</small></a>
+          <a class="item" href="topics/backend/postgres.html"><b>PostgreSQL 입문</b><small>SQL 조회, 기본 키와 외래 키, JOIN, 제약 조건, 트랜잭션, 인덱스</small></a>
+          <a class="item" href="topics/backend/fastapi-postgres.html"><b>FastAPI와 PostgreSQL 연동</b><small>SQLAlchemy ORM, Session, 트랜잭션, Alembic</small></a>
         </div>
         <div class="cat">
           <h3>LLM 활용</h3>
           <p>LLM에게 잘 묻고, 안정적으로 부르기</p>
-          <a class="item" href="topics/backend/prompt-contract.html"><b>Prompt와 Context Engineering</b><span class="badge new">새 형식</span><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
-          <a class="item" href="topics/backend/llm-client.html"><b>LLM API 클라이언트</b><span class="badge new">새 형식</span><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
+          <a class="item" href="topics/backend/prompt-contract.html"><b>Prompt와 Context Engineering</b><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
+          <a class="item" href="topics/backend/llm-client.html"><b>LLM API 클라이언트</b><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
         </div>
         <div class="cat">
           <h3>검색과 RAG</h3>
           <p>문서를 검색할 수 있게 쌓고, 질문과 가까운 근거 찾기</p>
-          <a class="item" href="topics/backend/embedding.html"><b>Embedding과 Vector Search</b><span class="badge new">새 형식</span><small>유사도, 정규화, Sentence Transformers, pgvector, HNSW</small></a>
+          <a class="item" href="topics/backend/embedding.html"><b>Embedding과 Vector Search</b><small>유사도, 정규화, Sentence Transformers, pgvector, HNSW</small></a>
           <div class="subgroup">문서 적재 (3쪽, 코드 하나로 이어짐)</div>
-          <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><span class="badge new">새 형식</span><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
-          <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><span class="badge new">새 형식</span><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
-          <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><span class="badge new">새 형식</span><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
+          <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
+          <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
+          <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
         </div>
       </div>
     </section>
@@ -184,8 +186,8 @@
     <p class="empty" id="empty">검색 결과가 없어요.</p>
 
     <!-- ===================== 업데이트 기록 ===================== -->
-    <section class="log" id="log">
-      <h2>🕒 업데이트 기록</h2>
+    <details class="log" id="log">
+      <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/llm-architectures.html">요즘 LLM의 부품</a> 새로 씀: LLM internals(언어 모델의 계보) 발표와 vLLM 사용자 모임 노트. GPT-2와 Llama를 설정만으로 같은 크기로 만들어 RMSNorm, SwiGLU, RoPE, GQA를 나란히 보고, KV 캐시(prefill과 decode, 앞부분 다시 쓰기), 슬라이딩 윈도우, MoE를 직접 재기</td></tr>
@@ -218,7 +220,7 @@
         <tr><td class="when">10/27</td><td>Day07 <a href="notes/day07.html">트리, 앙상블, 교차검증</a></td></tr>
         <tr><td class="when">10/26</td><td>Day06 <a href="notes/day06.html">회귀, 분류, KNN, 모델 비교</a></td></tr>
       </table>
-    </section>
+    </details>
   </main>
 
   <script>
