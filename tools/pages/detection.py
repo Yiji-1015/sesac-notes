@@ -50,17 +50,23 @@ outs["s2"] = S.table("② 예측 4개 × 정답 3개의 IoU", ["예측 (점수, 
                      [[f"{p.confidence}, {ns['NAMES'][p.class_id]}"] + [f"<b>{v}</b>" if v >= 0.5 else str(v) for v in row] for p, row in zip(pred.itertuples(), ns["ious"])],
                      ["IoU = 겹친 넓이 ÷ 합친 넓이. 1이면 완전히 같고 0이면 안 겹쳐요. 보통 0.5 이상이면 \"같은 물체를 찾았다\"고 봐요.", "점수 0.4짜리 세모 예측은 어느 정답과도 겹치지 않아요."])
 c = ns["counts"]
+_conf = [p.confidence for p in pred.itertuples()]
+dup_iou = max(ns["ious"][_conf.index(0.85)])   # 두 번째 네모 예측이 정답과 겹친 정도
+S.claim(max(ns["ious"][_conf.index(0.4)]) == 0, "② 0.4짜리 세모 예측은 어느 정답과도 안 겹친다")
+S.claim(any(s_ == 0.85 and "FP" in str(r_) for s_, _, r_ in ns["matched"]) and c["FN"] == 1, "③ 0.85짜리 네모는 잘 겹치는데도 FP, 세모 정답은 FN")
 outs["s3"] = S.box("③ match(pred, gt)  (IoU 0.5, 같은 종류, 점수 높은 것부터)", [*(f"점수 {s}, {n} → {r}" for s, n, r in ns["matched"]), "", (f"TP {c['TP']}, FP {c['FP']}, FN {c['FN']} → precision {c['precision']:.2f}, recall {c['recall']:.2f}", 1)],
-                   ["두 번째 네모(0.85)는 정답과 IoU 0.82로 잘 겹치는데도 FP예요. 그 정답은 이미 0.95짜리가 가져갔기 때문이에요. <b>정답 하나에는 예측 하나만</b> 짝지어요. 세모 정답은 아무도 못 찾아서 FN이에요."])
+                   [f"두 번째 네모(0.85)는 정답과 IoU {dup_iou:.2f}로 잘 겹치는데도 FP예요. 그 정답은 이미 0.95짜리가 가져갔기 때문이에요. <b>정답 하나에는 예측 하나만</b> 짝지어요. 세모 정답은 아무도 못 찾아서 FN이에요."])
 cn = ns["counts_nms"]
-outs["s4"] = S.box("④ nms(boxes, scores, iou_threshold=0.5)", [(f"keep → {ns['keep']}  (예측 4개 중 3개 남음)", 1), *(f"점수 {s}, {n} → {r}" for s, n, r in ns["matched_nms"]),
+S.claim(cn["recall"] == c["recall"] and cn["precision"] > c["precision"], "④ NMS로 precision은 오르고 recall은 그대로")
+outs["s4"] = S.box("④ nms(boxes, scores, iou_threshold=0.5)", [(f"keep → {ns['keep']}  (예측 {len(pred)}개 중 {len(ns['keep'])}개 남음)", 1), *(f"점수 {s}, {n} → {r}" for s, n, r in ns["matched_nms"]),
                                                                   (f"precision {c['precision']:.2f} → {cn['precision']:.2f}, recall {cn['recall']:.2f} 그대로", 2)],
                    ["점수가 가장 높은 박스를 남기고, 그것과 IoU 0.5 이상 겹치는 낮은 점수 박스를 지웠어요. 같은 물체에 대한 중복 후보예요.", "중복이 사라져 헛탐지가 줄었어요. 놓친 물체는 NMS로 찾아지지 않아요."])
-outs["s4img"] = S.images("NMS 전후", [(draw(D / "scene.png", gtb + predb, "nms_before.png"), "전: 후보 4개"), (draw(D / "scene.png", gtb + [((p.x1, p.y1, p.x2, p.y2), R, f"{p.confidence}") for p in ns["after_nms"].itertuples()], "nms_after.png"), "후: 3개")])
+outs["s4img"] = S.images("NMS 전후", [(draw(D / "scene.png", gtb + predb, "nms_before.png"), f"전: 후보 {len(pred)}개"), (draw(D / "scene.png", gtb + [((p.x1, p.y1, p.x2, p.y2), R, f"{p.confidence}") for p in ns["after_nms"].itertuples()], "nms_after.png"), f"후: {len(ns['after_nms'])}개")])
 outs["s5"] = S.table("⑤ 점수 기준을 바꾸면 (NMS 뒤)", ["점수 기준", "TP", "FP", "FN", "precision", "recall"], [[r["기준"], r["TP"], r["FP"], r["FN"], f"{r['precision']:.2f}", f"{r['recall']:.2f}"] for r in ns["pr_table"]],
                      ["기준을 높이면 확실한 것만 남아 precision이 올라가고, 낮추면 더 많이 찾지만 헛탐지도 늘어요. 기준을 여러 개로 바꿔 가며 그린 precision-recall 곡선의 아래 넓이가 <b>AP</b>이고, 종류별 AP의 평균이 <b>mAP</b>예요.",
                       "mAP50은 IoU 0.5 기준, mAP50-95는 IoU 0.5~0.95를 평균해서 박스가 얼마나 정확한지까지 따져요."])
 sw = ns["switches"]
+S.claim(all(v == 0 for g_, v in sw.items() if g_ <= 10) and sw[20] > 0, "⑥ 10프레임 간격까지는 잘 이어지고, 20프레임 간격에서 ID가 바뀐다")
 outs["s6"] = S.table("⑥ IoU 추적기 (물체 3개, 30프레임)", ["몇 프레임마다 탐지", "물체가 그사이 움직인 거리", "ID가 바뀐 횟수"], [[g, f"약 {g}픽셀", f"<b>{v}</b>" if v else "0"] for g, v in sw.items()],
                      ["탐지기는 프레임마다 박스만 줘요. \"이 박스가 아까 그 물체인가\"는 직전 박스와 IoU가 가장 큰 것끼리 이어 붙여 정해요.", "물체가 프레임마다 약 1픽셀씩 움직여서, 10프레임 간격까지는 잘 이어졌어요. 20프레임 간격에서는 박스가 많이 어긋나 IoU가 기준(0.3)보다 작아져서, 같은 물체에 새 ID가 붙었어요."])
 flow = [[1, "라벨", "비율 → 픽셀", "중심, 너비, 높이"], [2, "IoU", "겹친 / 합친", "0.5 이상이면 찾음"], [3, "짝짓기", "TP, FP, FN", "정답 하나에 하나"], [4, "NMS", "중복 지우기", "점수 높은 것만"], [5, "기준", "precision ↔ recall", "AP, mAP"], [6, "추적", "IoU로 잇기", "ID 바뀜"]]

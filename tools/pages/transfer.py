@@ -34,8 +34,12 @@ cl = ns["classes"]
 r2, r4, r5, r7 = n2["report"](n2["scratch"]), n4["report"](n4["frozen"]), ns["report"](ns["finetuned"]), ns["report"](ns["weighted"])
 outs = {}
 Xt, yt = ns["X_train"], ns["y_train"]
+_cnt = ns["counts"]
+big_small = max(_cnt.values()) / min(_cnt.values())   # 가장 많은 종류 ÷ 가장 적은 종류
+S.claim(max(_cnt, key=_cnt.get) == "circle" and min(_cnt, key=_cnt.get) == "triangle", "원이 가장 많고 세모가 가장 적다")
+S.claim(r4["macro_f1"] > 0.95 and r4["macro_f1"] > r2["macro_f1"] + 0.2, "④ Head만 배워도 거의 다 맞히고, ②보다 훨씬 낫다")
 outs["data"] = S.images("train 그림 예시 (32×32로 맞춤)", [(save(Xt[yt == c][i], f"ex{c}{i}.png"), cl[c]) for c in range(3) for i in range(2)],
-                        [f"train 개수: {', '.join(f'{k} {v}장' for k, v in ns['counts'].items())}. 원이 세모의 6배예요. valid는 종류마다 30장씩이에요."])
+                        [f"train 개수: {', '.join(f'{k} {v}장' for k, v in ns['counts'].items())}. 원이 세모의 {big_small:.0f}배예요. valid는 종류마다 30장씩이에요."])
 outs["why"] = S.table("같은 구조, 같은 학습 횟수(5번)로 비교 (valid 90장)", ["방법", "정확도", "macro F1"],
                       [["처음부터 학습 (②)", f"{r2['accuracy']:.3f}", f"<span class=\"bad\">{r2['macro_f1']:.3f}</span>"], ["미리 배운 Backbone + Head만 학습 (④)", f"{r4['accuracy']:.3f}", f"<b>{r4['macro_f1']:.3f}</b>"]],
                       ["그림 180장, 5번 학습으로는 처음부터 배우기 어려워요. 다른 도형 그림으로 <b>이미 배운 특징 뽑기 부분</b>을 빌려 오면, 분류하는 마지막 층만 배워도 거의 다 맞혀요."])
@@ -46,24 +50,31 @@ outs["s2"] = S.box("② 처음부터 5번 학습", [f"가중치 수 → {sum(p.n
 src = ns["source"]
 outs["s3"] = S.box("③ source_backbone.npz", [f"{k} → {tuple(src[k].shape)}" for k in src.files if not k.endswith("num_batches_tracked")][:6] + [("load_state_dict → 성공 (이름과 모양이 모두 맞음)", 1)],
                    ["다른 도형 그림 300장으로 미리 학습해 둔 Backbone의 가중치예요 (이 그림들은 우리 train에 없어요). 층 번호와 모양이 우리 <code>make_backbone()</code>과 똑같아서 그대로 끼울 수 있어요."])
+n_all = sum(p_.numel() for p_ in n4["frozen"].parameters())
 outs["s4"] = S.box("④ Backbone 고정, Head만 5번 학습", [(f"학습하는 가중치 → {n4['trainable']:,}개 / 전체 {sum(p.numel() for p in n4['frozen'].parameters()):,}개", 1), (f"valid → 정확도 {r4['accuracy']:.3f}, macro F1 {r4['macro_f1']:.3f}", 2)],
-                   ["Head(256 → 3)만 배우니 학습할 게 3분의 1로 줄었어요.", "그런데도 ②보다 훨씬 잘 맞혀요. 빌려 온 Backbone이 이미 \"도형을 구분하는 특징\"을 뽑아 주니까요."])
+                   [f"Head(256 → 3)만 배우니 학습할 게 {round(n_all / n4['trainable'])}분의 1로 줄었어요.", "그런데도 ②보다 훨씬 잘 맞혀요. 빌려 온 Backbone이 이미 \"도형을 구분하는 특징\"을 뽑아 주니까요."])
 outs["s5"] = S.box("⑤ 전체를 작은 학습률(0.001)로 5번 더", [(f"valid → 정확도 {r5['accuracy']:.3f}, macro F1 {r5['macro_f1']:.3f}", 1)],
                    [(f"④({r4['macro_f1']:.3f})보다 오히려 조금 떨어졌어요. 그림 180장으로 Backbone까지 고치면, 빌려 온 좋은 특징이 우리 데이터에 맞춰 흐트러질 수 있어요. 데이터가 적을 때는 Head만 배우는 게 나을 때가 많아요. " if r5['macro_f1'] < r4['macro_f1'] else "④와 거의 같아요. 빌려 온 특징이 이미 잘 맞아서 더 고칠 게 없었어요. ")
                     + "원래 데이터와 우리 데이터가 많이 다르고 데이터가 넉넉할수록 미세조정의 효과가 커요."])
 pc = ns["per_class"]
+_wrong = (ns["pred"] != ns["y_valid"]).nonzero().flatten().tolist()
+S.claim(len(_wrong) > 0 and all(cl[int(ns["pred"][i])] == "circle" for i in _wrong), "⑥ 틀린 그림은 모두 원으로 답했다")
 outs["s6"] = S.table("⑥ 종류별 성적 (valid)", ["종류", "precision", "recall", "valid 장수"], [[c, f"{pc[c]['precision']:.2f}", f"{pc[c]['recall']:.2f}", int(pc[c]["support"])] for c in cl],
                      [f"혼동 행렬 (행: 실제, 열: 예측) → {ns['cm'].tolist()}",
-                      "틀린 2장은 모두 \"원\"으로 잘못 답했어요. train에 원이 가장 많아서 애매하면 원 쪽으로 기우는 거예요. 정확도 하나로는 이런 치우침이 안 보여서 종류별로 봐요. macro F1은 종류마다 F1을 구해 <b>똑같은 무게로</b> 평균 낸 값이라 적은 종류도 공평하게 반영돼요."])
+                      f"틀린 {len(_wrong)}장은 모두 \"원\"으로 잘못 답했어요. train에 원이 가장 많아서 애매하면 원 쪽으로 기우는 거예요. 정확도 하나로는 이런 치우침이 안 보여서 종류별로 봐요. macro F1은 종류마다 F1을 구해 <b>똑같은 무게로</b> 평균 낸 값이라 적은 종류도 공평하게 반영돼요."])
 wrong = (ns["pred"] != ns["y_valid"]).nonzero().flatten().tolist()
 outs["s6img"] = S.images("틀린 그림", [(save(ns["X_valid"][i], f"wrong{i}.png"), f"정답 {cl[int(ns['y_valid'][i])]} → 예측 {cl[int(ns['pred'][i])]}") for i in wrong],
                          ["틀린 그림을 직접 보면 원인을 짐작할 수 있어요. 모양이 작거나, 모서리가 뭉개졌거나, 다른 종류와 닮았는지요."])
+_w = dict(zip(cl, [float(w_) for w_ in ns["weight"]]))
+S.claim(r7["macro_f1"] > r5["macro_f1"], "⑦ 무게를 주니 valid macro F1이 조금 올랐다")
 outs["s7"] = S.box("⑦ 종류별 무게를 주고 미세조정", [(f"weight → {[round(float(w), 2) for w in ns['weight']]}  ({', '.join(cl)})", 1), (f"valid → 정확도 {r7['accuracy']:.3f}, macro F1 {r7['macro_f1']:.3f}", 2)],
-                   ["적은 종류일수록 틀렸을 때 손실을 크게 쳐요. 세모 하나를 틀리면 원 하나를 틀린 것의 6배로요.", f"⑤({r5['macro_f1']:.3f})와 비교하면 valid에서 {r7['macro_f1']:.3f}로 조금 올랐어요."])
+                   [f"적은 종류일수록 틀렸을 때 손실을 크게 쳐요. 세모 하나를 틀리면 원 하나를 틀린 것의 {_w['triangle'] / _w['circle']:.0f}배로요.", f"⑤({r5['macro_f1']:.3f})와 비교하면 valid에서 {r7['macro_f1']:.3f}로 조금 올랐어요."])
 ts = ns["test_scores"]
+_tv = list(ts.values())
+S.claim(min(_tv[1:]) > _tv[0] + 0.2 and max(_tv[1:]) - min(_tv[1:]) <= 2 / 30 + 1e-9, "⑧ 빌려 온 방법들이 크게 낫고, 그 사이 차이는 30장 중 한두 장")
 outs["s8"] = S.table("⑧ test 30장 macro F1 (처음 사용)", ["방법", "macro F1"], [[k, f"{v:.3f}"] for k, v in ts.items()],
                      ["빌려 온 Backbone을 쓴 방법들이 처음부터 배운 것보다 크게 나아요. 그 사이의 차이(Head만, 미세조정, 무게)는 30장 중 한두 장이라 우연일 수 있어요. 이 데이터로 확실히 말할 수 있는 건 \"빌려 오면 훨씬 낫다\"까지예요."])
-flow = [[1, "데이터", "180장", "불균형"], [2, "처음부터", "5번 학습", "부족함"], [3, "빌려 오기", "npz → Backbone", "모양이 같아야"], [4, "Head만", "Backbone 고정", "가중치 1/3"], [5, "미세조정", "작은 학습률", "전체 조금"], [6, "종류별", "macro F1", "틀린 그림"], [7, "무게", "적은 종류 ↑", "손실 무게"], [8, "test", "한 번", "비교"]]
+flow = [[1, "데이터", "180장", "불균형"], [2, "처음부터", "5번 학습", "부족함"], [3, "빌려 오기", "npz → Backbone", "모양이 같아야"], [4, "Head만", "Backbone 고정", f"가중치 1/{round(n_all / n4['trainable'])}"], [5, "미세조정", "작은 학습률", "전체 조금"], [6, "종류별", "macro F1", "틀린 그림"], [7, "무게", "적은 종류 ↑", "손실 무게"], [8, "test", "한 번", "비교"]]
 S.save(ROOT / "topics" / "model" / "transfer-learning-data.js", {"code": code, "names": S.names(code), "range": [1, 8], "outs": outs, "flow": flow, "env": f"Python {sys.version.split()[0]}, PyTorch {torch.__version__}, CPU (seed 0)"})
 why = f"""<p>세 가지 도형(원, 네모, 세모)을 구분하려고 해요. 그런데 그림이 180장뿐이고, 종류마다 개수도 달라요.</p>{K.out("data")}
 <p>사람은 처음 보는 물건도 "모서리가 있고 둥글지 않다" 같은 이미 아는 특징으로 알아봐요. 모델도 마찬가지로, <b>다른 데이터로 미리 배운 특징 뽑기 부분</b>을 빌려 쓸 수 있어요. 이걸 <b>전이학습</b>이라고 해요. 실제로 비교하면:</p>{K.out("why")}

@@ -16,7 +16,10 @@
 - 페이지마다 예제 코드 파일 하나(`examples/...`)를 단계별로 키워 가며 설명해요.
   - 코드 줄 끝의 `#@N`은 "N단계에서 추가된 줄"이라는 표시예요.
   - `# ① 이름` 주석이 페이지의 단계 번호와 1:1로 맞아요.
-- 페이지에 나오는 숫자, 표, 그림은 모두 빌드할 때 예제를 실제로 돌려서 얻은 값이에요. 손으로 적은 값은 없어요.
+- 페이지에 나오는 숫자, 표, 그림은 모두 빌드할 때 예제를 실제로 돌려서 얻은 값이에요.
+  - 풀이 문장 속 실행 결과 숫자도 f-string으로 실행 값을 넣어요. 설정 값(학습률 등), 데이터 크기, 수학 상수만 글로 써요.
+  - "가장 높아요" 같은 말로 쓴 주장은 `S.claim(조건, "설명")`(`tools/stepcode.py`)으로 검사해요. 값이 바뀌어 주장이 틀리면 빌드가 멈춰요. 그러면 글을 고치면 돼요.
+  - 손으로 쓴 HTML인 문서 적재 세 쪽(`document-reading`, `chunking`, `indexing`)은 아직 이 검사가 없어요.
 - 본문에는 강의 이야기를 쓰지 않아요. 출처는 각 페이지 맨 아래 "원본 자료"에만 적어요.
 - 옛 `notes/dayNN.html`은 아직 남아 있어요. `tools/build_llms.py`(→ `all-notes.md`, `llms.txt`)는 아직 옛 노트만 읽어요.
 
@@ -97,6 +100,7 @@
 - 시스템 Python 3.13에 scikit-learn, torch(CPU), torchvision을 설치해서 빌드했어요. 수업용 가상환경은 지금 PC에 없어요.
 - `llm_principles.py`는 e5-small 모델이 없으면 기존 `llm-principles-data.js`의 결과를 다시 써요. 그래서 그 페이지의 일부 값은 예전 PC에서 낸 값이에요.
 - `gen_models.py`는 모델 다섯 개를 학습해서 CPU로 2~4분 걸려요.
+- 다른 PC(`C:\practice_assignment\.venv`, Python 3.13.16, PyTorch 2.14 cu130, scikit-learn 1.8)에서 다시 빌드한 적이 있어요. 그때 생성 모델 쪽과 CNN ⑦의 값이 PyTorch 버전 차이로 조금 바뀌었고, 말로 쓴 주장은 모두 그대로 맞았어요.
 - 로컬에서 보기: 저장소 폴더에서 `python -m http.server 5174`를 실행하고 http://localhost:5174 를 열어요.
 
 ### Git

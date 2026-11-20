@@ -30,6 +30,10 @@ run = lambda k, patch=None: S.run(code, k, S.workdir(EX), patch, filename="more_
 f3 = lambda x: f"{float(x):.3f}"  # noqa: E731
 ENV = f"Python {sys.version.split()[0]}, scikit-learn {sklearn.__version__}, pandas {pd.__version__}"
 ns = run(7)
+# 1~3쪽 값을 인용할 때도 손으로 옮겨 적지 않고, 그 쪽 예제(requests_model.py)를 ⑫까지 실제로 돌려서 가져와요
+REF = S.run(S.parse((EX / "requests_model.py").read_text(encoding="utf-8")), 12, S.workdir(EX), filename="requests_model.py")
+p1_f1 = REF["scores"]["f1"]           # 1쪽 ⑤ 로지스틱의 valid F1
+xgb_cv = REF["cv_scores"]["xgboost"]  # 2쪽 ⑫ xgboost의 교차검증 F1 다섯 개
 
 setup()
 plt.rcParams["font.family"] = ["Malgun Gothic", "DejaVu Sans"]
@@ -144,48 +148,68 @@ outs["s1"] = S.box("① 실행 결과", [f"train {len(ns['train'])}건, valid {l
 outs["s2"] = S.box("② 선형 SVM (8열, C=1)", [(f"도로 폭 2 ÷ ‖θ‖ = {ns['margin']:.3f}", 1), (f"서포트 벡터: 성공 {ns['n_sv'][0]}개, 실패 {ns['n_sv'][1]}개 (train 60건 중 {ns['n_sv'].sum()}개)", 2, "newf"),
                                                 (f"valid → F1 {ns['lin_scores']['f1']:.2f}, recall {ns['lin_scores']['recall']:.2f}, accuracy {ns['lin_scores']['accuracy']:.2f}", 3)],
                    ["크기를 맞춘 8열 공간에서 도로 폭이에요. 숫자 자체보다 C를 바꿀 때 어떻게 변하는지가 중요해요 (🔁).",
-                    "60건 중 절반이 서포트 벡터예요. 두 무리가 많이 겹쳐서, 도로 안이나 반대편에 들어간 점이 많다는 뜻이에요. 깨끗이 나뉘는 데이터라면 서포트 벡터는 몇 개뿐이에요.",
-                    "1쪽 로지스틱(F1 0.33)보다 낮아요. 둘 다 곧은 경계라 비슷한 한계가 있어요."])
-lin_rows = []
+                    f"{len(ns['train'])}건 중 {ns['n_sv'].sum()}개, 절반쯤이 서포트 벡터예요. 두 무리가 많이 겹쳐서, 도로 안이나 반대편에 들어간 점이 많다는 뜻이에요. 깨끗이 나뉘는 데이터라면 서포트 벡터는 몇 개뿐이에요.",
+                    f"1쪽 로지스틱(F1 {p1_f1:.2f})보다 낮아요. 둘 다 곧은 경계라 비슷한 한계가 있어요."])
+S.claim(0.4 <= ns["n_sv"].sum() / len(ns["train"]) <= 0.6, "② 서포트 벡터가 train의 절반쯤")
+S.claim(ns["lin_scores"]["f1"] < p1_f1, "② 선형 SVM F1이 1쪽 로지스틱보다 낮다")
+lin_rows, lin_n = [], {}
 for Cv in (0.1, 1, 10):
-    n = ns if Cv == 1 else run(2, [("SVC(kernel=\"linear\", C=1.0)", f"SVC(kernel=\"linear\", C={Cv})")])
+    n = lin_n[Cv] = ns if Cv == 1 else run(2, [("SVC(kernel=\"linear\", C=1.0)", f"SVC(kernel=\"linear\", C={Cv})")])
     lin_rows.append([f"<b>{Cv}</b> (지금)" if Cv == 1 else Cv, f3(n["margin"]), int(n["n_sv"].sum()), f"{n['lin_scores']['f1']:.2f}"])
 outs["t2"] = S.table("선형 SVM의 C를 바꾸면", ["C", "도로 폭", "서포트 벡터 수", "valid F1"], lin_rows,
-                     ["C가 작으면 도로 안으로 들어오는 점을 너그럽게 봐줘서, 도로가 넓어지고(2.7) 서포트 벡터가 많아져요. 너무 너그러우면 경계를 거의 안 움직여서 모두 \"성공\"이라고 답해요 (F1 0).",
+                     [f"C가 작으면 도로 안으로 들어오는 점을 너그럽게 봐줘서, 도로가 넓어지고({lin_n[0.1]['margin']:.1f}) 서포트 벡터가 많아져요. 너무 너그러우면 경계를 거의 안 움직여서 모두 \"성공\"이라고 답해요 (F1 {lin_n[0.1]['lin_scores']['f1']:.0f}).",
                       "C를 키우면 틀린 점 하나하나를 비싸게 쳐서 도로가 좁아져요. 이 데이터에서는 C 1 이상이면 거의 같은 답에 머물러요. 1쪽 로지스틱의 C와 방향이 같아요: 작을수록 규제가 세요."])
+S.claim(lin_n[0.1]["margin"] > lin_n[1]["margin"] and lin_n[0.1]["n_sv"].sum() > lin_n[1]["n_sv"].sum(), "C=0.1이면 도로가 넓고 서포트 벡터가 많다")
+S.claim(lin_n[0.1]["svm_lin"].predict(ns["X_valid"]).sum() == 0, "C=0.1이면 valid를 모두 성공이라고 답한다")
+S.claim(abs(lin_n[10]["lin_scores"]["f1"] - lin_n[1]["lin_scores"]["f1"]) < 0.05, "C 1 이상이면 거의 같은 답")
 outs["s3"] = S.box("③ RBF 커널 SVM (8열, C=1, gamma=\"scale\")", [(f"기본 → F1 {ns['rbf_scores']['f1']:.2f}, recall {ns['rbf_scores']['recall']:.2f}, accuracy {ns['rbf_scores']['accuracy']:.2f}", 1),
                                                                 (f"class_weight=\"balanced\" → F1 {ns['bal_scores']['f1']:.2f}, recall {ns['bal_scores']['recall']:.2f}, accuracy {ns['bal_scores']['accuracy']:.2f}", 2, "newf")],
-                   ["곡선 경계를 허용하니 선형(0.20)보다 F1이 올랐어요.",
-                    "실패가 30%뿐이라, 그냥 두면 SVM은 성공 쪽 오류를 줄이는 데 더 신경 써요. <code>balanced</code>는 실패 한 건을 틀리는 값을 성공 한 건보다 (70 ÷ 30)배 비싸게 쳐요. 그래서 실패를 더 잡고(recall 0.50) 헛경보도 늘어요(정확도 0.55). 3쪽 ⑬에서 기준을 낮춘 것과 같은 방향이에요."])
-g_rows = []
+                   [f"곡선 경계를 허용하니 선형({ns['lin_scores']['f1']:.2f})보다 F1이 올랐어요.",
+                    f"실패가 30%뿐이라, 그냥 두면 SVM은 성공 쪽 오류를 줄이는 데 더 신경 써요. <code>balanced</code>는 실패 한 건을 틀리는 값을 성공 한 건보다 (70 ÷ 30)배 비싸게 쳐요. 그래서 실패를 더 잡고(recall {ns['bal_scores']['recall']:.2f}) 헛경보도 늘어요(정확도 {ns['bal_scores']['accuracy']:.2f}). 3쪽 ⑬에서 기준을 낮춘 것과 같은 방향이에요."])
+S.claim(ns["rbf_scores"]["f1"] > ns["lin_scores"]["f1"], "③ RBF가 선형보다 F1이 높다")
+S.claim(ns["bal_scores"]["recall"] > ns["rbf_scores"]["recall"] and ns["bal_scores"]["accuracy"] < ns["rbf_scores"]["accuracy"], "③ balanced는 recall이 오르고 정확도가 내린다")
+g_rows, g_n = [], {}
 for g in (0.01, 0.1, 1, 10):
-    n = run(3, [("svm_rbf = build(SVC(kernel=\"rbf\", C=1.0, gamma=\"scale\"))", f"svm_rbf = build(SVC(kernel=\"rbf\", C=10, gamma={g}))")])
+    n = g_n[g] = run(3, [("svm_rbf = build(SVC(kernel=\"rbf\", C=1.0, gamma=\"scale\"))", f"svm_rbf = build(SVC(kernel=\"rbf\", C=10, gamma={g}))")])
     m = n["svm_rbf"]
     g_rows.append([g, f3(ACC(n["y_train"], m.predict(n["X_train"]))), int(m.named_steps["model"].n_support_.sum()), f"{n['rbf_scores']['f1']:.2f}"])
+g01_fail = int(g_n[0.01]["svm_rbf"].predict(ns["X_valid"]).sum())   # gamma 0.01이 valid에서 "실패"라고 답한 수
+S.claim(g_n[0.01]["rbf_scores"]["recall"] == 0 and g01_fail > 0, "gamma 0.01은 실패를 하나도 못 맞히고, 실패라고 한 건 모두 헛경보")
 outs["t3"] = S.table("RBF 커널의 gamma를 바꾸면 (C=10)", ["gamma", "train 정확도", "서포트 벡터 수", "valid F1"], g_rows,
-                     ["gamma가 작으면 점 하나의 영향이 멀리까지 퍼져서 경계가 아주 완만해요. 0.01은 거의 곧은 선이라 모두 \"성공\"이에요.",
-                      "gamma가 크면 점 하나의 영향이 자기 바로 옆에만 미쳐서, 점마다 작은 섬을 만들어요. 10은 train을 0.98 맞히지만 valid에서는 실패를 하나도 못 잡아요. 외운 거예요(과적합). 서포트 벡터도 58개로, 거의 모든 점이 경계를 정하는 데 쓰여요.",
+                     [f"gamma가 작으면 점 하나의 영향이 멀리까지 퍼져서 경계가 아주 완만해요. 0.01은 거의 곧은 선이라 실패를 하나도 맞히지 못해요. \"실패\"라고 답한 {g01_fail}건은 모두 헛경보예요.",
+                      f"gamma가 크면 점 하나의 영향이 자기 바로 옆에만 미쳐서, 점마다 작은 섬을 만들어요. 10은 train을 {float(g_rows[-1][1]):.2f} 맞히지만 valid에서는 실패를 하나도 못 잡아요. 외운 거예요(과적합). 서포트 벡터도 {g_rows[-1][2]}개로, 거의 모든 점이 경계를 정하는 데 쓰여요.",
                       "C와 gamma는 같이 움직이니, 실제로는 둘을 격자로 놓고 교차검증으로 골라요 (<code>GridSearchCV</code>)."])
+S.claim(g_n[10]["rbf_scores"]["recall"] == 0 and float(g_rows[-1][1]) > 0.95, "gamma 10은 train을 거의 다 맞히고 valid 실패는 못 잡는다")
+S.claim(g_rows[-1][2] >= 0.9 * len(ns["train"]), "gamma 10은 거의 모든 점이 서포트 벡터")
 outs["s4"] = S.box("④ LDA (6열)", [(f"사전 확률 π → 성공 {ns['prior'][0]:.2f}, 실패 {ns['prior'][1]:.2f}", 1), (f"판별 점수 평균 → 성공 {z[yt == 0].mean():.2f}, 실패 {z[yt == 1].mean():.2f}", 2, "newf"),
                                     (f"valid → F1 {ns['lda_scores']['f1']:.2f}, recall {ns['lda_scores']['recall']:.2f}, accuracy {ns['lda_scores']['accuracy']:.2f}", 3)],
                    ["따로 정해 주지 않으면 train의 종류 비율을 그대로 써요. 아무 정보 없을 때 \"실패일 확률 30%\"에서 출발한다는 뜻이에요.",
                     "6열을 한 줄 위로 내렸을 때 두 무리의 평균이에요. 평균이 떨어져 있긴 하지만, 위 그림처럼 두 무리가 많이 겹쳐요.",
-                    "로지스틱(0.33)과 비슷해요. 둘 다 곧은 경계를 긋는데, LDA는 정규분포를 가정하고 로지스틱은 가정하지 않는다는 점만 달라요."])
+                    f"로지스틱({p1_f1:.2f})과 비슷해요. 둘 다 곧은 경계를 긋는데, LDA는 정규분포를 가정하고 로지스틱은 가정하지 않는다는 점만 달라요."])
 outs["s5"] = S.box("⑤ QDA (6열, reg_param=0.1)", [(f"valid → F1 {ns['qda_scores']['f1']:.2f}, recall {ns['qda_scores']['recall']:.2f}, accuracy {ns['qda_scores']['accuracy']:.2f}", 1)],
                    ["LDA와 거의 같아요. 종류마다 퍼짐 모양을 따로 배워도 나아지지 않았어요. 실패가 18건뿐이라, 6열의 퍼짐 모양(공분산 21개 값)을 믿을 만하게 배우기에는 데이터가 부족해요."])
+S.claim(abs(ns["lda_scores"]["f1"] - p1_f1) < 0.05, "④ LDA F1이 로지스틱과 비슷하다")
+S.claim(abs(ns["qda_scores"]["f1"] - ns["lda_scores"]["f1"]) < 0.05, "⑤ QDA가 LDA와 거의 같다")
+zero_pc = [i + 1 for i, r in enumerate(ratio) if r < 1e-9]   # 분산을 하나도 못 담은 주성분 번호
+S.claim(zero_pc == [len(ratio) - 1, len(ratio)], "⑥ 마지막 두 주성분의 분산이 0 (원-핫 두 묶음)")
 cum_txt = ", ".join(f"{c:.0%}" for c in cum)
 outs["s6"] = S.box("⑥ PCA (크기 맞춘 8열)", [(f"주성분별 분산 비율 → {', '.join(f'{r:.3f}' for r in ratio)}", 1), (f"누적 → {cum_txt}", 2), (f"70%를 넘기는 가장 작은 개수 k70 = {ns['k70']}", 3, "newf"),
                                          (f"PCA {ns['k70']}개 → 로지스틱 → valid F1 {ns['pca_scores']['f1']:.2f}, recall {ns['pca_scores']['recall']:.2f}", 4)],
-                   [f"마지막 두 주성분이 담은 분산이 0이에요. 8열 중 서로 다른 정보는 6개뿐이라서예요. 원-핫 세 열의 합이 늘 1이라 남는 방향이 두 개(task_type, priority) 생겨요. 1쪽 ④의 \"독립인 열 7개\"(절편 열을 포함한 9열 기준)와 같은 이야기예요.",
+                   [f"마지막 두 주성분이 담은 분산이 0이에요. {len(ratio)}열 중 서로 다른 정보는 {len(ratio) - len(zero_pc)}개뿐이라서예요. 원-핫 세 열의 합이 늘 1이라 남는 방향이 두 개(task_type, priority) 생겨요. 1쪽 ④의 \"독립인 열 7개\"(절편 열을 포함한 9열 기준)와 같은 이야기예요.",
                     "주성분 하나하나가 담는 양이 고르게 줄어서, 몇 개로 확 압축되는 데이터는 아니에요.",
-                    "8열을 3열로 줄였어요.", "valid 한 번은 8열 로지스틱(0.33)보다 낮아요. 그런데 ⑦의 교차검증에서는 오히려 더 안정적이에요. 한 번의 점수로 판단하지 않는 이유예요."])
+                    f"{len(ratio)}열을 {ns['k70']}열로 줄였어요.", f"valid 한 번은 {len(ratio)}열 로지스틱({p1_f1:.2f})보다 낮아요. 그런데 ⑦의 교차검증에서는 오히려 더 안정적이에요. 한 번의 점수로 판단하지 않는 이유예요."])
+S.claim(ns["pca_scores"]["f1"] < p1_f1, "⑥ PCA+로지스틱 valid F1이 8열 로지스틱보다 낮다")
 outs["s6l"] = S.table("주성분이 원래 열을 섞은 비율 (가중치, 처음 두 개)", ["원래 열", "주성분 1", "주성분 2"], [[f"<code>{i}</code>", f"{r['주성분 1']:+.2f}", f"{r['주성분 2']:+.2f}"] for i, r in load.iterrows()],
                       ["주성분은 원래 열에 가중치를 곱해 더한 새 열이에요. 가중치 절댓값이 큰 열이 그 주성분의 \"뜻\"이에요. 주성분 이름은 이 표를 보고 사람이 붙여요."])
 cvs = ns["cv_scores"]
 best_name = max(cvs, key=lambda k: cvs[k].mean())
+pca_name = f"pca{ns['k70']}+logistic"
+S.claim(best_name == "svm rbf 균형" and cvs[best_name].mean() > xgb_cv.mean() and cvs[best_name].std() > xgb_cv.std(), "⑦ 균형 SVM이 1등, xgboost보다 평균은 높고 표준편차는 크다")
+S.claim(np.allclose(cvs["svm 선형"], cvs["lda"]) and int((~np.isclose(cvs["logistic"], cvs["lda"])).sum()) <= 1, "⑦ 선형 SVM과 LDA는 다섯 점수가 같고, 로지스틱은 거의 같다")
+S.claim(cvs[pca_name].mean() > cvs["logistic"].mean() and cvs[pca_name].std() == min(v.std() for v in cvs.values()), "⑦ PCA+로지스틱이 로지스틱보다 평균이 높고 표준편차가 가장 작다")
 outs["s7"] = S.table("⑦ 5-fold 교차검증 F1 (train+valid 80건, 2쪽 ⑫와 같은 나누기)", ["model", "다섯 번의 점수", "평균", "표준편차"],
                      [[f"<b>{m}</b>" if m == best_name else m, ", ".join(f3(x) for x in v), f"<b>{f3(v.mean())}</b>" if m == best_name else f3(v.mean()), f3(v.std())] for m, v in cvs.items()],
-                     [f"<b>{best_name}</b>이 평균 {cvs[best_name].mean():.3f}로 가장 높아요. 2쪽 ⑫의 xgboost(0.511)보다도 높아요. 다만 표준편차는 {cvs[best_name].std():.3f}로 xgboost(0.082)보다 커서, 덩어리마다 점수가 더 오르내려요. 모델 종류보다 \"드문 실패를 얼마나 중요하게 치느냐\"(class_weight)가 더 크게 작용했어요.",
+                     [f"<b>{best_name}</b>이 평균 {cvs[best_name].mean():.3f}로 가장 높아요. 2쪽 ⑫의 xgboost({xgb_cv.mean():.3f})보다도 높아요. 다만 표준편차는 {cvs[best_name].std():.3f}로 xgboost({xgb_cv.std():.3f})보다 커서, 덩어리마다 점수가 더 오르내려요. 모델 종류보다 \"드문 실패를 얼마나 중요하게 치느냐\"(class_weight)가 더 크게 작용했어요.",
                       "선형 SVM과 LDA는 다섯 점수가 완전히 같아요. 둘 다 곧은 경계를 긋고, 이 데이터에서는 같은 쪽으로 판단했어요. 로지스틱도 거의 같아요.",
                       f"PCA {ns['k70']}개 + 로지스틱은 평균이 8열 로지스틱보다 조금 높고, 표준편차가 가장 작아요. 열을 줄이니 덜 흔들렸어요.",
                       "⚠️ 3쪽 ⑰에서 test는 이미 한 번 썼어요. 이 결과를 보고 test로 다시 채점하면 test로 모델을 고르는 셈이라 하지 않아요. 실제 작업이라면 이 후보들을 ⑰ 전에 함께 비교했어야 해요."])
@@ -201,7 +225,7 @@ outs["f_lda"] = chart("train 60건의 LDA 판별 점수", P_LDA, "", ["LDA가 �
 outs["f_qda"] = chart("숫자 두 열로 본 LDA와 QDA의 경계", P_QDA, "", ["LDA는 두 무리가 같은 모양으로 퍼져 있다고 가정해서 경계가 곧은 직선이에요.",
                                                                     "QDA는 실패 무리와 성공 무리의 퍼짐 모양을 따로 배워서, 경계가 휘어요. 대신 배울 값이 많아서 데이터가 적으면 엉뚱하게 휘기 쉬워요."])
 outs["f_pca"] = chart("PCA: 주성분마다 담은 분산과, 처음 두 주성분 위의 train", P_PCA, "",
-                      [f"왼쪽 막대가 주성분마다 담은 분산 비율, 선이 누적이에요. {ns['k70']}개에서 70%를 넘어요. 7, 8번째는 0이에요.",
+                      [f"왼쪽 막대가 주성분마다 담은 분산 비율, 선이 누적이에요. {ns['k70']}개에서 70%를 넘어요. {', '.join(map(str, zero_pc))}번째는 0이에요.",
                        f"오른쪽은 8열을 주성분 두 개로 줄여 평면에 그린 거예요. 두 개가 원래 분산의 {cum[1]:.0%}를 담아요. 실패와 성공이 섞여 있는데, PCA는 정답을 보지 않고 \"가장 많이 퍼진 방향\"만 찾기 때문이에요. 정답을 보고 \"가장 잘 갈리는 방향\"을 찾는 건 ④의 LDA예요."])
 flow = [[1, "준비", "1쪽과 같은 나누기", "drop=first"], [2, "선형 SVM", "가장 넓은 도로", "서포트 벡터, C"], [3, "커널 SVM", "곡선 경계", "gamma, 균형"], [4, "LDA", "분포 가정, 베이즈", "한 줄로 사영"],
         [5, "QDA", "종류마다 다른 모양", "곡선 경계"], [6, "PCA", "정답 없이 열 줄이기", "분산 비율"], [7, "비교", "같은 교차검증", "균형 SVM이 1등"]]

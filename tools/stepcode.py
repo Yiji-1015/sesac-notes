@@ -51,6 +51,13 @@ def workdir(src_dir: Path, setup=None) -> Path:
     return d
 
 
+def claim(ok, text: str):
+    """본문에 말로 쓴 주장("가장 높아요", "모두 성공이라고 답해요")이 이번 실행 값에서도 맞는지 확인한다.
+    다른 PC나 라이브러리 버전에서 값이 바뀌어 주장이 틀리면, 틀린 글을 쓰기 전에 빌드를 멈춘다."""
+    if not ok:
+        raise AssertionError(f"본문 주장이 이번 실행 값과 안 맞아요. 글을 고치세요: {text}")
+
+
 def box(title, lines, notes=None):
     """출력 상자. lines: 문자열 또는 (문자열, 번호) 또는 (문자열, 번호, "bad"|"newf")."""
     return {"title": title, "lines": [l if isinstance(l, str) else list(l) for l in lines], "notes": notes or []}

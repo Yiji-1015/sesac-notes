@@ -102,6 +102,7 @@ for name, body in bad:
     e0 = b["detail"][0]
     rows.append([E(name), f"<b>{st}</b>", f"<code>{E(str(e0['loc']))}</code>", E(e0["msg"])])
 f2 = json.loads((wd / "data" / "knowledge.json").read_text(encoding="utf-8"))
+S.claim(all(r_[1] == "<b>422</b>" for r_ in rows), "④ 잘못된 POST는 세 번 모두 422")
 outs["t4"] = S.table("잘못된 POST 세 번", ["보낸 것", "상태", "어디가 (loc)", "왜 (msg)"], rows,
                      [f"세 번 모두 422였고, 파일 항목 수는 {len(f2['entries'])}개 그대로예요. 검사에 걸리면 <code>create_knowledge</code> 함수 자체가 불리지 않아요."])
 
@@ -121,9 +122,10 @@ r = c.delete("/knowledge/4")
 r2 = c.delete("/knowledge/4")
 ids = [e["id"] for e in c.get("/knowledge").json()]
 st3, b3 = call(c, "POST", "/knowledge", NEW)
+S.claim(r.status_code == 204 and r2.status_code == 404 and 4 not in ids and b3["id"] > 4,"⑥ 지우면 204, 다시 지우면 404, 새 항목은 지운 번호를 다시 쓰지 않는다")
 outs["s6"] = S.box("DELETE /knowledge/4 를 두 번", [(f"첫 번째 → {r.status_code}, 본문 {len(r.content)}바이트", 1), (f"두 번째 → {r2.status_code} {r2.json()}", 2),
                     f"남은 id → {ids}", (f"다시 등록하면 받는 id → {b3['id']}", 3)],
-                   ["204는 \"성공했고 돌려줄 내용은 없다\"예요. 그래서 본문이 비어 있어요.", "이미 지운 번호라 404예요.", "4번은 지웠지만 <code>next_id</code>는 5라서 새 항목은 5번이에요. 지운 번호를 다시 쓰면, 옛 4번을 가리키던 링크가 엉뚱한 항목을 열게 돼요."])
+                   ["204는 \"성공했고 돌려줄 내용은 없다\"예요. 그래서 본문이 비어 있어요.", "이미 지운 번호라 404예요.", f"4번은 지웠지만 <code>next_id</code>는 {b3['id']}라서 새 항목은 {b3['id']}번이에요. 지운 번호를 다시 쓰면, 옛 4번을 가리키던 링크가 엉뚱한 항목을 열게 돼요."])
 codes = [["<code>GET /knowledge</code>", "200", "—", "—"], ["<code>GET /knowledge/{id}</code>", "200", "404 (없음), 422 (숫자 아님)", "③"],
          ["<code>POST /knowledge</code>", "201", "422 (입력 모양 틀림)", "④"], ["<code>PUT /knowledge/{id}</code>", "200", "404, 422", "⑤"],
          ["<code>DELETE /knowledge/{id}</code>", "204", "404", "⑥"]]

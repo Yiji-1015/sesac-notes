@@ -883,5 +883,5 @@ window.PAGE = {
    "평균과 흔들림"
   ]
  ],
- "env": "Python 3.13.5, scikit-learn 1.9.0, xgboost 3.4.1, pandas 2.3.3"
+ "env": "Python 3.13.16, scikit-learn 1.8.0, xgboost 3.1.3, pandas 2.2.3"
 };

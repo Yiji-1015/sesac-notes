@@ -110,7 +110,7 @@ outs["s3"] = S.box("responses.parse(text_format=Explain)", [(f"요청 본문의 
 # ---- ④ ----
 cases = [("키가 틀림 (401)", 401, "invalid_api_key"), ("너무 자주 보냄 (429)", 429, "rate_limit_exceeded"), ("할당량 다 씀 (429)", 429, "insufficient_quota"),
          ("서버 오류 (500)", 500, "server_error"), ("응답이 늦음 (시간 초과)", None, None)]
-rows = []
+rows, tries = [], {}
 ns = run(4)
 for label, st, cd in cases:
     cnt = [0]
@@ -123,9 +123,12 @@ for label, st, cd in cases:
     ns["client"] = openai.OpenAI(timeout=30.0, max_retries=2, http_client=httpx.Client(transport=httpx.MockTransport(h)))
     kind, val = ns["ask"]("질문")
     rows.append([E(label), f"<code>{kind}, {E(str(val))}</code>", f"<b>{cnt[0]}번</b>"])
+    tries[st] = tries.get(st, []) + [cnt[0]]   # 상태 코드 → SDK가 보낸 횟수들
+n_max = max(max(v) for v in tries.values())
+S.claim(tries[401] == [1] and all(v == [n_max] * len(v) for k, v in tries.items() if k != 401), "④ 401은 한 번, 나머지는 모두 같은 최대 횟수만큼 보낸다")
 outs["s4"] = S.table("ask()를 상황별 가짜 서버에 보내면 (max_retries=2)", ["상황", "ask()가 돌려준 값", "SDK가 실제로 보낸 횟수"], rows,
-                     ["401은 다시 보내도 같아서 SDK도 한 번만 보내요. 429, 500, 시간 초과는 SDK가 <b>앱 모르게 3번</b>까지 보내요.",
-                      "두 429는 예외 종류(<code>RateLimitError</code>)가 같아요. \"너무 자주\"는 기다리면 풀리지만 \"할당량 다 씀\"은 결제를 확인해야 해서, <code>e.code</code>로 갈라야 해요. 그런데 SDK는 할당량 문제도 3번 보냈어요. 비용과 시간이 아깝다면 <code>max_retries</code>를 줄이고 직접 판단해요."])
+                     [f"401은 다시 보내도 같아서 SDK도 한 번만 보내요. 429, 500, 시간 초과는 SDK가 <b>앱 모르게 {n_max}번</b>까지 보내요.",
+                      f"두 429는 예외 종류(<code>RateLimitError</code>)가 같아요. \"너무 자주\"는 기다리면 풀리지만 \"할당량 다 씀\"은 결제를 확인해야 해서, <code>e.code</code>로 갈라야 해요. 그런데 SDK는 할당량 문제도 {n_max}번 보냈어요. 비용과 시간이 아깝다면 <code>max_retries</code>를 줄이고 직접 판단해요."])
 
 # ---- ⑤ ----
 sent.clear()
@@ -136,10 +139,10 @@ outs["s5"] = S.box("responses.stream()으로 받은 조각", [(f"pieces → {ns[
 # ---- ⑥ ----
 ns = run(6)
 outs["s6"] = S.box("사용량과 비용 (예시 단가)", [f"입력 {ns['usage'].input_tokens}토큰 × $0.75 / 100만", f"출력 {ns['usage'].output_tokens}토큰 × $4.50 / 100만", (f"cost → ${ns['cost']}", 1)],
-                   ["한 번 호출에 약 0.0002달러예요. 적어 보여도 하루 만 번이면 2달러, 재시도가 붙으면 더 늘어요. 그래서 호출마다 토큰과 비용을 기록해요. 단가는 예시예요. 실제 단가는 모델마다 다르고 바뀌니 공식 가격표를 봐요.<br><code>Decimal</code>은 돈 계산에서 소수 오차가 쌓이지 않게 쓰는 정확한 소수예요."])
+                   [f"한 번 호출에 약 {float(ns['cost']):.4f}달러예요. 적어 보여도 하루 만 번이면 {float(ns['cost']) * 10000:.0f}달러, 재시도가 붙으면 더 늘어요. 그래서 호출마다 토큰과 비용을 기록해요. 단가는 예시예요. 실제 단가는 모델마다 다르고 바뀌니 공식 가격표를 봐요.<br><code>Decimal</code>은 돈 계산에서 소수 오차가 쌓이지 않게 쓰는 정확한 소수예요."])
 
 flow = [[1, "클라이언트", "OpenAI()", "키는 환경 변수"], [2, "보내기", "responses.create", "output_text"], [3, "모양 정하기", "responses.parse", "Pydantic → 스키마"],
-        [4, "실패", "예외 종류별", "자동 재시도 3번"], [5, "스트리밍", "조각으로 받기", "delta 이벤트"], [6, "비용", "usage", "토큰 × 단가"]]
+        [4, "실패", "예외 종류별", f"자동 재시도 {n_max}번"], [5, "스트리밍", "조각으로 받기", "delta 이벤트"], [6, "비용", "usage", "토큰 × 단가"]]
 S.save(ROOT / "topics" / "backend" / "llm-client-data.js", {"code": code, "names": S.names(code), "range": [1, 6], "outs": outs, "flow": flow,
                                                              "env": f"Python {sys.version.split()[0]}, openai {openai.__version__}, httpx {httpx.__version__}. 실제 OpenAI 서버 대신 httpx.MockTransport 가짜 서버"})
 

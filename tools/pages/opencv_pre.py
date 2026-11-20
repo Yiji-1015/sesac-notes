@@ -40,15 +40,20 @@ outs["s3"] = S.images("③ 잡음 줄이기 (깨끗한 흑백과의 PSNR, 클수
 wl = ns["white_left_right"]
 outs["s4"] = S.images(f"④ 이진화 (Otsu 기준 {ns['otsu_t']:.0f})", [(save(ns["otsu"], "otsu.png"), "Otsu (기준 하나)"), (save(ns["adaptive"], "adaptive.png"), "adaptive (자리마다 기준)")],
                       [f"흰 픽셀 비율 (왼쪽 절반, 오른쪽 절반): Otsu {wl['Otsu']}, adaptive {wl['adaptive']}",
-                       "기준이 하나면 조명이 밝은 오른쪽은 거의 다 흰색, 어두운 왼쪽은 거의 다 검은색이 돼요. 물체가 아니라 <b>조명</b>을 갈랐어요. adaptive는 주변 31×31의 평균을 기준으로 삼아서 조명과 상관없이 테두리와 선이 살아나요."])
+                       f"기준이 하나면 조명이 밝은 오른쪽은 {wl['Otsu'][1]:.0%}가 흰색, 어두운 왼쪽은 {1 - wl['Otsu'][0]:.0%}가 검은색이 돼요. 물체가 아니라 <b>조명</b>을 갈랐어요. adaptive는 주변 31×31의 평균을 기준으로 삼아서 조명과 상관없이 테두리와 선이 살아나요."])
 mo = ns["morph"]
+S.claim(wl["Otsu"][0] < 0.4 and wl["Otsu"][1] > 0.7, "④ 기준 하나면 어두운 왼쪽은 대부분 검정, 밝은 오른쪽은 대부분 흰색")
+n_shape = mo["열기 + 닫기"]["pieces"]
+S.claim(mo["열기"]["pieces"] == n_shape == 3, "⑤ 열기 뒤 도형 3개만 남는다")
 outs["s5"] = S.images("⑤ objects.png에 열기, 닫기", [(save(ns["objects"], "obj.png"), f"처음: 조각 {mo['처음']['pieces']}개"), (save(ns["opened"], "open.png"), f"열기: 조각 {mo['열기']['pieces']}개"), (save(ns["closed"], "close.png"), f"열기 + 닫기: 조각 {mo['열기 + 닫기']['pieces']}개")],
-                      ["처음에는 도형 3개 말고도 작은 점 5개가 따로 세어졌어요. 열기로 점이 사라져 3개가 됐어요. 도형 안의 작은 구멍은 닫기로 메웠어요.",
-                       f"정답 마스크와 겹친 정도(IoU): 처음 {mo['처음']['iou']:.4f} → 열기 + 닫기 {mo['열기 + 닫기']['iou']:.4f}. 넓이로는 차이가 작지만, <b>개수를 셀 때</b>는 큰 차이예요 (8개 → 3개)."])
+                      [f"처음에는 도형 3개 말고도 작은 점 {mo['처음']['pieces'] - n_shape}개가 따로 세어졌어요. 열기로 점이 사라져 {n_shape}개가 됐어요. 도형 안의 작은 구멍은 닫기로 메웠어요.",
+                       f"정답 마스크와 겹친 정도(IoU): 처음 {mo['처음']['iou']:.4f} → 열기 + 닫기 {mo['열기 + 닫기']['iou']:.4f}. 넓이로는 차이가 작지만, <b>개수를 셀 때</b>는 큰 차이예요 ({mo['처음']['pieces']}개 → {n_shape}개)."])
 vis = cv2.cvtColor(ns["closed"], cv2.COLOR_GRAY2BGR)
 cv2.drawContours(vis, ns["contours"], -1, (0, 0, 255), 2)
+_corners = sorted(s_["corners"] for s_ in ns["shapes"])
+S.claim(_corners[:2] == [4, 4] and len(_corners) == 3 and _corners[2] > 4, "⑥ 네모 둘은 꼭짓점 4개, 원은 더 많다")
 outs["s6"] = S.table("⑥ 윤곽마다 크기와 꼭짓점 수", ["위치 (x, y)", "가로×세로", "넓이", "꼭짓점"], [[f"({s['x']}, {s['y']})", f"{s['w']}×{s['h']}", s["area"], f"<b>{s['corners']}</b>"] for s in ns["shapes"]],
-                     ["네모 두 개는 꼭짓점 4개, 원은 8개로 줄었어요 (원은 많을수록 원). 꼭짓점 수로 모양을 대략 나눌 수 있어요."])
+                     [f"네모 두 개는 꼭짓점 4개, 원은 {_corners[2]}개로 줄었어요 (원은 많을수록 원). 꼭짓점 수로 모양을 대략 나눌 수 있어요."])
 outs["s6img"] = S.images("찾은 윤곽 (빨강)", [(save(vis, "contours.png"), "findContours")])
 aug = ns["augmented"]
 outs["s7"] = S.images("⑦ train_01.png를 조금씩 바꾸기", [(save(ns["shape"], "aug0.png"), "원래")] + [(save(a, f"aug{i + 1}.png"), k) for i, (k, a) in enumerate(aug.items())],

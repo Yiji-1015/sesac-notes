@@ -73,11 +73,12 @@ try:
     [t.join() for t in ts]
     with psycopg.connect() as c0:
         db_n = c0.execute("SELECT count(*) FROM t").fetchone()[0]
+    S.claim(db_n == 20 and file_n < 20, "파일은 일부가 사라지고, DB는 20개가 모두 남는다")
     outs["why"] = S.table("20개 작업이 동시에 \"항목 하나 추가\"를 하면", ["저장 방식", "추가 요청", "남은 항목"],
                           [["JSON 파일 (읽기 → 추가 → 통째로 쓰기)", "20", f"<span class=\"bad\">{file_n}</span>"],
                            ["PostgreSQL (<code>INSERT</code>)", "20", f"<b>{db_n}</b>"]],
                           [f"파일은 여럿이 거의 동시에 \"읽고, 하나 붙이고, 통째로 다시 쓰면\" 나중에 쓴 쪽이 앞 사람의 추가를 덮어써요. 20개 중 {20 - file_n}개가 사라졌어요.",
-                           "DB는 동시에 들어온 쓰기를 순서대로 안전하게 처리해서 20개가 모두 남아요."])
+                           f"DB는 동시에 들어온 쓰기를 순서대로 안전하게 처리해서 {db_n}개가 모두 남아요."])
 
     # ---- ① ② ③ -----------------------------------------------------------------
     ns = at(1)
@@ -96,7 +97,7 @@ try:
     ns = at(3)
     conn = ns["conn"]
     outs["s3"] = S.box("INSERT ... RETURNING id, name", [(str(ns["cats"]), 1), f"knowledge 행 수 → {conn.execute('SELECT count(*) FROM knowledge').fetchone()[0]}"],
-                       ["<code>id</code>는 넣지 않았는데 DB가 1, 2, 3을 붙여 돌려줬어요 (<code>RETURNING</code>)."])
+                       [f"<code>id</code>는 넣지 않았는데 DB가 {', '.join(str(c_[0]) for c_ in ns['cats'])}을 붙여 돌려줬어요 (<code>RETURNING</code>)."])
     tests = [("같은 분류 이름 한 번 더", "INSERT INTO categories (name) VALUES ('learning')"),
              ("빈 분류 이름", "INSERT INTO categories (name) VALUES ('')"),
              ("없는 분류 99번에 지식 넣기", "INSERT INTO knowledge (title, content, category_id) VALUES ('t', 'c', 99)"),

@@ -401,7 +401,7 @@ window.PAGE = {
    "title": "① 실행 결과",
    "lines": [
     [
-     "torch.cuda.is_available() → False",
+     "torch.cuda.is_available() → True",
      1
     ],
     [
@@ -411,7 +411,7 @@ window.PAGE = {
     "y_train.shape → (240, 1)"
    ],
    "notes": [
-    "이 PC에는 쓸 수 있는 GPU가 없어서 False예요. 이 예제는 작아서 CPU로도 충분해요. GPU는 숫자 계산을 아주 많이 동시에 할 때 빨라요.",
+    "이 PC에는 GPU가 있어요. 그래도 이 예제는 작아서 CPU로 학습해요. GPU는 숫자 계산을 아주 많이 동시에 할 때 빨라요.",
     "점 240개, 좌표 2개짜리 표가 Tensor가 됐어요. 신경망은 보통 32비트 실수로 계산해요."
    ]
   },
@@ -633,5 +633,5 @@ window.PAGE = {
    "valid 0.975"
   ]
  ],
- "env": "Python 3.13.5, PyTorch 2.13.0+cpu, CPU 학습 (GPU: 없음)"
+ "env": "Python 3.13.16, PyTorch 2.14.0+cu130, CPU 학습 (GPU: NVIDIA GeForce RTX 5080 Laptop GPU)"
 };

@@ -80,14 +80,17 @@ for key in ["good", "missing", "unknown", "duplicate", "status"]:
     obj, err = ns["parse_answer"](SAMPLES[key]["raw"])
     r = ns["check_rules"](obj, ns["provided_ids"])
     rows.append([E(SAMPLES[key]["label"]), "<code>" + E(str(obj.source_ids)) + "</code>", E(obj.status), "<b>통과</b>" if r is None else f"<span class=\"bad\">{r}</span>"])
+S.claim(all(r_[3] != "<b>통과</b>" for r_ in rows if "999" in r_[1]), "⑤ 999를 근거로 댄 답은 내용 규칙에 걸린다")
 outs["s5"] = S.table("모양 검사를 통과한 응답에 check_rules()", ["응답", "source_ids", "status", "결과"], rows,
                      ["모두 모양은 맞아서 ④는 통과했어요. 하지만 \"주지 않은 999번을 근거로 댄\" 답은 그럴듯해 보여도 출처를 지어낸 거예요. 이런 건 <b>내용 규칙</b>으로만 잡혀요.",
                       "규칙의 기준은 ①에서 실제로 넣은 번호(<code>provided_ids</code>)예요."])
 
 ns = run(6)
+S.claim(len(ns["history"]) == 2 and "json_error" in str(ns["history"][0]), "⑥ 첫 응답은 json_error로 한 번 더 묻고, 두 번째에 통과")
 outs["s6"] = S.box("run_with_retry(prompt)  (첫 응답: 괄호 빠짐, 두 번째: 정상)", [(f"history → {ns['history']}", 1), (f"final → {ns['final']!r}", 2)],
                    ["첫 응답은 JSON이 깨져서(<code>json_error</code>) 무엇이 틀렸는지 덧붙여 한 번 더 물었어요.", "두 번째 응답은 모든 검사를 통과했어요."])
 ns2 = run(6, patch=[('script=iter(["broken", "good"])', 'script=iter(["unknown", "good"])')])
+S.claim(len(ns2["history"]) == 1, "내용 규칙 위반은 다시 묻지 않고 바로 멈춘다")
 outs["t6"] = S.box("첫 응답이 '주지 않은 자료 999를 출처로'였다면", [(f"history → {ns2['history']}", 1), f"final → {ns2['final']!r}"],
                    ["내용 규칙 위반은 다시 묻지 않고 바로 멈췄어요. 같은 자료로 다시 물으면 같은 착각을 하기 쉬워서, 이런 건 사람이 보거나 자료를 바꿔야 해요. 몇 번이고 다시 물으면 비용만 늘어요."])
 

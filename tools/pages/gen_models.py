@@ -70,6 +70,7 @@ rr = ns["real_vs_real"]
 outs["s1"] = S.box("① 실행 결과", [f"Z.shape → {tuple(ns['Z'].shape)} (train), Z_test.shape → {tuple(ns['Z_test'].shape)}", (f"quality(train 점, 처음 보는 점) → 정밀도 {rr['precision']}, 재현율 {rr['recall']}", 1, "newf")],
                    ["\"진짜 train 점\"을 만든 점이라고 치고 재 본 값이에요. 완벽한 생성 모델이라도 이 근처가 최선이에요. 아래 모델들의 점수는 이 값과 비교해요."])
 sb = ns["scores"]
+S.claim(sb["정규분포"]["recall"] > 0.9 and sb["정규분포"]["precision"] < rr["precision"] - 0.05, "② 정규분포는 재현율은 높고 정밀도는 낮다")
 outs["s2"] = S.box("② 정규분포 하나", [f"평균 → {[round(float(v), 3) for v in ns['gauss'].mean]}", f"공분산 → {[[round(float(v), 3) for v in row] for row in ns['gauss'].covariance_matrix]}",
                                     (f"정밀도 {sb['정규분포']['precision']}, 재현율 {sb['정규분포']['recall']}", 1), (f"처음 보는 점의 평균 log 확률 → {sb['정규분포']['test_loglik']}", 2, "newf")],
                    ["재현율은 높은데 정밀도가 낮아요. 타원 하나로 띠 두 개를 덮으니, 띠 사이 빈 곳에도 점을 많이 만들어요.",
@@ -97,6 +98,8 @@ for s2 in (0.05, 0.5):
 outs["t3"] = S.table("되살리기 오차의 분산 SIGMA2를 키우면", ["SIGMA2", "정밀도", "재현율"], s_rows,
                      ["SIGMA2가 크면 \"되살린 점이 원래 점과 좀 달라도 괜찮다\"는 뜻이라 되살리기 항의 무게가 줄고 KL 항이 상대적으로 세져요. decoder가 뭉개진 평균만 내고, 만든 점에 더하는 잡음도 커져서 띠 바깥에 점이 많아져요(정밀도가 떨어져요).",
                       "그림에서 VAE가 흐릿하다는 말이 이거예요. 되살리기를 제곱 오차(정규분포)로 재면 \"여러 그럴듯한 답의 평균\"을 내기 쉬워요."])
+S.claim(s_rows[1][1] < s_rows[0][1], "③ SIGMA2를 키우면 VAE 정밀도가 떨어진다")
+S.claim(sb["VAE"]["precision"] > sb["정규분포"]["precision"], "③ VAE가 정규분포보다 정밀도가 높다")
 outs["s3"] = S.box("③ VAE", [f"마지막 손실(−ELBO) → {ns['vae_loss'].item():.3f}", (f"정밀도 {sb['VAE']['precision']}, 재현율 {sb['VAE']['recall']}", 1)],
                    ["정규분포 하나보다 정밀도가 올라갔어요. 띠 사이 빈 곳에 만드는 점이 줄었어요."])
 gl = ns["gan_log"]
@@ -113,6 +116,7 @@ sc(b, ns["samples"]["GAN"].numpy(), "GAN이 만든 점")
 outs["f_gan"] = chart("GAN의 학습 기록과 만든 점", fig_save(fig, "gan"), "", [
     "보통 학습과 달리 두 손실이 0으로 내려가지 않아요. 한쪽이 좋아지면 다른 쪽이 나빠지는 시합이라, D가 \"반반으로 찍는\" 상태(2 log 2 ≈ 1.39) 근처에서 오르내려요. 그래서 손실만 보고는 GAN이 잘 배웠는지 알 수 없어요.",
     "오른쪽: 점이 띠 위의 가는 선 몇 줄로 몰렸어요. 그 선은 진짜 점 사이에 있어서 정밀도는 높지만, 진짜 점은 띠 폭 전체에 퍼져 있어서 바깥쪽 점들 근처에는 만든 점이 없어요(재현율 낮음). 진짜 데이터의 일부만 골라 흉내 내는 쪽으로 쏠리는 걸 모드 붕괴라고 해요."])
+S.claim(max(sb, key=lambda k: sb[k]["precision"]) == "GAN" and min(sb, key=lambda k: sb[k]["recall"]) == "GAN", "④ GAN이 정밀도는 가장 높고 재현율은 가장 낮다")
 outs["s4"] = S.box("④ GAN", [f"마지막 D 손실 {gl[-1]['d_loss']:.3f}, G 손실 {gl[-1]['g_loss']:.3f}", (f"정밀도 {sb['GAN']['precision']}, 재현율 {sb['GAN']['recall']}", 1, "bad")],
                    ["정밀도는 다섯 모델 중 가장 높지만 재현율이 가장 낮아요. 가려내는 쪽을 속이는 데는 \"확실한 진짜처럼 보이는 곳\"에만 만드는 게 안전해서예요."])
 gx, gy = np.meshgrid(np.linspace(*LIM, 200), np.linspace(*LIM, 200))
@@ -134,8 +138,8 @@ outs["f_flow"] = chart("모델이 계산한 \"이 자리에 점이 있을 확률
 outs["s5"] = S.box("⑤ Normalizing Flow (결합층 8개)", [(f"정밀도 {sb['Flow']['precision']}, 재현율 {sb['Flow']['recall']}", 1),
                                                        (f"평균 log 확률 → train {train_ll_flow:.3f}, 처음 보는 점 {sb['Flow']['test_loglik']}", 2, "bad"),
                                                        f"(참고) 정규분포 → train {train_ll_gauss:.3f}, 처음 보는 점 {sb['정규분포']['test_loglik']}"],
-                   ["만든 점의 모양은 정규분포보다 훨씬 진짜 같아요(정밀도 0.83 → 0.93).",
-                    "그런데 처음 보는 점의 log 확률은 정규분포보다 낮아요. train에서는 −1.8로 훨씬 높은데요. train 240개 바로 위에만 확률을 몰아 준 거예요. 가능도도 과적합해요. 확률 모델을 고를 때도 train이 아니라 처음 보는 데이터로 재는 이유예요."])
+                   [f"만든 점의 모양은 정규분포보다 훨씬 진짜 같아요(정밀도 {sb['정규분포']['precision']:.2f} → {sb['Flow']['precision']:.2f}).",
+                    f"그런데 처음 보는 점의 log 확률은 정규분포보다 낮아요. train에서는 {f'{train_ll_flow:.1f}'.replace('-', '−')}로 훨씬 높은데요. train 240개 바로 위에만 확률을 몰아 준 거예요. 가능도도 과적합해요. 확률 모델을 고를 때도 train이 아니라 처음 보는 데이터로 재는 이유예요."])
 # ⑥ 확산: 앞으로(잡음 섞기)와 거꾸로(걷어내기) 스냅숏
 ab = ns["alpha_bar"]
 torch.manual_seed(5)
@@ -166,6 +170,8 @@ outs["f_diff"] = chart("Diffusion: 위는 train 점에 잡음을 섞는 쪽, 아
 outs["s6"] = S.box("⑥ Diffusion (T=100)", [f"원래 점이 남은 몫 √ᾱ → t=0: {ab[0].sqrt():.3f}, t=99: {ab[-1].sqrt():.3f}", f"마지막 학습 손실(잡음 맞히기 MSE) → {ns['diff_loss'].item():.3f}",
                                              (f"정밀도 {sb['Diffusion']['precision']}, 재현율 {sb['Diffusion']['recall']}", 1)],
                    ["정밀도와 재현율이 둘 다 높아요. GAN처럼 한쪽으로 쏠리지 않고, VAE보다 덜 흐려요. 대신 점 하나를 만들려고 신경망을 100번 돌렸어요. 다른 모델은 한 번이에요."])
+S.claim(sb["Flow"]["precision"] > sb["정규분포"]["precision"] + 0.05 and sb["Flow"]["test_loglik"] < sb["정규분포"]["test_loglik"] and train_ll_flow > train_ll_gauss, "⑤ Flow는 정밀도가 높고, 처음 보는 점 log 확률은 정규분포보다 낮고, train에서는 높다")
+S.claim(min(sb["Diffusion"]["precision"], sb["Diffusion"]["recall"]) > 0.9 and sb["Diffusion"]["precision"] > sb["VAE"]["precision"], "⑥ Diffusion은 정밀도와 재현율이 둘 다 높고 VAE보다 정밀도가 높다")
 d_rows = []
 for T_try, beta_end in ((100, 0.1), (20, 0.4)):
     if T_try == 100:
@@ -173,8 +179,9 @@ for T_try, beta_end in ((100, 0.1), (20, 0.4)):
     else:
         n_ = run(6, [("T = 100", f"T = {T_try}"), ("betas = torch.linspace(1e-4, 0.1, T)", f"betas = torch.linspace(1e-4, {beta_end}, T)")])
     d_rows.append([f"<b>{T_try}</b> (지금)" if T_try == 100 else T_try, beta_end, f3(n_["alpha_bar"][-1].sqrt()), n_["scores"]["Diffusion"]["precision"], n_["scores"]["Diffusion"]["recall"]])
+S.claim(d_rows[1][3] < d_rows[0][3] and d_rows[0][3] - d_rows[1][3] < 0.05 and abs(d_rows[1][4] - d_rows[0][4]) < 0.01, "⑥ T=20이면 정밀도만 조금 떨어진다")
 outs["t6"] = S.table("걸음 수 T를 100에서 20으로 줄이면 (끝에 거의 잡음이 되게 β를 키워서)", ["T", "마지막 β", "끝에 남은 몫 √ᾱ", "정밀도", "재현율"], d_rows,
-                     ["걸음을 줄이면 한 걸음에 걷어낼 잡음이 커져서 신경망이 맞혀야 할 일이 어려워져요. 만드는 시간은 5분의 1이 됐고, 이 쉬운 2차원 데이터에서는 정밀도만 조금(0.911 → 0.894) 떨어졌어요. 그림처럼 복잡한 데이터에서는 걸음 수가 품질에 훨씬 크게 영향을 줘요.",
+                     [f"걸음을 줄이면 한 걸음에 걷어낼 잡음이 커져서 신경망이 맞혀야 할 일이 어려워져요. 만드는 시간은 5분의 1이 됐고, 이 쉬운 2차원 데이터에서는 정밀도만 조금({d_rows[0][3]:.3f} → {d_rows[1][3]:.3f}) 떨어졌어요. 그림처럼 복잡한 데이터에서는 걸음 수가 품질에 훨씬 크게 영향을 줘요.",
                       "실제로는 학습은 많은 걸음으로 하고, 만들 때만 걸음을 건너뛰는 방법(DDIM 같은)으로 속도와 품질을 맞춰요."])
 # ⑦ 비교
 fig, axs = plt.subplots(1, 5, figsize=(16, 3.6))

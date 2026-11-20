@@ -569,7 +569,7 @@ window.PAGE = {
      2
     ],
     "",
-    "실제로 실행한 시간 (EXPLAIN ANALYZE): 인덱스 없음 0.659 ms, 있음 0.033 ms"
+    "실제로 실행한 시간 (EXPLAIN ANALYZE): 인덱스 없음 0.796 ms, 있음 0.041 ms"
    ],
    "notes": [
     "<code>Seq Scan</code>은 2만 줄을 처음부터 끝까지 다 읽는다는 뜻이에요.",

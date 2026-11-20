@@ -92,10 +92,14 @@ outs = {}
 Xt, yt = ns["X_train"], ns["y_train"]
 outs["data"] = S.images("train 그림 예시 (64×64)", [(save(Xt[yt == 0][i], f"h{i}.png"), "horizontal") for i in range(3)] + [(save(Xt[yt == 1][i], f"v{i}.png"), "vertical") for i in range(3)],
                         ["가로줄 그림과 세로줄 그림이에요. 줄의 위치와 두께가 그림마다 달라요. train 60장, valid 20장, test 20장이에요."])
+_sc, _sh = ns["scores"], ns["shift_scores"]
+w_ratio = ns["count"](ns["make_mlp"]()) / ns["count"](ns["make_cnn"]())   # MLP 가중치 ÷ CNN 가중치
+S.claim(_sc["CNN"] >= _sc["MLP"] > 0.8 and all(v["CNN"] == _sc["CNN"] for v in _sh.values()) and _sh[8]["MLP"] < _sc["MLP"] - 0.2,
+        "CNN이 더 잘 맞히고 옮겨도 그대로, MLP는 둘 다 꽤 맞히지만 옮기면 무너진다")
 outs["why"] = S.table("두 모델 비교 (valid 20장)", ["모델", "가중치 수", "정확도", "선을 8칸 옮기면"],
                       [["픽셀을 펼친 MLP (②)", f"{ns['count'](ns['make_mlp']()):,}", f"{ns['scores']['MLP']:.2f}", f"<span class=\"bad\">{ns['shift_scores'][8]['MLP']:.2f}</span>"],
                        ["CNN (④)", f"{ns['count'](ns['make_cnn']()):,}", f"<b>{ns['scores']['CNN']:.2f}</b>", f"<b>{ns['shift_scores'][8]['CNN']:.2f}</b>"]],
-                      ["CNN은 가중치가 <b>100분의 1</b>인데도 더 잘 맞히고, 선의 위치가 바뀌어도 그대로 맞혀요. MLP는 \"몇 번째 픽셀이 밝은가\"를 외워서, 위치가 바뀌면 무너져요."])
+                      [f"CNN은 가중치가 <b>{int(round(w_ratio, -1))}분의 1</b>인데도 더 잘 맞히고, 선의 위치가 바뀌어도 그대로 맞혀요. MLP는 \"몇 번째 픽셀이 밝은가\"를 외워서, 위치가 바뀌면 무너져요."])
 outs["s1"] = S.box("① load(\"train\")", [(f"X_train.shape → {tuple(Xt.shape)}", 1), f"classes → {ns['classes']}", f"픽셀 값 범위 → {Xt.min().item():.1f} ~ {Xt.max().item():.1f}"],
                    ["(그림 수, 채널, 세로, 가로) 순서예요. 흑백이라 채널이 1이에요. 컬러면 3(R, G, B)이에요."])
 outs["s2"] = S.box("② make_mlp()", [str(ns["make_mlp"]()).replace("\n", " ")[:170], (f"가중치 수 → {ns['count'](ns['make_mlp']()):,}", 1)],
@@ -132,10 +136,16 @@ outs["s7"] = S.table(f"⑦ 3×3 합성곱 블록 {ns['DEPTH']}개를 쌓으면 (
                      [f"그냥 쌓으면 맨 앞 층까지 내려오는 기울기가 {dr['그냥 쌓기']['grad0']:.0e}로 사실상 0이에요. 앞쪽 층이 전혀 바뀌지 않아서 train 손실이 log 2 = 0.693에 그대로 머물러요. 어떤 그림이든 반반으로 찍는다는 뜻이에요. 층이 2개뿐인 ④는 문제없이 배웠는데, 깊게 쌓자마자 배우지 못해요.",
                       "잔차 연결 하나만 넣었는데 기울기가 살아나서 valid가 맞기 시작해요. 블록마다 입력을 그대로 더해 주는 길이 있어서, 기울기가 그 길로 곧장 앞쪽까지 내려와요.",
                       "BatchNorm까지 넣으면 train 손실이 0에 가까워져요. 층마다 값의 크기를 다시 맞춰 주니 더 깊이 쌓아도 안정돼요(🔁)."])
+g_exp = int(np.floor(np.log10(grads["그냥 쌓기"][0])))   # 그냥 쌓기의 맨 앞 층 기울기 자릿수
+SUP = str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹")
+S.claim(dr["그냥 쌓기"]["grad0"] < 1e-6 and abs(dr["그냥 쌓기"]["train_loss"] - np.log(2)) < 0.01, "⑦ 그냥 쌓으면 기울기가 사실상 0이고 손실이 log 2에 머문다")
+S.claim(dr["잔차 연결"]["valid_acc"] > 0.9 and dr["잔차 + BatchNorm"]["train_loss"] < 0.05, "⑦ 잔차 연결이면 valid가 맞고, BatchNorm까지 넣으면 train 손실이 0에 가깝다")
 outs["f_g"] = chart("층마다 기울기 크기 (학습 전, 블록 16개)", P_G, "",
-                    ["분홍(그냥 쌓기)은 뒤에서 앞으로 갈수록 층마다 일정 비율로 줄어서, 맨 앞에서는 10⁻¹¹ 근처까지 떨어져요. <a href=\"dl-tensor-training.html\">딥러닝 기초</a> ④의 기울기 소실이 실제 CNN에서 일어난 거예요.",
+                    [f"분홍(그냥 쌓기)은 뒤에서 앞으로 갈수록 층마다 일정 비율로 줄어서, 맨 앞에서는 10{str(g_exp).translate(SUP)} 근처까지 떨어져요. <a href=\"dl-tensor-training.html\">딥러닝 기초</a> ④의 기울기 소실이 실제 CNN에서 일어난 거예요.",
                      "민트(잔차)와 보라(잔차 + BatchNorm)는 앞쪽까지 크기가 거의 그대로예요."])
 d30 = run(7, [("DEPTH = 16", "DEPTH = 30")])["deep_runs"]
+S.claim(d30["그냥 쌓기"]["grad0"] < dr["그냥 쌓기"]["grad0"] and d30["잔차 연결"]["grad0"] > 1 and d30["잔차 연결"]["train_loss"] > 0.6
+        and d30["잔차 + BatchNorm"]["valid_acc"] > 0.9, "블록 30개: 그냥 쌓기는 더 작고, 잔차만이면 기울기가 커져 손실이 거의 안 줄고, BatchNorm이면 문제없다")
 outs["t7"] = S.table("블록을 30개로 늘리면", ["쌓는 방식", "학습 전 맨 앞 층 기울기", "학습 뒤 train 손실", "valid 정확도"],
                      [[nm, f"{r['grad0']:.1e}", f3(r["train_loss"]), f"{r['valid_acc']:.2f}"] for nm, r in d30.items()],
                      [f"그냥 쌓기는 기울기가 {d30['그냥 쌓기']['grad0']:.0e}로 더 작아졌어요.",

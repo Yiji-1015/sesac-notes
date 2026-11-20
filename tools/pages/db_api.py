@@ -127,8 +127,9 @@ try:
     outs["sql"] = S.box("POST /knowledge 한 번에 실제로 DB로 간 SQL (SQLAlchemy 로그)", [(ln[:150], i + 1) for i, ln in enumerate(sql)], notes)
     r2 = cl.post("/knowledge", json={**NEW, "title": "없는 분류", "category": "nothing"})
     r3 = cl.post("/knowledge", json=NEW)
+    S.claim(r.status_code == 201 and r2.status_code == 422 and r3.status_code == 500, "⑤ 201, 422, 그리고 같은 제목은 500")
     outs["s5"] = S.box("⑤ 실행 결과", [(f"POST {NEW['title']} → {r.status_code} {jr(r)}", 1), (f"없는 분류 → {r2.status_code} {jr(r2)}", 2), (f"같은 제목 한 번 더 → {r3.status_code} {jr(r3)}", 3, "bad")],
-                       ["201과 함께 DB가 붙인 번호 4가 왔어요.", "분류 이름이 틀리면 저장 전에 422로 돌려보내요. 이 검사는 우리가 직접 짰어요.",
+                       [f"201과 함께 DB가 붙인 번호 {jr(r)['id']}가 왔어요.", "분류 이름이 틀리면 저장 전에 422로 돌려보내요. 이 검사는 우리가 직접 짰어요.",
                         "같은 제목은 DB의 <code>UNIQUE</code> 규칙에 걸려 <code>IntegrityError</code>가 났는데, 아무도 잡지 않아서 <b>500(서버 내부 오류)</b>이 됐어요. 서버가 고장 난 게 아니라 요청이 규칙을 어긴 건데도요. ⑥에서 고쳐요."])
     ns["engine"].dispose()
 
@@ -138,9 +139,11 @@ try:
     r = cl.post("/knowledge", json=NEW)
     n = len(cl.get("/knowledge").json())
     r4 = cl.post("/knowledge", json={**NEW, "title": "다음 요청"})
+    first_id = jr(r4)["id"] - 2   # 첫 POST가 받은 번호 (실패한 INSERT가 하나를 받았다가 버림)
+    S.claim(r.status_code == 409 and n == first_id and jr(r4)["id"] == n + 2, "⑥ 409, 실패한 요청은 남지 않고, 다음 번호는 하나를 건너뛴다")
     outs["s6"] = S.box("같은 제목을 두 번 POST", [(f"두 번째 → {r.status_code} {jr(r)}", 1), (f"지식 수 → {n}", 2), (f"이어서 다른 POST → {r4.status_code}, id {jr(r4).get('id')}", 3)],
-                       ["이제 409(충돌)로, 무엇이 문제인지 알려 줘요.", "실패한 요청은 아무것도 남기지 않았어요 (시작 3개 + 첫 POST 1개).",
-                        "실패한 요청의 Session은 닫히면서 트랜잭션이 취소돼서, 다음 요청에 영향이 없어요. 번호는 6이에요. 실패한 INSERT가 번호 5를 받았다가 버렸기 때문이에요."])
+                       ["이제 409(충돌)로, 무엇이 문제인지 알려 줘요.", f"실패한 요청은 아무것도 남기지 않았어요 (시작 {n - 1}개 + 첫 POST 1개).",
+                        f"실패한 요청의 Session은 닫히면서 트랜잭션이 취소돼서, 다음 요청에 영향이 없어요. 번호는 {jr(r4)['id']}이에요. 실패한 INSERT가 번호 {jr(r4)['id'] - 1}를 받았다가 버렸기 때문이에요."])
     ns["engine"].dispose()
 
     # ---- ⑦ ----

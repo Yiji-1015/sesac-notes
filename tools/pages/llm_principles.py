@@ -41,6 +41,7 @@ else:
     outs["why"] = S.table("질문 하나가 LLM 안에서 거치는 길", ["단계", "무엇이 되나", "이 쪽"], [["글", f"\"{E(ns['text'])}\"", ""], ["토큰", f"{len(tk)}개 조각", "①"], ["벡터", f"토큰마다 {ns['vectors'].shape[1]}칸", "②"],
                                                                                         ["Attention", "다른 토큰을 참고해 고친 벡터", "③④⑤"], ["다음 토큰", "후보마다 확률", "⑥"]],
                           ["LLM은 이 과정을 한 토큰 만들 때마다 반복해요. 만든 토큰을 입력 끝에 붙이고 다시 처음부터요."])
+    S.claim(any(a_ == "▁서버" and b_ == "를" for a_, b_ in zip(tk, tk[1:])), "① 서버를이 ▁서버와 를로 나뉜다")
     outs["s1"] = S.box("① tok(text)", [(f"tokens → {tk}", 1), f"ids → {ns['ids'].tolist()}", (f"글자 {len(ns['text'])}개 → 토큰 {len(tk)}개 (표시용 2개 포함)", 2)],
                        ["<code>▁</code>는 \"앞에 띄어쓰기가 있던 조각\"이에요. \"서버를\"은 <code>▁서버</code>와 <code>를</code>로 나뉘었어요. 자주 나오는 말은 통째로, 드문 말은 잘게 쪼개요.", "<code>&lt;s&gt;</code>, <code>&lt;/s&gt;</code>는 시작과 끝을 알리는 표시예요. LLM의 입력 한도(Context Window)와 비용은 글자가 아니라 이 토큰 수로 세요."])
     outs["s2"] = S.box("② Embedding 표", [(f"word_embeddings → {tuple(ns['table'].weight.shape)}", 1), (f"vectors.shape → {tuple(ns['vectors'].shape)}", 2), f"'▁서버' 벡터 앞 5칸 → {[round(float(v), 4) for v in ns['vectors'][1][:5]]}"],
@@ -54,15 +55,20 @@ else:
                          ["대각선 위(자기보다 뒤의 토큰)가 모두 0이 됐어요. 첫 토큰은 자기 자신만 봐요.", "다음 토큰을 맞히는 LLM(GPT 같은)은 학습할 때 답을 미리 보면 안 돼서 이렇게 가려요. 반대로 이 예제의 e5 같은 인코더는 문장 전체를 앞뒤로 다 봐요."])
     fs, fl = ns["first_layer"]
     ls, ll = ns["last_layer"]
+    mid = range(1, len(tk) - 1)   # 시작, 끝 표시를 뺀 토큰 자리
+    S.claim(sum(fl[i] == tk[i - 1] for i in mid) > len(mid) / 2 and fl[tk.index("를")] == "▁서버" and fl[tk.index("하려면")].lstrip("▁") == "실행",
+            "⑤ 1층은 대부분 바로 앞 토큰을 본다 (를 → 서버, 하려면 → 실행)")
+    S.claim(all(ll[i] == "▁서버" for i in mid), "⑤ 12층에서는 모두 ▁서버를 본다")
     outs["s5"] = S.table("⑤ 실제 e5 모델: 토큰마다 가장 많이 본 토큰 (head 12개 평균, 표시용 토큰 제외)", ["토큰", "1층에서", "12층에서"],
                          [[E(tk[i]), E(fl[i]), E(ll[i])] for i in range(1, len(tk) - 1)],
                          [f"attentions → 층 {ns['attn'].shape[0]}개, 층마다 head {ns['attn'].shape[2]}개, {ns['attn'].shape[3]}×{ns['attn'].shape[4]} 가중치",
                           "1층에서는 대부분 <b>바로 앞 토큰</b>을 봐요 (\"를\" → \"서버\", \"하려면\" → \"실행\"). 단어 조각을 이어 붙이는 일이에요.",
                           f"12층에서는 모두 \"<code>▁서버</code>\"를 봐요. 문장의 핵심 대상에 정보가 모였어요. 그리고 가중치의 {ls:.0%}는 시작 표시 <code>&lt;s&gt;</code>로 가요. 딱히 볼 곳이 없을 때 쉬는 자리처럼 쓰여요."])
     pr = ns["probs"]
+    top = int(ns["logits"].argmax())   # 점수 1등 후보
     outs["s6"] = S.table("⑥ 후보 네 개의 확률 (점수는 예시)", ["후보", "점수(logit)"] + [f"temperature {t}" for t in pr], [[E(c), f"{float(ns['logits'][i]):.1f}"] + [f"{float(pr[t][i]):.2f}" for t in pr] for i, c in enumerate(ns["candidates"])],
                          [f"가장 높은 것만 고르면(greedy) 언제나 \"{ns['greedy']}\"예요.", f"확률대로 뽑으면(temperature 1.0, 10번) → {ns['sampled']}. 같은 질문에도 답이 조금씩 달라지는 이유예요.",
-                          "temperature가 낮으면 1등에 몰리고(0.5에서 0.80), 높으면 고르게 퍼져요(2.0에서 0.42). 정확해야 하면 낮게, 다양해야 하면 높게 써요."])
+                          f"temperature가 낮으면 1등에 몰리고(0.5에서 {float(pr[0.5][top]):.2f}), 높으면 고르게 퍼져요(2.0에서 {float(pr[2.0][top]):.2f}). 정확해야 하면 낮게, 다양해야 하면 높게 써요."])
 flow = [[1, "토큰", "▁서버, 를, …", "한도와 비용의 단위"], [2, "Embedding", "번호 → 벡터", "아직 문맥 모름"], [3, "Attention", "Q, K, V", "가중치 합 1"], [4, "Mask", "미래 가리기", "GPT식 학습"], [5, "실제 모델", "12층", "앞 토큰 → 핵심어"], [6, "다음 토큰", "softmax", "temperature"]]
 # ---------------- Transformer 구조 실험 (모델 없이 torch로 직접 계산)
 import numpy as np  # noqa: E402

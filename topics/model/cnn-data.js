@@ -665,7 +665,7 @@ window.PAGE = {
     [
      "잔차 연결",
      "3.5e-02",
-     "0.323",
+     "0.329",
      "1.00"
     ],
     [
@@ -713,8 +713,8 @@ window.PAGE = {
     [
      "잔차 연결",
      "8.4e+00",
-     "0.687",
-     "0.60"
+     "0.661",
+     "0.55"
     ],
     [
      "잔차 + BatchNorm",
@@ -774,5 +774,5 @@ window.PAGE = {
    "BatchNorm"
   ]
  ],
- "env": "Python 3.13.5, PyTorch 2.13.0+cpu, torchvision 0.28.0+cpu, CPU (seed 0)"
+ "env": "Python 3.13.16, PyTorch 2.14.0+cu130, torchvision 0.29.0+cu130, CPU (seed 0)"
 };

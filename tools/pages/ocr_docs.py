@@ -35,15 +35,19 @@ D = EX / "data"
 outs = {}
 raws = {n: cv2.imread(str(D / f"{n}_raw.png")) for n in ns["fixes"]}
 b = ns["bad"]
+clean03 = ns["cer"](ns["pytesseract"].image_to_string(cv2.imread(str(D / "doc03.png")), lang="eng", config=ns["CONFIG"]), ns["truth"]["doc03"])   # 깨끗한 원본의 오류율
+S.claim(b["shadow"]["cer_before"] == 1.0, "그림자 진 사진은 한 글자도 못 읽는다")
+S.claim("DOCO1" in ns["text01"] and all(abs(v["cer_after"] - clean03) < 0.002 for v in b.values()), "① DOC01을 DOCO1로 읽고, ③ 다듬은 뒤는 깨끗한 원본과 같은 수준")
+n01 = len(" ".join(ns["truth"]["doc01"].split()))   # cer()이 세는 정답 글자 수
 outs["why"] = S.images("같은 청구서(doc03)를 세 가지로 찍은 사진", [(save(cv2.imread(str(D / "doc03.png")), "doc03.png"), "깨끗한 원본")] + [(save(raws[n], f"{n}_raw.png"), f"{n}: 글자 오류율 {b[n]['cer_before']:.0%}") for n in raws],
                        ["사람 눈에는 넷 다 읽히는데, OCR 결과는 크게 달라요. 그림자 진 사진은 <b>한 글자도</b> 읽지 못했어요 (오류율 100%).",
                         "그리고 다 읽었다 해도 글자 덩어리일 뿐이에요. 업무에 쓰려면 \"날짜는?\", \"합계는?\"처럼 <b>값</b>으로 꺼내고, 맞는지 <b>검산</b>해야 해요."])
 outs["s1"] = S.box("① doc01.png를 그대로 OCR", [*ns["text01"].strip().splitlines(), "", ("정답 첫 줄 → " + ns["truth"]["doc01"].splitlines()[0], 1)],
                    ["깨끗한 문서라 거의 다 맞았지만, 첫 줄의 <code>DOC01</code>을 <code>DOCO1</code>로 읽었어요. 숫자 0과 영어 O는 글꼴에 따라 거의 똑같이 생겨서 OCR이 자주 헷갈려요."])
-outs["s2"] = S.box("② cer(text01, 정답)", [(f"CER → {ns['cer01']:.3f}", 1)], ["글자 오류율(CER) = 정답과 같아지려면 고쳐야 하는 글자 수 ÷ 정답 글자 수. 0.007이면 140글자 중 1글자 정도예요. 한 글자지만, 하필 문서 번호예요."])
+outs["s2"] = S.box("② cer(text01, 정답)", [(f"CER → {ns['cer01']:.3f}", 1)], [f"글자 오류율(CER) = 정답과 같아지려면 고쳐야 하는 글자 수 ÷ 정답 글자 수. {ns['cer01']:.3f}이면 {n01}글자 중 {round(ns['cer01'] * n01)}글자 정도예요. 한 글자지만, 하필 문서 번호예요."])
 rows = [[n, f"{v['cer_before']:.3f}", f"<b>{v['cer_after']:.3f}</b>", f"<code>{E(' '.join(v['before'].split())[:40] or '(빈 글)')}</code>"] for n, v in b.items()]
 outs["s3"] = S.table("③ 다듬기 전후의 글자 오류율 (정답: doc03)", ["사진", "그대로", "다듬은 뒤", "그대로 읽은 앞부분"], rows,
-                     ["세 사진 모두 다듬은 뒤에는 깨끗한 원본과 같은 수준(0.006)이 됐어요. 문제마다 맞는 처방이 달라요: 작으면 키우고, 기울면 바로 세우고, 그림자는 배경 밝기로 나눠 없애요."])
+                     [f"세 사진 모두 다듬은 뒤에는 깨끗한 원본과 같은 수준({clean03:.3f})이 됐어요. 문제마다 맞는 처방이 달라요: 작으면 키우고, 기울면 바로 세우고, 그림자는 배경 밝기로 나눠 없애요."])
 outs["s3img"] = S.images("다듬은 뒤", [(save(ns["fixes"][n](raws[n]) if n != "lowres" else ns["fixes"][n](raws[n]), f"{n}_fixed.png"), n) for n in raws])
 outs["s4"] = S.table(f"④ image_to_data: 단어 {len(ns['words'])}개 중 확신 90 미만", ["단어", "확신(conf)", "위치 (x, y, 가로, 세로)"], [[f"<code>{E(w['text'])}</code>", w["conf"], str(w["box"])] for w in ns["unsure"]],
                      ["단어마다 글자, 확신(0~100), 박스를 받았어요. 확신이 낮은 단어는 딱 하나, 앞에서 틀린 <code>DOCO1</code>이에요. OCR도 스스로 자신 없어 했어요. 확신이 낮은 단어만 사람에게 보여 주면 확인할 양이 크게 줄어요."])

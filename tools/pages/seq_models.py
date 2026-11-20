@@ -22,21 +22,27 @@ outs = {}
 r0 = ns["records"][0]
 outs["data"] = S.box("sequences.json의 첫 기록", [f"id {r0['id']}, split {r0['split']}, label {r0['label']}, 길이 {r0['length']}", *[f"  시점 {i + 1}: {[round(v, 3) for v in row]}" for i, row in enumerate(r0["values"][:4])], "  …"],
                      ["기록마다 시점 수가 6~12로 다르고, 시점마다 센서 값이 3개예요. <code>label</code>(0 또는 1)을 맞히는 게 목표예요."])
+S.claim(abs(ns["acc_mean"] - 0.5) < 0.15 and min(ns["acc_rnn"], ns["acc_lstm"], ns["acc_attn"]) >= 0.9, "평균만 보면 동전 던지기, 순서를 보는 모델은 맞힌다")
+n_rec, T_max, _ = tuple(ns["X_train"].shape)
+L0 = int(ns["len_train"][0])   # 첫 기록의 진짜 길이
 outs["why"] = S.table("valid 20개 정확도", ["모델", "순서를 보나", "정확도"], [["평균만 보기 (②)", "아니요", f"<span class=\"bad\">{ns['acc_mean']:.2f}</span>"], ["RNN (③)", "예", f"<b>{ns['acc_rnn']:.2f}</b>"], ["LSTM (④)", "예", f"<b>{ns['acc_lstm']:.2f}</b>"], ["Attention (⑤)", "예", f"<b>{ns['acc_attn']:.2f}</b>"]],
                       ["값들의 평균만 보면 동전 던지기 수준이에요. 두 종류는 같은 값들을 <b>다른 순서</b>로 갖고 있어서, 순서를 봐야 구분돼요."])
 outs["s1"] = S.box("① batch(\"train\")", [(f"X_train.shape → {tuple(ns['X_train'].shape)}", 1), f"len_train 앞 5개 → {ns['len_train'][:5].tolist()}", (f"mask_train[0] → {[int(x) for x in ns['mask_train'][0].tolist()]}", 2)],
-                   ["기록 60개를 가장 긴 길이 12에 맞춰 (60, 12, 3) 하나의 Tensor로 만들었어요. 짧은 기록의 뒤는 0으로 채웠어요 (padding).", "첫 기록은 길이 8이라 앞 8칸만 진짜(1)이고 뒤 4칸은 채운 자리(0)예요. 채운 0을 진짜 값으로 읽으면 안 돼서 이 표시를 같이 들고 다녀요."])
+                   [f"기록 {n_rec}개를 가장 긴 길이 {T_max}에 맞춰 {tuple(ns['X_train'].shape)} 하나의 Tensor로 만들었어요. 짧은 기록의 뒤는 0으로 채웠어요 (padding).", f"첫 기록은 길이 {L0}이라 앞 {L0}칸만 진짜(1)이고 뒤 {T_max - L0}칸은 채운 자리(0)예요. 채운 0을 진짜 값으로 읽으면 안 돼서 이 표시를 같이 들고 다녀요."])
 outs["s2"] = S.box("② 평균만 보는 모델", [(f"valid 정확도 → {ns['acc_mean']:.2f}", 1)], ["채운 0은 빼고 진짜 값들만 평균했어요. 그래도 순서 정보가 사라져서 구분하지 못해요."])
 outs["s3"] = S.box("③ RNN", [(f"valid 정확도 → {ns['acc_rnn']:.2f}", 1)], ["시점을 하나씩 읽으며 \"지금까지 본 것의 요약\"(hidden state)을 갱신하고, 진짜 마지막 시점의 요약으로 판단했어요."])
 outs["s4"] = S.box("④ LSTM", [(f"valid 정확도 → {ns['acc_lstm']:.2f}", 1)], ["이 데이터는 짧아서 RNN도 충분했어요. 기록이 길어질수록 RNN은 앞쪽을 잊기 쉬워서 LSTM이 유리해져요."])
 w = ns["weights"][0].tolist()
 L = int(ns["len_valid"][0])
+S.claim(sorted(range(L), key=lambda i: -w[i])[:2] == [0, 1] and w[0] + w[1] > 0.5 and all(x == 0 for x in w[L:]), "⑤ 앞의 두 시점에 가중치가 몰리고, 채운 자리는 정확히 0")
 outs["s5"] = S.box(f"⑤ Attention, valid 첫 기록(길이 {L})의 시점별 가중치", [(f"정확도 → {ns['acc_attn']:.2f}", 1), (f"가중치 → {[round(x, 3) for x in w]}", 2), f"합 → {sum(w):.3f}"],
                    ["순서대로 읽는 대신, 모든 시점을 한꺼번에 보고 \"어느 시점이 중요한가\"를 점수로 매겨 섞었어요.", f"이 기록에서는 앞의 두 시점에 가중치가 몰렸어요. 길이 {L} 뒤의 채운 자리는 정확히 0이에요 (점수를 −∞로 막아서). 가중치를 보면 모델이 어디를 봤는지 알 수 있어요."])
+ratio_odd = float(ns["err_odd"].max()) / float(ns["limit"])   # 튀는 창의 오차 ÷ 기준
+S.claim(10 <= ratio_odd < 100 and len(ns["alerts_odd"]) == 12, "⑥ 튀는 값이 섞인 창은 오차가 기준의 수십 배이고, 그 시점을 품은 창 12개가 모두 걸린다")
 outs["s6"] = S.box("⑥ Autoencoder 복원 오차", [f"창 크기 12, train 창 {tuple(ns['W_train'].shape)[0]}개", (f"이상 기준 (train 평균 + 표준편차 3배) → {float(ns['limit']):.4f}", 1),
                                                 f"valid, test에서 기준을 넘은 창 → {ns['alerts']}", (f"test 35번째 시점에 일부러 +1.0을 넣으면 → 걸린 창 {ns['alerts_odd']}  (최대 오차 {float(ns['err_odd'].max()):.3f})", 2, "bad")],
                    ["정상 데이터만으로 \"12칸을 4칸으로 줄였다가 되살리는\" 법을 배웠어요. 정상 패턴은 잘 되살려서 오차가 작아요.", "튀는 값이 섞인 창은 배운 적 없는 모양이라 잘 되살리지 못해 오차가 기준의 수십 배가 됐어요. 그 시점을 품은 창 12개가 모두 걸렸어요. 정답(이상 표시) 없이도 이상을 찾을 수 있어요."])
-flow = [[1, "묶기", "padding, mask", "길이가 달라도"], [2, "평균", "순서 무시", "0.45"], [3, "RNN", "차례로 읽기", "마지막 기억"], [4, "LSTM", "오래 기억", "pack"], [5, "Attention", "중요한 시점", "가중치 합 1"], [6, "Autoencoder", "줄였다 되살리기", "오차 = 이상"]]
+flow = [[1, "묶기", "padding, mask", "길이가 달라도"], [2, "평균", "순서 무시", f"{ns['acc_mean']:.2f}"], [3, "RNN", "차례로 읽기", "마지막 기억"], [4, "LSTM", "오래 기억", "pack"], [5, "Attention", "중요한 시점", "가중치 합 1"], [6, "Autoencoder", "줄였다 되살리기", "오차 = 이상"]]
 S.save(ROOT / "topics" / "model" / "sequence-models-data.js", {"code": code, "names": S.names(code), "range": [1, 6], "outs": outs, "flow": flow,
                                                               "env": f"Python {sys.version.split()[0]}, PyTorch {torch.__version__}, CPU (seed 0)"})
 why = f"""<p>센서 기록, 문장, 주가처럼 <b>순서가 있는 데이터</b>는 같은 값이라도 순서가 바뀌면 뜻이 달라요. "개가 사람을 물었다"와 "사람이 개를 물었다"처럼요.</p>{K.out("data")}

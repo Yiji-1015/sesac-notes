@@ -187,22 +187,31 @@ outs = {}
 outs["f_ls"] = S.images("입력 길이 하나로 그은 직선과, 8열 모델의 valid 예측", [(FIG["ls"], "왼쪽: train, 오른쪽: valid")],
                         [f"왼쪽은 설명을 위해 <code>input_chars</code> 한 열만 쓴 직선이에요. 직선과 점 사이 분홍 선이 오차(잔차)이고, 최소제곱법은 이 길이의 제곱 합이 가장 작은 직선을 골라요. 그래도 점이 넓게 흩어져서, 이 한 열로 설명되는 건 train에서도 R² {one_r2:.2f}뿐이에요.",
                          "오른쪽 점이 회색 점선(완벽한 예측)에 모이지 않고 주황 선(평균) 근처에 납작하게 깔려 있어요. 모델이 입력으로 시간 차이를 거의 못 가려낸다는 뜻이고, R²가 0 아래로 내려간 이유예요."])
+it_03 = next(i for i, j in enumerate(paths[0.3][0]) if j <= J_best * 1.05)   # 0.3이 바닥 근처(5% 안)에 처음 닿은 반복
+S.claim(it_03 <= 8 and paths[0.003][0][-1] > 2 * J_best and paths[1.25][0][-1] > paths[1.25][0][0] and 0.3 < 2 / lam_max < 1.25,
+        "④ 경사하강: 0.3은 몇 번 만에 바닥, 0.003은 한참 위, 1.25는 발산")
 outs["f_gd"] = S.images("같은 8열 회귀를 경사하강법으로 풀면", [(FIG["gd"], "반복할수록 비용이 줄어드는 모습")],
-                        [f"0.3은 다섯 번 남짓 만에 공식으로 구한 바닥(점선)에 거의 닿아요. 0.003은 60번을 가도 한참 위예요. 1.25는 걸음이 너무 커서 매번 바닥을 지나쳐 반대편 더 높은 곳에 떨어지고, 그래서 비용이 오히려 계속 커져요 (발산).",
+                        [f"0.3은 {it_03}번 만에 공식으로 구한 바닥(점선)에 거의 닿아요. 0.003은 60번을 가도 한참 위예요. 1.25는 걸음이 너무 커서 매번 바닥을 지나쳐 반대편 더 높은 곳에 떨어지고, 그래서 비용이 오히려 계속 커져요 (발산).",
                          f"이 데이터에서는 learning rate가 약 {2 / lam_max:.2f}를 넘으면 발산해요. 그래서 실제로는 0.001, 0.01, 0.1, 1처럼 열 배씩 바꿔 시험하고, 이 그림처럼 반복마다 비용이 줄어드는지 그려서 확인해요."])
 outs["f_path"] = S.images("alpha를 0.1부터 1000까지 키우면 (가중치 8개)", [(FIG["path"], "굵은 선이 input_chars")],
                           ["Ridge는 선들이 함께 0으로 다가가지만 끝까지 닿지 않아요. Lasso는 선이 하나씩 0에 붙고, 마지막까지 남는 게 가장 쓸모 있는 <code>input_chars</code>예요."])
+fn_z = np.sort(ns["z"][(ns["y_valid"].to_numpy() == 1) & (ns["z"] < 0)])        # 놓친 실패의 점수
+pair = next(((a_ + b_) / 2 for a_, b_ in zip(fn_z, fn_z[1:]) if b_ - a_ < 0.05), None)  # 그림에서 겹쳐 보이는 두 점
+overlap = f" (z ≈ {f'{pair:.1f}'.replace('-', '−')}의 두 개는 겹쳐 있어요)" if pair is not None else ""
 outs["f_sig"] = S.images("⑤의 로지스틱 회귀가 valid 20건에 준 점수와 확률", [(FIG["sig"], "가로: 점수 z, 세로: 실패 확률")],
                          ["모든 점이 곡선 위에 있어요. 확률은 점수 z를 시그모이드에 넣은 값일 뿐이라서요.",
-                          "오른쪽 위(z ≥ 0)에 있는 점만 \"실패\"라고 답해요. 분홍 X가 왼쪽에 4개 있죠 (z ≈ −1.5의 두 개는 겹쳐 있어요). 그게 ⑤에서 놓친 실패 4건이에요. 보라 점도 오른쪽에 4개 있어요 (헛경보 4건)."])
+                          f"오른쪽 위(z ≥ 0)에 있는 점만 \"실패\"라고 답해요. 분홍 X가 왼쪽에 {len(fn_z)}개 있죠{overlap}. 그게 ⑤에서 놓친 실패 {ns['cm'][1][0]}건이에요. 보라 점도 오른쪽에 {ns['cm'][0][1]}개 있어요 (헛경보 {ns['cm'][0][1]}건)."])
 outs["f_ll"] = S.images("로그 손실과 제곱 오차", [(FIG["ll"], "실제 실패인 요청 하나의 비용")],
                         ["실제 실패인데 p를 0.1로 줬다면 로그 손실은 2.30이지만, 제곱 오차는 0.81에서 멈춰요. 제곱 오차는 아무리 크게 틀려도 1을 넘지 않아서, 자신 있게 틀린 걸 충분히 벌주지 못해요."])
 outs["f_knn"] = S.images("train 60건으로 그린 KNN의 판단 지도 (숫자 두 열만 사용)", [(FIG["knn"], "분홍 바탕: \"실패\"라고 답하는 곳")],
                          ["그림으로 보려고 <code>input_chars</code>와 <code>allowed_tools</code> 두 열만 쓴 모델이에요. ⑥의 실제 모델(8열)과는 다르지만 k의 효과는 같아요.",
-                          "k=1은 실패 점 근처를 좁은 띠와 조각으로 감싸서 경계가 들쭉날쭉해요. train도 거의 다 맞혀요. 100%가 안 되는 건, 두 열만 보면 같은 자리인데 답이 다른 요청이 있어서예요 (8열 모델에서는 1.000).",
+                          "k=1은 실패 점 근처를 좁은 띠와 조각으로 감싸서 경계가 들쭉날쭉해요. train도 거의 다 맞혀요. 100%가 안 되는 건, 두 열만 보면 같은 자리인데 답이 다른 요청이 있어서예요 (8열 모델에서는 {K1_TRAIN}).",
                           "k=31은 오른쪽 아래 귀퉁이만 빼고 분홍 바탕이 사라져서, 거의 어디서든 \"성공\"이라고 답해요."])
+best_k = krange[int(np.argmax(va_f1))]
+zero_from = next(k for i, k in enumerate(krange) if all(v == 0 for v in va_f1[i:]))   # 이 k부터는 valid F1이 계속 0
+S.claim(tr_acc[-1] < tr_acc[0], "⑥ k가 커질수록 train 정확도가 내려간다")
 outs["f_k"] = S.images("k를 1부터 31까지 (8열 모델, ⑥과 같은 조건)", [(FIG["kcurve"], "")],
-                       ["검은 선(본 데이터)은 k=1에서 1.0이고 k가 커질수록 내려가요. 분홍 선(처음 보는 데이터)은 k=3에서 가장 높고, 오르내리다 k=13부터는 0에 붙어요. valid 20건에서 실패 한두 건이 맞고 틀리는 차이라 들쭉날쭉해요.",
+                       [f"검은 선(본 데이터)은 k=1에서 {tr_acc[0]:.1f}이고 k가 커질수록 내려가요. 분홍 선(처음 보는 데이터)은 k={best_k}에서 가장 높고, 오르내리다 k={zero_from}부터는 0에 붙어요. valid 20건에서 실패 한두 건이 맞고 틀리는 차이라 들쭉날쭉해요.",
                         "두 선의 간격이 클수록 외운 정도가 커요. 가장 좋은 k는 두 극단 사이 어딘가에 있고, 교차검증으로 찾아요 (2쪽)."])
 for _k in ("f_ls", "f_gd", "f_path", "f_sig", "f_ll", "f_knn", "f_k"):
     outs[_k]["chart"] = True  # 그래프는 폭을 꽉 채워 보여 주기 (topics/steps.css의 .imgrow.chart)
@@ -215,13 +224,14 @@ outs["s1"] = S.box("① 실행 결과", [(f"train {len(n1['train'])}건, valid {
                                    f"빈 칸 → input_chars {int(raw['input_chars'].isna().sum())}개, allowed_tools {int(raw['allowed_tools'].isna().sum())}개"],
                    ["나누는 방법을 파일(manifest)로 고정해 둬서, 몇 번을 돌려도 같은 행이 같은 쪽에 들어가요.", "세 쪽 모두 실패가 30%로 비슷하게 나뉘었어요. 빈 칸은 ③에서 채워요."])
 outs["s2"] = S.box("② 기준선", [(f"분류: 언제나 \"성공\"이라고 답하기 → 정확도 {ns['base_acc']:.2f}", 1), (f"회귀: 언제나 train 평균 시간이라고 답하기 → MAE {ns['base_mae']:.0f} ms", 2)],
-                   ["아무것도 배우지 않은 모델이 정확도 0.70이에요. 실패가 30%뿐이라서 \"다 성공\"이라고만 해도 70%는 맞거든요. 그러니 정확도 0.70은 잘한 게 아니에요.", "평균으로만 찍어도 평균 541 ms 틀려요. 모델은 이보다 나아야 의미가 있어요."])
+                   [f"아무것도 배우지 않은 모델이 정확도 {ns['base_acc']:.2f}이에요. 실패가 30%뿐이라서 \"다 성공\"이라고만 해도 70%는 맞거든요. 그러니 정확도 {ns['base_acc']:.2f}은 잘한 게 아니에요.", f"평균으로만 찍어도 평균 {ns['base_mae']:.0f} ms 틀려요. 모델은 이보다 나아야 의미가 있어요."])
 pre = ns["build"](ns["LogisticRegression"]()).named_steps["pre"].fit(ns["X_train"])
 outs["s3"] = S.box("③ 전처리만 따로 돌려 보면", [(f"입력 4열 → 전처리 뒤 {len(pre.get_feature_names_out())}열", 1), f"{list(pre.get_feature_names_out())}"],
                    ["숫자 두 열은 빈 칸을 중앙값으로 채우고 평균 0, 표준편차 1로 맞췄어요. 글자 두 열은 값마다 0/1 열로 펼쳤어요 (원-핫). 모델은 숫자만 받으니까요."])
 short = lambda n: n.split("__", 1)[1]  # noqa: E731  "num__input_chars" → "input_chars"
 coef = ns["reg_coef"]
 top = coef.reindex(coef.abs().sort_values(ascending=False).index)
+S.claim(ns["reg_rmse"] > ns["reg_mae"] and ns["reg_r2"] < 0, "④ RMSE가 MAE보다 크고, R²가 0보다 작다")
 outs["s4"] = S.box("④ 선형 회귀로 처리 시간 예측 (valid)", [f"MAE → {ns['reg_mae']:.0f} ms  (기준선 {ns['base_mae']:.0f} ms)", (f"RMSE → {ns['reg_rmse']:.0f} ms", 1), (f"R² → {ns['reg_r2']:.3f}", 2, "bad"), "",
                                                          (f"배운 가중치: 절편 {ns['reg'].named_steps['model'].intercept_:.1f}, " + ", ".join(f"{short(i)} {v:+.1f}" for i, v in top.head(4).items()), 3)],
                    ["RMSE가 MAE보다 커요. 제곱을 거치면서 크게 빗나간 몇 건이 더 무겁게 잡혔다는 뜻이에요.",
@@ -234,6 +244,9 @@ for label, cls, a in [("선형 회귀", None, None), ("Ridge", "Ridge", 10), ("R
     c = pd.Series(n["reg"].named_steps["model"].coef_, index=coef.index)
     penal.append([label, "-" if a is None else a, f"{c['num__input_chars']:.1f}", f"{c['num__allowed_tools']:.1f}", f"{c['cat__task_type_qa']:.1f}",
                   f"<b>{int((c.abs() < 1e-9).sum())}</b> / {len(c)}", f"{n['reg_mae']:.0f}", f3(n["reg_r2"])])
+_zero = [int(r[5].split("</b>")[0].replace("<b>", "")) for r in penal]   # 줄마다 0인 가중치 수
+S.claim(_zero[1] == _zero[2] == 0 and _zero[4] == len(coef) - 1 and float(penal[4][2]) != 0, "④ Ridge는 0이 없고, Lasso alpha 50은 input_chars 하나만 남는다")
+S.claim(max(float(r[7]) for r in penal) < 0.05, "④ 규제를 줘도 R²가 나아지지 않는다")
 outs["t4"] = S.table("가중치에 벌점을 주면 (valid)", ["모델", "alpha", "input_chars", "allowed_tools", "task_type_qa", "0인 가중치", "MAE", "R²"], penal,
                      ["Ridge는 alpha를 키울수록 <b>모든</b> 가중치를 조금씩 0 쪽으로 줄여요. 하나도 정확히 0이 되지는 않아요.",
                       "Lasso는 덜 쓸모 있는 가중치부터 <b>정확히 0</b>으로 만들어요. alpha 50에서는 <code>input_chars</code> 하나만 남았어요. 열을 골라 주는 효과예요.",
@@ -250,15 +263,17 @@ outs["s5"] = S.box("⑤ 로지스틱 회귀로 실패 예측 (valid 20건)", ["�
                                                       (f"{first}: 점수 z {z[0]:.3f} → 시그모이드 {pf[0]:.3f} → 0.5보다 작아서 \"성공\"", 3, "newf"),
                                                       (f"로그 손실 → {ns['loss']:.3f}  (누구에게나 train 실패 비율 {rate:.2f}만 말하면 {base_loss:.3f})", 4, "bad"),
                                                       ("odds 배수: " + ", ".join(f"{short(i)} ×{v:.2f}" for i, v in odds_top.head(4).items()), 5, "newf")],
-                   ["실제 실패 6건 중 2건만 잡았어요. 4건은 놓쳤어요.", "정확도는 기준선(0.70)보다 낮지만, 기준선은 실패를 <b>하나도</b> 못 잡아요(F1 0). 실패를 찾는 게 목적이면 정확도보다 recall(실패 중 잡은 비율)과 F1을 봐야 해요.",
+                   [f"실제 실패 {cm[1].sum()}건 중 {cm[1][1]}건만 잡았어요. {cm[1][0]}건은 놓쳤어요.", f"정확도는 기준선({ns['base_acc']:.2f})보다 낮지만, 기준선은 실패를 <b>하나도</b> 못 잡아요(F1 0). 실패를 찾는 게 목적이면 정확도보다 recall(실패 중 잡은 비율)과 F1을 봐야 해요.",
                     f"z는 음수라 확률이 0.5 아래예요. 직접 계산한 <code>p_fail</code>은 모델의 확률 함수 <code>predict_proba</code>가 내는 값과 같아요. 모델 안에서도 이 계산을 해요.",
                     "로그 손실이 \"모두에게 같은 확률 말하기\"보다 <b>커요</b>. 확률을 틀린 방향으로 자신 있게 낸 요청이 있다는 뜻이에요. 이 모델의 확률은 실패와 성공의 순서조차 잘 못 매긴다는 신호예요. 확률의 순서가 얼마나 맞는지는 3쪽에서 ROC-AUC라는 점수로 따로 재요.",
                     f"<code>input_chars</code>가 표준편차 하나만큼 길면 실패 odds가 {odds['num__input_chars']:.2f}배가 된다고 배웠어요. 1보다 작으면 실패 쪽을 줄이는 열이에요 (<code>priority_normal</code> ×{odds['cat__priority_normal']:.2f})."])
+S.claim(ns["scores"]["accuracy"] < ns["base_acc"] and ns["loss"] > base_loss, "⑤ 정확도는 기준선보다 낮고, 로그 손실은 같은 확률 말하기보다 크다")
 c_rows = []
 for Cv in (0.01, 0.1, 1, 100):  # C는 그림 색 이름이라 Cv
     n = ns if Cv == 1 else run(5, [("logit = build(LogisticRegression(max_iter=1000))", f"logit = build(LogisticRegression(max_iter=1000, C={Cv}))")])
     w = n["logit"].named_steps["model"].coef_[0]
     c_rows.append([f"<b>{Cv}</b> (지금)" if Cv == 1 else Cv, f3(np.abs(w).sum()), f"{n['scores']['f1']:.2f}", f"{n['scores']['recall']:.2f}", f"{n['scores']['accuracy']:.2f}"])
+S.claim(c_rows[0][2] == c_rows[1][2] == "0.00" and c_rows[0][4] == c_rows[1][4] == f"{ns['base_acc']:.2f}" and abs(float(c_rows[3][2]) - float(c_rows[2][2])) < 0.1, "⑤ C 0.1 이하는 F1 0, C 100도 크게 나아지지 않는다")
 outs["t5"] = S.table("C를 바꾸면 (valid)", ["C", "가중치 절댓값 합", "F1", "recall", "accuracy"], c_rows,
                      ["C는 규제 세기의 <b>역수</b>예요 (C = 1/λ). 작을수록 벌점이 세서 가중치가 0 근처로 눌려요.",
                       "C 0.1 이하에서는 가중치가 너무 작아져서 모든 요청에 실패 확률 0.5 미만을 줘요. 그래서 기준선처럼 \"다 성공\"이라고 답하고 F1이 0이에요.",
@@ -271,16 +286,23 @@ for label, arg in [("1", "n_neighbors=1"), ("3", "n_neighbors=3"), ("5 (지금)"
     n = ns if arg == "n_neighbors=5" else run(6, [(knn_line, f"knn_scaled = build(KNeighborsClassifier({arg}))")])
     m = n["knn_scaled"]
     k_rows.append([f"<b>{label}</b>" if label.startswith("5 (") else label, f3(ACC(n["y_train"], m.predict(n["X_train"]))), f"{F1(n['y_valid'], m.predict(n['X_valid'])):.2f}", f"{ACC(n['y_valid'], m.predict(n['X_valid'])):.2f}"])
+K1_TRAIN = k_rows[0][1]
+outs["f_knn"]["notes"] = [n_.replace("{K1_TRAIN}", K1_TRAIN) for n_ in outs["f_knn"]["notes"]]
+S.claim(k_rows[3][2] == k_rows[4][2] == "0.00" and float(k_rows[4][3]) == round(ns["base_acc"], 2), "⑥ k=9, 31은 F1 0이고 k=31 정확도는 기준선과 같다")
+S.claim(max(k_rows[:5], key=lambda r: float(r[2]))[0] == "3", "⑥ valid에서는 k=3이 가장 좋다")
 outs["t6"] = S.table("k와 거리를 바꾸면 (스케일 있음)", ["k와 설정", "train 정확도", "valid F1", "valid 정확도"], k_rows,
-                     ["k=1이면 train 정확도가 1.000이에요. train의 모든 요청은 자기 자신이 가장 가까운 이웃이라서, 외운 답을 그대로 말해요. \"가까울수록 큰 표\"도 같은 이유로 1.000이에요.",
-                      "k=9와 31에서는 실패를 하나도 맞히지 못해요 (F1 0). k=31이면 이웃 31개의 다수가 늘 성공이라 모든 요청에 \"성공\"이라고 답해요. 정확도 0.70이 기준선과 똑같은 이유예요. k가 작으면 과적합, 크면 과소적합이에요.",
+                     [f"k=1이면 train 정확도가 {k_rows[0][1]}이에요. train의 모든 요청은 자기 자신이 가장 가까운 이웃이라서, 외운 답을 그대로 말해요. \"가까울수록 큰 표\"도 같은 이유로 {k_rows[6][1]}이에요.",
+                      f"k=9와 31에서는 실패를 하나도 맞히지 못해요 (F1 0). k=31이면 이웃 31개의 다수가 늘 성공이라 모든 요청에 \"성공\"이라고 답해요. 정확도 {k_rows[4][3]}이 기준선과 똑같은 이유예요. k가 작으면 과적합, 크면 과소적합이에요.",
                       "valid에서는 k=3이 가장 좋지만, valid가 20건이라 한두 건 차이예요. k도 교차검증으로 골라요 (2쪽)."])
 ks, kr = F1(ns["y_valid"], ns["knn_scaled"].predict(ns["X_valid"])), F1(ns["y_valid"], ns["knn_raw"].predict(ns["X_valid"]))
 outs["s6"] = S.box("⑥ KNN (k=5), 스케일 있음과 없음 (valid F1)", [f"스케일 있음 → {ks:.2f}", f"스케일 없음 → {kr:.2f}", f"input_chars 범위 {raw['input_chars'].min():.0f}~{raw['input_chars'].max():.0f}, allowed_tools 범위 {raw['allowed_tools'].min():.0f}~{raw['allowed_tools'].max():.0f}"],
                    ["스케일이 없으면 거리가 거의 <code>input_chars</code>(수백~수천)로만 정해지고, <code>allowed_tools</code>(1~5)는 무시돼요. 이 데이터에서는 그게 오히려 점수가 높게 나왔어요. 입력 중 <code>input_chars</code>가 가장 쓸모 있어서일 수도, valid가 20건뿐이라 우연일 수도 있어요. 한 번의 점수로 결론 내리지 않는 이유예요 (2쪽의 교차검증)."])
+S.claim(kr > ks, "⑥ 스케일이 없는 쪽이 점수가 높다")
+_b = ns["board"]
+S.claim(_b["accuracy"].idxmax() == "dummy" and _b["f1"].idxmax() == "logistic", "⑦ 정확도는 dummy, F1은 logistic이 1등")
 outs["s7"] = S.table("⑦ 같은 train, 같은 valid로 비교", ["model", "F1", "recall", "accuracy"], df_rows(ns["board"]),
                      ["정확도만 보면 dummy가 1등이에요. F1로 보면 logistic이 가장 나아요. <b>무엇을 기준으로 고르느냐</b>가 결과를 바꿔요.", "모두 같은 나누기, 같은 전처리 함수를 썼어요. 조건이 다르면 비교가 아니에요."])
-flow1 = [[1, "읽고 나누기", "60 / 20 / 20", "누수 열 빼기"], [2, "기준선", "Dummy", "정확도 0.70"], [3, "Pipeline", "채우기, 맞추기", "원-핫"],
+flow1 = [[1, "읽고 나누기", "60 / 20 / 20", "누수 열 빼기"], [2, "기준선", "Dummy", f"정확도 {ns['base_acc']:.2f}"], [3, "Pipeline", "채우기, 맞추기", "원-핫"],
          [4, "회귀", "선형, 제곱 오차", "가중치, 규제"], [5, "분류", "로지스틱, 시그모이드", "확률, odds"], [6, "KNN", "거리, 다수결", "k, 스케일"], [7, "비교", "같은 조건", "기준이 결과를 바꿈"]]
 S.save(ROOT / "topics" / "model" / "ml-regression-classification-data.js", {"code": [c for c in code if c["s"] <= 7], "names": S.names(code), "range": [1, 7], "outs": outs, "flow": flow1, "env": ENV})
 
@@ -318,7 +340,7 @@ steps1 = [
            "<p><b>왜 제곱 오차를 줄이나?</b> 차이를 그냥 더하면 +300과 −300이 서로 지워져요. 제곱하면 부호가 사라지고, 크게 빗나간 건 더 크게 벌을 받아요. 그리고 제곱 오차는 가중치에 대해 매끈한 그릇 모양이라, 바닥(가장 작은 점)을 공식 하나로 바로 구할 수 있어요. 이걸 <b>최소제곱법</b>이라고 하고, <code>LinearRegression</code>이 하는 일이 이거예요.</p>"
            + K.out("f_ls")
            + "<p>그 공식은 <code>θ = (XᵀX)⁻¹ Xᵀ y</code>예요 (<b>정규방정식</b>). X는 train 60행 × 9열 표(맨 앞에 절편 자리로 1을 붙인 열 + ③의 8열), y는 처리 시간 60개예요. Xᵀ는 X의 행과 열을 바꾼 것(전치), ⁻¹는 역행렬(곱하면 \"1\"이 되는 짝, 나눗셈 역할)이에요.</p>"
-           + f"<p>⚠️ 그런데 이 예제에서는 XᵀX의 <b>역행렬이 없어요</b>. <code>task_type</code>의 원-핫 세 열은 어느 행에서나 더하면 1이라서, 절편 자리의 1 열과 같은 정보예요. <code>priority</code> 세 열도 마찬가지예요. 그래서 9열 중 서로 다른 정보는 {int(np.linalg.matrix_rank(Xd))}개뿐이고, <b>예측을 똑같이 내는 θ가 무수히 많아요</b>. <code>LinearRegression</code>은 그중 하나(가중치 크기가 가장 작은 것)를 골라 줘요. 그래서 아래 출력의 <code>task_type_qa +75.0</code>은 \"qa면 75 ms 더\"가 아니라 \"다른 task_type보다 상대적으로 더\"로 읽어야 해요.</p>"
+           + f"<p>⚠️ 그런데 이 예제에서는 XᵀX의 <b>역행렬이 없어요</b>. <code>task_type</code>의 원-핫 세 열은 어느 행에서나 더하면 1이라서, 절편 자리의 1 열과 같은 정보예요. <code>priority</code> 세 열도 마찬가지예요. 그래서 9열 중 서로 다른 정보는 {int(np.linalg.matrix_rank(Xd))}개뿐이고, <b>예측을 똑같이 내는 θ가 무수히 많아요</b>. <code>LinearRegression</code>은 그중 하나(가중치 크기가 가장 작은 것)를 골라 줘요. 그래서 아래 출력의 <code>task_type_qa {coef['cat__task_type_qa']:+.1f}</code>은 \"qa면 {coef['cat__task_type_qa']:.0f} ms 더\"가 아니라 \"다른 task_type보다 상대적으로 더\"로 읽어야 해요.</p>"
            + "<p><b>경사하강법</b>: 열이 수만 개면 정규방정식의 역행렬 계산(열 수의 세제곱에 비례)이 너무 무거워요. 그때는 그릇 바닥을 향해 조금씩 걸어 내려가요. 한 걸음은 <code>θⱼ ← θⱼ − α × (1/m) × Σ (예측 − 실제) × xⱼ</code>예요. m은 행 수(60), Σ는 모든 행에 대해 더하기, α(알파)는 한 걸음 크기(<b>learning rate</b>)예요. \"예측 − 실제\"가 크고 xⱼ도 큰 열일수록 θⱼ를 많이 고쳐요.</p>"
            "<p>⚠️ 한 걸음 안에서는 θ를 <b>모두 같은 예측으로</b> 고쳐야 해요(동시 업데이트). θ₀을 먼저 고치고 그 새 θ₀으로 다시 예측해서 θ₁을 고치면, 그릇의 기울기가 아닌 엉뚱한 방향으로 걷게 돼요. 신경망은 정규방정식 같은 공식이 없어서 늘 이 방법을 써요 (<a href=\"dl-tensor-training.html\">딥러닝 기초</a>).</p>"
            + K.out("f_gd")
@@ -399,15 +421,17 @@ g0, gl, gr = float(tt.impurity[0]), float(tt.impurity[L0]), float(tt.impurity[R0
 g_after = (nl * gl + nr * gr) / n0
 fl, fr = float(tt.value[L0][0][1]), float(tt.value[R0][0][1])  # 각 칸의 실패 비율
 ent = lambda p: 0.0 if p in (0, 1) else float(-(p * np.log2(p) + (1 - p) * np.log2(1 - p)))  # noqa: E731
+p0 = float(tt.value[0][0][1])   # 뿌리의 실패 비율
+S.claim("input_chars" in tnames[tt.feature[0]] and fr == 1.0 and gr == 0.0, "⑧ 첫 질문은 input_chars이고, 넘는 쪽은 모두 실패")
 outs["s8g"] = S.box("⑧의 트리가 고른 첫 질문을 직접 계산하면", [
-    (f"뿌리: train {n0}건, 실패 비율 {tt.value[0][0][1]:.2f} → Gini 1 − (0.70² + 0.30²) = {g0:.3f}", 1),
+    (f"뿌리: train {n0}건, 실패 비율 {tt.value[0][0][1]:.2f} → Gini 1 − ({tt.value[0][0][0]:.2f}² + {tt.value[0][0][1]:.2f}²) = {g0:.3f}", 1),
     (f"질문: {tnames[tt.feature[0]]} ≤ {tt.threshold[0]:.1f} ?", 2, "newf"),
     (f"  예   → {nl}건, 실패 {fl:.2f} → Gini {gl:.3f}", 3), (f"  아니오 → {nr}건, 실패 {fr:.2f} → Gini {gr:.3f}", 3),
     (f"나눈 뒤 Gini (건수로 가중 평균) = ({nl}×{gl:.3f} + {nr}×{gr:.3f}) ÷ {n0} = {g_after:.3f}  → {g0 - g_after:.3f} 줄었어요", 4),
-    (f"같은 질문을 엔트로피로 재면 {ent(0.3):.3f} → {(nl * ent(fl) + nr * ent(fr)) / n0:.3f} (정보 이득 {ent(0.3) - (nl * ent(fl) + nr * ent(fr)) / n0:.3f})", 5)],
+    (f"같은 질문을 엔트로피로 재면 {ent(p0):.3f} → {(nl * ent(fl) + nr * ent(fr)) / n0:.3f} (정보 이득 {ent(p0) - (nl * ent(fl) + nr * ent(fr)) / n0:.3f})", 5)],
     ["실패와 성공이 반반이면 Gini가 가장 크고(0.5), 한쪽만 있으면 0이에요. 30%면 0.42예요.",
-     "트리는 모든 열과 모든 자를 자리를 다 시도해 보고, 불순도가 가장 많이 줄어드는 질문 하나를 골라요. 입력 글자가 1866자를 넘는 요청은 train에서 모두 실패였어요.",
-     "오른쪽 6건은 모두 실패라 더 나눌 게 없어요(Gini 0, 끝 노드). 왼쪽 54건은 다시 같은 방법으로 다음 질문을 찾아요.",
+     f"트리는 모든 열과 모든 자를 자리를 다 시도해 보고, 불순도가 가장 많이 줄어드는 질문 하나를 골라요. 입력 글자가 {int(tt.threshold[0])}자를 넘는 요청은 train에서 모두 실패였어요.",
+     f"오른쪽 {nr}건은 모두 실패라 더 나눌 게 없어요(Gini 0, 끝 노드). 왼쪽 {nl}건은 다시 같은 방법으로 다음 질문을 찾아요.",
      "건수가 많은 칸이 더 무겁게 들어가요. 한 칸만 깨끗하고 나머지가 엉망인 질문이 좋은 점수를 받지 않게요.",
      "엔트로피로 재도 같은 방향이에요. 정보 이득은 \"질문 하나로 불확실성이 얼마나 줄었나\"예요."])
 fig, ax = plt.subplots(figsize=(12, 5.2))
@@ -435,16 +459,21 @@ for a in (0, 0.02, 0.03, 0.05):
     n = ns if a == 0 else run(8, [("deep = build(DecisionTreeClassifier(random_state=0), scale=False)", f"deep = build(DecisionTreeClassifier(random_state=0, ccp_alpha={a}), scale=False)")])
     m = n["deep"]
     ccp_rows.append([f"<b>{a}</b> (지금)" if a == 0 else a, m.named_steps["model"].get_n_leaves(), m.named_steps["model"].get_depth(), f3(_ACC(n["y_train"], m.predict(n["X_train"]))), f"{_F1(n['y_valid'], m.predict(n['X_valid'])):.2f}"])
+S.claim(float(ccp_rows[-1][3]) < float(ccp_rows[0][3]) == 1.0 and float(ccp_rows[-1][4]) < float(ccp_rows[0][4]), "⑧ 가지치기하면 train 정확도가 1에서 내려오고 valid F1도 내려간다")
 outs["t8"] = S.table("깊이 제한 없는 트리를 ccp_alpha로 가지치기하면", ["ccp_alpha", "끝 노드 수", "깊이", "train 정확도", "valid F1"], ccp_rows,
-                     ["alpha가 커질수록 \"끝 노드 하나 늘리는 값\"이 비싸져서, 덜 쓸모 있는 가지부터 잘려요. 끝 노드 14개가 3개까지 줄었어요.",
-                      "train 정확도는 1.000에서 내려와요. 외운 걸 덜어내는 거예요. 이 valid 20건에서는 F1도 같이 내려갔지만, 20건이라 한 건 차이로도 흔들려요. alpha도 교차검증으로 골라요 (⑫)."])
+                     [f"alpha가 커질수록 \"끝 노드 하나 늘리는 값\"이 비싸져서, 덜 쓸모 있는 가지부터 잘려요. 끝 노드 {ccp_rows[0][1]}개가 {ccp_rows[-1][1]}개까지 줄었어요.",
+                      f"train 정확도는 {ccp_rows[0][3]}에서 내려와요. 외운 걸 덜어내는 거예요. 이 valid 20건에서는 F1도 같이 내려갔지만, 20건이라 한 건 차이로도 흔들려요. alpha도 교차검증으로 골라요 (⑫)."])
 dev_, cv_ = ns["dev"], ns["cv"]
 rf_rows, rf_curve = [], []
 for ne in (1, 5, 20, 200):
     sc = _CVAL(ns["build"](RandomForestClassifier(n_estimators=ne, max_depth=4, random_state=0), scale=False), dev_[ns["FEATURES"]], dev_["failed"], cv=cv_, scoring="f1")["test_score"]
     rf_rows.append([f"<b>{ne}</b> (지금)" if ne == 200 else ne, ", ".join(f3(x) for x in sc), f3(sc.mean()), f"<b>{f3(sc.std())}</b>"])
+    rf_curve.append((ne, sc.mean(), sc.std()))
+rf_sd = {ne: sd for ne, _, sd in rf_curve}
+S.claim(rf_sd[200] < rf_sd[1] and min(rf_sd[5], rf_sd[20]) > rf_sd[1] and abs(rf_curve[0][1] - rf_curve[-1][1]) < 0.05,
+        "⑨ 트리 1개보다 200개가 덜 흔들리고, 5개와 20개는 더 흔들리며, 평균은 비슷하다")
 outs["t9"] = S.table("트리 개수를 바꾸면 (5-fold 교차검증 F1, ⑫와 같은 나누기)", ["트리 수", "다섯 번의 점수", "평균", "표준편차"], rf_rows,
-                     ["트리가 1개면 다섯 번의 점수가 크게 흔들려요(표준편차 0.14). 200개면 0.04로 줄어요. 평균은 비슷한데 <b>흔들림</b>이 줄었어요. 배깅이 하는 일이 이거예요: 편향은 그대로 두고 분산을 줄여요. 5개, 20개에서 오히려 더 흔들린 건, 트리가 적으면 어떤 트리가 뽑혔느냐는 운에 아직 크게 좌우되기 때문이에요.",
+                     [f"트리가 1개면 다섯 번의 점수가 크게 흔들려요(표준편차 {rf_sd[1]:.2f}). 200개면 {rf_sd[200]:.2f}로 줄어요. 평균은 비슷한데 <b>흔들림</b>이 줄었어요. 배깅이 하는 일이 이거예요: 편향은 그대로 두고 분산을 줄여요. 5개, 20개에서 오히려 더 흔들린 건, 트리가 적으면 어떤 트리가 뽑혔느냐는 운에 아직 크게 좌우되기 때문이에요.",
                       "트리를 늘려서 과적합이 생기지는 않아요. 계산만 늘어요. 보통 수백 개에서 점수가 더 안 변하는 지점을 써요."])
 rng_ = np.random.default_rng(0)
 boot_u = len(set(rng_.integers(0, len(ns["train"]), len(ns["train"])))) / len(ns["train"])
@@ -470,19 +499,25 @@ for lr in (0.01, 0.1, 1.0):
     n = ns if lr == 0.1 else run(12, [("learning_rate=0.1, random_state=0)", f"learning_rate={lr}, random_state=0)")])
     sc = n["cv_scores"]["xgboost"]
     xg_rows.append([f"<b>{lr}</b> (지금)" if lr == 0.1 else lr, ", ".join(f3(x) for x in sc), f3(sc.mean())])
+_xm = {(0.1 if isinstance(r[0], str) else r[0]): float(r[2]) for r in xg_rows}   # learning_rate → 평균
+S.claim(max(_xm, key=_xm.get) == 0.1 and max(_xm.values()) - min(_xm.values()) < 0.03, "⑩ learning_rate 0.1이 가장 높고, 차이는 0.03 안쪽")
 outs["t10"] = S.table("XGBoost의 learning_rate를 바꾸면 (트리 200개, 교차검증 F1)", ["learning_rate", "다섯 번의 점수", "평균"], xg_rows,
                       ["0.01은 200개를 더해도 덜 배운 상태라 평균이 조금 낮아요. 1.0은 트리 하나하나가 잔차를 한 번에 다 고치려 해서, train의 잡음까지 따라가 다시 조금 낮아져요. 0.1이 가장 높았어요. 다만 차이가 0.03 안쪽이라 크지 않아요.",
                        "learning rate를 줄이면 트리 수를 늘려야 해요. \"작게, 많이\"가 보통 더 일반화가 잘 돼요 (shrinkage)."])
 for _k in ("f_tree", "f_imp", "f_gb"):
     outs[_k]["chart"] = True
+_cv3 = {m: ns["cv_scores"][m].mean() for m in ("logistic", "forest", "xgboost")}
+S.claim(ns["board2"].loc[["logistic", "forest", "xgboost"], "f1"].idxmax() == "forest" and max(_cv3, key=_cv3.get) == "xgboost", "valid 한 번은 forest, 교차검증은 xgboost가 1등")
 outs["why"] = S.table("1쪽 ⑦의 valid 점수 vs 같은 모델의 5-fold 교차검증 (F1)", ["model", "valid 20건 한 번", "교차검증 다섯 번", "평균"],
                       [[m, f3(ns["board2"].loc[m, "f1"]) if m in ns["board2"].index else "-", ", ".join(f3(x) for x in ns["cv_scores"][m]), f"<b>{f3(ns['cv_scores'][m].mean())}</b>"] for m in ["logistic", "forest", "xgboost"]],
-                      ["valid 한 번으로는 forest가 가장 좋아 보였는데, 다섯 번 나눠 재면 xgboost가 가장 좋아요. 그리고 같은 모델도 나누는 방법에 따라 0에서 0.5까지 흔들려요.", "데이터가 적을수록 \"한 번 잰 점수\"는 믿기 어려워요. 이 쪽에서는 표 데이터에 강한 트리 모델들과, 점수를 믿을 만하게 재는 교차검증을 다뤄요."])
+                      [f"valid 한 번으로는 forest가 가장 좋아 보였는데, 다섯 번 나눠 재면 xgboost가 가장 좋아요. 그리고 같은 모델도 나누는 방법에 따라 {ns['cv_scores']['logistic'].min():.0f}에서 {ns['cv_scores']['logistic'].max():.1f}까지 흔들려요.", "데이터가 적을수록 \"한 번 잰 점수\"는 믿기 어려워요. 이 쪽에서는 표 데이터에 강한 트리 모델들과, 점수를 믿을 만하게 재는 교차검증을 다뤄요."])
 ts = ns["tree_scores"]
+S.claim(ts["제한 없음"][0] == 1.0 and ts["제한 없음"][1] > ts["max_depth=3"][1], "⑧ 깊이 제한이 없으면 train 100%, valid F1은 오히려 높다")
 outs["s8"] = S.table("⑧ 결정 트리의 깊이", ["설정", "train 정확도", "valid F1"], [[k, f3(v[0]), f3(v[1])] for k, v in ts.items()],
                      ["깊이 제한이 없으면 train을 <b>100%</b> 맞혀요. train 60건을 다 외운 거예요. 외운 모델은 새 데이터에서 무너지기 쉬워서(과적합), 보통 깊이를 제한해요.", "이 데이터에서는 깊은 트리의 valid F1이 오히려 높게 나왔는데, valid가 20건이라 우연일 수 있어요. 교차검증(⑫)으로 다시 봐야 해요."])
 outs["s10"] = S.table("⑩ 네 모델을 같은 valid로", ["model", "F1", "recall", "accuracy"], df_rows(ns["board2"]), ["valid 한 번의 결과예요. ⑫에서 교차검증으로 다시 비교해요."])
 imp = ns["importance"]
+S.claim(imp.index[0] == "num__input_chars", "⑪ input_chars가 가장 중요")
 outs["s11"] = S.table("⑪ 랜덤 포레스트의 특성 중요도", ["전처리 뒤 열", "중요도"], [[f"<code>{E(i)}</code>", f3(v)] for i, v in imp.items()],
                       ["<code>input_chars</code>(입력 길이)가 판단에 가장 많이 쓰였어요. 1쪽 ⑥에서 KNN이 이 열만 본 게 오히려 잘 맞은 것과 같은 이야기예요.", "중요도는 \"모델이 많이 썼다\"는 뜻이지 \"원인이다\"는 뜻이 아니에요."])
 outs["s12"] = S.table("⑫ 5-fold 교차검증 F1 (train+valid 80건)", ["model", "다섯 번의 점수", "평균", "표준편차"],
@@ -495,7 +530,7 @@ why2 = f"""<p><a href="ml-regression-classification.html">1쪽</a>에서는 선�
 whole2 = """<p>트리 하나 → 트리 여럿의 투표(포레스트) → 틀린 걸 고쳐 가는 트리들(부스팅) → 어느 열을 썼나 → 믿을 만하게 재기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
 <p>1쪽의 코드(①~⑦)에 이어서 같은 파일이 자라요. 오른쪽 코드에서 1쪽 부분은 접혀 있어요.</p>"""
 steps2 = [
-    K.step(8, "결정 트리", "\"입력 길이가 1866자 이하인가?\" 같은 예/아니오 질문을 이어 가며 답을 정해요.",
+    K.step(8, "결정 트리", f"\"입력 길이가 {int(tt.threshold[0])}자 이하인가?\" 같은 예/아니오 질문을 이어 가며 답을 정해요.",
            "<p>트리는 스무고개예요. 맨 위 <b>뿌리 노드</b>에서 질문 하나로 데이터를 둘로 나누고, 나뉜 <b>중간 노드</b>마다 또 질문을 해요. 더 묻지 않는 맨 아래 칸이 <b>끝 노드</b>(leaf)이고, 끝 노드에 모인 train의 다수 답(회귀면 평균)이 예측이에요.</p>"
            "<p>트리는 사람이 읽을 수 있는 규칙을 만들고, 정규분포 같은 통계 가정이 필요 없어요. 그리고 \"몇 이하인가\"만 묻기 때문에 숫자의 크기 차이에 영향을 받지 않아서 크기 맞추기가 필요 없어요 (<code>scale=False</code>).</p>"
            "<p><b>어떤 질문을 고르나?</b> 나눈 뒤 각 칸이 한 가지 답으로 \"깨끗해지는\" 질문이 좋아요. 깨끗하지 않은 정도를 <b>불순도</b>라고 하고, 보통 두 가지로 재요. 칸 안의 답 비율을 p₁, p₂, …라고 하면</p>"
@@ -572,6 +607,7 @@ ax.annotate(f"기준 0.5\n(헛경보율 {fp5:.2f}, 잡은 비율 {tp5:.2f})", (f
 ax.set(xlabel="FPR: 실제 성공 중 \"실패\"라고 한 비율", ylabel="TPR (recall): 실제 실패 중 잡은 비율", xlim=(-0.02, 1.02), ylim=(-0.02, 1.02), title="기준을 1에서 0까지 내리며 그린 ROC 곡선")
 ax.legend(fontsize=9, loc="lower right")
 FIG["roc"] = fig_save(fig, "roc_curve")
+S.claim(ns["auc"] < 0.65, "⑭ ROC 곡선이 대각선에 가깝다")
 outs["f_roc"] = S.images("valid 20건으로 그린 ROC 곡선", [(FIG["roc"], "연보라 넓이가 AUC")],
                          ["기준을 아주 높게 잡으면 아무것도 \"실패\"라고 안 해서 (0, 0)이고, 0까지 내리면 다 \"실패\"라고 해서 (1, 1)이에요. 그 사이에서 기준을 내릴 때마다 위로(진짜 실패를 하나 더 잡음) 또는 오른쪽으로(헛경보 하나 더) 한 칸씩 가요.",
                           "완벽한 모델은 왼쪽 위 (0, 1)을 지나요. 이 모델은 대각선(동전 던지기)에 가깝게 붙어 있어요. 그래서 기준을 어디로 옮겨도 ⑬처럼 비용을 크게 줄이기 어려워요."])
@@ -613,9 +649,11 @@ db_rows = []
 for eps in (0.5, 0.8, 1.0, 1.5):
     lb = DBSCAN(eps=eps, min_samples=5).fit_predict(Zc)
     db_rows.append([eps, len(set(lb) - {-1}), int((lb == -1).sum()), ", ".join(str(int((lb == c_).sum())) for c_ in sorted(set(lb) - {-1})) or "-"])
+S.claim(db_rows[0][2] > len(Zc) / 2 and db_rows[-1][1] == 1 and db_rows[-1][2] < len(Zc) * 0.1, "⑯ 반경이 작으면 대부분 잡음, 크면 거의 한 묶음")
 outs["t16"] = S.table("DBSCAN으로 같은 80건을 묶으면 (min_samples=5)", ["eps (이웃 반경)", "묶음 수", "잡음으로 뺀 건수", "묶음별 건수"], db_rows,
                       ["반경이 작으면 이웃이 5개 이상인 점(핵심점)이 거의 없어서 대부분이 잡음이에요. 반경을 키우면 묶음이 생기다가, 너무 크면 거의 전부가 한 묶음이 돼요.",
                        "어느 eps에서도 K-Means처럼 \"고르게 나뉜 몇 묶음\"이 나오지 않아요. 이 데이터에는 밀도가 뚜렷하게 다른 덩어리가 없다는 뜻이고, ⑯의 낮은 실루엣과 같은 이야기예요."])
+S.claim(kbest == 3 and max(sil.values()) < 0.35, "⑯ 실루엣은 k=3에서 가장 높지만 0.5에 한참 못 미친다")
 outs["f_elbow"] = S.images("k를 1부터 8까지 바꿔 본 K-Means", [(FIG["elbow"], "왼쪽: 묶음 안 거리 제곱 합, 오른쪽: 실루엣")],
                            ["SSE는 k를 늘리면 늘 줄어요(k = 80이면 0). 그래서 \"가장 작은 k\"가 아니라 <b>줄어드는 폭이 확 작아지는 곳</b>(팔꿈치)을 봐요. 여기서는 k=3 근처에서 기울기가 완만해져요.",
                             f"실루엣은 k={kbest}에서 가장 높지만 0.5 기준선에 한참 못 미쳐요. 둘 다 \"3개 정도가 그나마 낫지만 뚜렷한 덩어리는 아니다\"라고 말해요."])
@@ -628,18 +666,22 @@ outs["f_den"] = S.images("같은 80건을 계층적으로 묶은 덴드로그램
 for _k in ("f_roc", "f_elbow", "f_km", "f_den"):
     outs[_k]["chart"] = True
 proba = ns["proba"]
+missed = proba[(ns["y_valid"].to_numpy() == 1) & (proba < 0.5)]   # 0.5 기준에서 놓친 실패의 확률
 outs["why"] = S.table("1쪽 로지스틱 모델이 valid 실패 6건에 준 확률", ["request_id", "실패 확률", "0.5 기준 판단"],
                       [[E(i), f3(p), "실패" if p >= 0.5 else "<span class=\"bad\">성공 (놓침)</span>"] for i, p, y in zip(ns["X_valid"].index, proba, ns["y_valid"]) if y == 1],
-                      ["모델은 사실 \"실패\" 아니면 \"성공\"이 아니라 <b>확률</b>을 내요. 0.5라는 기준선은 우리가 정한 거예요. 0.1~0.3짜리 실패도 \"성공\"으로 넘어갔어요.", "놓친 실패가 큰 손해라면 기준을 낮춰야 해요. 이 쪽에서는 그 기준을 비용으로 정하고, 확률의 품질을 재고, 입력을 다듬고, 정답 없이 데이터를 묶어 보고, 마지막으로 test로 딱 한 번 채점해요."])
+                      [f"모델은 사실 \"실패\" 아니면 \"성공\"이 아니라 <b>확률</b>을 내요. 0.5라는 기준선은 우리가 정한 거예요. {missed.min():.1f}~{missed.max():.1f}짜리 실패도 \"성공\"으로 넘어갔어요.", "놓친 실패가 큰 손해라면 기준을 낮춰야 해요. 이 쪽에서는 그 기준을 비용으로 정하고, 확률의 품질을 재고, 입력을 다듬고, 정답 없이 데이터를 묶어 보고, 마지막으로 test로 딱 한 번 채점해요."])
+_c = ns["costs"]
+S.claim(all(a_["fp"] >= b_["fp"] and a_["fn"] <= b_["fn"] for a_, b_ in zip(_c, _c[1:])), "⑬ 기준을 낮추면 헛경보는 늘고 놓침은 준다")
 outs["s13"] = S.table("⑬ 기준별 오류와 비용 (FN 하나 = 5, FP 하나 = 1)", ["기준", "헛경보 FP", "놓침 FN", "비용"],
                       [[c["threshold"], c["fp"], c["fn"], f"<b>{c['cost']}</b>" if c["cost"] == min(x["cost"] for x in ns["costs"]) else c["cost"]] for c in ns["costs"]],
                       [f"기준을 낮추면 헛경보는 늘고 놓침은 줄어요. 비용은 기준 {min(ns['costs'], key=lambda c: c['cost'])['threshold']}에서 가장 작아요.", "비용 5:1은 설명용 가정이에요. 실제로는 \"실패를 놓치면 무슨 일이 생기나\"를 업무 담당자와 정해요. 기준은 valid로 정하고, test로 정하면 안 돼요."])
 outs["s14"] = S.box("⑭ ROC-AUC", [(f"roc_auc_score(y_valid, proba) → {ns['auc']:.3f}", 1)],
-                    ["\"실패 하나와 성공 하나를 뽑았을 때, 실패 쪽에 더 높은 확률을 줄 확률\"이에요. 0.5면 동전 던지기, 1이면 완벽. 기준과 상관없이 확률의 순서만 봐요. 0.57이면 이 모델의 확률은 순서도 많이 틀려요."])
+                    [f"\"실패 하나와 성공 하나를 뽑았을 때, 실패 쪽에 더 높은 확률을 줄 확률\"이에요. 0.5면 동전 던지기, 1이면 완벽. 기준과 상관없이 확률의 순서만 봐요. {ns['auc']:.2f}이면 이 모델의 확률은 순서도 많이 틀려요."])
+S.claim(ns["cv_scores"]["logistic+log1p"].mean() < ns["cv_scores"]["logistic"].mean(), "⑮ log1p를 넣으니 오히려 나빠졌다")
 outs["s15"] = S.box("⑮ log1p 변환을 넣은 로지스틱의 교차검증 F1", [f"점수 → {[round(float(x), 3) for x in ns['cv_scores']['logistic+log1p']]}", (f"평균 → {ns['cv_scores']['logistic+log1p'].mean():.3f}  (변환 없는 logistic {ns['cv_scores']['logistic'].mean():.3f})", 1, "bad")],
                     ["치우친 숫자를 펴 주는 변환인데, 이 데이터에서는 오히려 나빠졌어요. 특성 설계는 \"해 보고 교차검증으로 확인\"이에요. 좋아 보이는 기법도 데이터에 따라 손해일 수 있어요."])
 outs["s16"] = S.table("⑯ K-Means: 몇 개로 묶을 때 가장 잘 나뉘나", ["묶음 수 k", "실루엣 점수"], [[k, f"<b>{f3(v)}</b>" if v == max(ns["silhouettes"].values()) else f3(v)] for k, v in ns["silhouettes"].items()],
-                      [f"정답(<code>failed</code>) 없이 입력만 보고 비슷한 요청끼리 묶었어요. 실루엣 점수는 \"내 묶음과는 가깝고 다른 묶음과는 먼가\"(−1~1)예요. k={max(ns['silhouettes'], key=ns['silhouettes'].get)}일 때 가장 높지만 0.24로, 뚜렷하게 나뉘는 데이터는 아니에요."])
+                      [f"정답(<code>failed</code>) 없이 입력만 보고 비슷한 요청끼리 묶었어요. 실루엣 점수는 \"내 묶음과는 가깝고 다른 묶음과는 먼가\"(−1~1)예요. k={max(ns['silhouettes'], key=ns['silhouettes'].get)}일 때 가장 높지만 {max(ns['silhouettes'].values()):.2f}로, 뚜렷하게 나뉘는 데이터는 아니에요."])
 outs["s17"] = S.box("⑰ 최종 평가", [(f"교차검증 평균으로 고른 모델 → {ns['best']}", 1), (f"test 20건 (처음 사용) → F1 {ns['test_scores']['f1']:.3f}, recall {ns['test_scores']['recall']:.3f}, accuracy {ns['test_scores']['accuracy']:.2f}", 2)],
                     ["⑫와 ⑮의 교차검증 평균이 가장 높은 모델을 골라, train+valid 80건 전부로 다시 배웠어요.", "test는 이때 처음 썼어요. 이 숫자가 \"새 요청에서 기대할 성능\"이에요. 이걸 보고 다시 모델을 바꾸면 test도 고르는 데 쓴 셈이라, 더는 공정한 성적이 아니에요."])
 flow3 = [[13, "기준과 비용", "0.5가 정답 아님", "FN, FP 비용"], [14, "ROC-AUC", "확률의 순서", "기준과 무관"], [15, "특성 설계", "log1p", "교차검증으로 확인"], [16, "군집", "K-Means", "정답 없이 묶기"], [17, "최종", "test 한 번", "고른 뒤 채점"]]

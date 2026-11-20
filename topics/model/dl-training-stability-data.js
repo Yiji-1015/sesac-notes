@@ -811,7 +811,7 @@ window.PAGE = {
     ]
    ],
    "notes": [
-    "모멘텀은 SGD와 Adam 사이예요. \"지난 걸음 방향을 90% 이어 가기\" 하나만 더했는데 train 손실이 크게 줄었어요.",
+    "모멘텀은 SGD와 Adam 사이예요. \"지난 걸음 방향을 90% 이어 가기\" 하나만 더했는데 train 손실이 0.442에서 0.288로 줄었어요.",
     "Adam은 모멘텀(기울기의 평균)에 더해 가중치마다 기울기 크기의 평균으로 걸음을 나눠서, 이 문제처럼 학습률이 작게 잡혀 있어도 알아서 성큼 가요."
    ]
   },
@@ -882,5 +882,5 @@ window.PAGE = {
    "데이터가 이김"
   ]
  ],
- "env": "Python 3.13.5, PyTorch 2.13.0+cpu, CPU 학습 (GPU: 없음)"
+ "env": "Python 3.13.16, PyTorch 2.14.0+cu130, CPU 학습 (GPU: NVIDIA GeForce RTX 5080 Laptop GPU)"
 };
