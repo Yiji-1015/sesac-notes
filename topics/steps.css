@@ -79,12 +79,20 @@ details.try .out th, details.try .out td:first-child { white-space: nowrap; }
 
 .inline-code { display: none; }
 @media (max-width: 1000px) {
-  .scrolly { grid-template-columns: 1fr; }
+  /* 1fr 은 최소 폭이 내용 폭(auto)이라 긴 코드 줄이 칸을 넓혀 쪽 전체가 옆으로 넘쳐요.
+     minmax(0, 1fr)로 칸을 화면 폭에 묶고, 긴 줄은 코드 상자 안에서만 가로로 스크롤해요. */
+  .scrolly { grid-template-columns: minmax(0, 1fr); }
+  .steps { min-width: 0; }
   .codepanel { display: none; }
   .steps .step { min-height: 0; opacity: 1; }
   .inline-code { display: block; }
   .inline-code .mini { background: var(--code-bg); color: var(--code-text); border-radius: 12px; padding: 8px 0; margin: 10px 0; overflow-x: auto; }
-  .twocol { grid-template-columns: 1fr; }
+  .twocol { grid-template-columns: minmax(0, 1fr); }
+}
+/* 휴대폰 폭: 표 칸과 글 속 코드의 긴 이름(함수 호출, 해시)이 표를 화면보다 넓히지 않게 필요할 때만 끊어요 */
+@media (max-width: 640px) {
+  .note td, .note th, .note p code, .note li code { overflow-wrap: anywhere; }
+  .out td, .out th { overflow-wrap: normal; } /* 출력 상자는 원래대로 상자 안에서 가로 스크롤 */
 }
 
 /* 출력 상자 안 그림 줄 */
