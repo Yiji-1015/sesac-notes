@@ -9073,6 +9073,118 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "개체명 인식",
+  "aliases": [
+   "NER",
+   "Named Entity Recognition"
+  ],
+  "full": "Named Entity Recognition",
+  "short": "문장 속에서 사람, 회사, 날짜, 금액 같은 이름이 어디부터 어디까지인지와 그 종류를 찾는 일. 토큰마다 라벨을 붙이는 토큰 분류로 풀어요.",
+  "analogy": "형광펜으로 이름에는 노랑, 날짜에는 초록을 칠하는 것.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "토큰 분류",
+  "aliases": [
+   "Token Classification"
+  ],
+  "full": "Token Classification",
+  "short": "문장 전체가 아니라 토큰마다 라벨을 하나씩 붙이는 과제. 개체명 인식이 대표예요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "BIO 태깅",
+  "aliases": [
+   "BIO",
+   "IOB"
+  ],
+  "full": "Begin, Inside, Outside",
+  "short": "개체의 첫 토큰은 B-종류, 개체 안의 나머지 토큰은 I-종류, 개체가 아닌 토큰은 O로 라벨을 붙이는 방식.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "SentencePiece",
+  "aliases": [],
+  "full": "SentencePiece",
+  "short": "띄어쓰기도 글자처럼 다루며(▁로 표시) 글을 부분단어 조각으로 나누는 Tokenizer. 띄어쓰기가 없는 언어에도 그대로 쓸 수 있어요. XLM-R, e5 다국어판이 써요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "추출형 질문 답변",
+  "aliases": [
+   "Extractive QA",
+   "추출형 QA"
+  ],
+  "full": "Extractive Question Answering",
+  "short": "주어진 글 안에서 질문의 답이 시작하는 토큰과 끝나는 토큰을 찾아 그 부분을 그대로 꺼내는 방식. 답을 새로 쓰지 않아요.",
+  "analogy": "지문에 밑줄 긋기.",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Reader",
+  "aliases": [
+   "리더"
+  ],
+  "full": "Reader",
+  "short": "찾아 온 문서에서 질문의 답을 꺼내는 모델. Retriever가 후보를 고르면 Reader가 읽어요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "언어 간 전이",
+  "aliases": [
+   "Cross-lingual Transfer",
+   "zero-shot cross-lingual transfer"
+  ],
+  "full": "Cross-lingual Transfer",
+  "short": "여러 언어를 함께 배운 모델을 한 언어의 라벨로만 학습해도 다른 언어에서 어느 정도 작동하는 것.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "seqeval",
+  "aliases": [],
+  "full": "seqeval",
+  "short": "BIO 라벨 줄을 개체 단위로 바꿔 precision, recall, F1을 재 주는 파이썬 라이브러리. 시작, 끝, 종류가 모두 맞아야 맞은 개체로 쳐요.",
+  "analogy": "",
+  "first": 20,
+  "days": [
+   20
+  ],
+  "keyDays": []
+ },
+ {
   "term": "Prompt",
   "aliases": [
    "프롬프트"

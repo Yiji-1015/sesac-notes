@@ -60,7 +60,8 @@
 1. **NLP with Transformers 11장** (진행 중). 나누는 방법을 정했어요.
    - 끝남: 1, 3, 11장 → "LLM 원리"를 **Transformer 구조**로 다시 씀 (`llm-principles.html`, 주소는 그대로)
    - 끝남: 2, 9장 → 새 쪽 **문장 분류와 미세조정** (`text-classification.html`, 예제 `examples/classify/`, 데이터는 `tools/make_issue_examples.py`로 만듦)
-   - 남음, 새 쪽 셋: 토큰 분류와 질문 답변(4, 7장), 작은 GPT를 처음부터 학습하고 디코딩 비교(5, 10장), 모델 가볍게(8장: 지식 정제, 양자화, 가지치기)
+   - 끝남: 4, 7장 → 새 쪽 **토큰 분류와 질문 답변** (`token-classification.html`, 예제 `examples/tokens/`, 데이터는 `tools/make_token_examples.py`로 만듦)
+   - 남음, 새 쪽 둘: 작은 GPT를 처음부터 학습하고 디코딩 비교(5, 10장), 모델 가볍게(8장: 지식 정제, 양자화, 가지치기)
    - 6장 요약은 생성 쪽에 추출 요약과 ROUGE로, 11장의 나머지는 이미 Transformer 구조 쪽에 넣었어요
    - 모델은 받지 않고 이 PC에 있는 `multilingual-e5-small`로 해요. GPT는 작은 말뭉치로 직접 학습해요
 2. **FML 이론 17장**

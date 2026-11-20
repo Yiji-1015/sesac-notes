@@ -1,0 +1,376 @@
+{"text": "서지아님이 1월 말에 하늘항공 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 10, "DATE"], [12, 16, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "정우진님이 2026년 3월 25일에 푸른제약 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 24, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "한예린님이 2026년 9월 4일에 바른회계법인 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 17, "DATE"], [19, 25, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "장도윤님이 9월 1일에 한빛상사 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 11, "DATE"], [13, 17, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "박지훈님이 이번 주 화요일에 세움건설 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "최수아님이 2026년 9월 10일에 푸른제약 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 24, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "권나연님이 이번 주 수요일에 누리소프트 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 21, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "이서연님이 11월 9일에 새길물류 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 12, "DATE"], [14, 18, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "박지훈님이 이번 주 수요일에 다온식품 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "권나연님이 2026년 11월 21일에 바른회계법인 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 19, "DATE"], [21, 27, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "윤지민님이 2026년 12월 9일에 한빛상사 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 24, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "최수아님이 이번 주 금요일에 대한물산 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "최수아님이 이번 주 월요일에 하늘항공 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "이서연님이 2026년 9월 14일에 한빛상사 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 24, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "강하은님이 9월 15일에 한빛상사 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 12, "DATE"], [14, 18, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "강하은님이 2026년 1월 26일에 세움건설 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 24, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "김민준님이 2026년 11월 14일에 바른회계법인 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 19, "DATE"], [21, 27, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "권나연님이 2026년 6월 24일에 누리소프트 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 25, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "오승현님이 2026년 11월 28일에 새길물류 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 19, "DATE"], [21, 25, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "한예린님이 이번 주 목요일에 대한물산 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "train", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "대한물산에서 1억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "바른회계법인에서 421만 원 견적서를 보내왔어요.", "entities": [[0, 6, "ORG"], [9, 15, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "한빛상사에서 4억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "대한물산에서 5억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "대한물산에서 9억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "새길물류에서 4억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "대한물산에서 1억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "대한물산에서 38,000원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 14, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "푸른제약에서 414만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 13, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "바른회계법인에서 7억 원 견적서를 보내왔어요.", "entities": [[0, 6, "ORG"], [9, 13, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "대한물산에서 72만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 12, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "누리소프트에서 7억 원 견적서를 보내왔어요.", "entities": [[0, 5, "ORG"], [8, 12, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "푸른제약에서 934만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 13, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "누리소프트에서 212만 원 견적서를 보내왔어요.", "entities": [[0, 5, "ORG"], [8, 14, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "미래전자에서 908만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 13, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "바른회계법인에서 6억 원 견적서를 보내왔어요.", "entities": [[0, 6, "ORG"], [9, 13, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "다온식품에서 864만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 13, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "누리소프트에서 58,500원 견적서를 보내왔어요.", "entities": [[0, 5, "ORG"], [8, 15, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "미래전자에서 12,000원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 14, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "다온식품에서 30,000원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 14, "MONEY"]], "split": "train", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "10월 말까지 임서준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 5, "DATE"], [8, 11, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "2026년 11월 5일까지 이서연 대리에게 보고서를 제출해 주세요.", "entities": [[0, 12, "DATE"], [15, 18, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "6월 말까지 박지훈 대리에게 보고서를 제출해 주세요.", "entities": [[0, 4, "DATE"], [7, 10, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "10월 20일까지 김민준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 7, "DATE"], [10, 13, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "2026년 10월 23일까지 최수아 대리에게 보고서를 제출해 주세요.", "entities": [[0, 13, "DATE"], [16, 19, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "9월 말까지 임서준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 4, "DATE"], [7, 10, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "이번 주 금요일까지 이서연 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "3월 14일까지 임서준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 6, "DATE"], [9, 12, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "7월 말까지 김민준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 4, "DATE"], [7, 10, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "다음 주 수요일까지 최수아 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "2026년 4월 22일까지 조현우 대리에게 보고서를 제출해 주세요.", "entities": [[0, 12, "DATE"], [15, 18, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "다음 주 수요일까지 강하은 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "11월 11일까지 임서준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 7, "DATE"], [10, 13, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "다음 주 화요일까지 정우진 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "2월 말까지 김민준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 4, "DATE"], [7, 10, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "이번 주 수요일까지 임서준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "다음 주 목요일까지 권나연 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "다음 주 목요일까지 권나연 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "8월 25일까지 권나연 대리에게 보고서를 제출해 주세요.", "entities": [[0, 6, "DATE"], [9, 12, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "다음 주 금요일까지 임서준 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "train", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "윤지민 팀장님, 다온식품 계약금 272만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "서지아 팀장님, 바른회계법인 계약금 894만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 15, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "장도윤 팀장님, 푸른제약 계약금 2억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 22, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "임서준 팀장님, 다온식품 계약금 309만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "오승현 팀장님, 새길물류 계약금 3억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 22, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "오승현 팀장님, 바른회계법인 계약금 713만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 15, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "권나연 팀장님, 푸른제약 계약금 222만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "박지훈 팀장님, 누리소프트 계약금 5억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 14, "ORG"], [19, 23, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "윤지민 팀장님, 대한물산 계약금 7억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 22, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "신동현 팀장님, 하늘항공 계약금 367만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "신동현 팀장님, 바른회계법인 계약금 76,000원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 15, "ORG"], [20, 27, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "박지훈 팀장님, 대한물산 계약금 9억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 22, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "오승현 팀장님, 하늘항공 계약금 731만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "조현우 팀장님, 미래전자 계약금 360만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "신동현 팀장님, 세움건설 계약금 2억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 22, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "한예린 팀장님, 다온식품 계약금 2억 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 22, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "조현우 팀장님, 세움건설 계약금 50,500원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 25, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "이서연 팀장님, 푸른제약 계약금 515만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "권나연 팀장님, 누리소프트 계약금 847만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 14, "ORG"], [19, 25, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "서지아 팀장님, 한빛상사 계약금 862만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "train", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "회의는 9월 말 오후 3시로 옮겼고, 임서준님도 참석합니다.", "entities": [[4, 8, "DATE"], [21, 24, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 다음 주 금요일 오후 3시로 옮겼고, 장도윤님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 이번 주 월요일 오후 3시로 옮겼고, 신동현님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 2026년 5월 22일 오후 3시로 옮겼고, 박지훈님도 참석합니다.", "entities": [[4, 16, "DATE"], [29, 32, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 10월 말 오후 3시로 옮겼고, 한예린님도 참석합니다.", "entities": [[4, 9, "DATE"], [22, 25, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 다음 주 화요일 오후 3시로 옮겼고, 황민재님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 1월 말 오후 3시로 옮겼고, 최수아님도 참석합니다.", "entities": [[4, 8, "DATE"], [21, 24, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 다음 주 월요일 오후 3시로 옮겼고, 황민재님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 2026년 4월 2일 오후 3시로 옮겼고, 서지아님도 참석합니다.", "entities": [[4, 15, "DATE"], [28, 31, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 다음 주 금요일 오후 3시로 옮겼고, 임서준님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 4월 21일 오후 3시로 옮겼고, 이서연님도 참석합니다.", "entities": [[4, 10, "DATE"], [23, 26, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 2026년 3월 12일 오후 3시로 옮겼고, 권나연님도 참석합니다.", "entities": [[4, 16, "DATE"], [29, 32, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 이번 주 월요일 오후 3시로 옮겼고, 장도윤님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 2026년 11월 17일 오후 3시로 옮겼고, 정우진님도 참석합니다.", "entities": [[4, 17, "DATE"], [30, 33, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 이번 주 월요일 오후 3시로 옮겼고, 강하은님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 2026년 11월 2일 오후 3시로 옮겼고, 서지아님도 참석합니다.", "entities": [[4, 16, "DATE"], [29, 32, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 6월 9일 오후 3시로 옮겼고, 강하은님도 참석합니다.", "entities": [[4, 9, "DATE"], [22, 25, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 2026년 8월 13일 오후 3시로 옮겼고, 장도윤님도 참석합니다.", "entities": [[4, 16, "DATE"], [29, 32, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 이번 주 화요일 오후 3시로 옮겼고, 장도윤님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 다음 주 금요일 오후 3시로 옮겼고, 한예린님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "train", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "이번 출장비는 52,500원이고 6월 말에 정산됩니다.", "entities": [[8, 15, "MONEY"], [18, 22, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 572만 원이고 2026년 3월 11일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 29, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 7억 원이고 이번 주 화요일에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 23, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 204만 원이고 이번 주 수요일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 25, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 477만 원이고 2026년 9월 5일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 28, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 94,000원이고 3월 말에 정산됩니다.", "entities": [[8, 15, "MONEY"], [18, 22, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 178만 원이고 이번 주 목요일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 25, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 6억 원이고 11월 말에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 20, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 606만 원이고 1월 말에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 21, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 1억 원이고 3월 19일에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 21, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 41,000원이고 2월 말에 정산됩니다.", "entities": [[8, 15, "MONEY"], [18, 22, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 40,000원이고 11월 말에 정산됩니다.", "entities": [[8, 15, "MONEY"], [18, 23, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 709만 원이고 이번 주 월요일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 25, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 539만 원이고 2026년 3월 27일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 29, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 658만 원이고 다음 주 월요일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 25, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 728만 원이고 다음 주 목요일에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 25, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 863만 원이고 6월 말에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 21, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 21만 원이고 다음 주 월요일에 정산됩니다.", "entities": [[8, 13, "MONEY"], [16, 24, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 6억 원이고 1월 20일에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 21, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 7억 원이고 8월 말에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 19, "DATE"]], "split": "train", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "누리소프트 담당자 최수아님과 통화했어요.", "entities": [[0, 5, "ORG"], [10, 13, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "누리소프트 담당자 황민재님과 통화했어요.", "entities": [[0, 5, "ORG"], [10, 13, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "바른회계법인 담당자 최수아님과 통화했어요.", "entities": [[0, 6, "ORG"], [11, 14, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "대한물산 담당자 강하은님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "미래전자 담당자 임서준님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "새길물류 담당자 서지아님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "한빛상사 담당자 김민준님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "세움건설 담당자 한예린님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "하늘항공 담당자 최수아님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "푸른제약 담당자 장도윤님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "누리소프트 담당자 서지아님과 통화했어요.", "entities": [[0, 5, "ORG"], [10, 13, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "새길물류 담당자 권나연님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "대한물산 담당자 오승현님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "푸른제약 담당자 이서연님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "새길물류 담당자 최수아님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "대한물산 담당자 정우진님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "누리소프트 담당자 한예린님과 통화했어요.", "entities": [[0, 5, "ORG"], [10, 13, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "다온식품 담당자 서지아님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "대한물산 담당자 정우진님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "하늘항공 담당자 강하은님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "train", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "오승현님이 새길물류에 71,000원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 19, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "김민준님이 대한물산에 88,500원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 19, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "서지아님이 대한물산에 248만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "이서연님이 바른회계법인에 83,500원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 12, "ORG"], [14, 21, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "윤지민님이 다온식품에 412만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "박지훈님이 푸른제약에 13,000원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 19, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "조현우님이 한빛상사에 8억 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 16, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "한예린님이 누리소프트에 19만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 11, "ORG"], [13, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "오승현님이 다온식품에 29,500원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 19, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "윤지민님이 푸른제약에 2억 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 16, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "황민재님이 세움건설에 286만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "황민재님이 푸른제약에 763만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "서지아님이 하늘항공에 328만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "윤지민님이 미래전자에 326만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "신동현님이 누리소프트에 187만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 11, "ORG"], [13, 19, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "김민준님이 하늘항공에 622만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "신동현님이 누리소프트에 225만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 11, "ORG"], [13, 19, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "이서연님이 새길물류에 848만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "장도윤님이 누리소프트에 7억 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 11, "ORG"], [13, 17, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "조현우님이 하늘항공에 924만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "train", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "8월 말 기준으로 대한물산 미수금이 49,000원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 27, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "6월 말 기준으로 세움건설 미수금이 239만 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "8월 말 기준으로 푸른제약 미수금이 292만 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 주 월요일 기준으로 푸른제약 미수금이 794만 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 18, "ORG"], [24, 30, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "7월 말 기준으로 세움건설 미수금이 9억 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 24, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "9월 말 기준으로 다온식품 미수금이 622만 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 주 수요일 기준으로 세움건설 미수금이 258만 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 18, "ORG"], [24, 30, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "9월 말 기준으로 누리소프트 미수금이 6억 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 15, "ORG"], [21, 25, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "8월 22일 기준으로 하늘항공 미수금이 986만 원 남았어요.", "entities": [[0, 6, "DATE"], [12, 16, "ORG"], [22, 28, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "4월 말 기준으로 다온식품 미수금이 12,500원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 27, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "9월 말 기준으로 대한물산 미수금이 629만 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "7월 20일 기준으로 세움건설 미수금이 1억 원 남았어요.", "entities": [[0, 6, "DATE"], [12, 16, "ORG"], [22, 26, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "2026년 5월 4일 기준으로 바른회계법인 미수금이 7억 원 남았어요.", "entities": [[0, 11, "DATE"], [17, 23, "ORG"], [29, 33, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "2026년 5월 3일 기준으로 새길물류 미수금이 988만 원 남았어요.", "entities": [[0, 11, "DATE"], [17, 21, "ORG"], [27, 33, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "7월 말 기준으로 미래전자 미수금이 623만 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 26, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "4월 말 기준으로 하늘항공 미수금이 45,500원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 27, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "9월 말 기준으로 미래전자 미수금이 6억 원 남았어요.", "entities": [[0, 4, "DATE"], [10, 14, "ORG"], [20, 24, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "이번 주 수요일 기준으로 새길물류 미수금이 108만 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 18, "ORG"], [24, 30, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 주 화요일 기준으로 미래전자 미수금이 6억 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 18, "ORG"], [24, 28, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 주 목요일 기준으로 다온식품 미수금이 2억 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 18, "ORG"], [24, 28, "MONEY"]], "split": "train", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 달부터 임서준님이 미래전자 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 권나연님이 누리소프트 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 18, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 윤지민님이 하늘항공 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 한예린님이 다온식품 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 윤지민님이 푸른제약 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 윤지민님이 바른회계법인 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 19, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 신동현님이 누리소프트 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 18, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 조현우님이 세움건설 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 강하은님이 세움건설 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 이서연님이 하늘항공 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 김민준님이 누리소프트 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 18, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 장도윤님이 누리소프트 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 18, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 정우진님이 새길물류 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 장도윤님이 대한물산 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 임서준님이 미래전자 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 조현우님이 푸른제약 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 임서준님이 바른회계법인 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 19, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 장도윤님이 한빛상사 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 임서준님이 세움건설 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 강하은님이 한빛상사 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "train", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "대한물산 납품 일정이 이번 주 목요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "다온식품 납품 일정이 이번 주 수요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "바른회계법인 납품 일정이 8월 20일로 확정됐어요.", "entities": [[0, 6, "ORG"], [14, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "새길물류 납품 일정이 8월 말로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 16, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "푸른제약 납품 일정이 2026년 11월 24일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 25, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "한빛상사 납품 일정이 10월 말로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 17, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "하늘항공 납품 일정이 다음 주 화요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "하늘항공 납품 일정이 다음 주 목요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "푸른제약 납품 일정이 5월 9일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 17, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "푸른제약 납품 일정이 다음 주 화요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "새길물류 납품 일정이 2026년 2월 3일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 23, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "미래전자 납품 일정이 8월 말로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 16, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "대한물산 납품 일정이 2월 말로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 16, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "미래전자 납품 일정이 이번 주 목요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "하늘항공 납품 일정이 다음 주 금요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "다온식품 납품 일정이 1월 17일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 18, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "바른회계법인 납품 일정이 다음 주 목요일로 확정됐어요.", "entities": [[0, 6, "ORG"], [14, 22, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "바른회계법인 납품 일정이 2026년 9월 22일로 확정됐어요.", "entities": [[0, 6, "ORG"], [14, 26, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "새길물류 납품 일정이 10월 말로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 17, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "하늘항공 납품 일정이 다음 주 목요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "train", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "권나연 과장님 휴가는 2026년 10월 11일부터입니다.", "entities": [[0, 3, "PER"], [12, 25, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "권나연 과장님 휴가는 2026년 4월 23일부터입니다.", "entities": [[0, 3, "PER"], [12, 24, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "임서준 과장님 휴가는 5월 말부터입니다.", "entities": [[0, 3, "PER"], [12, 16, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "강하은 과장님 휴가는 2026년 8월 3일부터입니다.", "entities": [[0, 3, "PER"], [12, 23, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "이서연 과장님 휴가는 이번 주 수요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "황민재 과장님 휴가는 4월 22일부터입니다.", "entities": [[0, 3, "PER"], [12, 18, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "김민준 과장님 휴가는 이번 주 월요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "장도윤 과장님 휴가는 다음 주 금요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "정우진 과장님 휴가는 5월 말부터입니다.", "entities": [[0, 3, "PER"], [12, 16, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "정우진 과장님 휴가는 이번 주 수요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "김민준 과장님 휴가는 3월 5일부터입니다.", "entities": [[0, 3, "PER"], [12, 17, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "권나연 과장님 휴가는 11월 21일부터입니다.", "entities": [[0, 3, "PER"], [12, 19, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "조현우 과장님 휴가는 9월 말부터입니다.", "entities": [[0, 3, "PER"], [12, 16, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "권나연 과장님 휴가는 다음 주 금요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "이서연 과장님 휴가는 다음 주 목요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "신동현 과장님 휴가는 8월 7일부터입니다.", "entities": [[0, 3, "PER"], [12, 17, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "강하은 과장님 휴가는 이번 주 월요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "조현우 과장님 휴가는 다음 주 월요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "황민재 과장님 휴가는 1월 12일부터입니다.", "entities": [[0, 3, "PER"], [12, 18, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "김민준 과장님 휴가는 이번 주 월요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "train", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "박지훈님이 이번 주 수요일에 새길물류 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "valid", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "신동현님이 이번 주 화요일에 세움건설 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 20, "ORG"]], "split": "valid", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "한예린님이 2026년 6월 26일에 누리소프트 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 18, "DATE"], [20, 25, "ORG"]], "split": "valid", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "정우진님이 다음 주 화요일에 바른회계법인 방문 예정입니다.", "entities": [[0, 3, "PER"], [6, 14, "DATE"], [16, 22, "ORG"]], "split": "valid", "template": "{PER}님이 {DATE}에 {ORG} 방문 예정입니다."}
+{"text": "푸른제약에서 454만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 13, "MONEY"]], "split": "valid", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "바른회계법인에서 508만 원 견적서를 보내왔어요.", "entities": [[0, 6, "ORG"], [9, 15, "MONEY"]], "split": "valid", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "푸른제약에서 173만 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 13, "MONEY"]], "split": "valid", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "한빛상사에서 2억 원 견적서를 보내왔어요.", "entities": [[0, 4, "ORG"], [7, 11, "MONEY"]], "split": "valid", "template": "{ORG}에서 {MONEY} 견적서를 보내왔어요."}
+{"text": "이번 주 수요일까지 최수아 대리에게 보고서를 제출해 주세요.", "entities": [[0, 8, "DATE"], [11, 14, "PER"]], "split": "valid", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "6월 9일까지 이서연 대리에게 보고서를 제출해 주세요.", "entities": [[0, 5, "DATE"], [8, 11, "PER"]], "split": "valid", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "9월 7일까지 정우진 대리에게 보고서를 제출해 주세요.", "entities": [[0, 5, "DATE"], [8, 11, "PER"]], "split": "valid", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "2026년 11월 18일까지 한예린 대리에게 보고서를 제출해 주세요.", "entities": [[0, 13, "DATE"], [16, 19, "PER"]], "split": "valid", "template": "{DATE}까지 {PER} 대리에게 보고서를 제출해 주세요."}
+{"text": "임서준 팀장님, 누리소프트 계약금 532만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 14, "ORG"], [19, 25, "MONEY"]], "split": "valid", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "권나연 팀장님, 새길물류 계약금 869만 원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 24, "MONEY"]], "split": "valid", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "장도윤 팀장님, 세움건설 계약금 78,500원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 25, "MONEY"]], "split": "valid", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "김민준 팀장님, 세움건설 계약금 42,000원 입금 확인 부탁드립니다.", "entities": [[0, 3, "PER"], [9, 13, "ORG"], [18, 25, "MONEY"]], "split": "valid", "template": "{PER} 팀장님, {ORG} 계약금 {MONEY} 입금 확인 부탁드립니다."}
+{"text": "회의는 다음 주 목요일 오후 3시로 옮겼고, 최수아님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "valid", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 9월 26일 오후 3시로 옮겼고, 최수아님도 참석합니다.", "entities": [[4, 10, "DATE"], [23, 26, "PER"]], "split": "valid", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 다음 주 수요일 오후 3시로 옮겼고, 최수아님도 참석합니다.", "entities": [[4, 12, "DATE"], [25, 28, "PER"]], "split": "valid", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "회의는 1월 말 오후 3시로 옮겼고, 김민준님도 참석합니다.", "entities": [[4, 8, "DATE"], [21, 24, "PER"]], "split": "valid", "template": "회의는 {DATE} 오후 3시로 옮겼고, {PER}님도 참석합니다."}
+{"text": "이번 출장비는 6만 원이고 3월 15일에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 21, "DATE"]], "split": "valid", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 15,000원이고 2월 18일에 정산됩니다.", "entities": [[8, 15, "MONEY"], [18, 24, "DATE"]], "split": "valid", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 2억 원이고 12월 6일에 정산됩니다.", "entities": [[8, 12, "MONEY"], [15, 21, "DATE"]], "split": "valid", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "이번 출장비는 662만 원이고 4월 말에 정산됩니다.", "entities": [[8, 14, "MONEY"], [17, 21, "DATE"]], "split": "valid", "template": "이번 출장비는 {MONEY}{|이고/고} {DATE}에 정산됩니다."}
+{"text": "새길물류 담당자 신동현님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "valid", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "대한물산 담당자 강하은님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "valid", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "다온식품 담당자 권나연님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "valid", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "미래전자 담당자 권나연님과 통화했어요.", "entities": [[0, 4, "ORG"], [9, 12, "PER"]], "split": "valid", "template": "{ORG} 담당자 {PER}님과 통화했어요."}
+{"text": "장도윤님이 세움건설에 1억 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 16, "MONEY"]], "split": "valid", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "신동현님이 바른회계법인에 45,500원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 12, "ORG"], [14, 21, "MONEY"]], "split": "valid", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "임서준님이 바른회계법인에 700만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 12, "ORG"], [14, 20, "MONEY"]], "split": "valid", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "서지아님이 새길물류에 380만 원을 송금했습니다.", "entities": [[0, 3, "PER"], [6, 10, "ORG"], [12, 18, "MONEY"]], "split": "valid", "template": "{PER}님이 {ORG}에 {MONEY}{|을/를} 송금했습니다."}
+{"text": "2026년 8월 10일 기준으로 바른회계법인 미수금이 49,000원 남았어요.", "entities": [[0, 12, "DATE"], [18, 24, "ORG"], [30, 37, "MONEY"]], "split": "valid", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 주 금요일 기준으로 누리소프트 미수금이 943만 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 19, "ORG"], [25, 31, "MONEY"]], "split": "valid", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "이번 주 수요일 기준으로 대한물산 미수금이 40만 원 남았어요.", "entities": [[0, 8, "DATE"], [14, 18, "ORG"], [24, 29, "MONEY"]], "split": "valid", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "12월 말 기준으로 바른회계법인 미수금이 788만 원 남았어요.", "entities": [[0, 5, "DATE"], [11, 17, "ORG"], [23, 29, "MONEY"]], "split": "valid", "template": "{DATE} 기준으로 {ORG} 미수금이 {MONEY} 남았어요."}
+{"text": "다음 달부터 박지훈님이 한빛상사 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "valid", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 신동현님이 한빛상사 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "valid", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 정우진님이 새길물류 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "valid", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "다음 달부터 최수아님이 세움건설 프로젝트를 맡습니다.", "entities": [[7, 10, "PER"], [13, 17, "ORG"]], "split": "valid", "template": "다음 달부터 {PER}님이 {ORG} 프로젝트를 맡습니다."}
+{"text": "대한물산 납품 일정이 다음 주 목요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "valid", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "미래전자 납품 일정이 이번 주 금요일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 20, "DATE"]], "split": "valid", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "푸른제약 납품 일정이 6월 17일로 확정됐어요.", "entities": [[0, 4, "ORG"], [12, 18, "DATE"]], "split": "valid", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "누리소프트 납품 일정이 2026년 8월 24일로 확정됐어요.", "entities": [[0, 5, "ORG"], [13, 25, "DATE"]], "split": "valid", "template": "{ORG} 납품 일정이 {DATE}{|으로/로} 확정됐어요."}
+{"text": "한예린 과장님 휴가는 다음 주 금요일부터입니다.", "entities": [[0, 3, "PER"], [12, 20, "DATE"]], "split": "valid", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "윤지민 과장님 휴가는 7월 말부터입니다.", "entities": [[0, 3, "PER"], [12, 16, "DATE"]], "split": "valid", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "이서연 과장님 휴가는 9월 9일부터입니다.", "entities": [[0, 3, "PER"], [12, 17, "DATE"]], "split": "valid", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "김민준 과장님 휴가는 2026년 4월 21일부터입니다.", "entities": [[0, 3, "PER"], [12, 24, "DATE"]], "split": "valid", "template": "{PER} 과장님 휴가는 {DATE}부터입니다."}
+{"text": "별빛미디어 쪽에서 7월 10일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 5, "ORG"], [10, 16, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "소망은행 쪽에서 1월 말에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 4, "ORG"], [9, 13, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "별빛미디어 쪽에서 1월 말에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 5, "ORG"], [10, 14, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "단비출판 쪽에서 다음 주 목요일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 4, "ORG"], [9, 17, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "별빛미디어 쪽에서 2026년 12월 6일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 5, "ORG"], [10, 22, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "단비출판 쪽에서 이번 주 수요일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 4, "ORG"], [9, 17, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "그린모빌리티 쪽에서 이번 주 목요일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 6, "ORG"], [11, 19, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "그린모빌리티 쪽에서 12월 21일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 6, "ORG"], [11, 18, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "단비출판 쪽에서 2026년 11월 26일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 4, "ORG"], [9, 22, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "소망은행 쪽에서 2026년 10월 25일에 미팅 가능하냐고 물어봤어요.", "entities": [[0, 4, "ORG"], [9, 22, "DATE"]], "split": "test", "template": "{ORG} 쪽에서 {DATE}에 미팅 가능하냐고 물어봤어요."}
+{"text": "8억 원 청구 건은 배준서님이 승인해야 합니다.", "entities": [[0, 4, "MONEY"], [11, 14, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "946만 원 청구 건은 노은찬님이 승인해야 합니다.", "entities": [[0, 6, "MONEY"], [13, 16, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "201만 원 청구 건은 백하린님이 승인해야 합니다.", "entities": [[0, 6, "MONEY"], [13, 16, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "34,000원 청구 건은 하윤슬님이 승인해야 합니다.", "entities": [[0, 7, "MONEY"], [14, 17, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "5억 원 청구 건은 노은찬님이 승인해야 합니다.", "entities": [[0, 4, "MONEY"], [11, 14, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "7억 원 청구 건은 배준서님이 승인해야 합니다.", "entities": [[0, 4, "MONEY"], [11, 14, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "831만 원 청구 건은 노은찬님이 승인해야 합니다.", "entities": [[0, 6, "MONEY"], [13, 16, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "3억 원 청구 건은 배준서님이 승인해야 합니다.", "entities": [[0, 4, "MONEY"], [11, 14, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "3억 원 청구 건은 배준서님이 승인해야 합니다.", "entities": [[0, 4, "MONEY"], [11, 14, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "331만 원 청구 건은 배준서님이 승인해야 합니다.", "entities": [[0, 6, "MONEY"], [13, 16, "PER"]], "split": "test", "template": "{MONEY} 청구 건은 {PER}님이 승인해야 합니다."}
+{"text": "어제 배준서님이 보낸 메일 보셨어요? 그린모빌리티 건이에요.", "entities": [[3, 6, "PER"], [21, 27, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 전도경님이 보낸 메일 보셨어요? 별빛미디어 건이에요.", "entities": [[3, 6, "PER"], [21, 26, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 배준서님이 보낸 메일 보셨어요? 별빛미디어 건이에요.", "entities": [[3, 6, "PER"], [21, 26, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 노은찬님이 보낸 메일 보셨어요? 소망은행 건이에요.", "entities": [[3, 6, "PER"], [21, 25, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 전도경님이 보낸 메일 보셨어요? 별빛미디어 건이에요.", "entities": [[3, 6, "PER"], [21, 26, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 백하린님이 보낸 메일 보셨어요? 단비출판 건이에요.", "entities": [[3, 6, "PER"], [21, 25, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 노은찬님이 보낸 메일 보셨어요? 별빛미디어 건이에요.", "entities": [[3, 6, "PER"], [21, 26, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 백하린님이 보낸 메일 보셨어요? 단비출판 건이에요.", "entities": [[3, 6, "PER"], [21, 25, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 백하린님이 보낸 메일 보셨어요? 단비출판 건이에요.", "entities": [[3, 6, "PER"], [21, 25, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "어제 배준서님이 보낸 메일 보셨어요? 그린모빌리티 건이에요.", "entities": [[3, 6, "PER"], [21, 27, "ORG"]], "split": "test", "template": "어제 {PER}님이 보낸 메일 보셨어요? {ORG} 건이에요."}
+{"text": "1월 11일에 3억 원 결제 예정, 담당 배준서", "entities": [[0, 6, "DATE"], [8, 12, "MONEY"], [23, 26, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "이번 주 월요일에 756만 원 결제 예정, 담당 노은찬", "entities": [[0, 8, "DATE"], [10, 16, "MONEY"], [27, 30, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "2026년 4월 3일에 360만 원 결제 예정, 담당 노은찬", "entities": [[0, 11, "DATE"], [13, 19, "MONEY"], [30, 33, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "이번 주 목요일에 7억 원 결제 예정, 담당 노은찬", "entities": [[0, 8, "DATE"], [10, 14, "MONEY"], [25, 28, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "4월 말에 95,000원 결제 예정, 담당 전도경", "entities": [[0, 4, "DATE"], [6, 13, "MONEY"], [24, 27, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "이번 주 금요일에 134만 원 결제 예정, 담당 배준서", "entities": [[0, 8, "DATE"], [10, 16, "MONEY"], [27, 30, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "3월 4일에 95,000원 결제 예정, 담당 배준서", "entities": [[0, 5, "DATE"], [7, 14, "MONEY"], [25, 28, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "11월 12일에 63,000원 결제 예정, 담당 배준서", "entities": [[0, 7, "DATE"], [9, 16, "MONEY"], [27, 30, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "2026년 10월 19일에 18,500원 결제 예정, 담당 하윤슬", "entities": [[0, 13, "DATE"], [15, 22, "MONEY"], [33, 36, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "2026년 3월 23일에 175만 원 결제 예정, 담당 전도경", "entities": [[0, 12, "DATE"], [14, 20, "MONEY"], [31, 34, "PER"]], "split": "test", "template": "{DATE}에 {MONEY} 결제 예정, 담당 {PER}"}
+{"text": "Emily Stone will visit Hanbit Trading on March 5.", "entities": [[0, 11, "PER"], [23, 37, "ORG"], [41, 48, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "James Carter will visit Northwind Logistics on next Tuesday.", "entities": [[0, 12, "PER"], [24, 43, "ORG"], [47, 59, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Emily Stone will visit Hanbit Trading on November 20.", "entities": [[0, 11, "PER"], [23, 37, "ORG"], [41, 52, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Emily Stone will visit Northwind Logistics on November 20.", "entities": [[0, 11, "PER"], [23, 42, "ORG"], [46, 57, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Emily Stone will visit Hanbit Trading on November 20.", "entities": [[0, 11, "PER"], [23, 37, "ORG"], [41, 52, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Lee Seoyeon will visit Hanbit Trading on 2026-11-20.", "entities": [[0, 11, "PER"], [23, 37, "ORG"], [41, 51, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Emily Stone will visit Hanbit Trading on 2026-11-20.", "entities": [[0, 11, "PER"], [23, 37, "ORG"], [41, 51, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Lee Seoyeon will visit Blue Pharma on the end of May.", "entities": [[0, 11, "PER"], [23, 34, "ORG"], [38, 52, "DATE"]], "split": "en_test", "template": "{PER} will visit {ORG} on {DATE}."}
+{"text": "Blue Pharma sent us a quote for USD 450.", "entities": [[0, 11, "ORG"], [32, 39, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Northwind Logistics sent us a quote for $75,000.", "entities": [[0, 19, "ORG"], [40, 47, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Nuri Soft sent us a quote for USD 450.", "entities": [[0, 9, "ORG"], [30, 37, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Nuri Soft sent us a quote for $75,000.", "entities": [[0, 9, "ORG"], [30, 37, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Blue Pharma sent us a quote for $75,000.", "entities": [[0, 11, "ORG"], [32, 39, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Blue Pharma sent us a quote for 3 million won.", "entities": [[0, 11, "ORG"], [32, 45, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Northwind Logistics sent us a quote for $75,000.", "entities": [[0, 19, "ORG"], [40, 47, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Nuri Soft sent us a quote for USD 450.", "entities": [[0, 9, "ORG"], [30, 37, "MONEY"]], "split": "en_test", "template": "{ORG} sent us a quote for {MONEY}."}
+{"text": "Please send the report to Lee Seoyeon by 2026-11-20.", "entities": [[26, 37, "PER"], [41, 51, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to Kim Minjun by next Tuesday.", "entities": [[26, 36, "PER"], [40, 52, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to Lee Seoyeon by next Tuesday.", "entities": [[26, 37, "PER"], [41, 53, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to Emily Stone by November 20.", "entities": [[26, 37, "PER"], [41, 52, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to Daniel Park by the end of May.", "entities": [[26, 37, "PER"], [41, 55, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to James Carter by the end of May.", "entities": [[26, 38, "PER"], [42, 56, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to Sophia Lee by March 5.", "entities": [[26, 36, "PER"], [40, 47, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "Please send the report to Sophia Lee by next Tuesday.", "entities": [[26, 36, "PER"], [40, 52, "DATE"]], "split": "en_test", "template": "Please send the report to {PER} by {DATE}."}
+{"text": "James Carter transferred USD 450 to Nuri Soft.", "entities": [[0, 12, "PER"], [25, 32, "MONEY"], [36, 45, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Lee Seoyeon transferred $75,000 to Hanbit Trading.", "entities": [[0, 11, "PER"], [24, 31, "MONEY"], [35, 49, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Lee Seoyeon transferred 3 million won to Blue Pharma.", "entities": [[0, 11, "PER"], [24, 37, "MONEY"], [41, 52, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Emily Stone transferred 3 million won to Hanbit Trading.", "entities": [[0, 11, "PER"], [24, 37, "MONEY"], [41, 55, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Emily Stone transferred $1,200 to Northwind Logistics.", "entities": [[0, 11, "PER"], [24, 30, "MONEY"], [34, 53, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Sophia Lee transferred $1,200 to Nuri Soft.", "entities": [[0, 10, "PER"], [23, 29, "MONEY"], [33, 42, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Lee Seoyeon transferred $1,200 to Blue Pharma.", "entities": [[0, 11, "PER"], [24, 30, "MONEY"], [34, 45, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "Lee Seoyeon transferred $1,200 to Nuri Soft.", "entities": [[0, 11, "PER"], [24, 30, "MONEY"], [34, 43, "ORG"]], "split": "en_test", "template": "{PER} transferred {MONEY} to {ORG}."}
+{"text": "The meeting with Blue Pharma has moved to next Tuesday.", "entities": [[17, 28, "ORG"], [42, 54, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Hanbit Trading has moved to March 5.", "entities": [[17, 31, "ORG"], [45, 52, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Nuri Soft has moved to next Tuesday.", "entities": [[17, 26, "ORG"], [40, 52, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Nuri Soft has moved to 2026-11-20.", "entities": [[17, 26, "ORG"], [40, 50, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Hanbit Trading has moved to next Tuesday.", "entities": [[17, 31, "ORG"], [45, 57, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Hanbit Trading has moved to 2026-11-20.", "entities": [[17, 31, "ORG"], [45, 55, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Blue Pharma has moved to 2026-11-20.", "entities": [[17, 28, "ORG"], [42, 52, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "The meeting with Blue Pharma has moved to March 5.", "entities": [[17, 28, "ORG"], [42, 49, "DATE"]], "split": "en_test", "template": "The meeting with {ORG} has moved to {DATE}."}
+{"text": "James Carter from Hanbit Trading called this morning.", "entities": [[0, 12, "PER"], [18, 32, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "James Carter from Hanbit Trading called this morning.", "entities": [[0, 12, "PER"], [18, 32, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "James Carter from Hanbit Trading called this morning.", "entities": [[0, 12, "PER"], [18, 32, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "Kim Minjun from Northwind Logistics called this morning.", "entities": [[0, 10, "PER"], [16, 35, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "Daniel Park from Northwind Logistics called this morning.", "entities": [[0, 11, "PER"], [17, 36, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "Lee Seoyeon from Northwind Logistics called this morning.", "entities": [[0, 11, "PER"], [17, 36, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "Sophia Lee from Hanbit Trading called this morning.", "entities": [[0, 10, "PER"], [16, 30, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}
+{"text": "Lee Seoyeon from Northwind Logistics called this morning.", "entities": [[0, 11, "PER"], [17, 36, "ORG"]], "split": "en_test", "template": "{PER} from {ORG} called this morning."}

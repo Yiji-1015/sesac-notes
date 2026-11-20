@@ -271,7 +271,7 @@ K.build(ROOT / "topics" / "model" / "text-classification.html", title="문장 �
         one_line="문장을 미리 학습된 모델(e5)로 <b>벡터</b>로 바꾸면, 그 위에 단순한 분류기만 얹어도 처음 보는 말투까지 잘 나눠요. 모델까지 고치는 <b>미세조정</b>은 데이터가 적으면 외우기 쉬워서, 고칠 범위를 골라야 해요. 라벨이 적으면 벡터와 라벨 없는 문장을 최대한 활용해요.",
         why=why, whole=whole, steps=steps, code_file="examples/classify/issue_classifier.py", practice=practice, libs=libs,
         libs_note="<code>macro_f1</code>, <code>bag_model</code>, <code>encode</code>, <code>mean_pool</code>, <code>embed</code>, <code>fine_tune</code>, <code>label_curve</code>, <code>self_train</code>은 이 파일 안에서 정의한 함수, <code>Classifier</code>는 클래스예요.",
-        next_rows=[("<a href=\"llm-principles.html\">Transformer 구조</a>", "e5 안에서 벡터가 만들어지는 과정"), ("<a href=\"transfer-learning.html\">전이학습과 오류 분석</a>", "그림으로 본 같은 이야기"),
+        next_rows=[("<a href=\"token-classification.html\">토큰 분류와 질문 답변</a>", "같은 몸통, 토큰마다 라벨"), ("<a href=\"llm-principles.html\">Transformer 구조</a>", "e5 안에서 벡터가 만들어지는 과정"), ("<a href=\"transfer-learning.html\">전이학습과 오류 분석</a>", "그림으로 본 같은 이야기"),
                    ("<a href=\"../backend/embedding.html\">Embedding과 벡터 검색</a>", "같은 문장 벡터로 검색하기")],
         sources=["함께 정리한 자료: Lewis Tunstall 외, <i>Natural Language Processing with Transformers</i> 2장(데이터 살피기, 부분단어 토큰화, 특성 추출과 미세조정, F1과 불균형, 오류 분석, 모델 저장), 9장(Naive Bayes 기준선, 임베딩을 찾아보기 표로 쓰기와 FAISS, 데이터 늘리기, 퓨샷과 프롬프트, 도메인 적응, UDA와 UST). 부트캠프 수업에서 따로 다루지 않은 주제라 예제는 새로 만들었어요",
                  "데이터: <code>examples/classify/data/issues.csv</code> (이 노트용으로 만든 가상의 문의 780개, <code>tools/make_issue_examples.py</code>)",
