@@ -67,7 +67,8 @@
    - 모델은 받지 않고 이 PC에 있는 `multilingual-e5-small`로 해요. GPT는 작은 말뭉치로 직접 학습해요
 2. **FML 이론 17장** (진행 중). 원본은 위키 요약(1.3KB)이 아니라 `source_file:`이 가리키는 OneDrive `자료/md/Foundations-ML/`의 장별 노트(11~23KB)를 읽어요.
    - 끝남: 커널(5, 6장) → 머신러닝 4쪽 `ml-svm-lda-pca.html`에 ⑧~⑩ 추가 (커널 행렬의 고윳값, Representer 정리와 leave-one-out, 랜덤 푸리에 특성). ①~⑦ 값은 그대로
-   - 남음: 부스팅(7장) → 머신러닝 2쪽 `ml-trees-cv.html`에 보강해요.
+   - 끝남: 부스팅(7장) → 머신러닝 4쪽 `ml-svm-lda-pca.html`에 ⑪~⑬ 추가 (AdaBoost 직접 짜기, 지수 손실과 train 오차의 상한, L1 마진). 2쪽 ⑩에는 4쪽으로 가는 링크만 넣었어요. 2쪽 뒤에 단계를 끼우면 3쪽 번호(⑬~⑰)가 밀려서 4쪽에 이었어요. ①~⑩ 값은 그대로
+     - 이 작은 데이터에서는 트리를 늘려도 valid와 교차검증 점수가 좋아지지 않았어요(트리 50개가 가장 좋음). 페이지에도 그대로 적었어요
    - PAC, VC 차원: 학습 이론 페이지를 새로 만들어요.
 3. **Elastic ANN, Elasticsearch**: 백엔드의 embedding, indexing 페이지에 보강해요.
 4. **llm-internals, vLLM, Solar Open 2, llm-judge** (진행 중)

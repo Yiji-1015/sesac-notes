@@ -112,7 +112,7 @@
           <a class="item" href="topics/model/ml-regression-classification.html"><b>회귀, 분류, KNN, 모델 비교</b><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
           <a class="item" href="topics/model/ml-trees-cv.html"><b>트리, 앙상블, 교차검증</b><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
           <a class="item" href="topics/model/ml-metrics-clustering.html"><b>평가지표, 특성 설계, K-Means</b><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
-          <a class="item" href="topics/model/ml-svm-lda-pca.html"><b>SVM, 판별분석, 차원 축소</b><small>최대 마진, 커널, LDA와 QDA, 베이즈, PCA, 주성분, 커널이 되는 조건, Representer 정리, 커널 근사</small></a>
+          <a class="item" href="topics/model/ml-svm-lda-pca.html"><b>SVM, 판별분석, 차원 축소</b><small>최대 마진, 커널, LDA와 QDA, 베이즈, PCA, 주성분, 커널이 되는 조건, Representer 정리, 커널 근사, AdaBoost 직접 짜기, 지수 손실, L1 마진</small></a>
         </div>
         <div class="cat">
           <h3>딥러닝 기초</h3>
@@ -195,6 +195,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/21</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑪~⑬ 추가: Foundations of Machine Learning 7장. AdaBoost를 직접 짜서 scikit-learn과 맞추기, train 오차가 지수 손실(Z의 곱) 아래에서 줄어드는 모습, 0-1, 지수, 로그, 힌지 손실 비교, 트리를 늘릴 때 L1 마진과 valid, 교차검증 점수</td></tr>
         <tr><td class="when">11/20</td><td>백엔드 외전 <a href="topics/backend/service-flow.html">로직 밖에서 서비스를 완성하기</a> 추가. 설정과 DB 준비, Session과 트랜잭션의 책임, 계층 연결, Health, Postman Collection과 Environment를 작은 서비스 하나로 정리. 실행 가능한 독립 예제와 검증용 JSON 제공</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/llm-architectures.html">요즘 LLM의 부품</a> 새로 씀: LLM internals(언어 모델의 계보) 발표와 vLLM 사용자 모임 노트. GPT-2와 Llama를 설정만으로 같은 크기로 만들어 RMSNorm, SwiGLU, RoPE, GQA를 나란히 보고, KV 캐시(prefill과 decode, 앞부분 다시 쓰기), 슬라이딩 윈도우, MoE를 직접 재기</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑧~⑩ 추가: Foundations of Machine Learning 5, 6장. 커널 행렬의 고윳값으로 커널이 되는 조건 확인(sigmoid는 아님), 서포트 벡터 위의 합으로 예측을 손으로 다시 계산하고 leave-one-out 보장 확인, RBF 커널을 무작위 cos 열로 흉내 내기</td></tr>

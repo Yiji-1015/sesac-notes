@@ -1,4 +1,4 @@
-"""모델 > 머신러닝 기초 4쪽: SVM, 판별분석, PCA, 커널 더 깊이. examples/ml/more_models.py 하나가 ①~⑩으로 자란다.
+"""모델 > 머신러닝 기초 4쪽: SVM, 판별분석, PCA, 커널 더 깊이, AdaBoost 더 깊이. examples/ml/more_models.py 하나가 ①~⑬으로 자란다.
 1~3쪽(requests_model.py, tools/pages/ml_basics.py)과 같은 데이터, 같은 나누기, 같은 교차검증을 쓴다.
 실행: python tools/pages/ml_more.py
 """
@@ -29,7 +29,7 @@ code = S.parse((EX / "more_models.py").read_text(encoding="utf-8"))
 run = lambda k, patch=None: S.run(code, k, S.workdir(EX), patch, filename="more_models.py")  # noqa: E731
 f3 = lambda x: f"{float(x):.3f}"  # noqa: E731
 ENV = f"Python {sys.version.split()[0]}, scikit-learn {sklearn.__version__}, pandas {pd.__version__}"
-ns = run(10)
+ns = run(13)
 # 1~3쪽 값을 인용할 때도 손으로 옮겨 적지 않고, 그 쪽 예제(requests_model.py)를 ⑫까지 실제로 돌려서 가져와요
 REF = S.run(S.parse((EX / "requests_model.py").read_text(encoding="utf-8")), 12, S.workdir(EX), filename="requests_model.py")
 p1_f1 = REF["scores"]["f1"]           # 1쪽 ⑤ 로지스틱의 valid F1
@@ -281,19 +281,132 @@ outs["s10"] = S.table("⑩ RBF 커널을 무작위 cos 열 D개로 흉내 내기
                       [f"D를 10배 늘릴 때마다 평균 차이가 {', '.join(f'{d:.1f}배' for d in drops)} 줄었어요. 무작위로 뽑은 방향의 평균이라, 차이는 대략 1 ÷ √D로 줄어요(10배면 √10 ≈ 3.2배).",
                        f"D = 1,000 열 위에 선형 SVM을 올리니 train과 valid {n_dev}건 중 {n_same}건에서 ③의 커널 SVM과 같은 답을 냈어요. 다른 답 {n_dev - n_same}건 중 {v_diff}건이 valid에 있어서 valid F1이 달라 보여요(③ {ns['rbf_scores']['f1']:.2f}, 흉내 낸 쪽 {ns['rff_scores']['f1']:.2f}). valid의 실패가 {int(ns['y_valid'].sum())}건뿐이라 답 하나에도 F1이 크게 움직여요.",
                        f"이 예제는 {m60}건이라 커널 행렬이 {m60 * m60:,}칸뿐이지만, {big_m:,}건이면 {big_m * big_m:,}칸이라 실수 하나에 8바이트씩 {big_m * big_m * 8 / 1e9:,.0f}GB가 필요해요. 흉내 낸 열은 건수 × D칸이라, D가 1,000이면 {big_m * 1000 * 8 / 1e9:.1f}GB로 줄어요."])
+# ---------------- ⑪ AdaBoost를 직접
+hist, al = ns["history"], ns["alphas"]
+T_ALL = len(al)
+Dl, heavy = ns["D_last"], ns["heavy"]
+heavy_share = Dl[heavy].sum()
+heavy_loo = [int(i) for i in heavy if i in set(ns["loo_wrong"])]
+S.claim(all(abs(h["wrong_mass"] - 0.5) < 1e-9 for h in hist), "⑪ 무게를 고친 직후 틀린 행의 무게 합은 매번 정확히 ½")
+S.claim(ns["same_as_sk"] == 1.0, "⑪ 직접 만든 AdaBoost와 scikit-learn의 valid 답이 모두 같다")
+S.claim(all(h["eps"] < 0.5 for h in hist) and all(a > 0 for a in al), "⑪ 500번 모두 ε < ½, α > 0")
+S.claim(abs(hist[0]["eps"] - 0.2) < 1e-9, "⑪ 첫 트리의 ε은 0.2")
+S.claim(len(heavy_loo) >= 3 and heavy_share > 0.35, "⑪ 무게가 큰 5건이 무게의 35% 넘게 갖고, 그중 3건 이상이 ⑨의 leave-one-out에서 틀린 점")
+outs["s11"] = S.box("⑪ AdaBoost를 직접 500번 (질문 하나짜리 트리, train 60건)",
+                    [(f"1번째 트리 → ε {hist[0]['eps']:.3f}, α {al[0]:.3f}", 1),
+                     (f"2번째 트리 → ε {hist[1]['eps']:.3f}, α {al[1]:.3f} / 3번째 → ε {hist[2]['eps']:.3f}, α {al[2]:.3f}", 2),
+                     (f"무게를 고친 직후 틀린 행의 무게 합 → {T_ALL}번 모두 {hist[0]['wrong_mass']:.3f}", 3, "newf"),
+                     (f"scikit-learn AdaBoost(트리 200개)와 valid 답이 같은 비율 → {ns['same_as_sk']:.2f}", 4),
+                     (f"{T_ALL}번 뒤 무게가 가장 큰 5건 → {', '.join(f'{i}번 {Dl[i]:.3f}' for i in heavy)} (합 {heavy_share:.2f}, 처음 무게는 1건당 {1 / len(Dl):.3f})", 5, "newf")],
+                    [f"첫 트리는 입력 길이로 나눠 {hist[0]['eps']:.0%}를 틀렸어요. α = ½ log((1 − 0.2) ÷ 0.2) = ½ log 4 = {al[0]:.3f}예요. 틀린 비율이 ½에 가까워질수록 α가 0에 가까워져요.",
+                     "무게를 고치면 틀린 행 쪽 무게의 합이 언제나 정확히 ½이 돼요. 방금 고른 트리는 새 무게로 재면 동전 던지기와 같아서, 다음 트리는 그 트리가 놓친 것을 봐야 점수를 얻어요.",
+                     "직접 짠 20줄과 scikit-learn이 같은 답을 내요. scikit-learn의 α는 log((1 − ε) ÷ ε)로 2배지만, 모든 α가 같은 배수라 부호(답)는 같아요.",
+                     f"무게가 큰 5건이 전체의 {heavy_share:.0%}를 가져요. 그중 {', '.join(f'{i}번' for i in heavy_loo)}은 ⑨에서 leave-one-out으로 틀린 점이기도 해요. 두 모델이 똑같이 \"어렵다\"고 본 행이라, 라벨이 잘못됐거나 정말 예외인 요청일 수 있어요."])
+
+# ---------------- ⑫ train 오차와 지수 손실
+te, bd, bg, el = ns["train_err"], ns["bound"], ns["bound_gamma"], ns["exp_loss"]
+fz, sz = ns["first_zero"], ns["stay_zero"]
+gap_exp = float(np.abs(el - bd).max())
+S.claim(gap_exp < 1e-12, "⑫ 지수 손실의 평균과 Z의 곱이 반올림 수준에서 같다")
+S.claim(all(te[t] <= bd[t] <= bg[t] + 1e-12 for t in range(T_ALL)), "⑫ 매 T에서 train 오차 ≤ ΠZ ≤ exp(−2Σ(½−ε)²)")
+S.claim(50 < fz <= sz < 200 and not (te[sz - 1:] > 0).any() and bd[-1] < 0.05, "⑫ train 오차는 트리 50~200개 사이에서 0이 되고 그 뒤로 계속 0, 500개에서 상한은 0.05 아래")
+S.claim(hist[-1]["eps"] > 0.45, "⑫ 마지막 트리의 ε은 0.45보다 크다")
+outs["s12"] = S.box("⑫ train 오차와 그 상한 (⑪의 500번)",
+                    [(f"지수 손실의 평균 vs Z₁ × ... × Z_T → 가장 큰 차이 {gap_exp:.1e}", 1),
+                     (f"트리 10개 → train 오차 {te[9]:.3f} ≤ ΠZ {bd[9]:.3f} ≤ exp(−2Σ(½−ε)²) {bg[9]:.3f}", 2),
+                     (f"train 오차가 처음 0 → 트리 {fz}개 (그때 ΠZ {bd[fz - 1]:.3f}), 계속 0 → 트리 {sz}개부터", 3, "newf"),
+                     (f"트리 {T_ALL}개 → ΠZ {bd[-1]:.3f}, 마지막 트리의 ε {hist[-1]['eps']:.3f}", 4)],
+                    ["지수 손실의 평균과 Z의 곱은 이름만 다른 같은 값이에요. 그리고 train 오차는 언제나 그 아래에 있어요(아래 그림).",
+                     f"상한이 줄어드는 속도는 트리마다 ε이 ½에서 얼마나 먼가로 정해져요. 뒤로 갈수록 ε이 {hist[-1]['eps']:.2f}쯤으로 ½에 가까워져서, 상한이 천천히 줄어요. 남은 어려운 행만 보다 보니 질문 하나로는 동전 던지기보다 조금 나은 정도만 맞히는 거예요."])
+Tx = np.arange(1, T_ALL + 1)
+fig, ax = plt.subplots(figsize=(7.6, 3.8))
+ax.plot(Tx, bg, color=C["gray"], lw=1.6, ls="--", label="exp(−2 Σ (½ − ε)²)")
+ax.plot(Tx, bd, color=OK, lw=2.4, label="지수 손실의 평균 = Z₁ × ... × Z_T")
+ax.step(Tx, te, where="post", color=FAIL, lw=2.0, label="train 오차")
+ax.axvline(fz, color=C["ink"], lw=.8, ls=":")
+ax.annotate(f"트리 {fz}개에서 처음 0", (fz, 0.02), (fz + 60, 0.45), fontsize=10, color=C["ink"], arrowprops=dict(arrowstyle="->", color=C["ink"]))
+ax.set(xlabel="트리 수 T", ylabel="값", title="train 오차는 지수 손실 아래에 있고, 지수 손실은 곱으로 줄어요", ylim=(0, 0.9))
+ax.legend(fontsize=9, loc="upper right")
+P_BOUND = fig_save(fig, "adaboost_bound")
+outs["f_bound"] = chart("AdaBoost의 train 오차와 두 상한 (⑪의 500번)", P_BOUND, "",
+                        ["분홍 계단이 실제 train 오차, 보라가 지수 손실의 평균이에요. 계단은 보라 선을 넘은 적이 없어요.",
+                         f"계단은 트리 {fz}개에서 처음 0이 되고, 몇 번 한 건씩 다시 틀리다가 {sz}개부터는 계속 0이에요. 보라 선은 그 뒤에도 계속 내려가요. 틀린 행이 없어진 뒤에도 AdaBoost는 \"맞히긴 했지만 아슬아슬한\" 행을 계속 밀어내요. 이게 ⑬의 마진이에요."])
+uu = np.linspace(-2, 2.5, 400)
+fig, ax = plt.subplots(figsize=(7.6, 3.8))
+ax.plot(uu, (uu <= 0).astype(float), color=C["ink"], lw=2.2, label="0-1 손실 (틀리면 1)")
+ax.plot(uu, np.exp(-uu), color=OK, lw=2.4, label="지수 손실 e^(−u) (AdaBoost)")
+ax.plot(uu, np.log2(1 + np.exp(-uu)), color=C["blue"], lw=2.0, label="로그 손실 log₂(1 + e^(−u)) (로지스틱)")
+ax.plot(uu, np.maximum(0, 1 - uu), color=FAIL, lw=2.0, ls="--", label="힌지 손실 max(0, 1 − u) (SVM)")
+ax.set(xlabel="u = y × f(x)   (양수면 맞힘, 클수록 확실히 맞힘)", ylabel="손실", ylim=(0, 4.2), title="0-1 손실 대신 줄이는 매끄러운 손실들")
+ax.legend(fontsize=9, loc="upper right")
+P_LOSS = fig_save(fig, "margin_losses")
+outs["f_loss"] = chart("한 행의 손실을 u = y × f(x)로 그리면", P_LOSS, "",
+                       ["넷 다 u가 클수록(확실히 맞힐수록) 작아지고, 0-1 손실과 같거나 그 위에 있어요. 그래서 어느 것을 줄여도 틀린 수의 상한을 줄이는 셈이에요.",
+                        "왼쪽(크게 틀린 쪽)을 보면 차이가 나요. 지수 손실은 u가 −2면 e² ≈ 7.4로 치솟아요. 로그 손실과 힌지 손실은 곧은 선에 가깝게만 늘어요. 그래서 AdaBoost는 크게 틀린 한 행에 무게를 몰아주고, 라벨이 잘못된 행에 약해요."])
+dep_rows = []
+for d in (1, 2, 3):
+    n = ns if d == 1 else run(13, [("h = DecisionTreeClassifier(max_depth=1, random_state=0)", f"h = DecisionTreeClassifier(max_depth={d}, random_state=0)")])
+    dep_rows.append((d, n["first_zero"], min(h["eps"] for h in n["history"]), n["margins"][-1].min(), n["valid_err"][-1]))
+S.claim(dep_rows[0][1] > dep_rows[1][1] > dep_rows[2][1] and dep_rows[0][2] > dep_rows[2][2], "⑫ 트리가 깊을수록 ε이 작고 train 오차가 더 빨리 0이 된다")
+S.claim(max(abs(r[4] - dep_rows[0][4]) for r in dep_rows) <= 0.05 + 1e-9, "⑫ 깊이를 바꿔도 valid 오차는 20건 중 한 건(0.05) 차이 안")
+outs["t12"] = S.table("AdaBoost의 트리를 깊이 1, 2, 3으로 바꾸면 (500번)", ["깊이", "train 오차가 처음 0", "가장 작은 ε", "500번 뒤 가장 작은 마진", "500번 뒤 valid 오차"],
+                      [[f"<b>{d}</b> (지금)" if d == 1 else d, f"트리 {z}개", f3(e), f3(mg_), f"{v:.2f}"] for d, z, e, mg_, v in dep_rows],
+                      [f"트리가 깊을수록 한 번에 더 잘 맞혀서(ε이 작아서) 상한이 빨리 줄고, train 오차가 {dep_rows[0][1]}개 → {dep_rows[1][1]}개 → {dep_rows[2][1]}개 만에 0이 돼요.",
+                       f"그런데 valid 오차는 {min(r[4] for r in dep_rows):.2f}~{max(r[4] for r in dep_rows):.2f}로, 20건 중 한 건 차이 안에서 오르내릴 뿐이에요. 기본 모델이 강할수록 train에 빨리 맞춰질 뿐, 처음 보는 데이터에 강해지는 건 아니에요. 그래서 AdaBoost는 보통 깊이 1~3의 약한 트리를 쓰고, 트리 수를 교차검증으로 정해요."])
+
+# ---------------- ⑬ 마진
+mg, ve = ns["margins"], ns["valid_err"]
+mark = [10, 100, fz, T_ALL]
+cvm = {T: v.mean() for T, v in ns["ada_cv"].items()}
+best_T = max(cvm, key=cvm.get)
+cv7 = {k: v.mean() for k, v in ns["cv_scores"].items()}
+best7 = max(cv7, key=cv7.get)
+S.claim(mg[9].min() < 0 < mg[fz - 1].min() < mg[-1].min(), "⑬ 가장 작은 마진이 음수에서 양수로 올라가고, 0이 된 뒤에도 커진다")
+S.claim(np.median(mg[-1]) < np.median(mg[9]), "⑬ 마진의 가운데값은 오히려 줄었다")
+S.claim(ve[-1] > ve[9] and best_T == 50, "⑬ valid 오차는 트리를 늘릴수록 나빠졌고, 교차검증은 50개가 가장 좋다")
+S.claim(mg[-1].min() < 0.05, "⑬ 500번 뒤 가장 작은 마진도 0.05 아래")
+outs["s13"] = S.table("⑬ 트리 수에 따른 L1 마진과 오차 (train 60건, valid 20건)", ["트리 수", "train 오차", "가장 작은 마진", "마진의 가운데값", "valid 오차"],
+                      [[f"<b>{T}</b>" + (" (train 오차 첫 0)" if T == fz else ""), f3(te[T - 1]), f"{mg[T - 1].min():+.3f}", f"{np.median(mg[T - 1]):.3f}", f"{ve[T - 1]:.2f}"] for T in mark],
+                      [f"가장 작은 마진은 {mg[9].min():+.3f}에서 {mg[-1].min():+.3f}로 올라갔어요. train 오차가 0이 된 뒤에도 계속 커져요. 대신 가운데값은 {np.median(mg[9]):.3f}에서 {np.median(mg[-1]):.3f}로 줄었어요. AdaBoost는 가장 아슬아슬한 행을 끌어올리느라, 이미 넉넉하던 행의 마진을 조금씩 내줘요.",
+                       f"valid 오차는 오히려 {ve[9]:.2f}에서 {ve[-1]:.2f}로 나빠졌어요. valid가 20건이라 한 건이 0.05지만, 아래 교차검증도 같은 쪽이에요."])
+outs["s13cv"] = S.table("AdaBoost 트리 수별 5-fold 교차검증 F1 (⑦과 같은 나누기)", ["트리 수", "다섯 번의 점수", "평균"],
+                        [[f"<b>{T}</b>", ", ".join(f3(x) for x in v), f"<b>{f3(v.mean())}</b>" if T == best_T else f3(v.mean())] for T, v in ns["ada_cv"].items()],
+                        [f"트리 {best_T}개가 가장 좋고({cvm[best_T]:.3f}), 그 뒤로는 내려가요. 2쪽 ⑫의 XGBoost는 {xgb_cv.mean():.3f}, ⑦에서 가장 좋았던 {best7}{K.josa(best7, '은', '는')} {cv7[best7]:.3f}예요.",
+                         "건수가 60~80건이고 라벨이 깨끗하게 갈리지 않는 데이터라, 마진이 커지는 것보다 어려운 행에 맞추느라 생기는 과적합이 더 커요."])
+fig, axs = plt.subplots(1, 2, figsize=(12.4, 3.9))
+cols = [C["gray"], C["blue"], FAIL, OK]
+for T, col in zip(mark, cols):
+    v = np.sort(mg[T - 1])
+    axs[0].step(v, np.arange(1, len(v) + 1) / len(v), where="post", color=col, lw=2.2, label=f"트리 {T}개")
+axs[0].axvline(0, color=C["ink"], lw=.8, ls=":")
+axs[0].set(xlabel="L1 마진 y f(x) ÷ Σα", ylabel="그 값 이하인 행의 비율", title="마진의 누적 분포 (train 60건)", xlim=(-0.6, 1.02))
+axs[0].legend(fontsize=9, loc="upper left")
+axs[1].plot(Tx, mg.min(axis=1), color=OK, lw=2.2, label="가장 작은 마진")
+axs[1].step(Tx, te, where="post", color=FAIL, lw=1.8, label="train 오차")
+axs[1].step(Tx, ve, where="post", color=C["blue"], lw=1.8, label="valid 오차")
+axs[1].axhline(0, color=C["ink"], lw=.8, ls=":")
+axs[1].set(xlabel="트리 수 T", title="train은 좋아지고 마진은 커지는데, valid는 아니에요", ylim=(-0.35, 0.5))
+axs[1].legend(fontsize=9, loc="lower right")
+P_MARGIN = fig_save(fig, "adaboost_margins")
+outs["f_margin"] = chart("트리를 늘리면 마진이 어떻게 바뀌나", P_MARGIN, "",
+                         ["왼쪽: 선이 0보다 왼쪽에서 시작하면 틀린 행이 있다는 뜻이에요. 트리가 늘수록 선의 왼쪽 끝이 0을 넘어 오른쪽으로 옮겨 가요(가장 작은 마진이 커져요). 대신 선이 왼쪽으로 모여요(넉넉한 행이 줄어요).",
+                          f"오른쪽: 가장 작은 마진(보라)은 오르내리면서도 올라가는데, valid 오차(파랑)는 내려가지 않아요. 마진 이론은 \"마진이 크면 상한이 작다\"는 보장이에요. 이 데이터처럼 마진이 {mg[-1].min():.2f} 남짓이면 상한 자체가 아주 커서 아무것도 보장해 주지 않아요."])
+
 flow = [[1, "준비", "1쪽과 같은 나누기", "drop=first"], [2, "선형 SVM", "가장 넓은 도로", "서포트 벡터, C"], [3, "커널 SVM", "곡선 경계", "gamma, 균형"], [4, "LDA", "분포 가정, 베이즈", "한 줄로 사영"],
         [5, "QDA", "종류마다 다른 모양", "곡선 경계"], [6, "PCA", "정답 없이 열 줄이기", "분산 비율"], [7, "비교", "같은 교차검증", "균형 SVM이 1등"],
-        [8, "커널의 조건", "고윳값이 0 이상", "sigmoid는 아님"], [9, "커널 SVM의 답", "서포트 벡터 위의 합", "leave-one-out"], [10, "많은 데이터", "무작위 cos 열", "RBFSampler"]]
-S.save(ROOT / "topics" / "model" / "ml-svm-lda-pca-data.js", {"code": code, "names": S.names(code), "range": [1, 10], "outs": outs, "flow": flow, "env": ENV})
+        [8, "커널의 조건", "고윳값이 0 이상", "sigmoid는 아님"], [9, "커널 SVM의 답", "서포트 벡터 위의 합", "leave-one-out"], [10, "많은 데이터", "무작위 cos 열", "RBFSampler"],
+        [11, "AdaBoost 직접", "틀린 행에 무게", "α와 ε"], [12, "지수 손실", "오차의 상한", "곱으로 줄어요"], [13, "마진", "0이 된 뒤에도", "valid는 별개"]]
+S.save(ROOT / "topics" / "model" / "ml-svm-lda-pca-data.js", {"code": code, "names": S.names(code), "range": [1, 13], "outs": outs, "flow": flow, "env": ENV})
 
 why = f"""<p>1~3쪽에서 선형 모델, KNN, 트리와 앙상블을 봤어요. 표 데이터 분류에는 오래 쓰여 온 모델이 셋 더 있어요. 서로 생각하는 방식이 달라요.</p>
 {K.table(["모델", "한 문장", "1~3쪽과 닮은 점"], [["<b>SVM</b> (②③)", "두 무리 사이에 <b>가장 넓은 도로</b>를 내요", "로지스틱처럼 곧은 경계에서 시작해요. 커널을 쓰면 곡선 경계도 돼요"],
                                                  ["<b>LDA, QDA</b> (④⑤)", "무리마다 <b>어떻게 퍼져 있는지</b>를 배우고, 새 점이 어느 무리에서 나왔을 확률이 높은지 따져요", "확률을 내는 건 로지스틱과 같지만, 계산하는 길이 반대예요"],
                                                  ["<b>PCA</b> (⑥)", "정답 없이, 열을 <b>정보가 많은 몇 개로</b> 줄여요", "3쪽 K-Means처럼 비지도 학습이에요. 1쪽에서 말한 차원의 저주를 덜어요"],
-                                                 ["<b>커널 더 깊이</b> (⑧~⑩)", "③의 커널이 <b>언제 되고, 무엇을 배우고, 데이터가 많으면 어떻게 하는지</b> 봐요", "1쪽 KNN처럼 train 점들과의 유사도로 예측해요. 다만 서포트 벡터만, 무게를 붙여서요"]])}
+                                                 ["<b>커널 더 깊이</b> (⑧~⑩)", "③의 커널이 <b>언제 되고, 무엇을 배우고, 데이터가 많으면 어떻게 하는지</b> 봐요", "1쪽 KNN처럼 train 점들과의 유사도로 예측해요. 다만 서포트 벡터만, 무게를 붙여서요"],
+                                                 ["<b>AdaBoost 더 깊이</b> (⑪~⑬)", "2쪽 ⑩의 부스팅을 <b>직접 짜고</b>, train 오차가 왜 빨리 줄고 그 뒤에 무엇이 바뀌는지 봐요", "SVM의 도로 폭처럼, AdaBoost에도 <b>마진</b>이 있어요"]])}
 <p>예제는 1~3쪽과 같은 업무 요청 100건, 같은 train/valid 나누기, 같은 교차검증이에요. 그래서 마지막 ⑦에서 2쪽 ⑫의 점수와 바로 비교할 수 있어요. 다만 3쪽 ⑰에서 test를 이미 한 번 썼기 때문에, 이 쪽에서는 test를 쓰지 않아요.</p>
 """
-whole = """<p>같은 준비 위에 SVM 둘, 판별분석 둘, PCA 하나를 차례로 올리고, 같은 교차검증으로 비교해요. ⑧~⑩은 ③의 커널을 한 번 더 깊이 들여다봐요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+whole = """<p>같은 준비 위에 SVM 둘, 판별분석 둘, PCA 하나를 차례로 올리고, 같은 교차검증으로 비교해요. ⑧~⑩은 ③의 커널을, ⑪~⑬은 2쪽 ⑩의 AdaBoost를 한 번 더 깊이 들여다봐요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
 <p>이 쪽의 코드는 새 파일 <code>more_models.py</code>예요. 1~3쪽의 <code>requests_model.py</code>는 3쪽 ⑰의 최종 평가로 끝났거든요.</p>"""
 steps = [
     K.step(1, "데이터와 전처리 준비", "1쪽 ①③과 같은 나누기와 전처리를 다시 만들어요. 원-핫에서 한 열씩 빼는 선택만 더해요.",
@@ -381,6 +494,42 @@ steps = [
            + K.out("s10")
            + "<p>무작위로 뽑은 방향이라 <code>random_state</code>에 따라 값이 조금씩 달라요. 비슷한 방법으로 train 점 일부만 골라 커널 행렬을 근사하는 <code>Nystroem</code>도 있어요. 데이터가 수만 건 넘으면 이 둘 중 하나로 열을 만들고 <code>LinearSVC</code>나 <code>SGDClassifier</code> 같은 빠른 선형 모델을 올려요.</p>"
            + K.code_table([("RBFSampler(gamma=g, n_components=D, random_state=0)", "RBF 커널을 흉내 내는 cos 열 D개. gamma는 흉내 낼 RBF의 γ"), ("Pipeline([... (\"rff\", RBFSampler(...)), (\"model\", SVC(kernel=\"linear\"))])", "전처리 → 열 만들기 → 선형 SVM을 한 번에")]), "s10"),
+    K.step(11, "AdaBoost를 직접: 틀린 행에 무게 주기", "질문 하나짜리 트리를 500번 고르면서, 매번 앞에서 틀린 행의 무게를 키워요. 20줄로 직접 짜고 scikit-learn과 맞춰 봐요.",
+           "<p>2쪽 ⑩에서 AdaBoost를 \"앞에서 틀린 행에 가중치를 키워서, 그 행을 더 신경 쓰게\"라고 한 줄로 적었어요. 여기서는 그 한 줄을 직접 짜요.</p>"
+           "<p><b>약한 학습기</b>: 질문 하나짜리 트리(깊이 1, <b>스텀프</b>)는 혼자서는 약해요. 부스팅이 기대하는 건 딱 하나, \"어떤 무게를 줘도 동전 던지기보다는 조금 낫다\"예요. 무게로 잰 틀린 비율 ε이 ½보다 작기만 하면 돼요. \"이런 약한 학습기를 여럿 묶으면 얼마든지 정확한 분류기를 만들 수 있나\"가 부스팅의 질문이었고, AdaBoost가 그 답이에요.</p>"
+           "<p>정답을 +1(실패), −1(성공)로 두면 한 번의 차례는 이래요.</p>"
+           "<ol><li>지금 무게 D로 스텀프 h를 하나 고르고, 무게로 잰 틀린 비율 ε을 재요.</li>"
+           "<li>그 트리의 발언권 <code>α = ½ log((1 − ε) ÷ ε)</code>. ε이 작을수록 크고, ε = ½이면 0이에요.</li>"
+           "<li>무게 고치기: 틀린 행(y × h(x) = −1)은 e^α배, 맞힌 행은 e^(−α)배 하고, 합이 1이 되게 Z로 나눠요.</li></ol>"
+           "<p>T번 뒤의 점수는 <code>f(x) = α₁h₁(x) + ... + α_T h_T(x)</code>이고, 부호가 답이에요. 2쪽 ⑨의 포레스트는 트리마다 같은 무게로 투표했는데, AdaBoost는 트리마다 발언권이 달라요.</p>"
+           + K.out("s11")
+           + "<p>2쪽 ⑩의 Gradient Boosting은 \"남은 잔차를 맞히기\"였어요. AdaBoost는 \"틀린 행의 무게를 키우기\"예요. 달라 보이지만, ⑫에서 보듯 AdaBoost도 어떤 손실을 한 걸음씩 줄이는 방법이에요.</p>"
+           + K.code_table([("np.where(y_train == 1, 1, -1)", "정답을 +1, −1로. 그래야 y × h(x)가 맞으면 +1, 틀리면 −1이 돼요"), ("DecisionTreeClassifier(max_depth=1)", "질문 하나짜리 트리 (스텀프)"),
+                           ("fit(X, y, sample_weight=D)", "행마다 무게를 주고 학습. 무게가 큰 행을 틀리면 더 큰 손해로 쳐요"), ("D[p != y].sum()", "무게로 잰 틀린 비율 ε"),
+                           ("np.cumsum(alphas[:, None] * H_train, axis=0)", "트리 1개, 2개, ..., 500개까지의 점수를 한 번에"), ("AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), n_estimators=200)", "같은 일을 하는 scikit-learn")]), "s11"),
+    K.step(12, "train 오차가 빨리 줄어드는 이유: 지수 손실", "train 오차는 \"트리마다 정해지는 값 Z의 곱\" 아래에 있어요. AdaBoost는 매번 그 Z를 가장 작게 하는 α를 골라요.",
+           "<p>⑪의 무게 고치기를 T번 이어서 풀어 쓰면, 행 i의 무게는 <code>e^(−yᵢ f(xᵢ)) ÷ (m × Z₁ × ... × Z_T)</code>예요(m은 행 수). 무게의 합은 1이니까 모든 행을 더하면 이렇게 돼요.</p>"
+           "<p><code>(1/m) Σ e^(−yᵢ f(xᵢ)) = Z₁ × Z₂ × ... × Z_T</code></p>"
+           "<p>왼쪽은 <b>지수 손실</b>의 평균이에요. 틀린 행은 y × f(x) ≤ 0이라 e^(−y f(x)) ≥ 1이고, 맞힌 행도 0보다 커요. 그래서 train 오차(틀린 행의 비율)는 언제나 지수 손실의 평균 아래예요.</p>"
+           "<p>곧 <b>train 오차 ≤ Z₁ × ... × Z_T</b>이고, <code>Z_t = 2√(ε_t(1 − ε_t))</code>는 ε_t < ½이면 1보다 작아요. 1보다 작은 수를 계속 곱하니 상한이 곱으로(지수적으로) 줄어요. 더 정리하면 <code>≤ exp(−2 Σ (½ − ε_t)²)</code>이고, 모든 트리가 ε_t ≤ ½ − γ이면 <code>≤ exp(−2γ²T)</code>예요. γ가 조금이라도 0보다 크면, 트리를 늘리는 만큼 train 오차는 반드시 0으로 가요.</p>"
+           + K.out("s12") + K.out("f_bound")
+           + "<p><b>α는 왜 하필 ½ log((1 − ε) ÷ ε)인가</b>: Z = (1 − ε)e^(−α) + εe^α를 α로 미분해 0으로 두면 정확히 그 값이 나와요. 곧 AdaBoost는 매번 상한을 가장 많이 줄이는 발언권을 골라요.</p>"
+           "<p><b>한 걸음씩 줄이는 방법이었다</b>: 모든 스텀프를 열로 놓고, 지수 손실 <code>(1/m) Σ e^(−y f(x))</code>를 \"한 번에 한 열의 계수만 고치는\" 방법(<b>좌표 하강</b>)으로 줄인다고 해 봐요. 매번 가장 많이 내려가는 열을 고르면 그게 ⑪에서 ε이 가장 작은 스텀프이고, 그 열을 얼마나 고칠지 가장 좋은 걸음 크기를 구하면 그게 α예요. AdaBoost는 지수 손실에 대한 좌표 하강과 정확히 같아요. 2쪽 ⑩의 Gradient Boosting이 \"잔차 = 기울기 반대 방향\"으로 손실을 줄였던 것과 같은 집안이에요.</p>"
+           + K.out("f_loss")
+           + "<p>지수 손실 대신 1쪽 ⑤의 로그 손실을 같은 방법으로 줄이면, 무게가 덜 공격적으로 커지는 부스팅이 돼요. scikit-learn의 <code>GradientBoostingClassifier</code>와 XGBoost가 분류에서 기본으로 쓰는 손실이 이 로그 손실이에요. 라벨에 잡음이 있으면 이쪽이 더 튼튼해요.</p>"
+           + K.code_table([("np.exp(-ys * F_train).mean(axis=1)", "트리 수마다 지수 손실의 평균"), ("np.cumprod([h[\"Z\"] for h in history])", "Z₁, Z₁Z₂, Z₁Z₂Z₃, ... 누적 곱"), ("int(np.argmax(train_err == 0)) + 1", "train 오차가 처음 0이 된 트리 수"), ("np.flatnonzero(train_err > 0)[-1] + 2", "마지막으로 틀린 다음 트리 수. 그 뒤로는 계속 0")])
+           + K.try_("스텀프 대신 깊이 2, 3인 트리를 쓰면?", "t12"), "s12"),
+    K.step(13, "마진: train 오차가 0이 된 뒤에도 바뀌는 것", "점수를 발언권의 합으로 나눈 L1 마진이 트리를 늘릴수록 어떻게 바뀌는지 보고, valid와 교차검증 점수와 나란히 놓아요.",
+           "<p>트리를 늘릴수록 모델은 복잡해져요. 모델 묶음이 얼마나 복잡한지 재는 값 하나가 <b>VC 차원</b>이에요. 그 묶음이 점 몇 개까지는 라벨을 어떻게 붙여도 다 맞힐 수 있는지를 세요. 스텀프 T개를 무게 붙여 더한 모델의 VC 차원은 대략 T log T에 비례해서 커져요. 그러면 트리를 늘릴수록 과적합해야 할 것 같은데, 실제로는 train 오차가 0이 된 뒤에도 test 오차가 계속 내려가는 일이 자주 보고됐어요.</p>"
+           "<p>이걸 설명하는 게 <b>마진</b>이에요. ⑨에서 SVM은 도로가 넓을수록 처음 보는 데이터에 강하다고 했어요. AdaBoost에서는 점수를 발언권의 합으로 나눈 값이 그 역할을 해요.</p>"
+           "<p><code>L1 마진 = y × f(x) ÷ (α₁ + ... + α_T)</code></p>"
+           "<p>−1에서 1 사이이고, 양수면 맞힌 것, 클수록 \"트리들이 많이 동의해서\" 확실히 맞힌 거예요. 처음 보는 데이터에서 틀릴 확률의 상한은 \"마진이 ρ보다 작은 train 행의 비율 + (스텀프 묶음의 복잡도 ÷ ρ) + 데이터 수로 정해지는 항\"이에요. 여기에 <b>트리 수 T가 없어요</b>. 트리를 늘려도 마진이 커지면 상한은 오히려 작아질 수 있다는 거예요.</p>"
+           + K.table(["", "SVM (②⑨)", "AdaBoost"], [["점수", "θᵀx + θ₀", "α₁h₁(x) + ... + α_T h_T(x)"], ["마진", "점수 ÷ ‖θ‖ (제곱합의 제곱근, L2)", "점수 ÷ Σα (절댓값의 합, L1)"],
+                                                    ["마진을 키우는 방법", "가장 작은 마진을 직접 최대로", "트리를 늘리면 커지지만, 최대까지는 아니에요"]])
+           + K.out("s13") + K.out("f_margin") + K.out("s13cv")
+           + "<p><b>약한 학습 가정은 사실 강한 가정이에요</b>: \"어떤 무게를 줘도 ε ≤ ½ − γ인 스텀프가 있다\"는 조건을 게임으로 풀면(무게를 고르는 쪽과 스텀프를 고르는 쪽의 시합, 폰 노이만의 미니맥스 정리), train 데이터가 스텀프들의 무게 합으로 마진 2γ 이상 깨끗이 갈린다는 것과 같은 말이 돼요. 이 데이터는 ⑫에서 ε이 0.45 넘게 ½에 다가갔어요. 깨끗이 갈리지 않는 데이터라는 신호예요.</p>"
+           "<p>그래서 실제로는 트리 수 T를 교차검증으로 정하거나 learning rate를 곱해 조금씩 더하고(2쪽 ⑩의 shrinkage), 발언권의 합 Σα에 벌점을 주기도 해요(L1 규제). 무게가 큰 행(⑪)은 이상치나 라벨 오류 후보로 따로 살펴봐요.</p>"
+           + K.code_table([("ys * F_train / np.cumsum(alphas)[:, None]", "트리 수마다 행별 L1 마진"), ("cross_validate(build(AdaBoostClassifier(..., n_estimators=T)), ...)", "트리 수 T마다 ⑦과 같은 교차검증")]), "s13"),
 ]
 practice = [("SVM 앞에는 꼭 크기 맞추기", "SVM은 거리와 내적으로 판단해서, 큰 단위 열이 도로 방향을 다 정해 버려요. RBF는 특히 그래요."),
             ("데이터가 수만 건 넘으면 (SVM)", "커널 SVM은 모든 점 쌍의 커널 값을 다뤄서 건수의 제곱에서 세제곱만큼 느려져요. 곧은 경계로 충분하면 <code>LinearSVC</code>나 로지스틱을 써요."),
@@ -392,21 +541,25 @@ practice = [("SVM 앞에는 꼭 크기 맞추기", "SVM은 거리와 내적으�
             ("PCA가 분류를 좋게 하나", "보장은 없어요. 분산이 큰 방향이 정답을 가르는 방향이라는 법은 없거든요. 열이 아주 많거나 서로 닮았을 때 흔들림을 줄이는 데 주로 도움이 돼요 (⑦에서 표준편차가 가장 작았어요). 늘 교차검증으로 확인해요."),
             ("그림으로 보고 싶다", "PCA 두 개로 먼저 보고, 휘어진 구조가 의심되면 t-SNE나 UMAP을 써요. 이 둘은 그림용이고, 축 값 자체에는 뜻이 없어요."),
             ("커널을 직접 만들었다", "몇백 개 점으로 커널 행렬을 만들어 <code>np.linalg.eigvalsh</code>의 가장 작은 값이 0 이상인지 봐요(⑧). 이미 있는 커널을 더하거나 곱해서 만들면 늘 커널이에요."),
-            ("커널 SVM이 너무 느리다", "건수가 수만을 넘으면 <code>RBFSampler</code>나 <code>Nystroem</code>으로 열을 만들고 선형 모델을 올려요(⑩). 정확도가 조금 내려갈 수 있으니 D를 늘려 가며 교차검증으로 확인해요.")]
+            ("커널 SVM이 너무 느리다", "건수가 수만을 넘으면 <code>RBFSampler</code>나 <code>Nystroem</code>으로 열을 만들고 선형 모델을 올려요(⑩). 정확도가 조금 내려갈 수 있으니 D를 늘려 가며 교차검증으로 확인해요."),
+            ("AdaBoost의 트리 수", "train 오차가 0이 됐다고 멈추지 말고, 교차검증으로 정해요(⑬). <code>learning_rate</code>를 1보다 작게 두면 트리를 더 많이 쓰는 대신 덜 흔들려요."),
+            ("라벨이 지저분한 데이터에 부스팅", "AdaBoost는 크게 틀린 행에 무게를 몰아줘서 라벨 오류에 약해요(⑫의 손실 그림). 로그 손실을 쓰는 <code>GradientBoostingClassifier</code>, XGBoost, LightGBM이 더 튼튼해요."),
+            ("무게가 큰 행 살펴보기", "AdaBoost가 끝까지 무게를 몰아준 행(⑪)은 라벨 오류나 예외 사례일 때가 많아요. 지우기 전에 원본을 직접 확인해요.")]
 libs = [("①", "<code>OneHotEncoder(drop=\"first\")</code>", "같은 정보 열 빼기"), ("②③", "<code>SVC</code>, <code>coef_</code>, <code>n_support_</code>, <code>class_weight</code>", "SVM (scikit-learn)"),
         ("④⑤", "<code>LinearDiscriminantAnalysis</code>, <code>QuadraticDiscriminantAnalysis</code>, <code>transform</code>", "판별분석"), ("⑥", "<code>PCA</code>, <code>explained_variance_ratio_</code>, <code>components_</code>", "주성분 분석"),
         ("⑦", "<code>StratifiedKFold</code>, <code>cross_validate</code>", "교차검증"),
         ("⑧", "<code>polynomial_kernel</code>, <code>rbf_kernel</code>, <code>laplacian_kernel</code>, <code>sigmoid_kernel</code>, <code>np.linalg.eigvalsh</code>", "커널 행렬과 고윳값"),
-        ("⑨", "<code>dual_coef_</code>, <code>support_vectors_</code>, <code>LeaveOneOut</code>, <code>cross_val_predict</code>", "커널 SVM의 답, leave-one-out"), ("⑩", "<code>RBFSampler</code>", "커널 근사 (scikit-learn)")]
+        ("⑨", "<code>dual_coef_</code>, <code>support_vectors_</code>, <code>LeaveOneOut</code>, <code>cross_val_predict</code>", "커널 SVM의 답, leave-one-out"), ("⑩", "<code>RBFSampler</code>", "커널 근사 (scikit-learn)"),
+        ("⑪", "<code>DecisionTreeClassifier(max_depth=1)</code>, <code>sample_weight</code>, <code>AdaBoostClassifier</code>", "스텀프와 AdaBoost"), ("⑫⑬", "<code>np.cumsum</code>, <code>np.cumprod</code>", "트리 수마다 점수, 상한, 마진")]
 K.build(ROOT / "topics" / "model" / "ml-svm-lda-pca.html", title="SVM, 판별분석, 차원 축소", h1="SVM, 판별분석, 차원 축소: 도로, 분포, 방향으로 가르기", track="모델",
         crumb="모델 &gt; 머신러닝 기초 4/4쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-metrics-clustering.html\" style=\"color:inherit\">평가지표와 군집</a>",
-        one_line="<b>SVM</b>은 두 무리 사이에 가장 넓은 도로를 내고, <b>LDA와 QDA</b>는 무리마다 퍼진 모양을 배워 확률로 판단하고, <b>PCA</b>는 정답 없이 데이터가 가장 많이 퍼진 방향 몇 개로 열을 줄여요.",
-        why=why, whole=whole, steps=steps, code_file="examples/ml/more_models.py", practice=practice, libs=libs, libs_note="<code>part</code>, <code>build</code>, <code>score</code>는 이 파일 안에서 정의한 함수예요.",
+        one_line="<b>SVM</b>은 두 무리 사이에 가장 넓은 도로를 내고, <b>LDA와 QDA</b>는 무리마다 퍼진 모양을 배워 확률로 판단하고, <b>PCA</b>는 정답 없이 데이터가 가장 많이 퍼진 방향 몇 개로 열을 줄여요. 끝으로 <b>AdaBoost</b>를 직접 짜서, 부스팅에도 SVM 같은 마진이 있다는 걸 봐요.",
+        why=why, whole=whole, steps=steps, code_file="examples/ml/more_models.py", practice=practice, libs=libs, libs_note="<code>part</code>, <code>build</code>, <code>score</code>, <code>adaboost</code>는 이 파일 안에서 정의한 함수예요.",
         next_rows=[("<a href=\"ml-regression-classification.html\">회귀와 분류</a>", "로지스틱, 규제, 원-핫 열 문제"), ("<a href=\"ml-trees-cv.html\">트리와 앙상블, 교차검증</a>", "⑦과 같은 교차검증 표"),
                    ("<a href=\"dl-tensor-training.html\">딥러닝 기초</a>", "신경망으로 넘어가기")],
         sources=["다루는 범위: 부트캠프 Day05~08의 머신러닝 기초를 넓힌 쪽이에요. 수업에서 따로 다루지 않은 모델이라, 그 Day의 예제를 그대로 이어 썼어요",
                  "함께 정리한 자료: 경희대 Pattern Recognition and Machine Learning 7강(판별분석), 9강(SVM), 11강(차원축소). 최대 마진, 서포트 벡터, 소프트 마진과 힌지 손실, 라그랑주 쌍대와 KKT, 커널 트릭과 커널 종류, 베이즈 정리, 생성 모델과 판별 모델, LDA의 가정과 피셔 기준, QDA, 차원의 저주, PCA의 순서와 고유값, 주성분 개수 고르기, PCA와 LDA 비교, MDS를 가져왔어요. 값과 그림은 모두 이 예제로 계산했어요",
-                 "함께 정리한 자료: Mohri, Rostamizadeh, Talwalkar, <i>Foundations of Machine Learning</i> 2판 5장(서포트 벡터의 두 종류, leave-one-out 보장, 마진 이론), 6장(PDS 커널과 커널 행렬, RKHS, 닫힘 성질, Representer 정리, NDS 커널, 시퀀스 커널, 랜덤 푸리에 특성). ⑧~⑩의 값은 이 예제로 계산했어요",
+                 "함께 정리한 자료: Mohri, Rostamizadeh, Talwalkar, <i>Foundations of Machine Learning</i> 2판 5장(서포트 벡터의 두 종류, leave-one-out 보장, 마진 이론), 6장(PDS 커널과 커널 행렬, RKHS, 닫힘 성질, Representer 정리, NDS 커널, 시퀀스 커널, 랜덤 푸리에 특성), 7장(약학습, AdaBoost와 무게 고치기, 경험적 오차의 상한, 좌표 하강과의 관계, VC 차원 분석, L1 마진과 마진 상한, 게임 이론으로 본 약학습 가정, L1 규제, 잡음에 약한 점). ⑧~⑬의 값은 이 예제로 계산했어요",
                  "데이터: <code>examples/ml/data/requests.csv</code> (가상의 업무 요청 100건)와 <code>split_manifest.csv</code>. 1~3쪽과 같은 예제",
                  "결과 값과 그림: <code>tools/pages/ml_more.py</code>가 <code>examples/ml/more_models.py</code>를 단계별로 실제 실행한 결과",
                  "공식 문서: <a href=\"https://scikit-learn.org/stable/modules/svm.html\" target=\"_blank\">Support Vector Machines</a>, <a href=\"https://scikit-learn.org/stable/modules/metrics.html\" target=\"_blank\">Pairwise metrics and kernels</a>, <a href=\"https://scikit-learn.org/stable/modules/kernel_approximation.html\" target=\"_blank\">Kernel Approximation</a>, <a href=\"https://scikit-learn.org/stable/modules/lda_qda.html\" target=\"_blank\">Linear and Quadratic Discriminant Analysis</a>, <a href=\"https://scikit-learn.org/stable/modules/decomposition.html#pca\" target=\"_blank\">PCA</a>"])

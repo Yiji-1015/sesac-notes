@@ -2024,6 +2024,70 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "지수 손실",
+  "aliases": [
+   "Exponential Loss",
+   "exponential loss"
+  ],
+  "full": "Exponential Loss (지수 손실)",
+  "short": "한 행의 손실을 e^(−y × f(x))로 재는 것. 맞힌 행도 조금 남고, 크게 틀린 행은 손실이 지수로 커져요. AdaBoost가 줄이는 손실이고, 그 평균이 train 오차의 상한이에요.",
+  "analogy": "",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "약한 학습기",
+  "aliases": [
+   "Weak Learner",
+   "weak learner",
+   "스텀프",
+   "Decision Stump",
+   "stump"
+  ],
+  "full": "Weak Learner (약한 학습기)",
+  "short": "어떤 무게를 줘도 동전 던지기보다 조금만 나으면 되는 모델. 부스팅은 이런 모델을 여럿 묶어 강한 분류기를 만들어요. 질문 하나짜리 트리(스텀프)가 대표예요.",
+  "analogy": "혼자서는 반타작보다 조금 나은 학생들을 모아 팀으로 시험 보기.",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "좌표 하강",
+  "aliases": [
+   "Coordinate Descent",
+   "coordinate descent"
+  ],
+  "full": "Coordinate Descent (좌표 하강)",
+  "short": "여러 계수를 한꺼번에 고치는 대신, 한 번에 한 계수만 골라 가장 좋은 만큼 고치기를 되풀이해 손실을 줄이는 방법. AdaBoost는 지수 손실에 대한 좌표 하강과 같아요.",
+  "analogy": "",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "VC 차원",
+  "aliases": [
+   "VC Dimension",
+   "VC dimension",
+   "VC-dimension"
+  ],
+  "full": "Vapnik-Chervonenkis Dimension",
+  "short": "모델 묶음이 점 몇 개까지는 라벨을 어떻게 붙여도 모두 맞힐 수 있는지를 센 값. 클수록 복잡한 묶음이라, 데이터가 적으면 과적합하기 쉬워요.",
+  "analogy": "",
+  "first": 7,
+  "days": [
+   7
+  ],
+  "keyDays": []
+ },
+ {
   "term": "조화평균",
   "aliases": [
    "Harmonic mean"
@@ -2601,10 +2665,12 @@ window.GLOSSARY = [
    "Margin",
    "최대 마진",
    "힌지 손실",
-   "Hinge Loss"
+   "Hinge Loss",
+   "L1 마진",
+   "L1 Margin"
   ],
   "full": "Margin (마진)",
-  "short": "SVM 경계 양쪽 도로의 폭, 2 ÷ ‖θ‖. SVM은 이걸 가장 크게 해요. 도로 안으로 넘어온 정도를 재는 max(0, 1 − y·f(x))를 힌지 손실이라고 해요.",
+  "short": "분류 점수가 경계에서 얼마나 넉넉히 떨어져 있는지. SVM은 경계 양쪽 도로의 폭 2 ÷ ‖θ‖를 가장 크게 하고, 넘어온 정도 max(0, 1 − y × f(x))를 힌지 손실이라고 해요. AdaBoost에서는 점수를 발언권의 합으로 나눈 y × f(x) ÷ Σα(L1 마진)이 같은 역할을 해요.",
   "analogy": "",
   "first": 8,
   "days": [

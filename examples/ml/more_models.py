@@ -1,4 +1,4 @@
-# 업무 요청 실패 예측: 다른 모델 셋(SVM, 판별분석, PCA)과 커널 더 깊이. 노트 4쪽의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
+# 업무 요청 실패 예측: 다른 모델 셋(SVM, 판별분석, PCA), 커널 더 깊이, AdaBoost 더 깊이. 노트 4쪽의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
 # 1~3쪽의 requests_model.py와 같은 데이터, 같은 나누기, 같은 교차검증을 써서 바로 비교할 수 있어요.
 # 데이터: data/requests.csv (요청 100건), data/split_manifest.csv (train 60, valid 20, test 20)
 # 줄 끝의 "#@N" 표시는 노트가 "이 줄은 N단계에서 추가됨"을 알기 위한 표시예요(실행과 무관).
@@ -22,6 +22,8 @@ from sklearn.metrics.pairwise import linear_kernel, polynomial_kernel, rbf_kerne
 from sklearn.metrics.pairwise import sigmoid_kernel, laplacian_kernel, euclidean_distances   #@8
 from sklearn.model_selection import LeaveOneOut, cross_val_predict            #@9
 from sklearn.kernel_approximation import RBFSampler                            #@10
+from sklearn.tree import DecisionTreeClassifier                               #@11
+from sklearn.ensemble import AdaBoostClassifier                               #@11
 
 DATA = Path(__file__).resolve().parent / "data"                                 #@1
 
@@ -130,3 +132,43 @@ svm_rff = Pipeline([("pre", build(LogisticRegression()).named_steps["pre"]),
 dev_X = pd.concat([X_train, X_valid])
 same_answer = (svm_rff.predict(dev_X) == svm_rbf.predict(dev_X)).mean()   # ③의 커널 SVM과 같은 답을 낸 비율 (80건)
 rff_scores = score(svm_rff)
+
+# ⑪ AdaBoost를 직접: 틀린 행에 무게 주기
+ys, ys_valid = np.where(y_train == 1, 1, -1), np.where(y_valid == 1, 1, -1)   # AdaBoost는 정답을 +1(실패), −1(성공)로 써요
+
+def adaboost(X, y, T):
+    D = np.full(len(y), 1 / len(y))                              # 처음에는 모든 행이 같은 무게
+    stumps, alphas, history = [], [], []
+    for _ in range(T):
+        h = DecisionTreeClassifier(max_depth=1, random_state=0).fit(X, y, sample_weight=D)   # 무게를 반영한 질문 하나짜리 트리
+        p = h.predict(X)
+        eps = D[p != y].sum()                                    # 무게로 잰 틀린 비율 ε
+        a = 0.5 * np.log((1 - eps) / eps)                        # 이 트리의 발언권 α
+        Zt = 2 * np.sqrt(eps * (1 - eps))                        # 무게 합을 다시 1로 맞추는 값
+        D = D * np.exp(-a * y * p) / Zt                          # 틀린 행은 e^α배, 맞힌 행은 e^(−α)배
+        stumps.append(h); alphas.append(a)
+        history.append({"eps": eps, "Z": Zt, "wrong_mass": D[p != y].sum()})
+    return stumps, np.array(alphas), history, D
+
+stumps, alphas, history, D_last = adaboost(Z_train, ys, 500)
+H_train = np.array([h.predict(Z_train) for h in stumps])         # 트리마다 train 60건의 답 (500 × 60)
+H_valid = np.array([h.predict(Z_valid) for h in stumps])
+F_train = np.cumsum(alphas[:, None] * H_train, axis=0)           # T번째 줄 = 트리 T개까지의 점수 f(x) = Σ α h(x)
+F_valid = np.cumsum(alphas[:, None] * H_valid, axis=0)
+sk_ada = AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), n_estimators=200, random_state=0).fit(Z_train, ys)
+same_as_sk = (sk_ada.predict(Z_valid) == np.sign(F_valid[199])).mean()   # 직접 만든 것과 scikit-learn의 답이 같은 비율
+heavy = np.argsort(D_last)[::-1][:5]                             # 500번 뒤 무게가 가장 큰 5건
+
+# ⑫ train 오차가 빨리 줄어드는 이유: 지수 손실
+train_err = (np.sign(F_train) != ys).mean(axis=1)                # T마다 train 오차
+exp_loss = np.exp(-ys * F_train).mean(axis=1)                    # 지수 손실 e^(−y f(x))의 평균
+bound = np.cumprod([h["Z"] for h in history])                    # Z₁ × Z₂ × ... × Z_T
+bound_gamma = np.exp(-2 * np.cumsum([(0.5 - h["eps"]) ** 2 for h in history]))   # exp(−2 Σ (½ − ε)²)
+first_zero = int(np.argmax(train_err == 0)) + 1                  # train 오차가 처음 0이 된 트리 수
+stay_zero = int(np.flatnonzero(train_err > 0)[-1]) + 2            # 그 뒤로 계속 0인 첫 트리 수
+
+# ⑬ 마진: train 오차가 0이 된 뒤에도 바뀌는 것
+margins = ys * F_train / np.cumsum(alphas)[:, None]              # L1 마진 y f(x) ÷ Σα. −1에서 1 사이
+valid_err = (np.sign(F_valid) != ys_valid).mean(axis=1)
+ada_cv = {T: cross_validate(build(AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), n_estimators=T, random_state=0)),
+                            dev[FEATURES], dev["failed"], cv=cv, scoring="f1")["test_score"] for T in (10, 50, 200, 500)}
