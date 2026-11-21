@@ -113,6 +113,7 @@
           <a class="item" href="topics/model/ml-trees-cv.html"><b>트리, 앙상블, 교차검증</b><small>Decision Tree, Random Forest, XGBoost, 특성 중요도, 5-fold</small></a>
           <a class="item" href="topics/model/ml-metrics-clustering.html"><b>평가지표, 특성 설계, K-Means</b><small>Precision, Recall, F1, ROC-AUC, 임계값, 군집</small></a>
           <a class="item" href="topics/model/ml-svm-lda-pca.html"><b>SVM, 판별분석, 차원 축소</b><small>최대 마진, 커널, LDA와 QDA, 베이즈, PCA, 주성분, 커널이 되는 조건, Representer 정리, 커널 근사, AdaBoost 직접 짜기, 지수 손실, L1 마진</small></a>
+          <a class="item" href="topics/model/ml-learning-theory.html"><b>학습 이론: 몇 건이면 믿을 수 있나</b><small>i.i.d., 진짜 오차와 보이는 오차, Hoeffding, 후보 수와 낙관, PAC 학습, VC 차원과 산산조각, Sauer 보조정리, Rademacher 복잡도, 근사 오차와 추정 오차, ERM과 SRM</small></a>
         </div>
         <div class="cat">
           <h3>딥러닝 기초</h3>
@@ -195,6 +196,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/21</td><td><a href="topics/model/ml-learning-theory.html">학습 이론: 몇 건이면 믿을 수 있나</a> 새로 씀 (머신러닝 기초 5쪽): Foundations of Machine Learning 2~4장. 정답을 아는 세상에서 Hoeffding 막대, 후보 수에 따른 낙관, 직사각형 PAC 학습(1 ÷ m), 직선과 직사각형의 VC 차원 세기, 트리의 Rademacher 복잡도, 깊이별 근사 오차와 추정 오차, valid, 교차검증, SRM으로 깊이 고르기</td></tr>
         <tr><td class="when">11/21</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑪~⑬ 추가: Foundations of Machine Learning 7장. AdaBoost를 직접 짜서 scikit-learn과 맞추기, train 오차가 지수 손실(Z의 곱) 아래에서 줄어드는 모습, 0-1, 지수, 로그, 힌지 손실 비교, 트리를 늘릴 때 L1 마진과 valid, 교차검증 점수</td></tr>
         <tr><td class="when">11/20</td><td>백엔드 외전 <a href="topics/backend/service-flow.html">로직 밖에서 서비스를 완성하기</a> 추가. 설정과 DB 준비, Session과 트랜잭션의 책임, 계층 연결, Health, Postman Collection과 Environment를 작은 서비스 하나로 정리. 실행 가능한 독립 예제와 검증용 JSON 제공</td></tr>
         <tr><td class="when">11/20</td><td><a href="topics/model/llm-architectures.html">요즘 LLM의 부품</a> 새로 씀: LLM internals(언어 모델의 계보) 발표와 vLLM 사용자 모임 노트. GPT-2와 Llama를 설정만으로 같은 크기로 만들어 RMSNorm, SwiGLU, RoPE, GQA를 나란히 보고, KV 캐시(prefill과 decode, 앞부분 다시 쓰기), 슬라이딩 윈도우, MoE를 직접 재기</td></tr>

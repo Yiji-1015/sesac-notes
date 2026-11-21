@@ -69,7 +69,8 @@
    - 끝남: 커널(5, 6장) → 머신러닝 4쪽 `ml-svm-lda-pca.html`에 ⑧~⑩ 추가 (커널 행렬의 고윳값, Representer 정리와 leave-one-out, 랜덤 푸리에 특성). ①~⑦ 값은 그대로
    - 끝남: 부스팅(7장) → 머신러닝 4쪽 `ml-svm-lda-pca.html`에 ⑪~⑬ 추가 (AdaBoost 직접 짜기, 지수 손실과 train 오차의 상한, L1 마진). 2쪽 ⑩에는 4쪽으로 가는 링크만 넣었어요. 2쪽 뒤에 단계를 끼우면 3쪽 번호(⑬~⑰)가 밀려서 4쪽에 이었어요. ①~⑩ 값은 그대로
      - 이 작은 데이터에서는 트리를 늘려도 valid와 교차검증 점수가 좋아지지 않았어요(트리 50개가 가장 좋음). 페이지에도 그대로 적었어요
-   - PAC, VC 차원: 학습 이론 페이지를 새로 만들어요.
+   - 끝남: 1~4장(PAC, Rademacher와 VC 차원, 모델 선택) → 새 쪽 **학습 이론: 몇 건이면 믿을 수 있나** (`ml-learning-theory.html`, 머신러닝 기초 5/5쪽, 예제 `examples/theory/learning_theory.py`). 정답 직사각형 + 잡음 10%인 가상 세상이라 진짜 오차를 정확히 계산해요. 1~4쪽 번호를 x/5쪽으로 바꿨어요
+   - 계획에 없던 장: 8장(온라인 학습), 9장(다중 분류), 10장(랭킹), 11장(회귀), 12~13장(최대 엔트로피), 14장(알고리즘 안정성), 15장(차원 축소), 16장(오토마타 학습), 17장(강화학습). 17장은 강화학습 카테고리 때 같이 봐요
 3. **Elastic ANN, Elasticsearch**: 백엔드의 embedding, indexing 페이지에 보강해요.
 4. **llm-internals, vLLM, Solar Open 2, llm-judge** (진행 중)
    - 끝남: llm-internals, vLLM → 새 쪽 **요즘 LLM의 부품** (`llm-architectures.html`, 예제 `examples/llm_arch/`). 모델은 받지 않고 설정만으로 GPT-2, Llama, Mistral, Mixtral을 작게 만들어 비교 (CPU 10초쯤)

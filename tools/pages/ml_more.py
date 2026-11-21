@@ -552,7 +552,7 @@ libs = [("①", "<code>OneHotEncoder(drop=\"first\")</code>", "같은 정보 열
         ("⑨", "<code>dual_coef_</code>, <code>support_vectors_</code>, <code>LeaveOneOut</code>, <code>cross_val_predict</code>", "커널 SVM의 답, leave-one-out"), ("⑩", "<code>RBFSampler</code>", "커널 근사 (scikit-learn)"),
         ("⑪", "<code>DecisionTreeClassifier(max_depth=1)</code>, <code>sample_weight</code>, <code>AdaBoostClassifier</code>", "스텀프와 AdaBoost"), ("⑫⑬", "<code>np.cumsum</code>, <code>np.cumprod</code>", "트리 수마다 점수, 상한, 마진")]
 K.build(ROOT / "topics" / "model" / "ml-svm-lda-pca.html", title="SVM, 판별분석, 차원 축소", h1="SVM, 판별분석, 차원 축소: 도로, 분포, 방향으로 가르기", track="모델",
-        crumb="모델 &gt; 머신러닝 기초 4/4쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-metrics-clustering.html\" style=\"color:inherit\">평가지표와 군집</a>",
+        crumb="모델 &gt; 머신러닝 기초 4/5쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-metrics-clustering.html\" style=\"color:inherit\">평가지표와 군집</a> &nbsp;|&nbsp; 다음: <a href=\"ml-learning-theory.html\" style=\"color:inherit\">학습 이론</a>",
         one_line="<b>SVM</b>은 두 무리 사이에 가장 넓은 도로를 내고, <b>LDA와 QDA</b>는 무리마다 퍼진 모양을 배워 확률로 판단하고, <b>PCA</b>는 정답 없이 데이터가 가장 많이 퍼진 방향 몇 개로 열을 줄여요. 끝으로 <b>AdaBoost</b>를 직접 짜서, 부스팅에도 SVM 같은 마진이 있다는 걸 봐요.",
         why=why, whole=whole, steps=steps, code_file="examples/ml/more_models.py", practice=practice, libs=libs, libs_note="<code>part</code>, <code>build</code>, <code>score</code>, <code>adaboost</code>는 이 파일 안에서 정의한 함수예요.",
         next_rows=[("<a href=\"ml-regression-classification.html\">회귀와 분류</a>", "로지스틱, 규제, 원-핫 열 문제"), ("<a href=\"ml-trees-cv.html\">트리와 앙상블, 교차검증</a>", "⑦과 같은 교차검증 표"),

@@ -1262,6 +1262,170 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "i.i.d.",
+  "aliases": [
+   "iid",
+   "독립 동일 분포"
+  ],
+  "full": "independent and identically distributed",
+  "short": "데이터가 어떤 정해진 분포에서 서로 상관없이, 같은 방식으로 뽑혔다는 가정. train과 test가 같은 분포에서 나와야 학습 이론의 보장이 성립해요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "진짜 오차",
+  "aliases": [
+   "일반화 오차",
+   "Generalization Error",
+   "Risk",
+   "보이는 오차",
+   "경험적 오차",
+   "Empirical Error"
+  ],
+  "full": "Generalization Error (일반화 오차)",
+  "short": "처음 보는 데이터 하나를 뽑았을 때 모델이 틀릴 확률. 실제로는 알 수 없고, 가진 m건에서 틀린 비율(보이는 오차, 경험적 오차)로 추정해요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "베이즈 오차",
+  "aliases": [
+   "Bayes Error",
+   "베이즈 분류기",
+   "Bayes Classifier"
+  ],
+  "full": "Bayes Error (베이즈 오차)",
+  "short": "어떤 모델로도 넘을 수 없는 오차의 바닥. 같은 입력에서도 답이 갈리는 잡음 때문에 생겨요. 입력마다 더 흔한 답을 고르는 모델(베이즈 분류기)의 오차예요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "PAC 학습",
+  "aliases": [
+   "PAC",
+   "PAC Learning",
+   "Probably Approximately Correct",
+   "애그노스틱 PAC"
+  ],
+  "full": "Probably Approximately Correct Learning",
+  "short": "정한 ε, δ에 대해 데이터가 충분하면 1 − δ 이상의 확률로 진짜 오차가 ε 이하인 모델을 찾을 수 있다는 뜻. 분포가 어떤 모양이든 성립해야 해요.",
+  "analogy": "\"거의 확실히(Probably), 거의 맞는(Approximately Correct)\" 모델을 보장하기.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Hoeffding 부등식",
+  "aliases": [
+   "Hoeffding",
+   "Hoeffding's inequality"
+  ],
+  "full": "Hoeffding's Inequality",
+  "short": "m건으로 잰 평균이 진짜 평균에서 ε 이상 벗어날 확률이 2 exp(−2mε²) 이하라는 부등식. 그래서 오차 막대가 1 ÷ √m으로 줄어요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "VC 상한",
+  "aliases": [
+   "Sauer 보조정리",
+   "Sauer's lemma",
+   "산산조각",
+   "shatter",
+   "성장 함수",
+   "Growth Function"
+  ],
+  "full": "VC Bound and Sauer's Lemma",
+  "short": "모델 묶음이 n개 점에 붙일 수 있는 라벨 수(성장 함수)는 VC 차원이 d면 n의 d제곱 정도로만 늘어요(Sauer 보조정리). 모든 라벨을 다 붙일 수 있으면 그 점들을 산산조각 낸다고 해요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Rademacher 복잡도",
+  "aliases": [
+   "Rademacher",
+   "Rademacher Complexity"
+  ],
+  "full": "Rademacher Complexity",
+  "short": "동전 던지기로 만든 가짜 라벨을 모델 묶음이 얼마나 잘 맞힐 수 있는지의 평균. 1에 가까우면 무엇이든 외울 수 있는 묶음이에요. 가진 데이터 위에서 바로 재는 복잡도예요.",
+  "analogy": "아무 뜻 없는 답안지도 외워 버리는 능력.",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "근사 오차",
+  "aliases": [
+   "Approximation Error",
+   "추정 오차",
+   "Estimation Error"
+  ],
+  "full": "Approximation and Estimation Error",
+  "short": "진짜 오차가 바닥(베이즈 오차)보다 높은 만큼은 두 조각이에요. 모델 묶음이 정답을 못 그려서 생기는 근사 오차와, 가진 데이터로 묶음 안의 가장 좋은 모델을 못 찾아서 생기는 추정 오차예요. 묶음을 키우면 앞은 줄고 뒤는 늘어요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "ERM",
+  "aliases": [
+   "경험적 위험 최소화",
+   "Empirical Risk Minimization",
+   "SRM",
+   "구조적 위험 최소화",
+   "Structural Risk Minimization"
+  ],
+  "full": "Empirical / Structural Risk Minimization",
+  "short": "ERM은 가진 데이터에서 오차가 가장 작은 모델을 고르는 것. SRM은 모델 묶음을 작은 것부터 큰 것까지 쌓아 두고, 오차 + 복잡도 벌점이 가장 작은 것을 고르는 것이에요. 규제가 SRM을 연속으로 만든 꼴이에요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "오컴의 면도날",
+  "aliases": [
+   "Occam's Razor"
+  ],
+  "full": "Occam's Razor",
+  "short": "설명력이 같으면 더 단순한 것을 고르라는 원칙. 학습 이론에서는 모델을 적는 데 드는 bit 수가 적을수록 같은 데이터로 더 믿을 만하다는 상한으로 나와요.",
+  "analogy": "",
+  "first": 6,
+  "days": [
+   6
+  ],
+  "keyDays": []
+ },
+ {
   "term": "Decision Tree",
   "aliases": [
    "결정트리",

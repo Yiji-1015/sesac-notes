@@ -397,7 +397,7 @@ libs1 = [("①", "<code>pd.read_csv()</code>, <code>.loc[]</code>", "읽기, 나
          ("③", "<code>Pipeline</code>, <code>ColumnTransformer</code>, <code>SimpleImputer</code>, <code>StandardScaler</code>, <code>OneHotEncoder</code>", "전처리 묶기"),
          ("④", "<code>LinearRegression</code>, <code>r2_score</code>, <code>root_mean_squared_error</code>, <code>coef_</code>", "회귀와 지표. 🔁에서 <code>Ridge</code>, <code>Lasso</code>"),
          ("⑤", "<code>LogisticRegression</code>, <code>decision_function</code>, <code>log_loss</code>, <code>confusion_matrix</code>, <code>f1_score</code>", "분류와 지표"), ("⑥", "<code>KNeighborsClassifier</code>", "KNN")]
-K.build(ROOT / "topics" / "model" / "ml-regression-classification.html", title="회귀와 분류", h1="회귀와 분류: 표 데이터로 예측하기", track="모델", crumb="모델 &gt; 머신러닝 기초 1/4쪽 &nbsp;|&nbsp; 다음: <a href=\"ml-trees-cv.html\" style=\"color:inherit\">트리와 교차검증</a>",
+K.build(ROOT / "topics" / "model" / "ml-regression-classification.html", title="회귀와 분류", h1="회귀와 분류: 표 데이터로 예측하기", track="모델", crumb="모델 &gt; 머신러닝 기초 1/5쪽 &nbsp;|&nbsp; 다음: <a href=\"ml-trees-cv.html\" style=\"color:inherit\">트리와 교차검증</a>",
         one_line="지난 기록에서 규칙을 배워 <b>숫자를 맞히면 회귀</b>, <b>종류를 맞히면 분류</b>예요. 모델보다 먼저 <b>기준선, 지표, 나누기</b>를 정해야 점수가 의미를 가져요.",
         why=why1, whole=whole1, steps=steps1, code_file="examples/ml/requests_model.py", practice=practice1, libs=libs1, libs_note="<code>part</code>, <code>build</code>, <code>evaluate</code>는 이 파일 안에서 정의한 함수예요.",
         next_rows=[("<a href=\"ml-trees-cv.html\">트리와 앙상블, 교차검증</a>", "다른 모델과 믿을 만한 비교"), ("<a href=\"ml-metrics-clustering.html\">평가지표, 특성 설계, 군집</a>", "확률 기준, 비용, 최종 평가")],
@@ -581,7 +581,7 @@ practice2 = [("트리 깊이, 트리 개수는 어떻게 정하나", "후보 몇
 libs2 = [("⑧", "<code>DecisionTreeClassifier</code>", "결정 트리 (scikit-learn)"), ("⑨", "<code>RandomForestClassifier</code>", "랜덤 포레스트"), ("⑩", "<code>XGBClassifier</code>", "그래디언트 부스팅 (xgboost)"),
          ("⑪", "<code>feature_importances_</code>, <code>get_feature_names_out()</code>", "중요도"), ("⑫", "<code>StratifiedKFold</code>, <code>cross_validate</code>", "교차검증")]
 K.build(ROOT / "topics" / "model" / "ml-trees-cv.html", title="트리와 앙상블, 교차검증", h1="트리와 앙상블, 교차검증: 더 나은 모델을 믿을 만하게 고르기", track="모델",
-        crumb="모델 &gt; 머신러닝 기초 2/4쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-regression-classification.html\" style=\"color:inherit\">회귀와 분류</a> &nbsp;|&nbsp; 다음: <a href=\"ml-metrics-clustering.html\" style=\"color:inherit\">평가지표와 군집</a>",
+        crumb="모델 &gt; 머신러닝 기초 2/5쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-regression-classification.html\" style=\"color:inherit\">회귀와 분류</a> &nbsp;|&nbsp; 다음: <a href=\"ml-metrics-clustering.html\" style=\"color:inherit\">평가지표와 군집</a>",
         one_line="<b>트리</b>는 예/아니오 질문을 이어 가며 판단하고, 여러 트리를 묶으면(<b>앙상블</b>) 더 안정돼요. 어느 모델이 나은지는 한 번이 아니라 <b>교차검증</b>으로 여러 번 재서 판단해요.",
         why=why2, whole=whole2, steps=steps2, code_file="examples/ml/requests_model.py", practice=practice2, libs=libs2,
         next_rows=[("<a href=\"ml-regression-classification.html\">회귀와 분류</a>", "기준선, Pipeline, 지표"), ("<a href=\"ml-metrics-clustering.html\">평가지표, 특성 설계, 군집</a>", "확률 기준, 최종 평가")],
@@ -728,7 +728,7 @@ practice3 = [("기준을 정할 때", "valid(또는 교차검증)로 정하고 t
 libs3 = [("⑬", "<code>predict_proba()</code>, <code>confusion_matrix().ravel()</code>", "확률과 기준"), ("⑭", "<code>roc_auc_score</code>", "확률의 순서 품질"), ("⑮", "<code>FunctionTransformer</code>, <code>np.log1p</code>", "특성 변환"),
          ("⑯", "<code>KMeans</code>, <code>silhouette_score</code>", "군집"), ("⑰", "<code>clone()</code>, <code>fit()</code>, <code>predict()</code>", "최종 학습과 평가")]
 K.build(ROOT / "topics" / "model" / "ml-metrics-clustering.html", title="평가지표, 특성 설계, 군집", h1="평가지표, 특성 설계, 군집: 기준을 정하고 마지막에 한 번 채점하기", track="모델",
-        crumb="모델 &gt; 머신러닝 기초 3/4쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-trees-cv.html\" style=\"color:inherit\">트리와 교차검증</a> &nbsp;|&nbsp; 다음: <a href=\"ml-svm-lda-pca.html\" style=\"color:inherit\">SVM, 판별분석, 차원 축소</a>",
+        crumb="모델 &gt; 머신러닝 기초 3/5쪽 &nbsp;|&nbsp; 이전: <a href=\"ml-trees-cv.html\" style=\"color:inherit\">트리와 교차검증</a> &nbsp;|&nbsp; 다음: <a href=\"ml-svm-lda-pca.html\" style=\"color:inherit\">SVM, 판별분석, 차원 축소</a>",
         one_line="분류 모델은 사실 <b>확률</b>을 내고, \"실패\"라고 부를 <b>기준은 오류 비용으로</b> 정해요. 모델과 기준을 다 고른 뒤에 <b>test로 딱 한 번</b> 채점해요.",
         why=why3, whole=whole3, steps=steps3, code_file="examples/ml/requests_model.py", practice=practice3, libs=libs3, libs_note="<code>cost_at</code>, <code>build_fe</code>는 이 파일 안에서 정의한 함수예요.",
         next_rows=[("<a href=\"ml-trees-cv.html\">트리와 앙상블, 교차검증</a>", "후보 모델과 교차검증"), ("<a href=\"ml-svm-lda-pca.html\">SVM, 판별분석, 차원 축소</a>", "다른 모델 셋과 같은 교차검증 비교"), ("<a href=\"dl-tensor-training.html\">딥러닝 기초</a>", "신경망으로 넘어가기")],
