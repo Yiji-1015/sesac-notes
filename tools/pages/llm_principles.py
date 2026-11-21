@@ -257,7 +257,7 @@ top = int(ns["logits"].argmax())
 outs["s8"] = S.table("⑧ 빈칸 후보 네 개의 확률 (점수는 예시)", ["후보", "점수(logit)"] + [f"temperature {t}" for t in pr],
                      [[E(c), f"{float(ns['logits'][i]):.1f}"] + [f"{float(pr[t][i]):.2f}" for t in pr] for i, c in enumerate(ns["candidates"])],
                      [f"가장 높은 것만 고르면(greedy) 언제나 \"{ns['greedy']}\"{josa(ns['greedy'], '이에요', '예요')}.", f"확률대로 뽑으면(temperature 1.0, 10번) → {ns['sampled']}. 같은 질문에도 답이 조금씩 달라지는 이유예요.",
-                      f"temperature가 낮으면 1등에 몰리고(0.5에서 {float(pr[0.5][top]):.2f}), 높으면 고르게 퍼져요(2.0에서 {float(pr[2.0][top]):.2f}). 정확해야 하면 낮게, 다양해야 하면 높게 써요."])
+                      f"temperature가 낮으면 1등에 몰리고(0.5에서 {float(pr[0.5][top]):.2f}), 높으면 고르게 퍼져요(2.0에서 {float(pr[2.0][top]):.2f})."])
 
 flow = [[1, "토큰", "세 문장, 패딩", "▁배는 1번 자리"], [2, "Embedding", "표 + 위치", "'배'는 아직 같음"], [3, "head 하나", "Q, K, V, √d", "모델과 같음"], [4, "여러 head", "12 × 32칸", "보는 곳이 다름"],
         [5, "층 하나", "잔차, LayerNorm, FFN", "모델과 같음"], [6, "12층", "층 반복", "'배'가 달라짐"], [7, "미래 가리기", "디코더", "'배'가 그대로"], [8, "다음 토큰", "softmax", "temperature"]]
@@ -296,7 +296,7 @@ steps = [
                            ("layer0.attention.output.dense(concat)", "이어 붙인 결과를 384 × 384 행렬로 한 번 더 섞기")]), "s4"),
     K.step(5, "층 하나 완성: 잔차 연결, LayerNorm, 작은 신경망", "Attention 결과를 입력에 더하고(잔차) LayerNorm, 토큰마다 작은 신경망을 통과시키고 다시 잔차와 LayerNorm을 해요. 이걸 함수 하나로 묶어요.",
            "<p>층은 두 부분이에요. <b>Attention</b>은 \"토큰끼리 정보 나누기\", <b>작은 신경망</b>(Feed Forward, 384 → 1536 → 384, 가운데 GELU)은 \"토큰마다 따로 생각하기\"예요. GELU는 ReLU처럼 음수를 줄이지만 0 근처에서 부드럽게 꺾이는 활성화 함수예요.</p>"
-           "<p><b>왜 잔차 연결?</b> 층의 결과를 입력에 <b>더해서</b> 내보내면, 층은 입력을 통째로 새로 만들 필요 없이 \"얼마나 고칠지\"만 배우면 되고, 기울기도 더하기 길로 앞 층까지 잘 내려가요. <a href=\"cnn.html\">CNN</a> ⑦의 ResNet과 같은 이유예요. e5와 BERT는 더한 <b>뒤에</b> LayerNorm을 하고(Post-LN), GPT-2 이후의 LLM 대부분은 Attention과 작은 신경망에 들어가기 <b>전에</b> 해요(Pre-LN). 층을 아주 깊게 쌓을 때 학습이 더 안정적이라서요.</p>"
+           "<p><b>왜 잔차 연결?</b> 층의 결과를 입력에 <b>더해서</b> 내보내면, 층은 입력을 통째로 새로 만들 필요 없이 \"얼마나 고칠지\"만 배우면 되고, 기울기도 더하기 길로 앞 층까지 잘 내려가요. <a href=\"cnn.html\">CNN</a> ⑦의 ResNet과 같은 이유예요. e5는 더한 <b>뒤에</b> LayerNorm을 해요. LayerNorm을 어디에 두는지는 모델마다 달라서, <a href=\"llm-architectures.html\">요즘 LLM의 부품</a> ②에서 비교해요.</p>"
            "<p>함수의 <code>block</code>은 \"보면 안 되는 자리에 더할 점수\"예요. ③의 <code>pad</code>를 넣으면 채운 자리를 안 보고, ⑦에서는 여기에 미래 가리기를 더해 넣어요.</p>"
            + K.code_table([("def encoder_layer(x, layer, block)", "③④의 계산에 잔차, LayerNorm, 작은 신경망을 붙인 층 하나"), ("layer.attention.output.LayerNorm(x + a)", "잔차 연결 뒤 LayerNorm"),
                            ("F.gelu(layer.intermediate.dense(h))", "384 → 1536으로 넓히고 GELU"), ("layer.output.dense(...)", "1536 → 384로 되돌리기")])
@@ -319,7 +319,7 @@ steps = [
            + K.code_table([("torch.triu(torch.ones(n, n, dtype=torch.bool), diagonal=1)", "대각선 위만 True. 자기보다 뒤의 자리"), ("pad + future * -1e9", "채운 자리와 미래 자리 모두 아주 큰 음수")]), "s7"),
     K.step(8, "다음 토큰 고르기 (점수 → 확률)", "디코더는 마지막 벡터를 어휘 수만큼의 점수로 바꾸고, softmax로 확률을 만든 뒤 하나를 골라요.",
            "<p>디코더의 마지막 층 위에는 \"384칸 → 어휘 수\" 행렬이 하나 있어서, 다음 토큰 후보마다 점수(logit)를 내요. 고른 토큰을 입력 끝에 붙이고 다시 계산하기를 반복하면 글이 돼요. e5는 인코더라 이 행렬이 없어서, 여기서는 예시 점수로 고르는 부분만 계산해요. 작은 GPT를 직접 학습해서 실제로 고르는 방법들을 비교하는 건 <a href=\"gpt-generation.html\">작은 GPT와 디코딩</a>에서 해요.</p>"
-           "<p><b>temperature</b>는 점수를 나누는 값이에요. 작으면 차이가 커져 1등에 몰리고, 크면 고르게 퍼져요.</p>"
+           "<p><b>temperature</b>는 점수를 나누는 값이에요. 작으면 차이가 커져 1등에 몰리고, 크면 고르게 퍼져요. 언제 낮게, 언제 높게 쓰는지와 top-k, top-p, beam search는 <a href=\"gpt-generation.html\">작은 GPT와 디코딩</a> ⑥⑦에서 실제 생성 결과로 비교해요.</p>"
            + K.code_table([("torch.softmax(logits / t, dim=-1)", "temperature t로 나눈 뒤 확률로"), ("logits.argmax()", "가장 높은 것 (greedy)"), ("torch.multinomial(probs, 1)", "확률대로 하나 뽑기 (sampling)")]), "s8"),
 ]
 practice = [("Hugging Face 라이브러리", "<code>transformers</code>(모델), <code>tokenizers</code>(Tokenizer), <code>datasets</code>(데이터 읽기, 전처리), <code>accelerate</code>(여러 GPU 학습)가 짝으로 쓰여요. 모델과 데이터는 Hub에서 이름으로 받아요. 결과만 필요하면 <code>pipeline(\"text-classification\")</code>처럼 한 줄로도 써요."),

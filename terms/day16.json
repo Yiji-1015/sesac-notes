@@ -27,7 +27,7 @@
  {"term": "Projector", "aliases": ["연결 모듈"], "full": "Projector (시각 특징 → 언어 공간)", "short": "Vision Encoder가 뽑은 이미지 특징을 언어 모델이 알아듣는 토큰 모양으로 옮겨 주는 연결 부분.", "analogy": "그림을 말로 통역해 주는 통역사.", "day": 16, "key": false},
  {"term": "LLM", "aliases": ["대규모 언어 모델", "언어 모델"], "full": "Large Language Model", "short": "글 토큰을 보고 다음 토큰을 하나씩 만들어 내는 큰 언어 모델. VLM의 답 생성 부분이에요.", "analogy": "", "day": 16, "key": false},
  {"term": "do_sample", "aliases": ["temperature"], "full": "do_sample / temperature", "short": "False면 매번 가장 그럴듯한 토큰을 골라 같은 입력에 같은 답(재현성). True면 확률대로 뽑고 temperature가 뽑기의 무작위 정도를 정해요.", "analogy": "", "day": 16, "key": false},
- {"term": "KV cache", "aliases": ["Key/Value cache", "use_cache"], "full": "Key/Value cache", "short": "답을 한 토큰씩 만들 때 앞에서 계산한 Key·Value를 저장해 재사용하는 것. 빨라지지만 메모리를 차지해요.", "analogy": "", "day": 16, "key": false},
+ {"term": "KV cache", "aliases": ["Key/Value cache", "use_cache", "KV 캐시"], "full": "Key/Value cache", "short": "답을 한 토큰씩 만들 때 앞에서 계산한 Key와 Value를 저장해 두고 다시 쓰는 것. 매번 처음부터 계산하지 않아 빨라지지만 메모리를 차지해요. 모델 안의 계산 저장소이고, 최종 답변을 저장하는 곳은 아니에요.", "analogy": "", "day": 16, "key": false},
  {"term": "Hallucination", "aliases": ["환각"], "full": "Hallucination (환각)", "short": "모델이 이미지에 없는 값·표·근거를 자연스럽게 지어내는 것.", "analogy": "모르는 문제에 그럴듯하게 꾸며 낸 답을 쓰는 학생.", "day": 16, "key": true},
  {"term": "Grounding", "aliases": ["그라운딩", "evidence"], "full": "Grounding (근거 연결)", "short": "답과 함께 원문 문자열·페이지·Box·Crop 같은 근거를 제시해 실제 문서와 대조할 수 있게 하는 것.", "analogy": "주장마다 \"교과서 몇 쪽 몇째 줄\"을 붙이기.", "day": 16, "key": true},
  {"term": "Fallback", "aliases": [], "full": "Fallback (대체 처리)", "short": "근거가 부족할 때 억지로 답하지 않고 null·\"확인할 수 없음\"과 검토 필요 상태로 돌려주는 규칙.", "analogy": "", "day": 16, "key": false},

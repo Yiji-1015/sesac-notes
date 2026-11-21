@@ -482,10 +482,12 @@
  {
   "term": "유클리드 거리",
   "aliases": [
-   "유클리드"
+   "유클리드",
+   "L2 Distance",
+   "L2 거리"
   ],
   "full": "Euclidean distance (직선 거리)",
-  "short": "두 점 사이의 직선 거리. 각 특성 차이를 제곱해 더한 뒤 제곱근. KNN의 기본 거리(p=2).",
+  "short": "두 점 사이의 직선 거리. 각 특성 차이를 제곱해 더한 뒤 제곱근. KNN의 기본 거리(p=2)이고, pgvector에서는 <-> 연산자예요. 길이를 1로 맞춘 벡터끼리면 코사인 유사도와 순위가 같아요.",
   "analogy": "지도 위에서 자로 잰 거리.",
   "day": 6,
   "key": false
@@ -860,9 +862,7 @@
  {
   "term": "Ridge",
   "aliases": [
-   "Ridge 회귀",
-   "L2 규제",
-   "L2 Regularization"
+   "Ridge 회귀"
   ],
   "full": "Ridge Regression (L2 규제)",
   "short": "비용에 '가중치 제곱의 합 × alpha'를 벌점으로 더한 선형 회귀. 모든 가중치를 조금씩 0 쪽으로 줄이지만 정확히 0으로 만들지는 않아요.",
@@ -913,7 +913,6 @@
   "aliases": [
    "Bias-Variance",
    "편향-분산",
-   "Bias",
    "Variance"
   ],
   "full": "Bias-Variance Trade-off (편향과 분산)",

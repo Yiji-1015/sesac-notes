@@ -241,7 +241,7 @@
   "key": true
  },
  {
-  "term": "Class weight",
+  "term": "class_weight",
   "aliases": [
    "class weight",
    "클래스 가중치"

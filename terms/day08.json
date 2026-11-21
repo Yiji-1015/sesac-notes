@@ -559,10 +559,12 @@
   "aliases": [
    "balanced",
    "class_weight=\"balanced\"",
-   "클래스 가중치"
+   "클래스 가중치",
+   "Class weight",
+   "class weight"
   ],
   "full": "class_weight (종류별 가중치)",
-  "short": "드문 종류를 틀릴 때의 값을 키우는 설정. \"balanced\"는 종류마다 건수에 반비례하는 무게를 줘요. 실패가 드문 데이터에서 recall을 올려요.",
+  "short": "드문 종류를 틀릴 때 손실이나 비용을 더 크게 쳐 주는 설정. 보통 건수에 반비례하는 무게(전체 ÷ 개수)를 줘요. scikit-learn은 class_weight=\"balanced\", PyTorch는 CrossEntropyLoss(weight=...)로 넣어요.",
   "analogy": "",
   "day": 8,
   "key": false

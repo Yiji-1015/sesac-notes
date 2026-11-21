@@ -350,7 +350,7 @@ SELECT extname FROM pg_extension WHERE extname = 'vector';</code></pre>
 <p>Python의 <code>pgvector</code> 패키지와 PostgreSQL 서버의 <code>vector</code> 확장은 설치 위치가 달라요. 확장이 활성화됐다는 것, 벡터가 적재됐다는 것, 현재 원문 버전과 벡터가 맞는다는 것도 각각 따로 확인해야 해요.</p>
 """, "s2"),
         K.step(3, "요청마다 Session을 빌리고 돌려주기", "요청마다 독립적인 작업 공간을 주고, 사용이 끝나면 DB 연결을 돌려줘요.", """
-<p><b>왜?</b> Session을 전역 변수 하나로 공유하면 동시에 들어온 요청이 같은 작업 공간을 건드려요. 반대로 Engine을 요청마다 만들면 연결을 재사용하는 풀이 계속 생겨요. <b>오래 공유할 것과 짧게 쓸 것을 구분</b>해야 해요.</p>
+<p>요청마다 Session을 하나 열고 <code>Depends</code>로 넘기는 방법은 <a href="fastapi-postgres.html#s3">DB 연동 ③</a>에서 봤어요. 여기서는 그 위에 <b>객체마다 얼마나 오래 사는지</b>를 정리해요. Session을 여러 요청이 같이 쓰면 서로의 작업 공간을 건드리고, 반대로 Engine을 요청마다 만들면 연결 풀이 계속 새로 생겨요. <b>오래 공유할 것과 짧게 쓸 것을 구분</b>해야 해요.</p>
 """ + K.table(["객체", "역할", "이 예제의 수명"], [
             ['<code>Engine</code>', 'DB 연결을 빌려주는 관리자. 실제 연결을 재사용하는 연결 풀을 가짐', '서버 프로세스 동안 공유'],
             ['<code>sessionmaker</code>', '같은 설정으로 Session을 만드는 공장', '프로세스 동안 공유'],
@@ -359,8 +359,8 @@ SELECT extname FROM pg_extension WHERE extname = 'vector';</code></pre>
         ]) + """
 <p>여기서 Session은 로그인 정보를 보관하는 브라우저 세션이 아니에요. Session 객체를 만들었다고 바로 DB 연결을 점유하는 것도 아니며, 실제 SQL이 필요할 때 연결을 빌려요.</p>
 """ + K.code_table([
-            ('with SessionLocal() as db: yield db', '<code>yield</code>에서 Session을 호출한 쪽에 넘겨요. 의존성 처리가 끝나면 돌아와 <code>with</code>를 나가며 닫아요.'),
-            ('db=Depends(get_db)', 'FastAPI가 이 요청에 필요한 Session을 준비해 인자에 넣어요. 이를 의존성 주입이라고 해요.'),
+            ('with SessionLocal() as db: yield db', 'DB 연동 ③과 같은 모양이에요. 넘겨준 뒤 요청이 끝나면 돌아와 닫아요.'),
+            ('db=Depends(get_db)', 'DB 연동 ③과 같은 의존성 주입이에요.'),
             ('pool_size=2, max_overflow=0, pool_timeout=2', '이 SQLite 예제의 설정값이에요. 풀의 연결을 모두 빌린 동안 새 대여는 지정 시간까지 기다려요. 운영 권장값은 아니에요.'),
         ]) + """
 <p><code>with SessionLocal()</code>은 <b>닫기를 보장</b>해요. 성공한 쓰기를 알아서 commit해 주는 표현은 아니에요. 쓰기 확정은 ⑤의 <code>with db.begin()</code>이 맡아요. 닫을 때 미완료 트랜잭션은 취소되고 연결이 반환돼요.</p>
@@ -396,7 +396,7 @@ SELECT extname FROM pg_extension WHERE extname = 'vector';</code></pre>
             ('return result', 'begin 블록 바깥에 있어요. commit이 실패하면 이 줄에 도착하지 않아요.'),
         ]) + """
 <p>수정도 <code>with db.begin()</code> 안에서 먼저 노트를 찾아요. 조회를 블록 밖으로 빼면 ③의 autobegin 때문에 이미 시작된 트랜잭션에 또 begin하려고 할 수 있어요. <code>expire_on_commit=False</code>는 commit 뒤에도 읽은 속성을 유지하는 설정이며, 자동 commit 설정이 아니에요.</p>
-<p>제목 중복은 DB의 <code>UNIQUE</code> 제약으로 막고, 확인한 제목 충돌만 <code>409 / TITLE_CONFLICT</code>로 바꿔요. 모든 DB 오류를 중복이라고 처리하면 연결 장애와 프로그램 오류까지 입력 탓으로 보이게 돼요. PostgreSQL에서는 오류 코드와 제약 이름으로 원인을 분류해요.</p>
+<p>제목 중복은 DB의 <code>UNIQUE</code> 제약으로 막고, 원인별로 상태 코드를 나누는 건 <a href="fastapi-postgres.html#s6">DB 연동 ⑥</a>과 같아요. 다만 여기서는 <b>확인한 제목 충돌만</b> <code>409 / TITLE_CONFLICT</code>로 바꿔요. 모든 DB 오류를 중복이라고 처리하면 연결 장애와 프로그램 오류까지 입력 탓으로 보이게 돼요. PostgreSQL에서는 오류 코드와 제약 이름으로 원인을 분류해요.</p>
 <p>아래 실험은 노트 INSERT가 끝난 다음 변경 기록 함수에서 예외를 냈어요. 그 뒤 <b>별도의 Session</b>으로 실제 DB 수량을 확인하고 정상 요청도 다시 실행했어요.</p>
 """ + K.out("s5") + """
 <p>이 예제의 <code>changes</code>는 동작 확인용 변경 기록이에요. 노트 삭제 시 같이 지우므로, 삭제 이력도 영구 보존해야 하는 감사 로그의 설계와는 목적이 달라요.</p>

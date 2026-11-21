@@ -210,7 +210,7 @@ steps = [
            + K.code_table([("gpt.generate(inp, max_new_tokens=30, do_sample=False)", "greedy"), ("num_beams=5", "후보 5개를 함께 따라가기"), ("no_repeat_ngram_size=3", "3-토큰 묶음 반복 금지"),
                            ("logits.log_softmax(-1).gather(...)", "실제로 고른 토큰의 log 확률 꺼내기 (뜻밖의 정도 계산)")]), "s6"),
     K.step(7, "고르는 방법 2: 확률대로 뽑기 (temperature, top-k, top-p)", "다음 토큰의 확률대로 무작위로 뽑되, temperature로 확률을 뾰족하게 하거나 상위 후보만 남겨 뽑아요.",
-           "<p><b>sampling</b>은 확률이 0.3인 토큰은 30% 확률로 뽑아요. 같은 앞부분에서도 매번 다른 글이 나와요. <b>temperature</b>는 점수를 t로 나눠 확률을 다시 만들어요. 1보다 작으면 1등에 더 몰리고, 크면 고르게 퍼져요.</p>"
+           "<p><b>sampling</b>은 확률이 0.3인 토큰은 30% 확률로 뽑아요. 같은 앞부분에서도 매번 다른 글이 나와요. temperature는 <a href=\"llm-principles.html\">Transformer 구조</a> ⑧에서 본 것처럼 점수를 t로 나누는 값이에요. 여기서는 그걸 실제 생성 글에 써 봐요.</p>"
            "<p>문제는 확률이 아주 낮은 토큰 수천 개를 다 합치면 꽤 큰 몫이 된다는 거예요. 그 꼬리에서 하나만 뽑혀도 글이 엉뚱해져요. <b>top-k</b>는 상위 k개만 남기고, <b>top-p</b>(nucleus)는 확률을 큰 순서로 더해 p(예: 0.9)를 넘을 때까지만 남겨요. top-p는 확신할 때는 후보가 몇 개뿐이고, 헷갈릴 때는 많아져서 상황에 맞게 바뀌어요.</p>"
            + K.code_table([("do_sample=True, top_k=0, temperature=0.7", "자르지 않고 t=0.7로 뽑기 (<code>top_k=0</code>: 자르기 끔)"), ("top_k=20", "상위 20개 중에서 뽑기"), ("top_p=0.9", "누적 확률 0.9까지의 후보에서 뽑기")]), "s7"),
     K.step(8, "요약과 평가: 본문에서 대표 문장 고르기와 ROUGE", "주제 페이지마다 본문의 첫 문장과, 본문 전체와 뜻이 가장 가까운 문장을 골라 사람이 쓴 '한 문장' 요약과 ROUGE로 비교해요.",

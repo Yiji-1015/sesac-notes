@@ -121,12 +121,14 @@
   "key": true
  },
  {
-  "term": "수용영역",
+  "term": "수용 영역",
   "aliases": [
-   "Receptive field"
+   "수용영역",
+   "Receptive Field",
+   "receptive field"
   ],
   "full": "Receptive Field (수용영역)",
-  "short": "출력 한 칸이 원본 사진에서 '보고 있는' 범위. 층을 쌓고 Pooling을 거칠수록 넓어져요.",
+  "short": "출력 한 칸이 입력 그림에서 '보고 있는' 범위. 3×3 합성곱 하나 뒤에는 3×3이고, 층을 쌓고 Pooling을 거칠수록 넓어져요.",
   "analogy": "높은 층으로 올라갈수록 창밖으로 보이는 동네가 넓어지는 것.",
   "day": 11,
   "key": false
@@ -139,18 +141,6 @@
   "full": "Weight sharing (가중치 공유)",
   "short": "같은 가중치(Kernel)를 모든 위치에서 돌려 쓰는 것. 그래서 파라미터 수가 사진 크기와 상관없어요. 순서 모델도 모든 시점에 같은 가중치를 써요.",
   "analogy": "도장 하나로 종이 전체에 찍는 것 — 위치마다 도장을 새로 파지 않아요.",
-  "day": 11,
-  "key": false
- },
- {
-  "term": "등변",
-  "aliases": [
-   "Equivariance",
-   "등변성"
-  ],
-  "full": "Equivariance (등변성)",
-  "short": "입력을 옮기면 결과도 똑같이 옮겨지는 성질. 합성곱이 이래서 물체가 사진 어디에 있어도 같은 검출기로 찾아요.",
-  "analogy": "그림을 오른쪽으로 밀면 그림자도 같이 오른쪽으로 가는 것.",
   "day": 11,
   "key": false
  },
@@ -554,24 +544,14 @@
   "key": false
  },
  {
-  "term": "수용 영역",
-  "aliases": [
-   "Receptive Field",
-   "receptive field"
-  ],
-  "full": "Receptive Field (수용 영역)",
-  "short": "CNN의 한 칸이 입력 그림에서 보는 넓이. 3×3 합성곱 하나 뒤에는 3×3, 풀링과 층을 거칠수록 넓어져요.",
-  "analogy": "",
-  "day": 11,
-  "key": false
- },
- {
   "term": "이동 등변성",
   "aliases": [
    "Translation Equivariance",
    "등변성",
    "이동 불변성",
-   "Translation Invariance"
+   "Translation Invariance",
+   "등변",
+   "Equivariance"
   ],
   "full": "Translation Equivariance (이동 등변성)",
   "short": "입력을 옮기면 출력도 똑같이 옮겨지는 성질. 합성곱이 그래요. 마지막에 자리를 평균 내 버리면 옮겨도 답이 안 바뀌어요(이동 불변성).",

@@ -204,10 +204,11 @@
   "key": false
  },
  {
-  "term": "소금·후추 잡음",
+  "term": "소금 후추 잡음",
   "aliases": [
    "점 잡음",
-   "salt-and-pepper"
+   "salt-and-pepper",
+   "소금·후추 잡음"
   ],
   "full": "Salt-and-pepper noise",
   "short": "주변과 동떨어진 흰 점(255)·검은 점(0)이 여기저기 박힌 잡음. 평균 필터로는 흐린 점이 남고, Median 필터로 잘 지워져요.",
@@ -284,9 +285,9 @@
   "key": false
  },
  {
-  "term": "Mask",
+  "term": "이미지 마스크",
   "aliases": [
-   "마스크"
+   "Binary Mask"
   ],
   "full": "Mask (마스크, 0/255 영역 표시)",
   "short": "관심 있는 영역은 255(흰색), 나머지는 0(검정)으로 표시한 1채널 이미지. 중간값이 생기면 뜻이 흐려져서 손실 없는 png로 저장해요.",

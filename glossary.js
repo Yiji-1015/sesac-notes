@@ -672,14 +672,21 @@ window.GLOSSARY = [
  {
   "term": "유클리드 거리",
   "aliases": [
-   "유클리드"
+   "유클리드",
+   "L2 Distance",
+   "L2 거리",
+   "유클리드 거리",
+   "Euclidean distance",
+   "<->",
+   "vector_l2_ops"
   ],
   "full": "Euclidean distance (직선 거리)",
-  "short": "두 점 사이의 직선 거리. 각 특성 차이를 제곱해 더한 뒤 제곱근. KNN의 기본 거리(p=2).",
+  "short": "두 점 사이의 직선 거리. 각 특성 차이를 제곱해 더한 뒤 제곱근. KNN의 기본 거리(p=2)이고, pgvector에서는 <-> 연산자예요. 길이를 1로 맞춘 벡터끼리면 코사인 유사도와 순위가 같아요.",
   "analogy": "지도 위에서 자로 잰 거리.",
   "first": 6,
   "days": [
-   6
+   6,
+   23
   ],
   "keyDays": []
  },
@@ -1180,9 +1187,7 @@ window.GLOSSARY = [
  {
   "term": "Ridge",
   "aliases": [
-   "Ridge 회귀",
-   "L2 규제",
-   "L2 Regularization"
+   "Ridge 회귀"
   ],
   "full": "Ridge Regression (L2 규제)",
   "short": "비용에 '가중치 제곱의 합 × alpha'를 벌점으로 더한 선형 회귀. 모든 가중치를 조금씩 0 쪽으로 줄이지만 정확히 0으로 만들지는 않아요.",
@@ -1245,7 +1250,6 @@ window.GLOSSARY = [
   "aliases": [
    "Bias-Variance",
    "편향-분산",
-   "Bias",
    "Variance"
   ],
   "full": "Bias-Variance Trade-off (편향과 분산)",
@@ -1738,6 +1742,7 @@ window.GLOSSARY = [
   "term": "L2 규제",
   "aliases": [
    "reg_lambda",
+   "L2 Regularization",
    "L2"
   ],
   "full": "L2 regularization (L2 규제)",
@@ -2701,14 +2706,17 @@ window.GLOSSARY = [
   "aliases": [
    "balanced",
    "class_weight=\"balanced\"",
-   "클래스 가중치"
+   "클래스 가중치",
+   "Class weight",
+   "class weight"
   ],
   "full": "class_weight (종류별 가중치)",
-  "short": "드문 종류를 틀릴 때의 값을 키우는 설정. \"balanced\"는 종류마다 건수에 반비례하는 무게를 줘요. 실패가 드문 데이터에서 recall을 올려요.",
+  "short": "드문 종류를 틀릴 때 손실이나 비용을 더 크게 쳐 주는 설정. 보통 건수에 반비례하는 무게(전체 ÷ 개수)를 줘요. scikit-learn은 class_weight=\"balanced\", PyTorch는 CrossEntropyLoss(weight=...)로 넣어요.",
   "analogy": "",
   "first": 8,
   "days": [
-   8
+   8,
+   14
   ],
   "keyDays": []
  },
@@ -4386,12 +4394,14 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "수용영역",
+  "term": "수용 영역",
   "aliases": [
-   "Receptive field"
+   "수용영역",
+   "Receptive Field",
+   "receptive field"
   ],
   "full": "Receptive Field (수용영역)",
-  "short": "출력 한 칸이 원본 사진에서 '보고 있는' 범위. 층을 쌓고 Pooling을 거칠수록 넓어져요.",
+  "short": "출력 한 칸이 입력 그림에서 '보고 있는' 범위. 3×3 합성곱 하나 뒤에는 3×3이고, 층을 쌓고 Pooling을 거칠수록 넓어져요.",
   "analogy": "높은 층으로 올라갈수록 창밖으로 보이는 동네가 넓어지는 것.",
   "first": 11,
   "days": [
@@ -4407,21 +4417,6 @@ window.GLOSSARY = [
   "full": "Weight sharing (가중치 공유)",
   "short": "같은 가중치(Kernel)를 모든 위치에서 돌려 쓰는 것. 그래서 파라미터 수가 사진 크기와 상관없어요. 순서 모델도 모든 시점에 같은 가중치를 써요.",
   "analogy": "도장 하나로 종이 전체에 찍는 것 — 위치마다 도장을 새로 파지 않아요.",
-  "first": 11,
-  "days": [
-   11
-  ],
-  "keyDays": []
- },
- {
-  "term": "등변",
-  "aliases": [
-   "Equivariance",
-   "등변성"
-  ],
-  "full": "Equivariance (등변성)",
-  "short": "입력을 옮기면 결과도 똑같이 옮겨지는 성질. 합성곱이 이래서 물체가 사진 어디에 있어도 같은 검출기로 찾아요.",
-  "analogy": "그림을 오른쪽으로 밀면 그림자도 같이 오른쪽으로 가는 것.",
   "first": 11,
   "days": [
    11
@@ -4812,27 +4807,14 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "수용 영역",
-  "aliases": [
-   "Receptive Field",
-   "receptive field"
-  ],
-  "full": "Receptive Field (수용 영역)",
-  "short": "CNN의 한 칸이 입력 그림에서 보는 넓이. 3×3 합성곱 하나 뒤에는 3×3, 풀링과 층을 거칠수록 넓어져요.",
-  "analogy": "",
-  "first": 11,
-  "days": [
-   11
-  ],
-  "keyDays": []
- },
- {
   "term": "이동 등변성",
   "aliases": [
    "Translation Equivariance",
    "등변성",
    "이동 불변성",
-   "Translation Invariance"
+   "Translation Invariance",
+   "등변",
+   "Equivariance"
   ],
   "full": "Translation Equivariance (이동 등변성)",
   "short": "입력을 옮기면 출력도 똑같이 옮겨지는 성질. 합성곱이 그래요. 마지막에 자리를 평균 내 버리면 옮겨도 답이 안 바뀌어요(이동 불변성).",
@@ -4928,15 +4910,17 @@ window.GLOSSARY = [
    "마스크",
    "Padding Mask",
    "key_padding_mask",
-   "src_key_padding_mask"
+   "src_key_padding_mask",
+   "Attention Mask",
+   "attention_mask"
   ],
   "full": "Mask (마스크)",
-  "short": "어느 칸을 계산에서 뺄지 True/False로 표시한 표. Padding Mask는 '여기는 채운 가짜 칸'을 표시해 평균·Attention에서 빼게 해요. PyTorch Attention에선 True = 차단이에요.",
+  "short": "어느 칸을 계산에서 뺄지 표시한 표. Padding Mask는 '여기는 채운 가짜 칸'을 표시해 평균과 Attention에서 빼게 해요. Tokenizer의 attention_mask는 1이 실제 토큰이고, PyTorch의 src_key_padding_mask는 True가 무시라서 뜻이 반대예요.",
   "analogy": "시험지에서 채점하지 않을 칸을 가리는 가림판.",
   "first": 12,
   "days": [
    12,
-   13
+   20
   ],
   "keyDays": [
    12
@@ -5290,11 +5274,12 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "Query·Key·Value",
+  "term": "Query, Key, Value",
   "aliases": [
    "Query",
    "Q·K·V",
-   "QKV"
+   "QKV",
+   "Query·Key·Value"
   ],
   "full": "Query · Key · Value (질의 · 열쇠 · 값)",
   "short": "Attention의 세 재료. Query(찾을 정보)와 Key(비교할 위치)를 비교해 얼마나 볼지 비율을 정하고, 그 비율대로 Value(합산할 내용)를 섞어요.",
@@ -5358,14 +5343,18 @@ window.GLOSSARY = [
    "Positional encoding",
    "Positional Encoding",
    "Position Encoding",
-   "위치 정보"
+   "위치 정보",
+   "위치 인코딩",
+   "위치 벡터",
+   "position embedding"
   ],
   "full": "Position Embedding / Encoding (위치 정보)",
-  "short": "Attention은 순서를 모르니까, 위치마다 다른 값을 입력에 더해 '몇 번째 자리인지' 알려 주는 것. 학습되는 Embedding이면 입력 길이가 max_len을 넘으면 안 돼요.",
+  "short": "토큰 벡터에 '몇 번째 자리인가'를 더해 주는 벡터. Attention은 순서를 모르기 때문에 꼭 필요해요. 사인, 코사인 고정 벡터, 학습하는 벡터(이때는 입력 길이가 max_len을 넘으면 안 돼요), 자리에 따라 Q와 K를 돌리는 RoPE가 있어요.",
   "analogy": "카드마다 순서 번호 스티커를 붙여 두는 것.",
   "first": 12,
   "days": [
-   12
+   12,
+   20
   ],
   "keyDays": []
  },
@@ -5391,16 +5380,20 @@ window.GLOSSARY = [
  {
   "term": "토큰",
   "aliases": [
-   "Token"
+   "Token",
+   "토큰"
   ],
   "full": "Token (토큰)",
-  "short": "문장 등 순서를 모델이 다루기 위해 자른 한 단위(단어·글자 조각 등). Transformer 입력의 한 위치가 보통 토큰 하나예요.",
+  "short": "언어 모델이 다루는 글 조각. 띄어쓰기 단어와 같지 않아서 '실습'이 '실'+'##습' 두 토큰이 되기도 해요. Transformer 입력의 한 자리가 토큰 하나이고, Context 한도와 요금의 단위예요.",
   "analogy": "문장을 자른 레고 블록 한 개.",
   "first": 12,
   "days": [
-   12
+   12,
+   20
   ],
-  "keyDays": []
+  "keyDays": [
+   20
+  ]
  },
  {
   "term": "Residual",
@@ -5437,14 +5430,17 @@ window.GLOSSARY = [
   "aliases": [
    "FFN",
    "Feed-forward",
-   "dim_feedforward"
+   "dim_feedforward",
+   "Feed-Forward",
+   "Feed Forward Network"
   ],
   "full": "Feedforward Network (피드포워드 층)",
   "short": "Transformer 층 안에서 위치마다 따로 적용하는 작은 Linear–활성화–Linear 망. Attention이 위치끼리 섞었다면, FFN은 각 위치 안을 변환해요. dim_feedforward는 중간 크기(기본 2048)예요.",
   "analogy": "",
   "first": 12,
   "days": [
-   12
+   12,
+   20
   ],
   "keyDays": []
  },
@@ -5853,10 +5849,11 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "소금·후추 잡음",
+  "term": "소금 후추 잡음",
   "aliases": [
    "점 잡음",
-   "salt-and-pepper"
+   "salt-and-pepper",
+   "소금·후추 잡음"
   ],
   "full": "Salt-and-pepper noise",
   "short": "주변과 동떨어진 흰 점(255)·검은 점(0)이 여기저기 박힌 잡음. 평균 필터로는 흐린 점이 남고, Median 필터로 잘 지워져요.",
@@ -5931,6 +5928,20 @@ window.GLOSSARY = [
   "full": "Adaptive Thresholding (적응형 이진화)",
   "short": "칸마다 주변 영역(blockSize)의 평균에서 C를 뺀 값을 그 칸만의 기준으로 쓰는 이진화. 조명이 고르지 않은 사진에 강해요.",
   "analogy": "교실 전체 평균이 아니라 내 주변 자리 평균과 비교해 판정하는 것.",
+  "first": 13,
+  "days": [
+   13
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "이미지 마스크",
+  "aliases": [
+   "Binary Mask"
+  ],
+  "full": "Mask (마스크, 0/255 영역 표시)",
+  "short": "관심 있는 영역은 255(흰색), 나머지는 0(검정)으로 표시한 1채널 이미지. 중간값이 생기면 뜻이 흐려져서 손실 없는 png로 저장해요.",
+  "analogy": "필요한 부분만 구멍 뚫린 종이 덮개.",
   "first": 13,
   "days": [
    13
@@ -6150,21 +6161,6 @@ window.GLOSSARY = [
   "full": "class name → index mapping",
   "short": "클래스 이름과 번호의 대응표(예: {'circle': 0, 'square': 1}). train·valid·test에서 똑같아야 채점이 맞아요.",
   "analogy": "",
-  "first": 14,
-  "days": [
-   14
-  ],
-  "keyDays": []
- },
- {
-  "term": "Class weight",
-  "aliases": [
-   "class weight",
-   "클래스 가중치"
-  ],
-  "full": "Class weight (클래스별 Loss 가중치)",
-  "short": "적은 클래스를 틀렸을 때 Loss에 더 큰 벌점을 주는 방법. 보통 역빈도(전체 ÷ 개수)로 정하고 평균 1로 맞춰요.",
-  "analogy": "시험에서 어려운 문제에 배점을 더 주는 것.",
   "first": 14,
   "days": [
    14
@@ -7036,14 +7032,19 @@ window.GLOSSARY = [
   "aliases": [
    "Key/Value cache",
    "use_cache",
+   "KV 캐시",
+   "KV Cache",
+   "kv cache",
+   "FlashAttention",
    "Key-Value Cache"
   ],
   "full": "Key/Value cache",
-  "short": "답을 한 토큰씩 만들 때 앞에서 계산한 Key·Value를 저장해 재사용하는 것. 빨라지지만 메모리를 차지해요.",
+  "short": "답을 한 토큰씩 만들 때 앞에서 계산한 Key와 Value를 저장해 두고 다시 쓰는 것. 매번 처음부터 계산하지 않아 빨라지지만 메모리를 차지해요. 모델 안의 계산 저장소이고, 최종 답변을 저장하는 곳은 아니에요.",
   "analogy": "",
   "first": 16,
   "days": [
    16,
+   20,
    22
   ],
   "keyDays": []
@@ -7850,14 +7851,17 @@ window.GLOSSARY = [
   "term": "AI Agent",
   "aliases": [
    "Agent",
-   "에이전트"
+   "에이전트",
+   "AI Agent",
+   "Tool"
   ],
   "full": "AI Agent",
   "short": "LLM이 작업을 보고 필요한 도구를 골라 호출을 제안하고 결과를 확인하는 시스템. 실제 호출·권한 확인은 애플리케이션이 책임져요.",
   "analogy": "할 일을 보고 연장을 골라 달라고 하는 조수 — 연장을 건네는 건 사람.",
   "first": 17,
   "days": [
-   17
+   17,
+   20
   ],
   "keyDays": []
  },
@@ -8583,22 +8587,6 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "Token",
-  "aliases": [
-   "토큰"
-  ],
-  "full": "Token",
-  "short": "언어 모델이 다루는 텍스트 조각. 띄어쓰기 단어와 같지 않아요 — '실습'이 '실'+'##습' 두 Token이 되기도 해요. Context 한도·요금의 단위.",
-  "analogy": "레고 조각 — 문장을 모델이 아는 크기로 쪼갠 것.",
-  "first": 20,
-  "days": [
-   20
-  ],
-  "keyDays": [
-   20
-  ]
- },
- {
   "term": "Tokenizer",
   "aliases": [
    "AutoTokenizer",
@@ -8697,22 +8685,6 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "Attention Mask",
-  "aliases": [
-   "attention_mask",
-   "Padding Mask",
-   "src_key_padding_mask"
-  ],
-  "full": "Attention Mask (Padding Mask)",
-  "short": "실제 Token과 PAD를 구분하는 표시. Tokenizer는 1 = 실제, PyTorch src_key_padding_mask는 True = 무시 — 뜻이 반대라 넘길 때 뒤집어요.",
-  "analogy": "빈 좌석에 붙인 '사람 없음' 표시.",
-  "first": 20,
-  "days": [
-   20
-  ],
-  "keyDays": []
- },
- {
   "term": "Context Window",
   "aliases": [
    "컨텍스트 윈도우",
@@ -8750,7 +8722,6 @@ window.GLOSSARY = [
   "term": "Sentence Embedding",
   "aliases": [
    "문장 임베딩",
-   "SentenceTransformer",
    "encode"
   ],
   "full": "Sentence Embedding",
@@ -8811,22 +8782,6 @@ window.GLOSSARY = [
   "keyDays": [
    20
   ]
- },
- {
-  "term": "FFN",
-  "aliases": [
-   "Feed-Forward",
-   "Feed Forward Network",
-   "dim_feedforward"
-  ],
-  "full": "Position-wise Feed-Forward Network",
-  "short": "각 Token 벡터를 따로 비선형 변환하는 작은 신경망(선형→활성화→선형). Token끼리 섞지는 않아요.",
-  "analogy": "모아 온 정보를 각자 자기 책상에서 정리하기.",
-  "first": 20,
-  "days": [
-   20
-  ],
-  "keyDays": []
  },
  {
   "term": "Decoder-only",
@@ -8965,60 +8920,12 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "Agent",
-  "aliases": [
-   "AI Agent",
-   "Tool"
-  ],
-  "full": "AI Agent",
-  "short": "LLM에 도구 선택·상태·작업 단계 실행을 더한 처리 시스템. 실제 실행 권한·승인은 Backend가 판단해요.",
-  "analogy": "제안하는 비서 + 결재를 거쳐야 움직이는 실행 팀.",
-  "first": 20,
-  "days": [
-   20
-  ],
-  "keyDays": []
- },
- {
-  "term": "위치 인코딩",
-  "aliases": [
-   "Positional Encoding",
-   "위치 벡터",
-   "RoPE",
-   "position embedding"
-  ],
-  "full": "Positional Encoding (위치 인코딩)",
-  "short": "토큰 벡터에 '몇 번째 자리인가'를 더해 주는 벡터. Attention은 순서를 모르기 때문에 꼭 필요해요. 사인, 코사인 고정 벡터, 학습하는 벡터, 자리에 따라 Q와 K를 돌리는 RoPE가 있어요.",
-  "analogy": "",
-  "first": 20,
-  "days": [
-   20
-  ],
-  "keyDays": []
- },
- {
   "term": "ViT",
   "aliases": [
    "Vision Transformer"
   ],
   "full": "Vision Transformer",
   "short": "그림을 16×16 조각으로 잘라 조각을 토큰처럼 Transformer에 넣는 모델. 데이터가 아주 많을 때 CNN만큼 또는 그 이상 잘해요.",
-  "analogy": "",
-  "first": 20,
-  "days": [
-   20
-  ],
-  "keyDays": []
- },
- {
-  "term": "KV 캐시",
-  "aliases": [
-   "KV Cache",
-   "kv cache",
-   "FlashAttention"
-  ],
-  "full": "KV Cache",
-  "short": "글을 한 토큰씩 만들 때, 앞 토큰들의 Key와 Value를 저장해 두고 다시 쓰는 방법. 매번 처음부터 계산하지 않아 빨라요.",
   "analogy": "",
   "first": 20,
   "days": [
@@ -9995,12 +9902,13 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "인증 · 권한",
+  "term": "인증과 권한",
   "aliases": [
    "Authentication",
    "Authorization",
    "401",
-   "403"
+   "403",
+   "인증 · 권한"
   ],
   "full": "Authentication / Authorization",
   "short": "인증(401)은 '이 자격이 유효한가', 권한(403)은 '이 자격으로 이 모델·작업을 해도 되는가'. 둘 다 기다려서 해결되지 않아요.",
@@ -10029,12 +9937,13 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "instructions · input",
+  "term": "instructions와 input",
   "aliases": [
    "instructions",
    "input",
    "role",
-   "content"
+   "content",
+   "instructions · input"
   ],
   "full": "instructions / input",
   "short": "instructions는 앱이 고정한 작업·제약·형식, input은 이번 질문과 고른 지식. input 안의 메시지는 role(역할)과 content(내용)로 구성돼요.",
@@ -10273,12 +10182,13 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "generation_no · send_attempt",
+  "term": "generation_no와 send_attempt",
   "aliases": [
    "generation_no",
    "send_attempt",
    "생성 시도",
-   "전송 시도"
+   "전송 시도",
+   "generation_no · send_attempt"
   ],
   "full": "Generation number / Send attempt",
   "short": "generation_no는 최초(1)·형식 수정(2) 생성의 번호, send_attempt는 그 생성 요청의 통신 전송 번호. 예시 상한: 생성 2 × 전송 2, 전체 4회.",
@@ -10310,11 +10220,12 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "None · 0 · not_run",
+  "term": "None, 0, not_run",
   "aliases": [
    "unknown",
    "미관측",
-   "not_run"
+   "not_run",
+   "None · 0 · not_run"
   ],
   "full": "None / 0 / not_run",
   "short": "None은 관측 못 함(모름), 0은 관측된 0, not_run은 실행하지 않음. 없는 값을 or 0으로 채우면 모르는 비용이 사라진 것처럼 보여요.",
@@ -10575,23 +10486,6 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "L2 Distance",
-  "aliases": [
-   "유클리드 거리",
-   "Euclidean distance",
-   "<->",
-   "vector_l2_ops"
-  ],
-  "full": "L2 (Euclidean) Distance",
-  "short": "두 벡터 끝점 사이의 직선거리. 작을수록 가까워요. pgvector의 <-> 연산자. 정규화된 벡터끼리면 Cosine과 순위가 같아요.",
-  "analogy": "지도 위 두 점을 자로 잰 거리.",
-  "first": 23,
-  "days": [
-   23
-  ],
-  "keyDays": []
- },
- {
   "term": "Negative Inner Product",
   "aliases": [
    "<#>",
@@ -10624,12 +10518,13 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "query · passage 접두어",
+  "term": "query와 passage 접두어",
   "aliases": [
    "query:",
    "passage:",
    "prefix",
-   "비대칭 검색"
+   "비대칭 검색",
+   "query · passage 접두어"
   ],
   "full": "query / passage prefix (E5)",
   "short": "E5 모델의 입력 규칙 — 질문엔 'query: ', 검색될 문서엔 'passage: '를 붙여요. 짧은 질문으로 긴 본문을 찾는 비대칭 검색용 약속이고, 모든 모델의 문법은 아니에요.",
@@ -10845,11 +10740,12 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "retrieved · included · source ids",
+  "term": "retrieved, included, source ids",
   "aliases": [
    "retrieved_ids",
    "included_ids",
-   "source_ids"
+   "source_ids",
+   "retrieved · included · source ids"
   ],
   "full": "retrieved / included / source IDs",
   "short": "retrieved = 검색이 가져온 후보 전체, included = 검토 후 이번 Context에 넣은 것, source = 모델 응답이 인용한 것. source ⊆ included ⊆ retrieved.",
@@ -10926,16 +10822,17 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "Raw · Derived Data",
+  "term": "Raw Data와 Derived Data",
   "aliases": [
    "원본 보존",
    "raw_text",
    "clean_text",
    "ParsedUnit",
-   "CleanUnit"
+   "CleanUnit",
+   "Raw · Derived Data"
   ],
   "full": "Raw file / Derived data",
-  "short": "원본 파일(Raw)과 거기서 만든 결과(파싱 텍스트 · 정제 텍스트 · Chunk)를 따로 보관하는 원칙. 원본을 덮어쓰면 규칙이 바뀌었을 때 무엇이 달라졌는지 추적할 수 없어요.",
+  "short": "원본 파일(Raw)과 거기서 만든 결과(파싱 텍스트, 정제 텍스트, Chunk)를 따로 보관하는 원칙. 원본을 덮어쓰면 규칙이 바뀌었을 때 무엇이 달라졌는지 추적할 수 없어요.",
   "analogy": "원본 사진은 두고 보정본을 따로 저장 — 보정을 다시 하고 싶을 때 원본이 필요.",
   "first": 24,
   "days": [
@@ -11012,13 +10909,14 @@ window.GLOSSARY = [
   ]
  },
  {
-  "term": "NFC · NFKC",
+  "term": "NFC와 NFKC",
   "aliases": [
    "NFC",
    "NFKC",
    "NFD",
    "unicodedata.normalize",
-   "유니코드 정규화"
+   "유니코드 정규화",
+   "NFC · NFKC"
   ],
   "full": "Unicode Normalization Forms",
   "short": "같은 글자의 다른 유니코드 표현을 하나로 맞추는 규칙. NFC는 자모 분리형을 완성형으로 합치고 모양은 유지, NFKC는 ①→1, ²→2처럼 호환 문자까지 바꿔 의미가 달라질 수 있어요.",
@@ -11145,15 +11043,16 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
-  "term": "source_version · pipeline_version",
+  "term": "source_version과 pipeline_version",
   "aliases": [
    "source_version",
    "pipeline_version",
    "원문 버전",
-   "처리 버전"
+   "처리 버전",
+   "source_version · pipeline_version"
   ],
   "full": "Source version / Pipeline version",
-  "short": "source_version은 원문이 개정됐는지, pipeline_version은 Parsing · Cleaning · Chunking · Embedding 설정이 바뀌었는지를 구분해요. 둘 중 하나라도 다르면 다른 Chunk 집합으로 다뤄요.",
+  "short": "source_version은 원문이 개정됐는지, pipeline_version은 Parsing, Cleaning, Chunking, Embedding 설정이 바뀌었는지를 구분해요. 둘 중 하나라도 다르면 다른 Chunk 집합으로 다뤄요.",
   "analogy": "책의 판(2판 · 3판)과 번역본의 번역자 — 둘 다 바뀔 수 있음.",
   "first": 24,
   "days": [

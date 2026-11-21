@@ -65,10 +65,12 @@
    "마스크",
    "Padding Mask",
    "key_padding_mask",
-   "src_key_padding_mask"
+   "src_key_padding_mask",
+   "Attention Mask",
+   "attention_mask"
   ],
   "full": "Mask (마스크)",
-  "short": "어느 칸을 계산에서 뺄지 True/False로 표시한 표. Padding Mask는 '여기는 채운 가짜 칸'을 표시해 평균·Attention에서 빼게 해요. PyTorch Attention에선 True = 차단이에요.",
+  "short": "어느 칸을 계산에서 뺄지 표시한 표. Padding Mask는 '여기는 채운 가짜 칸'을 표시해 평균과 Attention에서 빼게 해요. Tokenizer의 attention_mask는 1이 실제 토큰이고, PyTorch의 src_key_padding_mask는 True가 무시라서 뜻이 반대예요.",
   "analogy": "시험지에서 채점하지 않을 칸을 가리는 가림판.",
   "day": 12,
   "key": true
@@ -395,11 +397,12 @@
   "key": true
  },
  {
-  "term": "Query·Key·Value",
+  "term": "Query, Key, Value",
   "aliases": [
    "Query",
    "Q·K·V",
-   "QKV"
+   "QKV",
+   "Query·Key·Value"
   ],
   "full": "Query · Key · Value (질의 · 열쇠 · 값)",
   "short": "Attention의 세 재료. Query(찾을 정보)와 Key(비교할 위치)를 비교해 얼마나 볼지 비율을 정하고, 그 비율대로 Value(합산할 내용)를 섞어요.",
@@ -474,10 +477,12 @@
    "Positional encoding",
    "Positional Encoding",
    "Position Encoding",
-   "위치 정보"
+   "위치 정보",
+   "위치 인코딩",
+   "위치 벡터"
   ],
   "full": "Position Embedding / Encoding (위치 정보)",
-  "short": "Attention은 순서를 모르니까, 위치마다 다른 값을 입력에 더해 '몇 번째 자리인지' 알려 주는 것. 학습되는 Embedding이면 입력 길이가 max_len을 넘으면 안 돼요.",
+  "short": "토큰 벡터에 '몇 번째 자리인가'를 더해 주는 벡터. Attention은 순서를 모르기 때문에 꼭 필요해요. 사인, 코사인 고정 벡터, 학습하는 벡터(이때는 입력 길이가 max_len을 넘으면 안 돼요), 자리에 따라 Q와 K를 돌리는 RoPE가 있어요.",
   "analogy": "카드마다 순서 번호 스티커를 붙여 두는 것.",
   "day": 12,
   "key": false
@@ -499,7 +504,7 @@
    "Token"
   ],
   "full": "Token (토큰)",
-  "short": "문장 등 순서를 모델이 다루기 위해 자른 한 단위(단어·글자 조각 등). Transformer 입력의 한 위치가 보통 토큰 하나예요.",
+  "short": "언어 모델이 다루는 글 조각. 띄어쓰기 단어와 같지 않아서 '실습'이 '실'+'##습' 두 토큰이 되기도 해요. Transformer 입력의 한 자리가 토큰 하나이고, Context 한도와 요금의 단위예요.",
   "analogy": "문장을 자른 레고 블록 한 개.",
   "day": 12,
   "key": false

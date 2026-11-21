@@ -356,7 +356,8 @@
  {
   "term": "L2 규제",
   "aliases": [
-   "reg_lambda"
+   "reg_lambda",
+   "L2 Regularization"
   ],
   "full": "L2 regularization (L2 규제)",
   "short": "값의 제곱에 벌점을 줘 크게 튀지 않게 하는 규제. XGBoost의 reg_lambda는 잎 값에 걸어 한 번의 보정을 보수적으로 만들어요.",
