@@ -10614,6 +10614,69 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "LLM-as-a-Judge",
+  "aliases": [
+   "LLM Judge",
+   "LaaJ",
+   "LLM 채점자"
+  ],
+  "full": "LLM-as-a-Judge",
+  "short": "LLM에게 채점 기준과 기준 답을 주고 다른 답을 채점하게 하는 평가 방법. 사람보다 싸고 빠르지만 순서, 길이, 후함 같은 버릇이 있어서 사람 점수와 맞춰 보고 써요.",
+  "analogy": "",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "루브릭",
+  "aliases": [
+   "Rubric",
+   "채점 기준표"
+  ],
+  "full": "Rubric (채점 기준표)",
+  "short": "점수마다 어떤 답이 그 점수인지 구체적으로 적은 기준표. 막연한 기준보다 같은 답에 같은 점수가 나오게 해 줘요.",
+  "analogy": "",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "가중 kappa",
+  "aliases": [
+   "Cohen's kappa",
+   "kappa",
+   "카파",
+   "Weighted Kappa"
+  ],
+  "full": "Weighted Cohen's Kappa",
+  "short": "두 채점자의 점수가 우연히 맞을 몫을 빼고 얼마나 일치하는지 재는 값. 가중 kappa는 크게 어긋날수록 더 깎아요. 1이면 완전 일치, 0이면 우연 수준이에요.",
+  "analogy": "",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "effort",
+  "aliases": [
+   "output_config.effort",
+   "생각 깊이"
+  ],
+  "full": "Effort (Claude API)",
+  "short": "Claude API에서 모델이 얼마나 깊이 생각할지 정하는 값(low, medium, high, xhigh, max). 높을수록 정확해지기 쉽지만 토큰과 시간이 더 들어요.",
+  "analogy": "",
+  "first": 22,
+  "days": [
+   22
+  ],
+  "keyDays": []
+ },
+ {
   "term": "Semantic Search",
   "aliases": [
    "의미 검색",

@@ -171,6 +171,7 @@
           <p>LLM에게 잘 묻고, 안정적으로 부르기</p>
           <a class="item" href="topics/backend/prompt-contract.html"><b>Prompt와 Context Engineering</b><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
           <a class="item" href="topics/backend/llm-client.html"><b>LLM API 클라이언트</b><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
+          <a class="item" href="topics/backend/llm-judge.html"><b>LLM으로 답 채점하기 (LLM-as-a-Judge)</b><small>루브릭, 점수 계약, 프롬프트 캐시와 비용, effort, stop_reason, 순서 바꿔 묻기, 가중 kappa</small></a>
         </div>
         <div class="cat">
           <h3>검색과 RAG</h3>
@@ -196,6 +197,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/22</td><td><a href="topics/backend/llm-judge.html">LLM으로 답 채점하기 (LLM-as-a-Judge)</a> 새로 씀: 루브릭과 점수 계약, 채점 기준을 캐시하는 Claude API 요청(가짜 서버로 실제 SDK 요청 관찰), 캐시 비용 계산, 잘린 답 다시 묻기, 순서 바꿔 묻기와 가중 kappa</td></tr>
         <tr><td class="when">11/21</td><td><a href="topics/model/ml-learning-theory.html">학습 이론: 몇 건이면 믿을 수 있나</a> 새로 씀 (머신러닝 기초 5쪽): Foundations of Machine Learning 2~4장. 정답을 아는 세상에서 Hoeffding 막대, 후보 수에 따른 낙관, 직사각형 PAC 학습(1 ÷ m), 직선과 직사각형의 VC 차원 세기, 트리의 Rademacher 복잡도, 깊이별 근사 오차와 추정 오차, valid, 교차검증, SRM으로 깊이 고르기</td></tr>
         <tr><td class="when">11/21</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑪~⑬ 추가: Foundations of Machine Learning 7장. AdaBoost를 직접 짜서 scikit-learn과 맞추기, train 오차가 지수 손실(Z의 곱) 아래에서 줄어드는 모습, 0-1, 지수, 로그, 힌지 손실 비교, 트리를 늘릴 때 L1 마진과 valid, 교차검증 점수</td></tr>
         <tr><td class="when">11/20</td><td>백엔드 외전 <a href="topics/backend/service-flow.html">로직 밖에서 서비스를 완성하기</a> 추가. 설정과 DB 준비, Session과 트랜잭션의 책임, 계층 연결, Health, Postman Collection과 Environment를 작은 서비스 하나로 정리. 실행 가능한 독립 예제와 검증용 JSON 제공</td></tr>
