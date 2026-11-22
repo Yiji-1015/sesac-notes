@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>다중 에이전트 강화학습 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>다중 에이전트 강화학습: 여럿이 함께 배우기</h1>
+      <div class="meta">모델 &gt; 강화학습 4/4쪽 &nbsp;|&nbsp; 이전: <a href="rl-games.html" style="color:inherit">게임과 균형</a></div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">여럿이 동시에 배우면 서로가 서로의 환경이라 <b>움직이는 과녁</b>이 돼요. 모두를 하나로 묶으면(<b>중앙</b>) 정확하지만 결합 행동이 곱으로 늘고, <b>각자</b> 배우면 가볍지만 손발이 안 맞아요. 그 사이에 학습만 함께 하는 <b>CTDE</b>와 <b>가치 분해</b>가 있어요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>창고 로봇 수십 대, 도로 위 자율주행차들, 게임 속 한 팀처럼 <b>여럿이 같은 환경에서 동시에 배우는</b> 경우가 많아요. 1~2쪽의 강화학습을 그대로 각자 돌리면 될 것 같지만, 상대도 배우면서 바뀌어서 "환경은 그대로"라는 가정이 깨져요. <a href="rl-games.html">3쪽</a>의 게임 이론이 "무엇이 해인가"를 정했다면, 이 쪽은 그 해를 <b>강화학습으로 어떻게 배우나</b>예요.</p><table><tr><th>어려움</th><th>뜻</th><th>이 쪽</th></tr><tr><td>비정상성</td><td>다른 에이전트가 배우는 동안 내 입장에서는 환경이 계속 바뀜</td><td>②</td></tr><tr><td>균형 선택</td><td>좋은 균형과 안전한 균형 중 어디로 갈지</td><td>①</td></tr><tr><td>신용 할당</td><td>팀 보상을 받았을 때 누구의 행동 덕인지</td><td>③, 가치 분해</td></tr><tr><td>규모</td><td>에이전트가 늘면 결합 행동이 곱으로 늘어남</td><td>④</td></tr></table>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>상태 없는 협력 게임에서 세 방식 비교 → 비정상성 들여다보기 → 상태가 있는 협력 문제 → 규모. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/rl/multi_agent.py</code> 하나예요. 표 Q-learning만 써서 30초 안쪽에 끝나요. 신경망으로 넓힌 알고리즘들은 각 단계 끝과 마지막의 표에 정리했어요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 각자 배우기 vs 함께 배우기: 오르막 게임</h3><p class="does">둘이 같은 보상을 받는 게임에서 셋을 비교해요. 각자 자기 Q만 배우기, 결합 행동 하나의 Q를 배우기, 팀 Q를 둘의 합으로 나눠 배우기.</p><p>다중 에이전트 문제는 3쪽의 게임 모델(행렬 게임, 확률적 게임, POSG)에 학습 목표(어떤 해)를 붙인 거예요. 여기서는 모두가 같은 보상을 받는 협력 게임이라 목표가 분명해요. 팀 보상을 최대로요.</p><p>가장 쉬운 두 방법은 단일 에이전트 강화학습으로 바꾸는 거예요. <b>중앙 학습</b>: 모두를 한 에이전트로 보고 결합 행동 (a₁, a₂)를 고르게 해요. <b>독립 학습</b>: 각자 다른 에이전트를 환경의 일부로 보고 자기 Q만 배워요. 독립 학습은 단순하고 에이전트 수에 잘 버티지만, ②의 비정상성을 무시해요.</p><table><tr><th>행동 (나 \ 상대)</th><th>0</th><th>1</th><th>2</th></tr><tr><td>0</td><td>11</td><td>-30</td><td>0</td></tr><tr><td>1</td><td>-30</td><td>7</td><td>6</td></tr><tr><td>2</td><td>0</td><td>0</td><td>5</td></tr></table><div class="out" data-out="s1"></div><p>각자 배우기가 안전한 쪽으로 빠지는 이 현상은 <b>균형 선택</b>의 한 예예요. (0, 0)과 (2, 2)는 둘 다 균형에 가깝지만, 모두가 조금씩 탐색하는 동안에는 위험이 적은 쪽이 더 좋아 보여요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>Qj[a1, a2]</code></td><td>중앙: 결합 행동 9칸마다 값</td></tr><tr><td><code>Q1[a1] += alpha * (r - Q1[a1])</code></td><td>각자: 상대가 없는 것처럼</td></tr><tr><td><code>td = r - (Q1[a1] + Q2[a2])</code></td><td>가치 분해: 두 Q의 합이 팀 보상을 맞히게</td></tr></table></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 움직이는 과녁: 상대가 배우는 동안 내 Q가 흔들려요</h3><p class="does">①의 각자 배우기에서 한 에이전트의 Q가 판마다 어떻게 바뀌는지 그리고, 상대 정책에 따른 진짜 값과 비교해요.</p><div class="out" data-out="s2"></div><div class="out" data-out="f_q"></div><p>이걸 줄이는 방법들: 학습 중에만 상대의 행동이나 정책을 함께 보는 것(아래의 CTDE), 상대의 정책을 모델로 만들어 그에 대한 최적 응답을 배우는 것(3쪽의 가상 플레이를 신경망으로 넓힌 에이전트 모델링), 2쪽의 경험 재생 버퍼를 짧게 두는 것(옛 상대 정책의 경험이 덜 섞이게)이 있어요.</p></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 상태가 있는 협력: 둘이 함께 드는 상자</h3><p class="does">6 × 6 격자에서 두 로봇이 상자 옆으로 걸어가 같은 걸음에 함께 들어야 해요. ①의 세 방식을 상태가 있는 문제로 비교해요.</p><p>상태가 있으면 3쪽의 확률적 게임이에요. 각 방식의 Q 목표는 1쪽 Q-learning과 같은 꼴이에요.</p><table><tr><th>방식</th><th>배우는 것</th><th>목표 값</th><th>실행할 때</th></tr><tr><td>중앙</td><td>Q(s, a₁, a₂)</td><td>r + γ max over (a₁', a₂') Q</td><td>한 곳에서 결합 행동을 정해 나눠 줌</td></tr><tr><td>각자</td><td>Q₁(s, a₁), Q₂(s, a₂)</td><td>각자 r + γ max Qᵢ</td><td>각자 자기 Q로</td></tr><tr><td>가치 분해 (VDN)</td><td>Q₁(s, a₁) + Q₂(s, a₂) = 팀 Q</td><td>r + γ (max Q₁ + max Q₂)</td><td>각자 자기 Q로</td></tr></table><div class="out" data-out="s3"></div><div class="out" data-out="f_grid"></div><p><b>학습과 실행을 나누기 (CTDE)</b>: 실행할 때는 각 로봇이 자기 관측만으로 움직여야 하는 경우가 많아요(통신이 없거나 느림). 하지만 학습은 시뮬레이터에서 하니, 학습할 때만은 모두의 정보를 써도 돼요. 이걸 중앙 학습, 분산 실행(CTDE)이라고 해요. VDN이 그 예예요. 학습은 팀 Q 하나로 하고, 실행은 각자 Qᵢ의 max로 해요.</p><p><b>가치 분해가 성립하는 조건 (IGM)</b>: "각자 자기 Qᵢ를 최대로 하는 행동들을 모으면 팀 Q를 최대로 하는 결합 행동이 된다"가 맞아야 각자 실행해도 팀에 최선이에요. 더하기(VDN)는 이걸 늘 만족하지만 표현력이 약해서 ①의 오르막 게임을 못 나타내요. <b>QMIX</b>는 더하기 대신 "각 Qᵢ가 커지면 팀 Q도 커지는"(단조) 신경망으로 섞어서 더 많은 경우를 나타내요. QTRAN, QPLEX는 그 제약도 더 풀었어요.</p><p><b>정책 기반에서는</b>: 행위자는 각자 자기 관측만 보고, 비평가는 학습 중에 모두의 관측과 행동을 보는 <b>중앙 비평가</b>를 써요(MADDPG, MAPPO). <b>COMA</b>는 "나만 다른 행동을 했다면 팀 Q가 얼마였나"를 빼서 내 몫의 이득을 재요(반사실 베이스라인). 팀 보상을 누구 덕인지 나누는 <b>신용 할당</b>의 한 방법이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>sid(p1, p2)</code></td><td>두 로봇의 위치 조합 → 상태 번호 (35 × 35 = 1,225개)</td></tr><tr><td><code>step(p1, p2, a1, a2)</code></td><td>같은 걸음에 둘 다 상자 옆에서 "들기"면 +1</td></tr><tr><td><code>Q1[s, a1] += alpha / 2 * td</code></td><td>가치 분해에서 두 Q를 반씩 고쳐 합이 α만큼 움직이게</td></tr></table></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 에이전트가 늘면: 표의 크기</h3><p class="does">로봇 수가 2에서 5로 늘 때, 결합 행동을 다루는 중앙 방식과 각자 다루는 방식의 표 크기를 계산해요.</p><div class="out" data-out="s4"></div><p><b>파라미터 공유</b>: 로봇들이 모두 같은 종류면 신경망 하나를 함께 쓰고, 입력에 "몇 번 로봇인지"를 붙여요. 배울 가중치가 로봇 수와 상관없이 하나라서 많은 에이전트로 늘리기 쉬워요. 경험을 서로 나눠 쓰는 방법(SEAC)도 있어요.</p><p><b>경쟁에서는 셀프 플레이</b>: 바둑이나 스타크래프트처럼 두 편이 겨루면, 자기 자신(또는 지난 버전들)과 두면서 배워요. AlphaZero는 몬테카를로 트리 탐색(MCTS)으로 수를 미리 읽고, 그 결과로 정책과 가치 신경망을 가르치는 셀프 플레이를 했어요. 자기와만 두면 가위바위보처럼 한 전략에만 맞춰지는 순환에 빠질 수 있어서, 여러 버전의 정책을 모아 그 모음에 대한 최적 응답을 계속 더하는 <b>PSRO</b>(AlphaStar가 쓴 리그 방식의 바탕)도 있어요.</p><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/rl/multi_agent.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>어느 방법부터</td><td>에이전트가 둘셋이고 시뮬레이터가 있으면 중앙 학습이나 중앙 비평가(MAPPO)부터. 많고 같은 종류면 파라미터를 공유한 독립 PPO(IPPO)가 의외로 강한 기준선이에요.</td></tr><tr><td>실험 환경</td><td>협력: 레벨 기반 채집(LBF), 창고 로봇(RWARE), 스타크래프트 다중 에이전트 챌린지(SMAC), 하나비, 오버쿡드. 섞임: 다중 에이전트 파티클 환경(MPE), Melting Pot. 모음: PettingZoo, OpenSpiel.</td></tr><tr><td>평가와 보고</td><td>씨앗 여러 개의 평균과 퍼짐, x축은 환경 걸음 수. 알고리즘마다 하이퍼파라미터를 같은 예산으로 찾아야 공정해요. 보상을 표준화하고, 관측이 일부만 보이면 RNN이나 최근 관측 겹치기를 써요.</td></tr><tr><td>팀 보상만 있다</td><td>각자 배우기는 "내가 잘해서인지 동료 덕인지"를 몰라 게을러지기 쉬워요(게으른 에이전트). 가치 분해나 COMA 같은 신용 할당을 써요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①~④</td><td><code>numpy</code>, <code>collections.Counter</code></td><td>표 Q-learning, 결과 세기</td></tr></table>
+      <p><code>eps_at</code>, <code>matrix_learn</code>, <code>q_if_partner</code>, <code>sid</code>, <code>next_to_box</code>, <code>step</code>, <code>grid_learn</code>, <code>table_sizes</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="rl-games.html">게임과 균형</a></td><td>목표가 되는 해</td></tr><tr><td><a href="rl-deep.html">심층 강화학습</a></td><td>표 대신 신경망 (IDQN, IPPO의 바탕)</td></tr><tr><td><a href="rl-basics.html">강화학습 기초</a></td><td>Q-learning</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 강화학습을 여러 에이전트로 넓힌 쪽이에요. 수업에서 따로 다루지 않았어요</li><li>함께 정리한 자료: Albrecht, Christianos, Schäfer, <i>Multi-Agent Reinforcement Learning</i> 1장(다중 에이전트 시스템, 응용, 어려움), 5장(학습 과정, 수렴의 종류, 중앙 학습과 독립 학습, 비정상성, 균형 선택, 신용 할당, 규모, 셀프 플레이), 6장(결합 행동 학습, 에이전트 모델링), 9장(CTE, DTE, CTDE, IDQN과 IPPO, 중앙 비평가, MADDPG, COMA, IGM, VDN, QMIX, QTRAN과 QPLEX, 파라미터 공유와 경험 공유, MCTS와 AlphaZero, PSRO와 AlphaStar), 10장(평가와 실험 설계), 11장(실험 환경). 오르막 게임의 보상 표는 이 분야에서 널리 쓰는 예를 따랐고, 격자 문제와 실험은 이 노트용으로 새로 만들었어요</li><li>결과 값과 그림: <code>tools/pages/rl_multiagent.py</code>가 <code>examples/rl/multi_agent.py</code>를 단계별로 실제 실행한 결과 (씨앗 0~99, 격자는 0~4)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="rl-multiagent-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

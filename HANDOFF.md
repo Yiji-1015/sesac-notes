@@ -70,14 +70,19 @@
    - 끝남: 부스팅(7장) → 머신러닝 4쪽 `ml-svm-lda-pca.html`에 ⑪~⑬ 추가 (AdaBoost 직접 짜기, 지수 손실과 train 오차의 상한, L1 마진). 2쪽 ⑩에는 4쪽으로 가는 링크만 넣었어요. 2쪽 뒤에 단계를 끼우면 3쪽 번호(⑬~⑰)가 밀려서 4쪽에 이었어요. ①~⑩ 값은 그대로
      - 이 작은 데이터에서는 트리를 늘려도 valid와 교차검증 점수가 좋아지지 않았어요(트리 50개가 가장 좋음). 페이지에도 그대로 적었어요
    - 끝남: 1~4장(PAC, Rademacher와 VC 차원, 모델 선택) → 새 쪽 **학습 이론: 몇 건이면 믿을 수 있나** (`ml-learning-theory.html`, 머신러닝 기초 5/5쪽, 예제 `examples/theory/learning_theory.py`). 정답 직사각형 + 잡음 10%인 가상 세상이라 진짜 오차를 정확히 계산해요. 1~4쪽 번호를 x/5쪽으로 바꿨어요
-   - 계획에 없던 장: 8장(온라인 학습), 9장(다중 분류), 10장(랭킹), 11장(회귀), 12~13장(최대 엔트로피), 14장(알고리즘 안정성), 15장(차원 축소), 16장(오토마타 학습), 17장(강화학습). 17장은 강화학습 카테고리 때 같이 봐요
+   - 계획에 없던 장: 8장(온라인 학습), 9장(다중 분류), 10장(랭킹), 11장(회귀), 12~13장(최대 엔트로피), 14장(알고리즘 안정성), 15장(차원 축소), 16장(오토마타 학습). 17장(강화학습)은 강화학습 1쪽에 합쳤어요
 3. **Elastic ANN, Elasticsearch**: 백엔드의 embedding, indexing 페이지에 보강해요.
 4. **llm-internals, vLLM, Solar Open 2, llm-judge** (진행 중)
    - 끝남: llm-internals, vLLM → 새 쪽 **요즘 LLM의 부품** (`llm-architectures.html`, 예제 `examples/llm_arch/`). 모델은 받지 않고 설정만으로 GPT-2, Llama, Mistral, Mixtral을 작게 만들어 비교 (CPU 10초쯤)
    - 끝남: llm-judge → 새 쪽 **LLM으로 답 채점하기** (`topics/backend/llm-judge.html`, 예제 `examples/llm/judge.py`). Anthropic SDK에 가짜 서버(MockTransport)를 붙여 실제 요청 모양을 관찰해요. 판정과 토큰 수는 가짜 서버의 고정 값이라 페이지에 그렇게 적었어요. 위키 원본은 짧아서, 겹치는 구조화 출력과 형식 복구는 Prompt와 출력 계약 쪽으로 넘기고 캐시 비용과 채점 신뢰도를 더했어요
    - 안 하기로 함: Solar Open 2
 5. **"데이터 분석 기초" 카테고리 새로 만들기**: 통계, SPSS, Data Science, ml-lifecycle, PRML 2강을 넣어요.
-6. **강화학습 카테고리 새로 만들기**: MARL 11장과 UDL 19장을 넣어요.
+6. **강화학습 카테고리** (끝남). 원본은 OneDrive `자료/md/MARL/`(11장), `UDL/19-Reinforcement-Learning.md`, `Foundations-ML/17-Reinforcement-Learning.md`
+   - `rl-basics.html` (예제 `examples/rl/grid_world.py`): 4 × 8 격자 배달 로봇. 벨만 방정식, 가치 반복과 정책 반복, 밴딧, MC와 TD(0), SARSA와 Q-learning
+   - `rl-deep.html` (예제 `examples/rl/deep_rl.py`, 빌드 6분): 막대 세우기를 물리식으로 직접 짬(gym 없음). DQN 장치 하나씩 빼기, REINFORCE와 베이스라인, A2C(λ 바꿔 보기), PPO
+   - `rl-games.html` (예제 `examples/rl/matrix_games.py`): 행렬 게임의 내시, 미니맥스와 상관 균형 선형 계획, 가상 플레이, 후회 매칭, IGA와 WoLF, 반복 죄수의 딜레마
+   - `rl-multiagent.html` (예제 `examples/rl/multi_agent.py`): 오르막 게임, 움직이는 과녁, 함께 드는 상자(중앙, 각자, VDN), 표 크기
+   - 책과 다르게 나온 결과도 그대로 적었어요: TD(0)보다 MC가 빠름(1쪽 ⑤), 경험 재생만 쓴 DQN이 둘 다 쓴 DQN보다 나음(2쪽 ②), 둘뿐이면 VDN이 독립 학습보다 낫지 않음(4쪽 ③)
 7. **세미나 "읽기 노트"**: Upstage, PyCon, 가짜연구소, OSSummit, 밋업 자료를 담아요. 예제 코드 없이 가벼운 형식으로 써요.
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).
 9. **정보처리기사 정리**를 넣어요.

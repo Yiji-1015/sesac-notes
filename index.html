@@ -147,6 +147,14 @@
           <a class="item" href="topics/model/generative-models.html"><b>생성 모델</b><small>VAE, GAN, Normalizing Flow, Diffusion, 정밀도와 재현율</small></a>
           <a class="item" href="topics/model/gnn.html"><b>그래프 신경망 (GNN)</b><small>인접 행렬, 이웃 모으기, GCN, 과평활</small></a>
         </div>
+        <div class="cat">
+          <h3>강화학습</h3>
+          <p>정답 없이 해 보고 받은 보상으로 배우기, 그리고 여럿이 함께 배울 때</p>
+          <a class="item" href="topics/model/rl-basics.html"><b>강화학습 기초</b><small>MDP, 할인율, 가치 함수와 벨만 방정식, 가치 반복과 정책 반복, 슬롯머신과 ε-greedy, 몬테카를로와 TD, SARSA와 Q-learning</small></a>
+          <a class="item" href="topics/model/rl-deep.html"><b>심층 강화학습</b><small>막대 세우기, DQN(경험 재생, 타깃 네트워크), REINFORCE와 베이스라인, A2C와 GAE, PPO</small></a>
+          <a class="item" href="topics/model/rl-games.html"><b>게임과 균형</b><small>행렬 게임, 내시 균형, 혼합 균형, 미니맥스 선형 계획, 상관 균형, 파레토, 가상 플레이, 후회 매칭, WoLF, 반복 죄수의 딜레마</small></a>
+          <a class="item" href="topics/model/rl-multiagent.html"><b>다중 에이전트 강화학습</b><small>중앙 학습과 독립 학습, 비정상성, 균형 선택, 함께 드는 상자, VDN, CTDE, 신용 할당, 규모, 셀프 플레이</small></a>
+        </div>
       </div>
     </section>
 
@@ -197,6 +205,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/22</td><td>새 카테고리 "강화학습" 네 쪽: <a href="topics/model/rl-basics.html">강화학습 기초</a>(격자 배달 로봇으로 벨만 방정식, 동적 계획법, 밴딧, MC와 TD, SARSA와 Q-learning), <a href="topics/model/rl-deep.html">심층 강화학습</a>(막대 세우기로 DQN 장치 하나씩 빼기, REINFORCE, A2C, PPO), <a href="topics/model/rl-games.html">게임과 균형</a>(행렬 게임의 내시, 미니맥스, 상관 균형, 가상 플레이, 후회 매칭, WoLF, 반복 죄수의 딜레마), <a href="topics/model/rl-multiagent.html">다중 에이전트 강화학습</a>(오르막 게임, 움직이는 과녁, 함께 드는 상자, 가치 분해, 규모). Multi-Agent Reinforcement Learning 1~11장, Understanding Deep Learning 19장, Foundations of Machine Learning 17장</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/backend/llm-judge.html">LLM으로 답 채점하기 (LLM-as-a-Judge)</a> 새로 씀: 루브릭과 점수 계약, 채점 기준을 캐시하는 Claude API 요청(가짜 서버로 실제 SDK 요청 관찰), 캐시 비용 계산, 잘린 답 다시 묻기, 순서 바꿔 묻기와 가중 kappa</td></tr>
         <tr><td class="when">11/21</td><td><a href="topics/model/ml-learning-theory.html">학습 이론: 몇 건이면 믿을 수 있나</a> 새로 씀 (머신러닝 기초 5쪽): Foundations of Machine Learning 2~4장. 정답을 아는 세상에서 Hoeffding 막대, 후보 수에 따른 낙관, 직사각형 PAC 학습(1 ÷ m), 직선과 직사각형의 VC 차원 세기, 트리의 Rademacher 복잡도, 깊이별 근사 오차와 추정 오차, valid, 교차검증, SRM으로 깊이 고르기</td></tr>
         <tr><td class="when">11/21</td><td><a href="topics/model/ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a>에 ⑪~⑬ 추가: Foundations of Machine Learning 7장. AdaBoost를 직접 짜서 scikit-learn과 맞추기, train 오차가 지수 손실(Z의 곱) 아래에서 줄어드는 모습, 0-1, 지수, 로그, 힌지 손실 비교, 트리를 늘릴 때 L1 마진과 valid, 교차검증 점수</td></tr>

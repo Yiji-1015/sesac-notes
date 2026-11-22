@@ -5868,6 +5868,411 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "강화학습",
+  "aliases": [
+   "Reinforcement Learning",
+   "RL"
+  ],
+  "full": "Reinforcement Learning",
+  "short": "정답 대신, 해 본 행동에 대한 보상(점수)만 보고 앞으로 받을 보상의 합이 커지도록 행동 규칙을 배우는 방법.",
+  "analogy": "칭찬과 꾸중만으로 강아지가 재주를 배우는 것.",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "MDP",
+  "aliases": [
+   "마르코프 결정 과정",
+   "Markov Decision Process",
+   "마르코프 성질",
+   "POMDP"
+  ],
+  "full": "Markov Decision Process",
+  "short": "상태, 행동, 전이 확률, 보상으로 순서 있는 의사결정을 적는 틀. 다음 일이 지금 상태와 행동에만 달려 있다고(마르코프 성질) 가정해요. 상태를 일부만 보면 POMDP예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "할인율",
+  "aliases": [
+   "discount factor",
+   "γ",
+   "할인 수익",
+   "수익"
+  ],
+  "full": "Discount Factor (할인율)",
+  "short": "나중 보상을 지금 보상보다 얼마나 덜 칠지 정하는 0~1의 값 γ. 수익은 r₀ + γr₁ + γ²r₂ + ...예요. 문제 정의의 일부라 바꾸면 최적 정책도 달라져요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "가치 함수",
+  "aliases": [
+   "Value Function",
+   "상태 가치",
+   "행동 가치",
+   "V^π",
+   "Q^π",
+   "Q 함수"
+  ],
+  "full": "Value Function",
+  "short": "정책을 따를 때 그 상태(V) 또는 그 상태에서 그 행동을 먼저 한 뒤(Q) 평균적으로 받을 수익.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "벨만 방정식",
+  "aliases": [
+   "Bellman equation",
+   "벨만 최적 방정식"
+  ],
+  "full": "Bellman Equation",
+  "short": "가치 = 이번 보상 + γ × 다음 상태의 가치, 라는 자기 자신을 다시 부르는 식. max를 넣으면 최적 가치를 정하는 벨만 최적 방정식이 돼요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "동적 계획법",
+  "aliases": [
+   "Dynamic Programming",
+   "가치 반복",
+   "정책 반복",
+   "Value Iteration",
+   "Policy Iteration"
+  ],
+  "full": "Dynamic Programming (강화학습)",
+  "short": "전이 확률과 보상을 다 알 때 벨만 방정식을 되풀이해 최적 가치와 정책을 계산하는 방법. 가치 반복과 정책 반복이 있어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "TD 학습",
+  "aliases": [
+   "시간차 학습",
+   "Temporal Difference",
+   "TD(0)",
+   "TD 오차",
+   "부트스트래핑"
+  ],
+  "full": "Temporal-Difference Learning",
+  "short": "판이 끝나기를 기다리지 않고 한 걸음 뒤의 보상과 다음 상태의 짐작 가치로 지금 가치를 바로 고치는 방법. 고치는 양이 TD 오차예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Q-learning",
+  "aliases": [
+   "Q 러닝",
+   "off-policy"
+  ],
+  "full": "Q-learning",
+  "short": "다음 상태에서 가장 좋은 행동의 값(max Q)을 목표로 Q를 고치는 TD 방법. 행동은 탐색하며 해도 최적 정책의 값을 배워요(off-policy).",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "SARSA",
+  "aliases": [
+   "on-policy"
+  ],
+  "full": "SARSA",
+  "short": "다음에 실제로 고른 행동의 Q를 목표로 고치는 TD 방법. 탐색까지 포함한 지금 행동 방식의 값을 배워요(on-policy).",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "ε-greedy",
+  "aliases": [
+   "epsilon-greedy",
+   "입실론 그리디",
+   "탐색과 활용",
+   "exploration-exploitation"
+  ],
+  "full": "ε-greedy",
+  "short": "ε 확률로 아무 행동이나 해 보고(탐색), 나머지는 지금 가장 좋아 보이는 행동을 하는(활용) 규칙.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "멀티암드 밴딧",
+  "aliases": [
+   "Multi-armed Bandit",
+   "밴딧",
+   "bandit"
+  ],
+  "full": "Multi-armed Bandit",
+  "short": "평균을 모르는 슬롯머신 여러 대 중 무엇을 당길지 반복해서 고르는 문제. 상태가 하나뿐인 가장 단순한 강화학습이에요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "DQN",
+  "aliases": [
+   "Deep Q-Network",
+   "경험 재생",
+   "Experience Replay",
+   "타깃 네트워크",
+   "Target Network",
+   "Double DQN"
+  ],
+  "full": "Deep Q-Network",
+  "short": "Q를 신경망으로 근사한 Q-learning. 겪은 경험을 버퍼에 쌓아 무작위로 뽑아 배우고(경험 재생), 목표 값은 가끔만 복사하는 별도 신경망으로 계산해(타깃 네트워크) 학습을 안정시켜요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "액터-크리틱",
+  "aliases": [
+   "Actor-Critic",
+   "A2C",
+   "advantage",
+   "이득",
+   "GAE",
+   "비평가"
+  ],
+  "full": "Actor-Critic",
+  "short": "정책(행위자)과 가치(비평가)를 함께 배워, 비평가가 잰 이득(평소보다 얼마나 나았나)으로 행위자를 고치는 방법.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "PPO",
+  "aliases": [
+   "Proximal Policy Optimization",
+   "clip"
+  ],
+  "full": "Proximal Policy Optimization",
+  "short": "같은 기록으로 여러 번 배우되, 새 정책이 옛 정책보다 일정 비율(보통 20%) 넘게 바뀐 몫은 점수에 넣지 않아 한 번에 크게 바뀌지 않게 하는 정책 경사 방법.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "내시 균형",
+  "aliases": [
+   "Nash Equilibrium",
+   "최적 응답",
+   "Best Response"
+  ],
+  "full": "Nash Equilibrium",
+  "short": "모두가 서로에게 최적 응답이라, 아무도 혼자 정책을 바꿔 더 받을 수 없는 상태. 행동을 섞는 정책까지 넣으면 모든 유한 게임에 있어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "미니맥스",
+  "aliases": [
+   "Minimax",
+   "maxmin",
+   "게임 값",
+   "제로섬"
+  ],
+  "full": "Minimax",
+  "short": "두 명의 제로섬 게임에서, 상대가 최악으로 나와도 보장되는 값을 최대로 하는 정책. 그 값(게임 값)은 하나로 정해지고 선형 계획으로 풀려요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "상관 균형",
+  "aliases": [
+   "Correlated Equilibrium",
+   "거친 상관 균형",
+   "Coarse Correlated Equilibrium"
+  ],
+  "full": "Correlated Equilibrium",
+  "short": "바깥에서 결합 행동을 뽑아 각자에게 자기 몫만 추천할 때, 추천을 따르는 게 늘 최적인 상태. 내시 균형을 포함하고 선형 계획으로 계산돼요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "파레토 최적",
+  "aliases": [
+   "Pareto Optimal",
+   "사회 후생"
+  ],
+  "full": "Pareto Optimality",
+  "short": "누구 하나를 손해 보게 하지 않고는 아무도 더 나아질 수 없는 결과. 사회 후생은 모두의 보상 합이에요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "후회 매칭",
+  "aliases": [
+   "Regret Matching",
+   "후회",
+   "regret",
+   "후회 없음",
+   "가상 플레이",
+   "Fictitious Play"
+  ],
+  "full": "Regret Matching",
+  "short": "\"그때 다른 행동을 했으면\"의 아쉬움(후회)이 큰 행동을 그 비율만큼 자주 고르는 반복 학습. 평균 후회가 0으로 가요. 가상 플레이는 상대의 지금까지 비율에 최적 응답을 내는 방법이에요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "다중 에이전트 강화학습",
+  "aliases": [
+   "MARL",
+   "Multi-Agent Reinforcement Learning",
+   "독립 학습",
+   "중앙 학습",
+   "비정상성",
+   "신용 할당"
+  ],
+  "full": "Multi-Agent Reinforcement Learning",
+  "short": "여럿이 같은 환경에서 동시에 배우는 강화학습. 상대도 바뀌어 환경이 계속 바뀌는 비정상성, 팀 보상을 누구 덕인지 나누는 신용 할당, 결합 행동이 곱으로 느는 규모 문제가 있어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "CTDE",
+  "aliases": [
+   "중앙 학습 분산 실행",
+   "Centralized Training Decentralized Execution",
+   "중앙 비평가",
+   "MADDPG",
+   "MAPPO",
+   "COMA"
+  ],
+  "full": "Centralized Training with Decentralized Execution",
+  "short": "학습할 때만 모두의 정보를 함께 쓰고, 실행할 때는 각자 자기 관측만으로 움직이는 방식.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "가치 분해",
+  "aliases": [
+   "Value Decomposition",
+   "VDN",
+   "QMIX",
+   "IGM"
+  ],
+  "full": "Value Decomposition",
+  "short": "팀 Q를 에이전트별 Q의 합(VDN)이나 단조 함수(QMIX)로 나눠 배워서, 각자 자기 Q의 최대를 고르면 팀에도 최선이 되게 하는 방법.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "셀프 플레이",
+  "aliases": [
+   "Self-play",
+   "PSRO",
+   "AlphaZero",
+   "MCTS",
+   "몬테카를로 트리 탐색"
+  ],
+  "full": "Self-play",
+  "short": "자기 자신이나 지난 버전들과 겨루며 배우는 방법. AlphaZero는 몬테카를로 트리 탐색과 셀프 플레이로, PSRO는 여러 버전 정책의 모음에 대한 최적 응답을 계속 더해 가며 배워요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "정책 경사",
+  "aliases": [
+   "Policy Gradient",
+   "REINFORCE"
+  ],
+  "full": "Policy Gradient",
+  "short": "정책 신경망을 수익이 커지는 방향으로 직접 고치는 방법. 기울기는 log 확률의 기울기 × 수익의 평균이에요. 수익에서 평균 같은 기준값(베이스라인)을 빼면 덜 흔들려요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
   "term": "픽셀",
   "aliases": [
    "Pixel"

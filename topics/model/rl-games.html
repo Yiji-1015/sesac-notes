@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>게임과 균형 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>게임과 균형: 상대도 배울 때의 "가장 좋은 정책"</h1>
+      <div class="meta">모델 &gt; 강화학습 3/4쪽 &nbsp;|&nbsp; 이전: <a href="rl-deep.html" style="color:inherit">심층 강화학습</a> &nbsp;|&nbsp; 다음: <a href="rl-multiagent.html" style="color:inherit">다중 에이전트 강화학습</a></div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">상대가 있으면 "가장 좋은 정책" 대신 <b>균형</b>을 찾아요. 아무도 혼자 바꿀 이유가 없는 <b>내시 균형</b>, 제로섬의 <b>미니맥스</b>, 신호로 함께 정하는 <b>상관 균형</b>이 있고, 반복하며 배우는 방법(가상 플레이, 후회 매칭, WoLF)이 그 균형에 다가가요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p><a href="rl-basics.html">1쪽</a>과 <a href="rl-deep.html">2쪽</a>에서 환경은 "규칙대로 반응하는 세상"이었어요. 그런데 상대도 배우는 에이전트라면 어떨까요? 내가 최선을 다해도 결과는 상대가 무엇을 하느냐에 달려 있고, 상대도 나를 보고 바뀌어요. 그래서 "가장 좋은 정책"이라는 말부터 다시 정해야 해요.</p>
+<p>그 기준을 오래 연구해 온 분야가 <b>게임 이론</b>이에요. 이 쪽에서는 한 번씩 동시에 고르는 가장 작은 게임(행렬 게임)으로 해의 개념들을 계산해 보고, 반복하면서 그 해에 다가가는 학습 방법을 봐요. 상태가 있는 게임에서 여럿이 배우는 건 <a href="rl-multiagent.html">4쪽</a>에서 다뤄요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>게임 표 → 서로 최적 응답(내시) → 섞어서 고르기 → 신호로 함께 정하기 → 반복하며 배우기(세 가지) → 같은 상대와 계속 만나기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/rl/matrix_games.py</code> 하나예요. 몇 초면 끝나요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 게임을 표로: 행렬 게임</h3><p class="does">두 플레이어가 동시에 행동 하나를 고르면, 두 행동의 조합에 따라 각자 보상을 받아요. 그 보상을 표 두 장에 적어요.</p><p>가장 작은 게임은 <b>정규형 게임</b>이에요. 플레이어들이 동시에 한 번 고르고 끝나요. 둘이면 보상을 행렬로 적어서 <b>행렬 게임</b>이라고도 해요. 같은 게임을 되풀이하면 반복 게임(⑦), 상태가 바뀌어 가며 여러 번 고르면 확률적 게임(마르코프 게임)이에요. 확률적 게임은 1쪽의 MDP를 여럿으로 늘린 것이고, 상태를 다 못 보면 부분 관측 확률적 게임(POSG)이에요.</p><p>보상 관계로 게임을 나눠요. 모두 같은 보상을 받으면 <b>공통 보상</b>(협력), 한쪽 이득이 다른 쪽 손해면 <b>제로섬</b>(경쟁), 그 밖은 <b>일반합</b>이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>GAMES</code></td><td>게임 이름 → (행 플레이어 보상 표, 열 플레이어 보상 표, 행동 이름)</td></tr><tr><td><code>np.array_equal(R1, -R2)</code></td><td>합이 늘 0이면 제로섬</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 최적 응답과 순수 내시 균형</h3><p class="does">상대의 행동을 고정했을 때 내가 가장 많이 받는 행동이 최적 응답이에요. 둘 다 서로에게 최적 응답인 칸을 찾아요.</p><p>상대의 정책이 정해져 있으면 내 문제는 1쪽처럼 "가장 많이 받기"예요. 그 답이 <b>최적 응답</b>이에요. 모두가 서로에게 최적 응답이라 아무도 혼자 바꿀 이유가 없는 상태가 <b>내시 균형</b>이에요. 표에서는 "그 열에서 내 보상이 최대이고, 그 행에서 상대 보상이 최대"인 칸이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>R1[a, b] == R1[:, b].max()</code></td><td>상대가 b일 때 a가 내 최적 응답인가</td></tr><tr><td><code>R2[a, b] == R2[a, :].max()</code></td><td>내가 a일 때 b가 상대의 최적 응답인가</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 섞어서 고르기: 혼합 균형과 미니맥스</h3><p class="does">행동을 확률로 섞는 정책까지 넣으면 모든 유한 게임에 균형이 있어요. 2 × 2는 식으로, 제로섬은 선형 계획으로 풀어요.</p><p>행동을 확률로 섞는 정책을 <b>혼합 정책</b>이라고 해요. 내시는 혼합 정책까지 넣으면 <b>모든 유한 게임에 균형이 적어도 하나</b> 있다는 걸 보였어요. 가위바위보의 유일한 균형은 셋을 1/3씩 섞는 거예요.</p><p>2인 <b>제로섬</b> 게임에서는 균형이 특별한 꼴이에요. "상대가 최악으로 나와도 내가 보장할 수 있는 값을 최대로"(maxmin)와 "상대에게 허락하는 값을 최소로"(minmax)가 같아지고, 그 값이 <b>게임 값</b>이에요(미니맥스 정리). 균형이 여럿이어도 값은 하나예요. 이건 선형 계획으로 풀 수 있어요. 변수는 내 행동 확률과 보장 값 v, 조건은 "상대의 어떤 행동에 대해서도 내 기대 보상 ≥ v"예요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>mixed_2x2(R1, R2)</code></td><td>상대가 두 행동을 똑같이 좋게 느끼게 하는 내 확률</td></tr><tr><td><code>minimax(R)</code></td><td>선형 계획: v 최대, 단 모든 열에 대해 Σ xᵢ R[i, j] ≥ v</td></tr><tr><td><code>linprog(c, A_ub, b_ub, A_eq, b_eq, bounds)</code></td><td>scipy의 선형 계획. c를 최소로 하니 −v를 넣어요</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 신호를 받아 함께 정하기: 상관 균형, 파레토, 사회 후생</h3><p class="does">누가 무엇을 할지 공정한 제비뽑기로 추천해 주면, 혼자 섞을 때보다 둘 다 나아질 수 있어요. 선형 계획으로 둘의 합이 가장 큰 것을 찾아요.</p><p>내시 균형은 각자 <b>따로</b> 섞어요. 신호등처럼 바깥에서 결합 행동을 하나 뽑아 각자에게 자기 몫만 알려 주고, 받은 추천을 따르는 게 늘 최적이면 <b>상관 균형</b>이에요. 내시 균형은 모두 상관 균형이고(따로 뽑는 특별한 경우), 상관 균형은 선형 계획으로 바로 계산돼요. 조건을 더 느슨하게 해서 "추천을 보기 전에 따를지 정한다"로 바꾸면 <b>거친 상관 균형</b>이에요(⑤의 후회 매칭이 모이는 곳).</p><div class="out" data-out="s4"></div><div class="out" data-out="f_chicken"></div><p>균형이 여럿일 때 고르는 기준도 있어요. <b>파레토 최적</b>: 누구 하나를 손해 보게 하지 않고는 더 나아질 수 없는 결과. <b>사회 후생</b>: 모두의 보상 합. <b>공정성</b>: 보상의 곱처럼 고르게 받을수록 커지는 값. 여기서는 사회 후생을 최대로 하는 상관 균형을 골랐어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>correlated(R1, R2, objective)</code></td><td>결합 행동마다 확률 x를 두고, 추천을 바꾸면 손해라는 조건 아래 objective를 최대로</td></tr><tr><td><code>itertools.permutations(range(k), 2)</code></td><td>(추천받은 행동, 바꿀 행동)의 모든 쌍</td></tr><tr><td><code>ConvexHull</code></td><td>섞어서 낼 수 있는 보상 쌍의 영역 (그림용)</td></tr></table></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 반복하며 배우기: 가상 플레이와 후회 매칭</h3><p class="does">같은 게임을 수천 번 반복하며, 상대의 지금까지 비율에 맞서거나(가상 플레이) 지난 아쉬움을 줄이는 쪽으로(후회 매칭) 행동을 바꿔요.</p><p>균형을 계산하려면 상대의 보상 표까지 알아야 해요. 실제로는 모르니까, 반복하면서 배워요.</p><p><b>가상 플레이</b>: 상대가 지금까지 낸 비율이 상대의 정책이라고 믿고, 그에 대한 최적 응답을 내요. 상대를 모델로 만들어 맞서는 방법(에이전트 모델링)의 가장 단순한 꼴이에요. 제로섬과 2 × 2 게임 등에서는 비율이 균형으로 모인다는 보장이 있어요.</p><p><b>후회 매칭</b>: 매판 "그때 다른 행동을 냈으면 얼마나 더 받았나"(후회)를 행동마다 더해 두고, 후회가 큰 행동을 그 비율만큼 자주 내요. 그러면 평균 후회가 0으로 가고(후회 없음), 모두가 이렇게 하면 결합 행동의 빈도가 거친 상관 균형으로 모여요. 포커 AI가 쓰는 방법들이 이 생각에서 나왔어요.</p><div class="out" data-out="s5"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.argmax(R1 @ (seen[1] / seen[1].sum()))</code></td><td>상대의 지금까지 비율에 대한 최적 응답</td></tr><tr><td><code>regret[0] += R1[:, b] - R1[a, b]</code></td><td>모든 행동에 대해 "그걸 냈으면" − "실제로 받은 것"</td></tr><tr><td><code>p = np.maximum(r, 0) / 합</code></td><td>양수인 후회만, 그 크기에 비례해 고르기</td></tr></table></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 기울기로 배우기: IGA와 WoLF</h3><p class="does">두 플레이어가 각자 자기 기대 보상의 기울기를 따라 확률을 조금씩 바꿔요. 그냥 따르면 맴돌고, 걸음 크기를 바꾸면 모여요.</p><p>2쪽의 정책 경사처럼, 각자 자기 정책을 기대 보상이 커지는 방향으로 조금씩 움직여요(무한소 기울기 상승, IGA). 문제는 상대도 동시에 움직인다는 거예요. 내가 올라가는 방향이 상대 때문에 계속 바뀌어요.</p><p><b>WoLF</b>(Win or Learn Fast)는 "지금 균형 정책보다 많이 받고 있으면(이기는 중) 천천히, 덜 받고 있으면(지는 중) 빨리" 움직여요. 이기는 동안 천천히 움직이면 상대가 따라잡을 시간이 생겨서, 쫓고 쫓기는 원이 안쪽으로 말려요. 실제로는 균형 정책을 모르니 지금까지의 평균 정책과 비교하는 WoLF-PHC를 써요.</p><div class="out" data-out="s6"></div><div class="out" data-out="f_learn"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>dp = q * 2 - (1 - q) * 2</code></td><td>행 플레이어 기대 보상 (2p − 1)(2q − 1)의 p에 대한 기울기</td></tr><tr><td><code>lr * (0.25 if mine &gt; 0 else 1.0)</code></td><td>이기는 중이면 4분의 1 걸음</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 같은 게임을 되풀이하면: 반복 죄수의 딜레마</h3><p class="does">다섯 가지 전략끼리 100번씩 죄수의 딜레마를 두고, 판당 평균 보상을 비교해요.</p><p>한 번만 하면 배신이 유일한 균형이었어요. 같은 상대와 계속 만나면 지난 판을 보고 행동을 정할 수 있어요. <b>맞대응</b>(첫 판은 협력, 그다음엔 상대가 지난번에 한 대로)은 협력에는 협력으로, 배신에는 배신으로 답해요.</p><div class="out" data-out="s7"></div><p>미래를 충분히 중요하게 보면(γ가 1에 가까우면) "각자 보복당하지 않을 만큼은 받는" 어떤 보상 조합도 균형이 될 수 있다는 결과(포크 정리)가 있어요. 협력이 균형이 될 수 있다는 좋은 소식이지만, 균형이 너무 많아져서 어느 것을 고를지는 더 어려워져요.</p><p>균형이라는 해에는 한계도 있어요. 가장 좋은 결과가 아닐 수 있고(②의 죄수의 딜레마), 여러 개라 어느 것인지 정해 주지 않고(균형 선택), 균형에서 벗어난 상황에서 어떻게 할지는 말해 주지 않아요. 그래서 다중 에이전트 학습에서는 균형 말고도 파레토 최적, 후생, 후회 없음 같은 목표를 함께 써요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>STRATEGIES</code></td><td>전략 이름 → (내 지난 행동들, 상대 지난 행동들)을 받아 이번 행동을 내는 함수</td></tr><tr><td><code>theirs[-1] if theirs else 0</code></td><td>맞대응: 상대가 지난번에 한 대로</td></tr><tr><td><code>1 if 1 in theirs else 0</code></td><td>원한: 한 번이라도 배신당하면 끝까지 배신</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/rl/matrix_games.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>균형을 직접 계산할 수 있나</td><td>행동이 수십 개인 2인 게임의 내시 균형은 계산이 어렵다고 알려져 있어요(효율적인 방법이 있다는 보장이 없음). 제로섬과 상관 균형은 선형 계획이라 커도 풀려요.</td></tr><tr><td>어떤 해를 목표로</td><td>협력 게임은 모두의 보상 합(공통 보상이면 그 값)을 최대로, 경쟁 게임은 미니맥스, 섞인 게임은 문제에 맞게 균형 + 파레토, 후생, 공정성을 함께 봐요.</td></tr><tr><td>상대가 사람이나 다른 회사의 AI</td><td>균형은 상대도 합리적이라고 가정해요. 실제 상대가 그렇지 않으면, 상대를 관찰해 모델로 만들고 그에 대한 최적 응답을 찾는 쪽(⑤의 가상 플레이 같은)이 나을 수 있어요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①②⑤⑥⑦</td><td><code>numpy</code>, <code>itertools</code></td><td>보상 표, 반복 학습</td></tr><tr><td>③④</td><td><code>scipy.optimize.linprog</code></td><td>미니맥스, 상관 균형 선형 계획</td></tr></table>
+      <p><code>pure_nash</code>, <code>mixed_2x2</code>, <code>minimax</code>, <code>correlated</code>, <code>fictitious_play</code>, <code>regret_matching</code>, <code>gradient_play</code>, <code>match</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="rl-multiagent.html">다중 에이전트 강화학습</a></td><td>상태가 있는 게임에서 여럿이 배우기</td></tr><tr><td><a href="ml-svm-lda-pca.html">SVM, 판별분석, 차원 축소</a> ⑬</td><td>AdaBoost와 미니맥스 정리</td></tr><tr><td><a href="ml-learning-theory.html">학습 이론</a></td><td>선형 계획, 보장</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 강화학습을 여러 에이전트로 넓히기 위한 게임 이론 기초. 수업에서 따로 다루지 않았어요</li><li>함께 정리한 자료: Albrecht, Christianos, Schäfer, <i>Multi-Agent Reinforcement Learning</i> 3장(정규형 게임, 반복 게임, 맞대응, 확률적 게임, POSG, 공통 보상과 제로섬과 일반합), 4장(최적 응답, 미니맥스와 선형 계획, 내시 균형, ε-내시, 상관 균형과 거친 상관 균형, 균형의 한계, 파레토 최적, 사회 후생과 공정성, 후회 없음, 포크 정리), 6장(가상 플레이, IGA, WoLF, 후회 매칭). 게임의 보상 숫자 일부(치킨, 죄수의 딜레마)는 책의 예를 따랐고, 계산과 그림은 이 노트용으로 새로 했어요</li><li>결과 값과 그림: <code>tools/pages/rl_games.py</code>가 <code>examples/rl/matrix_games.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="rl-games-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>
