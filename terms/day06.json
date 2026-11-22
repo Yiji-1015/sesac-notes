@@ -1054,5 +1054,224 @@
   "analogy": "",
   "day": 6,
   "key": false
+ },
+ {
+  "term": "척도",
+  "aliases": [
+   "Scale",
+   "명목척도",
+   "서열척도",
+   "등간척도",
+   "비율척도"
+  ],
+  "full": "Measurement Scale (척도)",
+  "short": "값을 잰 규칙. 이름만 다른 명목, 순서가 있는 서열, 간격이 같은 등간, 0이 진짜 없음인 비율 척도가 있고, 척도에 따라 쓸 수 있는 계산과 분석이 달라요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "모집단",
+  "aliases": [
+   "Population",
+   "표본",
+   "Sample",
+   "모수",
+   "통계량"
+  ],
+  "full": "Population and Sample",
+  "short": "궁금한 전체가 모집단, 실제로 손에 쥔 일부가 표본이에요. 모집단의 값(모수)은 모르고, 표본에서 계산한 값(통계량)으로 짐작해요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "왜도",
+  "aliases": [
+   "Skewness",
+   "첨도",
+   "Kurtosis"
+  ],
+  "full": "Skewness and Kurtosis",
+  "short": "왜도는 분포가 한쪽으로 치우친 정도(양수면 오른쪽 꼬리가 김), 첨도는 꼬리가 두꺼운 정도(정규분포를 0으로 두면 양수일수록 튀는 값이 잦음).",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "표준오차",
+  "aliases": [
+   "Standard Error",
+   "SE"
+  ],
+  "full": "Standard Error",
+  "short": "표본으로 계산한 값(예: 평균)이 표본마다 흔들리는 정도. 평균의 표준오차는 σ ÷ √n이라, 4배 모아야 반으로 줄어요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "중심극한정리",
+  "aliases": [
+   "Central Limit Theorem",
+   "CLT"
+  ],
+  "full": "Central Limit Theorem",
+  "short": "모집단이 어떤 모양이든, 표본이 충분히 크면 표본 평균의 분포가 정규분포에 가까워진다는 정리. 그래서 평균에 대한 검정과 신뢰구간을 널리 쓸 수 있어요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "가설 검정",
+  "aliases": [
+   "Hypothesis Test",
+   "귀무가설",
+   "대립가설",
+   "유의수준",
+   "p값",
+   "p-value"
+  ],
+  "full": "Hypothesis Testing",
+  "short": "\"차이가 없다\"(귀무가설)가 맞다면 지금만큼의 결과가 나올 확률(p값)을 구해, 미리 정한 유의수준(보통 0.05)보다 작으면 귀무가설을 기각하는 절차.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "1종 오류",
+  "aliases": [
+   "Type I Error",
+   "2종 오류",
+   "Type II Error",
+   "검정력",
+   "Power"
+  ],
+  "full": "Type I / II Error",
+  "short": "차이가 없는데 있다고 하는 1종 오류(확률 α), 있는데 못 찾는 2종 오류(확률 β). 1 − β가 검정력이고, 표본이 클수록 커져요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "t검정",
+  "aliases": [
+   "t-test",
+   "Welch",
+   "대응 표본 t검정",
+   "독립 표본 t검정",
+   "Paired t-test"
+  ],
+  "full": "t-test",
+  "short": "두 집단 평균의 차이를 그 차이의 표준오차로 나눈 t로 판단하는 검정. 분산이 다르면 Welch, 같은 대상을 두 번 쟀으면 대응 표본 t검정을 써요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "분산분석",
+  "aliases": [
+   "ANOVA",
+   "F검정",
+   "사후 분석",
+   "Tukey"
+  ],
+  "full": "Analysis of Variance",
+  "short": "셋 이상 집단의 평균이 다른지, 집단 사이 분산 ÷ 집단 안 분산(F)으로 판단하는 검정. 유의하면 Tukey 같은 사후 분석으로 어느 쌍이 다른지 봐요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "카이제곱 검정",
+  "aliases": [
+   "Chi-square test",
+   "χ²",
+   "교차분석"
+  ],
+  "full": "Chi-square Test",
+  "short": "두 범주형 변수가 독립이라면 표의 각 칸에 기대되는 건수와 실제 건수를 비교하는 검정.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "상관계수",
+  "aliases": [
+   "Correlation",
+   "Pearson",
+   "Spearman",
+   "공분산"
+  ],
+  "full": "Correlation Coefficient",
+  "short": "두 값이 함께 움직이는 정도를 −1~1로 나타낸 값. Pearson은 곧은 관계, Spearman은 순위 관계를 봐요. 상관은 인과가 아니에요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "효과 크기",
+  "aliases": [
+   "Effect Size",
+   "Cohen's d"
+  ],
+  "full": "Effect Size",
+  "short": "차이가 얼마나 큰지 단위 없이 나타낸 값. Cohen의 d는 평균 차이 ÷ 표준편차예요. p값이 작아도 효과는 작을 수 있어서 같이 적어요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "다중공선성",
+  "aliases": [
+   "Multicollinearity",
+   "VIF"
+  ],
+  "full": "Multicollinearity",
+  "short": "회귀의 설명 변수끼리 서로를 잘 설명해서 계수가 불안정해지는 문제. VIF = 1 ÷ (1 − R²ⱼ)가 10(엄격하면 5)을 넘으면 의심해요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "조절 효과",
+  "aliases": [
+   "Moderation",
+   "조절변수",
+   "상호작용항",
+   "Interaction",
+   "평균 중심화",
+   "Mean-centering"
+  ],
+  "full": "Moderation Effect",
+  "short": "X가 Y에 주는 영향이 다른 변수 Z에 따라 달라지는 것. 회귀에 X × Z(상호작용항)를 넣어 확인하고, 평균 중심화로 다중공선성을 줄여요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "심슨의 역설",
+  "aliases": [
+   "Simpson's Paradox"
+  ],
+  "full": "Simpson's Paradox",
+  "short": "집단별로 나눠 보면 한쪽이 늘 낫지만 합쳐 보면 반대가 되는 현상. 숨은 변수(누가 어떤 일을 맡았나)를 무시하고 합칠 때 생겨요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
+ },
+ {
+  "term": "다중 비교",
+  "aliases": [
+   "Multiple Comparisons",
+   "Bonferroni",
+   "p-hacking",
+   "p-해킹"
+  ],
+  "full": "Multiple Comparisons",
+  "short": "검정을 여러 번 하면 우연히 하나쯤 유의가 나올 확률이 커지는 문제. 기준을 검정 수로 나누거나(Bonferroni) 미리 정한 지표 하나로 판단해요.",
+  "analogy": "",
+  "day": 6,
+  "key": false
  }
 ]

@@ -107,6 +107,12 @@
       <p>데이터를 숫자로 바꿔 예측하거나 생성하는 것. 원리, 학습, 평가가 중심이에요.</p>
       <div class="cats">
         <div class="cat">
+          <h3>데이터 분석 기초</h3>
+          <p>모델 전에: 자료를 요약하고, 일부로 전체를 짐작하고, 차이가 우연인지 따지기</p>
+          <a class="item" href="topics/model/stats-describe.html"><b>요약하고 추정하기</b><small>척도, 평균의 종류, 분산, 왜도와 첨도, 조건부 확률, 포아송, 표본 뽑기(무작위, 층화), 중심극한정리, 표준오차, 신뢰구간, 데이터 분석 흐름</small></a>
+          <a class="item" href="topics/model/stats-tests.html"><b>가설 검정과 회귀 분석</b><small>p값, 1종과 2종 오류, 검정력, t검정, 분산분석과 Tukey, 상관, χ², 심슨의 역설, 회귀 표 읽기(R², F, VIF, Durbin-Watson), 조절 효과, 다중 비교</small></a>
+        </div>
+        <div class="cat">
           <h3>머신러닝 기초</h3>
           <p>표 데이터로 예측하고, 공정하게 평가하기</p>
           <a class="item" href="topics/model/ml-regression-classification.html"><b>회귀, 분류, KNN, 모델 비교</b><small>선형 회귀, 로지스틱 회귀, KNN, 스케일링, Pipeline</small></a>
@@ -205,6 +211,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/22</td><td>새 카테고리 "데이터 분석 기초" 두 쪽: <a href="topics/model/stats-describe.html">요약하고 추정하기</a>(업무 요청 100건 요약, 가상의 1년치 10만 건으로 표본 뽑기, 중심극한정리, 신뢰구간이 맞는 비율), <a href="topics/model/stats-tests.html">가설 검정과 회귀 분석</a>(검정력 실험, t검정, 분산분석, 상관과 χ², 심슨의 역설, 회귀 표를 식대로 계산, 조절 효과와 평균 중심화, 다중 비교). 경희대 통계, SPSS, Data Science 특강, PRML 1~2강</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "강화학습" 네 쪽: <a href="topics/model/rl-basics.html">강화학습 기초</a>(격자 배달 로봇으로 벨만 방정식, 동적 계획법, 밴딧, MC와 TD, SARSA와 Q-learning), <a href="topics/model/rl-deep.html">심층 강화학습</a>(막대 세우기로 DQN 장치 하나씩 빼기, REINFORCE, A2C, PPO), <a href="topics/model/rl-games.html">게임과 균형</a>(행렬 게임의 내시, 미니맥스, 상관 균형, 가상 플레이, 후회 매칭, WoLF, 반복 죄수의 딜레마), <a href="topics/model/rl-multiagent.html">다중 에이전트 강화학습</a>(오르막 게임, 움직이는 과녁, 함께 드는 상자, 가치 분해, 규모). Multi-Agent Reinforcement Learning 1~11장, Understanding Deep Learning 19장, Foundations of Machine Learning 17장</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/backend/llm-judge.html">LLM으로 답 채점하기 (LLM-as-a-Judge)</a> 새로 씀: 루브릭과 점수 계약, 채점 기준을 캐시하는 Claude API 요청(가짜 서버로 실제 SDK 요청 관찰), 캐시 비용 계산, 잘린 답 다시 묻기, 순서 바꿔 묻기와 가중 kappa</td></tr>
         <tr><td class="when">11/21</td><td><a href="topics/model/ml-learning-theory.html">학습 이론: 몇 건이면 믿을 수 있나</a> 새로 씀 (머신러닝 기초 5쪽): Foundations of Machine Learning 2~4장. 정답을 아는 세상에서 Hoeffding 막대, 후보 수에 따른 낙관, 직사각형 PAC 학습(1 ÷ m), 직선과 직사각형의 VC 차원 세기, 트리의 Rademacher 복잡도, 깊이별 근사 오차와 추정 오차, valid, 교차검증, SRM으로 깊이 고르기</td></tr>

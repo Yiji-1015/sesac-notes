@@ -76,7 +76,11 @@
    - 끝남: llm-internals, vLLM → 새 쪽 **요즘 LLM의 부품** (`llm-architectures.html`, 예제 `examples/llm_arch/`). 모델은 받지 않고 설정만으로 GPT-2, Llama, Mistral, Mixtral을 작게 만들어 비교 (CPU 10초쯤)
    - 끝남: llm-judge → 새 쪽 **LLM으로 답 채점하기** (`topics/backend/llm-judge.html`, 예제 `examples/llm/judge.py`). Anthropic SDK에 가짜 서버(MockTransport)를 붙여 실제 요청 모양을 관찰해요. 판정과 토큰 수는 가짜 서버의 고정 값이라 페이지에 그렇게 적었어요. 위키 원본은 짧아서, 겹치는 구조화 출력과 형식 복구는 Prompt와 출력 계약 쪽으로 넘기고 캐시 비용과 채점 신뢰도를 더했어요
    - 안 하기로 함: Solar Open 2
-5. **"데이터 분석 기초" 카테고리 새로 만들기**: 통계, SPSS, Data Science, ml-lifecycle, PRML 2강을 넣어요.
+5. **"데이터 분석 기초" 카테고리** (끝남). 원본은 OneDrive `자료/md/통계/`, `Data-Science/`, `PRML/PRML02`, LLM_wiki `sources/ml-lifecycle.md`
+   - `stats-describe.html` (예제 `examples/stats/describe_estimate.py`): 척도, 요약, 확률과 포아송 확인, 가상의 1년치 10만 건으로 표본 뽑기, 중심극한정리, 신뢰구간이 맞는 비율. 도입부에 데이터 분석 흐름(ML 생애주기 6단계) 표
+   - `stats-tests.html` (예제 `examples/stats/tests_regression.py`): 검정력, t검정, 분산분석과 Tukey, 상관과 χ², 심슨의 역설, 회귀 표를 numpy로 계산(statsmodels 없음), 조절 효과와 평균 중심화, 다중 비교
+   - 원래 실습 데이터(추천 정확도, 호텔 리뷰 CSV)는 찾지 못해서 업무 요청 100건(`examples/stats/data/requests.csv`, 머신러닝 예제에서 복사)으로 같은 분석을 다시 했어요
+   - 안 넣음: 경희대 특강 "데이터 분석 기반 인공지능"(FCM, Hopfield, BAM, 퍼지 연상 메모리). 다른 쪽과 이어지지 않아서 남겨 뒀어요
 6. **강화학습 카테고리** (끝남). 원본은 OneDrive `자료/md/MARL/`(11장), `UDL/19-Reinforcement-Learning.md`, `Foundations-ML/17-Reinforcement-Learning.md`
    - `rl-basics.html` (예제 `examples/rl/grid_world.py`): 4 × 8 격자 배달 로봇. 벨만 방정식, 가치 반복과 정책 반복, 밴딧, MC와 TD(0), SARSA와 Q-learning
    - `rl-deep.html` (예제 `examples/rl/deep_rl.py`, 빌드 6분): 막대 세우기를 물리식으로 직접 짬(gym 없음). DQN 장치 하나씩 빼기, REINFORCE와 베이스라인, A2C(λ 바꿔 보기), PPO
