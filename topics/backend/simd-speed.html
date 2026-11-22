@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIMD와 메모리 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>SIMD와 메모리: 같은 계산이 수십 배 빨라지는 이유</h1>
+      <div class="meta">백엔드 &gt; 성능과 하드웨어</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">파이썬 반복문을 NumPy로 바꾸면 빨라지는 건, C 반복문이 <b>SIMD</b>로 한 명령에 여러 칸을 처리하기 때문이에요. 자료형이 좁을수록 칸이 많아지고, 메모리가 <b>붙어 있고</b>, <b>캐시</b>에 들어가고, <b>임시 배열과 갈림길</b>이 적을수록 더 빨라져요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>"파이썬은 느리니 NumPy를 써라"는 말 뒤에는 CPU가 일하는 방식 두 가지가 있어요. 하나는 <b>SIMD</b>(Single Instruction, Multiple Data)예요. 요즘 CPU는 256비트(AVX2)나 512비트 레지스터 하나에 숫자 여러 개를 넣고, 명령 하나로 그 칸들을 한꺼번에 비교하거나 더해요. 다른 하나는 <b>메모리</b>예요. 계산보다 메모리에서 데이터를 가져오는 게 훨씬 느려서, 얼마나 붙어 있게, 얼마나 적게 읽나가 시간을 정해요.</p><table><tr><th>빨라지는 이유</th><th>이 쪽</th><th>실무에서 보이는 곳</th></tr><tr><td>인터프리터 대신 C 반복문</td><td>①</td><td>NumPy, pandas, PyTorch를 쓰는 이유</td></tr><tr><td>한 명령에 여러 칸</td><td>②③</td><td>int8 양자화, float16 추론</td></tr><tr><td>붙어 있는 메모리, 캐시</td><td>④⑤</td><td>행렬 모양, 배치 크기, 벡터 검색 인덱스</td></tr><tr><td>메모리 덜 오가기</td><td>⑥⑦</td><td>연산 융합, 갈림길 없는 코드</td></tr></table><p>터미널 프로그램 Ghostty는 입력 글자 중 특별한 문자를 찾는 반복문 하나를 SIMD로 바꿔 전체 처리량이 다섯 배쯤 늘었다고 해요. 이 쪽은 그 생각을 파이썬과 NumPy에서 재 봐요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>세 가지 방법 → SIMD 다섯 단계 → 자료형 폭 → 메모리 배치 → 캐시 크기 → 임시 배열 → 갈림길 없애기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/speed/simd_numpy.py</code> 하나예요. 시간은 PC마다 달라서, 같은 PC 안에서의 <b>몇 배 차이</b>를 보세요. 아래 결과는 맨 아래 실행 환경의 PC에서 잰 거예요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 같은 일, 세 가지 방법</h3><p class="does">20MB 글자에서 "A"가 몇 번 나오는지 파이썬 반복문, C 함수(bytes.count), NumPy로 세요.</p><p>시간은 <code>timeit.repeat</code>로 여러 번 재서 가장 빠른 값을 써요. 다른 프로그램 때문에 느려진 회차를 빼기 위해서예요. 파이썬 반복문은 너무 느려서 1MB만 재고 20을 곱했어요.</p><div class="out" data-out="f_hf"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>bench(f)</code></td><td>여러 번 재서 가장 빠른 값</td></tr><tr><td><code>np.frombuffer(text, dtype=np.uint8)</code></td><td>바이트를 복사 없이 NumPy 배열로 보기</td></tr><tr><td><code>np.count_nonzero(codes == NEEDLE)</code></td><td>모든 칸을 한꺼번에 비교하고 참의 수 세기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② SIMD의 다섯 단계를 손으로</h3><p class="does">찾을 값을 32칸에 복사하고, 데이터를 32바이트씩 잘라 칸마다 비교하고, 모아서 더하고, 남은 꼬리는 하나씩 세요.</p><p>SIMD 코드는 거의 항상 이 모양이에요. <b>① 상수를 모든 칸에 복사</b>(broadcast) → <b>② 레지스터 폭만큼씩 돌기</b> → <b>③ 칸마다 동시에 비교나 계산</b> → <b>④ 결과를 모으거나 저장</b>(reduce) → <b>⑤ 폭에 안 맞는 나머지는 하나씩</b>(scalar tail). 컴파일러가 단순한 반복문도 자동으로 이렇게 바꿔 주지 못할 때가 있어서, 아주 자주 도는 반복문은 직접 SIMD로 쓰기도 해요.</p><p>CPU마다 레지스터 폭이 달라요. ARM의 NEON은 128비트(바이트 16칸), 인텔과 AMD의 AVX2는 256비트(32칸), AVX-512는 512비트(64칸)예요. 그래서 배포할 때는 "이 CPU가 어떤 명령을 지원하나"를 실행 중에 보고 고르는 코드가 필요해요. NumPy도 그렇게 해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.full(W, needle)</code></td><td>1. 모든 칸에 같은 값</td></tr><tr><td><code>data[:body].reshape(-1, W)</code></td><td>2. 32칸씩 자르기</td></tr><tr><td><code>blocks == lanes</code></td><td>3. 칸마다 비교</td></tr><tr><td><code>hits.sum()</code></td><td>4. 모으기</td></tr><tr><td><code>for b in data[body:]</code></td><td>5. 꼬리</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 자료형이 좁으면 한 번에 더 많은 칸</h3><p class="does">같은 2,000만 개 숫자를 float64부터 int8까지 바꿔 가며 최댓값과 합을 구해요.</p><p>256비트 레지스터에는 float64가 4칸, float32가 8칸, int8이 32칸 들어가요. 같은 명령 수로 더 많은 숫자를 처리하고, 메모리에서 읽을 바이트도 줄어요. 대신 표현할 수 있는 범위와 정밀도가 줄어요(<a href="../model/model-compression.html">모델 가볍게</a>의 int8 양자화).</p><div class="out" data-out="f_w"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>base.astype(dt)</code></td><td>같은 숫자를 다른 자료형으로</td></tr><tr><td><code>a.max()</code></td><td>자료형 그대로 비교</td></tr><tr><td><code>a.sum()</code></td><td>작은 정수는 int64로 넓혀서 더하기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 붙어 있는 메모리</h3><p class="does">같은 수의 숫자를 붙어 있게 두고 더할 때와 4칸씩 건너뛰며 더할 때, 행렬을 그대로 복사할 때와 전치해서 복사할 때를 비교해요.</p><p>CPU는 메모리를 한 칸씩이 아니라 64바이트 덩어리(<b>캐시 줄</b>)로 가져와요. 붙어 있는 데이터는 한 번 가져온 덩어리를 다 쓰지만, 건너뛰면 대부분 버려요. NumPy의 <code>a[::4]</code>는 복사 없이 "4칸씩 건너보기"(stride)라서 쓰기는 편하지만 이렇게 느릴 수 있어요. 자주 쓸 거면 <code>np.ascontiguousarray</code>로 한 번 붙여 두는 게 나아요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>big[::4]</code></td><td>복사 없이 4칸마다 보기 (stride)</td></tr><tr><td><code>np.ascontiguousarray(...)</code></td><td>붙어 있는 새 배열로 복사</td></tr><tr><td><code>M.T.copy()</code></td><td>전치: 세로로 읽어 가로로 쓰기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 캐시에 들어가는 크기인가</h3><p class="does">배열 크기를 32KB부터 128MB까지 늘리며 원소 하나를 더하는 데 걸리는 시간을 재요.</p><p>CPU 안에는 작고 빠른 메모리(캐시)가 여러 층 있어요. 보통 L1은 수십 KB, L2는 1MB 안팎, L3는 수십 MB예요. 데이터가 캐시에 다 들어가면 빠르고, 넘치면 훨씬 느린 RAM에서 읽어야 해요. 배치 크기나 블록 크기를 정할 때 이 경계를 의식하는 이유예요.</p><div class="out" data-out="f_c"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>number=max(1, 2**24 // n)</code></td><td>작은 배열은 여러 번 돌려 재기</td></tr><tr><td><code>/ n * 1e9</code></td><td>원소 하나에 걸린 ns</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 임시 배열 줄이기</h3><p class="does">같은 식을 연산마다 새 배열을 만들며 계산할 때와, 미리 만든 버퍼 하나에 이어서 계산할 때를 비교해요.</p><p>NumPy의 <code>(x * 2 + 1) * 3 - x</code>는 연산마다 결과 배열을 새로 만들어요. 큰 배열에서는 계산보다 이 배열들을 메모리에 쓰고 다시 읽는 시간이 더 커요. <code>out=</code>과 <code>+=</code> 같은 제자리 연산으로 버퍼를 다시 쓰면 줄어요. numexpr나 JIT 컴파일러(Numba, PyTorch의 컴파일 모드)는 식 전체를 한 번에 돌려 같은 효과를 내요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.multiply(x, 2.0, out=buf)</code></td><td>결과를 미리 만든 버퍼에</td></tr><tr><td><code>b += 1.0</code></td><td>새 배열 없이 제자리에서</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ if 대신 마스크</h3><p class="does">음수를 0으로 바꾸는 일을 파이썬 if, np.where, np.maximum으로 해요.</p><p>칸마다 다른 길로 가는 코드(if)는 SIMD로 한꺼번에 하기 어려워요. 그래서 SIMD 코드는 <b>양쪽을 다 계산하고 마스크로 고르는</b> 방식으로 갈림길을 없애요. CPU의 분기 예측도 데이터가 무작위면 자주 틀려서 느려지는데, 마스크는 그 문제도 없어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.where(y &gt; 0, y, 0.0)</code></td><td>마스크로 고르기</td></tr><tr><td><code>np.maximum(y, 0.0)</code></td><td>"둘 중 큰 것" 명령 하나</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/speed/simd_numpy.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>파이썬 코드가 느리다</td><td>먼저 재요(프로파일러). 시간의 대부분을 쓰는 반복문 하나를 찾아 NumPy나 이미 있는 C 함수로 바꾸는 게 가장 큰 이득이에요. 직접 SIMD를 짜는 건 그다음이에요.</td></tr><tr><td>큰 배열을 다룬다</td><td>자료형을 필요한 만큼만 넓게, 메모리는 붙어 있게, 임시 배열은 적게. 결과 자료형이 넓어지는지(sum의 int64)도 확인해요.</td></tr><tr><td>여러 하드웨어에 배포한다</td><td>CPU의 SIMD 명령(NEON, AVX2, AVX-512)과 GPU, NPU 종류마다 빌드가 달라요. 파이썬 패키지도 하드웨어에 맞는 빌드를 골라 설치하는 방식(wheel variants)이 논의되고 있어요. 지원하지 않는 기계를 위한 느린 기본 경로를 꼭 남겨 둬요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①~⑦</td><td>NumPy, <code>timeit</code></td><td>배열 연산, 시간 재기</td></tr></table>
+      <p><code>bench</code>, <code>count_simd_style</code>, <code>with_temporaries</code>, <code>in_place</code>, <code>relu_loop</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="../model/model-compression.html">모델 가볍게</a></td><td>int8 양자화</td></tr><tr><td><a href="../model/llm-architectures.html">요즘 LLM의 부품</a></td><td>KV 캐시와 메모리</td></tr><tr><td><a href="indexing.html">인덱싱</a></td><td>벡터 검색의 속도</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: GeekNews에 소개된 Mitchell Hashimoto의 "Everyone Should Know SIMD"(Ghostty의 코드포인트 검색, SIMD 다섯 단계, NEON과 AVX2와 AVX-512, 자동 벡터화의 한계, 벤치마크와 스칼라 경로), PyCon Korea 2026 "More Variants, More Diversity for AI Accelerators"(가속기별 패키징과 wheel variants). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/simd_speed.py</code>가 <code>examples/speed/simd_numpy.py</code>를 단계별로 실제 실행한 결과</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="simd-speed-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

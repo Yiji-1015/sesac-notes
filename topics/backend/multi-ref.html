@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>여러 정답으로 채점하기 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag llm">백엔드</span>
+      <h1>여러 정답으로 채점하기: BLEU, GLEU, 정답을 합치는 법</h1>
+      <div class="meta">백엔드 &gt; LLM 활용</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">맞는 답이 여러 개인 일을 <b>정답 하나</b>로 n-gram 채점하면 맞지만 다르게 쓴 답을 틀렸다고 해요. 정답을 여러 개 두고 점수를 <b>합치는 방법</b>(가장 좋은 하나, 평균, 가중 평균, 횟수 합치기)을 정해야 해요. 고치기 일에는 <b>안 고친 곳에 벌점</b>을 주는 GLEU가 더 맞아요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>요약, 번역, 맞춤법 고치기처럼 <b>맞는 답이 여러 개</b>인 일은 채점이 어려워요. 사람이 정답을 몇 개 써 두고 n-gram 지표(BLEU, ROUGE, GLEU)로 "정답과 얼마나 같은 조각을 썼나"를 재는 게 가장 싸고 빠른 방법인데, <b>정답이 하나뿐이면</b> 맞지만 다르게 쓴 답을 틀렸다고 해요.</p><table><tr><th></th><th>정답 하나</th><th>정답 여러 개</th></tr><tr><td>맞지만 다르게 쓴 답</td><td>깎임</td><td>다른 정답과 맞으면 인정</td></tr><tr><td>새로 정할 것</td><td>없음</td><td>정답별 점수를 어떻게 합칠까 (이 쪽 ⑤)</td></tr><tr><td>비용</td><td>정답 1개를 쓰는 사람 시간</td><td>정답 수만큼</td></tr></table><p><a href="llm-judge.html">LLM 채점</a>이 비싸거나 흔들릴 때, 또는 LLM 채점이 맞는지 확인할 기준이 필요할 때 이 지표들을 같이 써요. <a href="../model/gpt-generation.html">작은 GPT</a>의 ROUGE 요약 채점도 같은 원리예요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>데이터 → BLEU → 정답 하나로 재기 → GLEU → 정답 합치기 네 가지 → 문장마다 줄 세우기 → 정답 늘리기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/eval_refs/multi_ref.py</code> 하나예요. 지표를 라이브러리 없이 직접 짜서, 합치는 방법을 바꿔 끼울 수 있게 했어요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 정답 셋과 일부러 넣은 오류</h3><p class="does">해요체 문장을 합니다체와 한다체로 바꿔 똑같이 맞는 정답 셋을 만들고, 오류 둘을 넣어 고칠 문장을 만들어요.</p><p>실제 맞춤법 고치기 데이터는 사람이 문장마다 고친 정답을 2~3개 써요. 고치는 방법이 여러 가지이기 때문이에요("음식이 안 막였습니다"를 "음식을 안 먹었습니다"로도, "음식이 안 맞았습니다"로도 고칠 수 있어요). 여기서는 맞는 표현 차이를 문체로 흉내 냈어요.</p><div class="out" data-out="t1"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>three_styles(s)</code></td><td>문장 끝 "해요."를 "합니다.", "한다."로</td></tr><tr><td><code>make_errors(s, k=2)</code></td><td>조사 바꾸기(이↔가, 을↔를, 은↔는) 또는 띄어쓰기 지우기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② BLEU: 정답과 같은 조각을 몇 개 썼나</h3><p class="does">답의 n-gram(1~4개 연속 조각)이 정답에 몇 개 있는지 세고, 너무 짧은 답에 벌점을 줘요.</p><p><b>BLEU</b>는 n = 1~4마다 "답의 조각 중 정답에도 있는 비율"(정밀도)을 구해 기하 평균을 내요. 같은 조각을 되풀이해 점수를 따지 못하게, 정답에 있는 횟수까지만 맞은 것으로 쳐요(<b>잘라 세기</b>). 짧게 쓰면 정밀도가 쉽게 높아지니까 정답보다 짧으면 벌점(brevity penalty)을 곱해요.</p><p>정답이 여러 개일 때 점수를 합치는 법은 크게 넷이에요. 정답마다 점수를 내서 <b>가장 높은 것</b>, <b>평균</b>, <b>높은 것에 무게를 더 준 평균</b>(softmax), 그리고 처음부터 <b>정답들의 조각 횟수를 더해</b> 한 정답처럼 쓰는 것이에요. 원래 BLEU는 마지막 방법을 써요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>Counter(tuple(toks[i:i+n]) ...)</code></td><td>n-gram 세기</td></tr><tr><td><code>min(c, ref_counts[g])</code></td><td>잘라 세기</td></tr><tr><td><code>min(1, exp(1 − 정답 길이 / 답 길이))</code></td><td>짧은 답 벌점</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 정답 하나로만 재면</h3><p class="does">다섯 시스템의 답을 해요체 정답 하나로 BLEU를 재요.</p><p>한국어는 띄어쓰기 단위(어절)에 조사와 어미가 붙어서, 어절로 자르면 작은 차이도 어절 전체가 달라져요. 그래서 이 쪽은 기본으로 <b>음절(글자)</b> 단위로 잘라요. 형태소 분석기로 자르는 방법도 많이 써요.</p><details class="try"><summary>🔁 바꿔 보기: 어절 단위로 자르면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t3"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ GLEU: 고치지 않은 오류에 벌점</h3><p class="does">원문에 있었지만 정답에는 없는 조각을 답이 그대로 쓰면, 맞은 수에서 빼요.</p><p>맞춤법 고치기에서는 답의 대부분이 원문과 같아요. 그래서 BLEU는 아무것도 안 고친 답에도 높은 점수를 줘요. <b>GLEU</b>는 "원문에는 있는데 정답에는 없는 조각"을 고쳐야 했던 곳으로 보고, 답에 그 조각이 남아 있으면 벌점을 줘요(구글의 GLEU와는 다른 지표예요).</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>s - r 에 해당하는 조각</code></td><td>원문에는 있고 정답에는 없는 조각 = 고쳐야 할 곳</td></tr><tr><td><code>max(맞은 수 − 안 고친 수, 0)</code></td><td>GLEU의 분자</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 정답 셋을 합치는 네 가지 방법</h3><p class="does">정답 셋으로 GLEU와 BLEU를 네 가지 방법으로 합쳐 재요.</p><p>강연은 이 넷을 하나의 틀로 정리해요. 정답마다 점수 f₁, …, fₙ을 내고 연산자 Φ로 하나로 만들어요. 최대와 합친 횟수는 "맞는 정답 중 <b>하나라도</b> 맞으면 된다"(존재), 평균과 가중 평균은 "정답들 <b>전체에</b> 얼마나 가깝나"(분포)라는 다른 질문에 답해요. 어느 쪽이 맞는지는 일에 따라 달라요.</p><div class="out" data-out="f_how"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>f.max()</code></td><td>가장 좋은 정답 하나</td></tr><tr><td><code>f.mean()</code></td><td>정답마다 평균</td></tr><tr><td><code>Σ softmax(τ f) × f</code></td><td>높은 점수에 무게를 더 준 평균 (τ = 10)</td></tr><tr><td><code>sum(정답들의 Counter)</code></td><td>정답을 합친 횟수</td></tr></table><details class="try"><summary>🔁 바꿔 보기: BLEU로 같은 비교를 하면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t5"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 문장마다 맞게 줄 세우나</h3><p class="does">같은 문장에 대한 두 답 중, 진짜로 더 많이 고친 쪽에 지표가 더 높은 점수를 줬는지 세요.</p><p>지표가 좋은지는 결국 <b>사람의 판단과 같은 순서를 매기나</b>로 봐요. 보통은 사람이 매긴 점수와의 상관을 재는데, 여기서는 진짜 품질을 알고 있어서 짝마다 맞혔는지 바로 셀 수 있어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>combinations(names, 2)</code></td><td>같은 문장의 답 둘씩</td></tr><tr><td><code>sc[better] &gt; sc[worse]</code></td><td>더 많이 고친 답이 더 높은 점수인가</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 정답 수를 늘리면</h3><p class="does">정답을 1개, 2개, 3개로 늘려 가며 같은 답의 점수가 어떻게 바뀌는지 봐요.</p><p>정답을 더 모으는 데는 사람 시간이 들어요. 합치는 방법에 따라 정답을 늘린 효과가 다르니, 데이터를 모으기 전에 정해야 해요.</p><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/eval_refs/multi_ref.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>요약, 번역, 고치기를 채점한다</td><td>정답을 2개 이상 모을 수 있으면 모으고, 합치는 방법을 문서에 적어 둬요. 숫자는 같은 방법끼리만 비교해요.</td></tr><tr><td>맞춤법, 문장 고치기</td><td>BLEU보다 GLEU처럼 원문을 함께 보는 지표를 써요. 아무것도 안 고친 답의 점수를 꼭 기준선으로 같이 적어요.</td></tr><tr><td>한국어</td><td>어절, 형태소, 음절 중 무엇으로 자르는지에 따라 점수가 달라요. 자르는 법도 같이 적어요. n-gram 지표가 모자라면 <a href="llm-judge.html">LLM 채점</a>을 같이 써요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①~⑦</td><td><code>collections.Counter</code>, <code>itertools.combinations</code>, NumPy</td><td>n-gram 세기, 짝 만들기, 평균</td></tr></table>
+      <p><code>three_styles</code>, <code>make_errors</code>, <code>ngrams</code>, <code>clipped</code>, <code>bleu</code>, <code>gleu</code>, <code>multi</code>, <code>system_scores</code>, <code>pair_accuracy</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="llm-judge.html">LLM으로 답 채점하기</a></td><td>같은 카테고리</td></tr><tr><td><a href="../model/gpt-generation.html">작은 GPT와 디코딩</a></td><td>ROUGE로 요약 채점</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: Upstage 10Talks Lecture 05 "A Formal Framework for Fluency-based Multi Reference Evaluation"(n-gram 언어 모델, BLEU와 ROUGE와 GLEU, 정답을 합치는 네 가지 방법과 존재/분포 해석, 연산자 Φ로 정리한 틀, 여러 언어의 맞춤법 고치기 실험, 한국어 n-gram의 어려움). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/multi_ref.py</code>가 <code>examples/eval_refs/multi_ref.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="multi-ref-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

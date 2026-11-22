@@ -92,9 +92,11 @@
      - `recsys.html` (예제 `examples/recsys/recommend.py`): 가상 이용 기록 600 × 400. 인기순, 아이템과 사용자 이웃, BPR, EASE, LightGCN, 기록 수별 성능, 인기 편향. 경희대 추천 특강과 Lec01
      - `continual.html` (예제 `examples/continual/remember_forget.py`): 손글씨 숫자와 픽셀 섞은 숫자로 파국적 망각, 리플레이, EWC. 숫자 3 지우기를 다시 학습, 남은 것으로 더, 경사 상승, 작업 벡터 빼기로 비교. Lec03
    - `pretrain-data.html` ("순서와 언어 모델", 예제 `examples/pretrain_data/mix_tokenizer.py`): 한국어 노트, 표준 라이브러리 설명문과 소스로 규칙 거르기, 중복 빼기, MinHash, BPE 압축률, 섞는 비율과 대리 토크나이저, 회귀로 비율 고르기. Lec04, Lec06. 영어와 코드 말뭉치가 파이썬 버전에 따라 조금 달라져요
+   - `backend/multi-ref.html` ("LLM 활용", 예제 `examples/eval_refs/multi_ref.py`): `pages.jsonl` 문장을 해요/합니다/한다체 정답 셋으로 바꾸고 오류 둘을 넣어 BLEU, GLEU, 정답 합치기 네 가지, 짝마다 줄 세우기, 정답 늘리기. Lec05
+   - 새 카테고리 "성능과 하드웨어": `backend/simd-speed.html` (예제 `examples/speed/simd_numpy.py`): 반복문과 NumPy, SIMD 다섯 단계, 자료형 폭, stride와 전치, 캐시 크기, 임시 배열, 마스크. 시간을 재는 쪽이라 다시 빌드하면 숫자가 조금씩 바뀌어요(주장은 `S.claim`으로 넉넉한 배수만 확인). LLM_wiki `everyone-should-know-simd`, PyCon 가속기 발표
    - 책이나 논문과 다르게 나온 결과도 그대로 적었어요: BPR이 단순한 이웃보다 낮음(추천 ④), 회귀가 고른 비율이 "서비스 비율 그대로"보다 조금 나쁨(데이터 ⑦)
-   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec05(여러 정답으로 채점하기: BLEU는 `gpt-generation`에 일부 있음), Lec09(작은 추론 에이전트의 도메인 적응), Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성). Olmo 3의 사전 학습 평가 고르기와 추론 RL(Lec04 1, 3부)도 아직이에요
-   - 아직 안 본 밋업 자료: PyCon, OSSummit, 가짜연구소, 컨텍스트 엔지니어링 밋업 등
+   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09(작은 추론 에이전트의 도메인 적응), Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성). Olmo 3의 사전 학습 평가 고르기와 추론 RL(Lec04 1, 3부)도 아직이에요
+   - 아직 안 넣은 밋업 자료(LLM_wiki `wiki/sources/`): PyCon의 엣지 AI와 FastAPI 모듈러 모놀리스, OSSummit OpenSSF, 가짜연구소(에이전트 운영, 피지컬 AI), 컨텍스트 엔지니어링 밋업, 카카오 에이전트 자동화, open-code-review. 대부분 경험담이라 이론 쪽으로 만들 거리가 적어요
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).
 9. **정보처리기사 정리**를 넣어요.
 10. **UDL 21장(윤리)**: 아직 안 넣었어요.

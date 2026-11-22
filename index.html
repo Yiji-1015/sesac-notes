@@ -193,6 +193,7 @@
           <a class="item" href="topics/backend/prompt-contract.html"><b>Prompt와 Context Engineering</b><small>Prompt 구성 요소, Few-shot, 출력 계약, Pydantic 검증</small></a>
           <a class="item" href="topics/backend/llm-client.html"><b>LLM API 클라이언트</b><small>Responses API, Structured Outputs, Streaming, 재시도, 비용</small></a>
           <a class="item" href="topics/backend/llm-judge.html"><b>LLM으로 답 채점하기 (LLM-as-a-Judge)</b><small>루브릭, 점수 계약, 프롬프트 캐시와 비용, effort, stop_reason, 순서 바꿔 묻기, 가중 kappa</small></a>
+          <a class="item" href="topics/backend/multi-ref.html"><b>여러 정답으로 채점하기</b><small>BLEU와 잘라 세기, 음절과 어절, GLEU, 정답을 합치는 네 가지 방법, 짝마다 맞게 줄 세우기, 정답 늘리기</small></a>
         </div>
         <div class="cat">
           <h3>검색과 RAG</h3>
@@ -202,6 +203,11 @@
           <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
           <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
           <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
+        </div>
+        <div class="cat">
+          <h3>성능과 하드웨어</h3>
+          <p>같은 코드가 왜 빠르고 느린지, CPU와 메모리 쪽에서 보기</p>
+          <a class="item" href="topics/backend/simd-speed.html"><b>SIMD와 메모리</b><small>파이썬 반복문과 NumPy, SIMD 다섯 단계, 자료형 폭과 칸 수, 캐시 줄과 stride, 캐시 크기, 임시 배열과 out=, 마스크로 갈림길 없애기</small></a>
         </div>
         <div class="cat">
           <h3>외전: 서비스를 완성하는 흐름</h3>
@@ -218,6 +224,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/22</td><td><a href="topics/backend/multi-ref.html">여러 정답으로 채점하기</a> 새로 씀: 문체만 다른 정답 셋과 일부러 넣은 오류로 BLEU와 GLEU를 재고, 정답을 합치는 네 가지 방법과 정답 수의 효과를 비교. 새 카테고리 "성능과 하드웨어": <a href="topics/backend/simd-speed.html">SIMD와 메모리</a>(반복문과 NumPy, 자료형 폭, 메모리 배치, 캐시, 임시 배열, 마스크). Upstage 10Talks 05, Everyone Should Know SIMD, PyCon Korea 2026</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "추천과 평생 학습" 두 쪽: <a href="topics/model/recsys.html">추천 시스템</a>(가상 이용 기록으로 인기순, 이웃, BPR, EASE, LightGCN을 같은 지표로 비교, 기록이 적은 사용자와 인기 편향), <a href="topics/model/continual.html">평생 학습과 머신 언러닝</a>(손글씨 숫자로 파국적 망각, 리플레이, EWC, 숫자 하나 지우기를 다시 학습, 경사 상승, 작업 벡터 빼기로 비교). 그리고 <a href="topics/model/pretrain-data.html">LLM의 학습 데이터 만들기</a>(규칙 거르기, MinHash 중복 빼기, 섞는 비율과 토크나이저 압축률). Upstage 10Talks 01, 03, 04, 06</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "데이터 분석 기초" 두 쪽: <a href="topics/model/stats-describe.html">요약하고 추정하기</a>(업무 요청 100건 요약, 가상의 1년치 10만 건으로 표본 뽑기, 중심극한정리, 신뢰구간이 맞는 비율), <a href="topics/model/stats-tests.html">가설 검정과 회귀 분석</a>(검정력 실험, t검정, 분산분석, 상관과 χ², 심슨의 역설, 회귀 표를 식대로 계산, 조절 효과와 평균 중심화, 다중 비교). 경희대 통계, SPSS, Data Science 특강, PRML 1~2강</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "강화학습" 네 쪽: <a href="topics/model/rl-basics.html">강화학습 기초</a>(격자 배달 로봇으로 벨만 방정식, 동적 계획법, 밴딧, MC와 TD, SARSA와 Q-learning), <a href="topics/model/rl-deep.html">심층 강화학습</a>(막대 세우기로 DQN 장치 하나씩 빼기, REINFORCE, A2C, PPO), <a href="topics/model/rl-games.html">게임과 균형</a>(행렬 게임의 내시, 미니맥스, 상관 균형, 가상 플레이, 후회 매칭, WoLF, 반복 죄수의 딜레마), <a href="topics/model/rl-multiagent.html">다중 에이전트 강화학습</a>(오르막 게임, 움직이는 과녁, 함께 드는 상자, 가치 분해, 규모). Multi-Agent Reinforcement Learning 1~11장, Understanding Deep Learning 19장, Foundations of Machine Learning 17장</td></tr>

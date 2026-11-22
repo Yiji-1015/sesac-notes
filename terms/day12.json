@@ -1279,5 +1279,109 @@
   "analogy": "",
   "day": 12,
   "key": false
+ },
+ {
+  "term": "GLEU",
+  "aliases": [],
+  "full": "Generalized Language Evaluation Understanding",
+  "short": "맞춤법 고치기를 채점하는 n-gram 지표. BLEU처럼 정답과 겹치는 조각을 세되, 원문에 있었지만 정답에는 없는 조각(고쳐야 했던 곳)이 답에 남아 있으면 벌점을 줘요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "n-gram",
+  "aliases": [
+   "엔그램"
+  ],
+  "full": "n-gram",
+  "short": "글에서 연속한 n개의 조각(글자나 단어). BLEU, ROUGE 같은 지표는 답과 정답이 같은 n-gram을 얼마나 함께 가졌나로 채점해요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "여러 정답 채점",
+  "aliases": [
+   "Multi-Reference Evaluation",
+   "다중 참조 평가"
+  ],
+  "full": "Multi-Reference Evaluation",
+  "short": "맞는 답이 여러 개인 일에서 정답을 여럿 두고 채점하기. 정답별 점수의 최댓값, 평균, 가중 평균을 쓰거나 정답들의 n-gram 횟수를 합쳐 한 정답처럼 써요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "SIMD",
+  "aliases": [
+   "Single Instruction Multiple Data"
+  ],
+  "full": "Single Instruction, Multiple Data",
+  "short": "명령 하나로 레지스터 안의 여러 칸을 한꺼번에 계산하는 CPU 기능. 256비트 레지스터면 float64 4개, int8 32개를 동시에 비교하거나 더해요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "AVX2",
+  "aliases": [
+   "AVX",
+   "AVX-512",
+   "NEON"
+  ],
+  "full": "Advanced Vector Extensions",
+  "short": "인텔과 AMD CPU의 SIMD 명령 모음. AVX2는 256비트, AVX-512는 512비트 레지스터를 써요. ARM CPU에는 128비트 NEON이 있어요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "벡터화",
+  "aliases": [
+   "Vectorization"
+  ],
+  "full": "Vectorization",
+  "short": "원소마다 도는 반복문을 배열 전체에 한 번에 하는 연산으로 바꾸는 것. NumPy의 배열 연산은 속에서 C 반복문과 SIMD로 돌아서 파이썬 반복문보다 수십 배 빨라요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "캐시",
+  "aliases": [
+   "CPU 캐시",
+   "Cache",
+   "L1",
+   "L2",
+   "L3"
+  ],
+  "full": "CPU Cache",
+  "short": "CPU 안에 있는 작고 빠른 메모리. 자주 쓰는 데이터를 RAM보다 훨씬 빨리 꺼내요. 데이터가 캐시 크기를 넘으면 RAM에서 읽느라 느려져요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "캐시 줄",
+  "aliases": [
+   "Cache Line"
+  ],
+  "full": "Cache Line",
+  "short": "CPU가 메모리를 한 번에 가져오는 덩어리(보통 64바이트). 데이터가 붙어 있으면 한 덩어리를 다 쓰고, 건너뛰며 읽으면 대부분 버려요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "분기 예측",
+  "aliases": [
+   "Branch Prediction"
+  ],
+  "full": "Branch Prediction",
+  "short": "CPU가 if의 결과를 미리 짐작해 다음 명령을 먼저 실행하는 기능. 데이터가 무작위면 자주 틀려서 느려져요. 마스크로 양쪽을 다 계산하고 고르면 이 문제가 없어요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
  }
 ]
