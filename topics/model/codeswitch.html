@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>한국어와 영어가 섞일 때 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>한국어와 영어가 섞일 때: 코드 스위칭</h1>
+      <div class="meta">모델 &gt; 순서와 언어 모델</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">이 노트 문장의 절반쯤은 <b>한국어 뼈대에 영어 용어</b>가 섞여 있어요(코드 스위칭). 다국어 임베딩도 <b>같은 언어끼리 더 가깝고</b>, 같은 개념을 한국어와 영어로 물으면 <b>찾는 결과가 자주 달라요</b>. 문서 언어에 맞춰 묻거나 <b>두 언어를 함께 적으면</b> 나아져요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>한국에서 일하는 사람의 글은 "RAG는 Chunking을 먼저 해요"처럼 한국어와 영어가 섞여요. 한 대화나 문장 안에서 언어를 바꿔 쓰는 걸 <b>코드 스위칭</b>이라고 해요. 세계 인구의 절반 넘게가 두 언어 이상을 쓰니 아주 흔한 일인데, LLM에게는 문제이기도 하고 해결책이기도 해요.</p><table><tr><th></th><th>문제가 되는 곳</th><th>도움이 되는 곳</th></tr><tr><td>출력 언어</td><td>섞인 질문에 엉뚱한 언어로 답함 (어느 언어가 뼈대인지 못 알아챔)</td><td></td></tr><tr><td>안전</td><td>여러 언어를 섞은 위험한 질문에 안전장치가 덜 걸림</td><td></td></tr><tr><td>학습</td><td></td><td>단어 → 문장 → 한 언어 순으로 섞인 글을 먼저 배우면 새 언어를 더 잘 배움</td></tr><tr><td>추론</td><td></td><td>질문을 조금씩 영어로 바꿔 보여 주면 저자원 언어에서 더 잘 답함</td></tr></table><p>이 쪽은 LLM을 부르지 않고, 이 노트의 문장과 용어집, 그리고 다국어 임베딩 모델 하나로 "섞이면 무엇이 달라지나"를 재 봐요. <a href="../backend/embedding.html">임베딩과 벡터 검색</a>을 알면 더 쉬워요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>섞인 문장 세기 → 용어 짝과 토큰 → 한국어와 영어로 설명 찾기 → 교차 언어 일관성 → 조금씩 섞기 → 함께 적기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/codeswitch/mixed_language.py</code> 하나예요. 모델은 다른 쪽에서도 쓰는 multilingual-e5-small이에요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 이 노트 문장은 얼마나 섞여 있나</h3><p class="does">주제 페이지 본문 문장 1,016개를 띄어쓰기로 나눠, 영어 단어와 "영어 + 한국어 조사" 단어를 세요.</p><p>코드 스위칭에서 문장의 문법 뼈대를 이루는 언어를 <b>주언어</b>(matrix language), 끼어든 언어를 <b>삽입 언어</b>(embedded language)라고 해요. 강연의 OLA 연구는 섞인 질문의 13%만 답할 언어를 밝히고, 나머지는 사람이 맥락으로 알아챈다는 점에서 출발해요. 모델은 이런 맥락보다 표면 단서(어느 글자가 많나)에 끌려 엉뚱한 언어로 답하기 쉬워요.</p><div class="out" data-out="t1"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>re.compile(r&quot;[가-힣]&quot;)</code></td><td>한글이 있나</td></tr><tr><td><code>word_kind(w)</code></td><td>한국어, 영어, 영어 + 조사로 나누기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 용어 짝과 토큰</h3><p class="does">용어집에서 한국어 이름, 영어 이름, 한국어 설명이 모두 있는 용어를 골라요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>tok.tokenize(&quot;RAG는&quot;)</code></td><td>다국어 토크나이저가 자른 조각</td></tr><tr><td><code>en.lower() in desc.lower()</code></td><td>설명에 이름이 그대로 있으면 빼기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 한국어로 물을 때, 영어로 물을 때</h3><p class="does">설명들을 문서로 넣고, 한국어 이름과 영어 이름을 각각 질문으로 넣어 맞는 설명이 위 5개 안에 오는지 봐요.</p><p>e5 모델은 질문 앞에 <code>query: </code>, 문서 앞에 <code>passage: </code>를 붙여 학습했어요. 둘을 같은 공간의 벡터로 바꿔 코사인 유사도가 큰 순으로 줄 세워요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>embed(texts, &quot;query: &quot;)</code></td><td>질문 벡터 (토큰 벡터 평균, 길이 1로)</td></tr><tr><td><code>(q @ passages.T).topk(5)</code></td><td>가장 가까운 설명 5개</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 두 언어 모두 찾나: 교차 언어 일관성</h3><p class="does">같은 용어를 한국어와 영어로 물었을 때 결과가 같은지 짝마다 세요.</p><p>정확도만 보면 놓치는 문제예요. 한국어 정확도와 영어 정확도가 비슷해도, 서로 다른 문제를 맞힐 수 있어요. 강연의 CSCL(코드 스위칭 커리큘럼)은 토큰 단위로 섞은 글 → 문장 단위로 섞은 글 → 한 언어 글 순서로 학습해서, 두 언어 모두 맞히는 비율을 26.7%에서 41.6%로 올렸다고 해요.</p><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 조금씩 섞어서 물으면</h3><p class="does">두 단어 이상인 용어의 한국어 이름을 앞에서부터 0%, 50%, 100% 영어로 바꿔 물어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>mix(i, ratio)</code></td><td>앞에서부터 ratio만큼 영어 단어로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 두 언어를 함께 적으면</h3><p class="does">"한국어 이름 (영어 이름)"으로 물어요.</p><div class="out" data-out="f_both"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/codeswitch/mixed_language.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>한국어 서비스에서 LLM이 엉뚱한 언어로 답한다</td><td>시스템 프롬프트에 답할 언어를 분명히 적어요. 강연에서도 언어를 명시하면 거의 완벽하게 지켰어요. 섞인 질문이 많으면 "주언어로 답한 예"로 선호 학습(DPO)을 하기도 해요.</td></tr><tr><td>한국어와 영어가 섞인 문서를 검색한다</td><td>문서와 질문의 언어를 맞추거나, 핵심 용어를 두 언어로 함께 적어 둬요. 다국어 임베딩이어도 같은 언어끼리가 더 가까워요.</td></tr><tr><td>안전장치를 만든다</td><td>영어로만 시험하지 말고, 다른 언어와 섞인 질문으로도 시험해요. 자원이 적은 언어일수록 안전장치가 약해요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>re</code>, <code>collections.Counter</code></td><td>글자로 언어 나누기, 세기</td></tr><tr><td>②~⑥</td><td><code>transformers</code>(AutoTokenizer, AutoModel), <code>torch</code></td><td>다국어 임베딩</td></tr></table>
+      <p><code>word_kind</code>, <code>embed</code>, <code>found</code>, <code>mix</code>, <code>found_subset</code>은 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="../backend/embedding.html">임베딩과 벡터 검색</a></td><td>e5와 코사인 유사도</td></tr><tr><td><a href="token-classification.html">토큰 분류와 질문 답변</a></td><td>언어 간 전이</td></tr><tr><td><a href="pretrain-data.html">LLM의 학습 데이터 만들기</a></td><td>한국어 토큰 압축률</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: Upstage 10Talks Lecture 10 "Code Switching for/with Multilingual LLMs"(BLEND 문화 일상 지식, MUG-Eval, OLA 출력 언어 맞추기와 주언어, CSRT 섞인 질문의 안전 문제, CSCL 코드 스위칭 커리큘럼과 교차 언어 일관성, CSICL 점진적 섞기). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/codeswitch.py</code>가 <code>examples/codeswitch/mixed_language.py</code>를 단계별로 실제 실행한 결과</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="codeswitch-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

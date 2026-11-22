@@ -1499,5 +1499,42 @@
   "analogy": "",
   "day": 12,
   "key": false
+ },
+ {
+  "term": "코드 스위칭",
+  "aliases": [
+   "Code-Switching",
+   "Code Switching",
+   "코드 전환"
+  ],
+  "full": "Code-Switching",
+  "short": "한 대화나 문장 안에서 언어를 바꿔 쓰는 것. \"RAG는 Chunking을 먼저 해요\"처럼 한국어 뼈대에 영어 단어가 끼어드는 꼴이 흔해요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "주언어",
+  "aliases": [
+   "Matrix Language",
+   "삽입 언어",
+   "Embedded Language"
+  ],
+  "full": "Matrix Language",
+  "short": "코드 스위칭된 문장의 문법 뼈대를 이루는 언어. 끼어든 언어는 삽입 언어라고 해요. 섞인 질문에는 보통 주언어로 답해야 자연스러워요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "교차 언어 일관성",
+  "aliases": [
+   "Cross-lingual Consistency"
+  ],
+  "full": "Cross-lingual Consistency",
+  "short": "같은 질문을 다른 언어로 물어도 같은 답을 내는 정도. 언어별 정확도가 비슷해도 서로 다른 문제를 맞힐 수 있어서 따로 재요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
  }
 ]

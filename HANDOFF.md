@@ -99,7 +99,8 @@
      - 다르게 나온 결과: 미리 가끔 맞히는 문제만 고르면 오히려 낮아짐(⑥, 목록이 금방 낡음), SFT에서 출발하면 단계별 보상의 차이가 거의 없음(⑤)
    - `model/eval-select.html` ("순서와 언어 모델", 예제 `examples/eval_select/pick_benchmarks.py`): 크기 8~48 모델 여섯 개의 에폭별 체크포인트로 평가 넷(작음, 큼, 쉬움, 픽셀 섞음) × 지표 둘(정답률, 손실)의 SNR, 문제 수, 초반 순서, 상관 군집. Lec04 1부
      - 다르게 볼 점: 픽셀 섞은 평가의 손실은 SNR이 높은데 순서가 거꾸로(⑤)
-   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09의 문화 VQA 부분, Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성)
+   - `model/codeswitch.html` ("순서와 언어 모델", 예제 `examples/codeswitch/mixed_language.py`): 노트 문장의 코드 스위칭 세기, 용어집 한국어/영어 이름으로 e5 설명 찾기, 교차 언어 일관성, 조금씩 섞기, 함께 적기. Lec10. 용어집(`terms/`)을 읽기 때문에 용어를 더하면 숫자가 바뀌어요. 용어를 더한 뒤 다시 빌드해요
+   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09의 문화 VQA 부분, SP01(OpenClaw), SP03(영상 생성)
    - 아직 안 넣은 밋업 자료(LLM_wiki `wiki/sources/`): PyCon의 엣지 AI와 FastAPI 모듈러 모놀리스, OSSummit OpenSSF, 가짜연구소(에이전트 운영, 피지컬 AI), 컨텍스트 엔지니어링 밋업, 카카오 에이전트 자동화, open-code-review. 대부분 경험담이라 이론 쪽으로 만들 거리가 적어요
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).
 9. **정보처리기사 정리**를 넣어요.
