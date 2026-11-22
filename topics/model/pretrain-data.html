@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM의 학습 데이터 만들기 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>LLM의 학습 데이터 만들기: 거르고, 빼고, 섞기</h1>
+      <div class="meta">모델 &gt; 순서와 언어 모델</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">LLM을 학습하기 전에 <b>규칙으로 거르고</b>, <b>똑같은 것과 거의 같은 것(MinHash)을 빼고</b>, 분야를 <b>어떤 비율로 섞을지</b> 정해요. 섞는 비율은 토크나이저의 <b>압축률</b>을 바꿔서, 한국어처럼 적게 섞인 언어는 토큰이 많이 들어요. 비율은 <b>작은 대리 실험의 순위</b>를 믿고 회귀로 골라요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>LLM의 성능은 모델 구조보다 <b>무엇을 얼마나 깨끗하게, 어떤 비율로 보여 줬나</b>에 더 크게 갈려요. 그런데 처음부터 학습 한 번에 몇 주와 큰돈이 들어서, 데이터의 선택을 하나하나 큰 모델로 시험해 볼 수 없어요. 그래서 데이터 쪽 결정은 대부분 <b>싸게 미리 재 보고</b> 정해요.</p><table><tr><th>정할 것</th><th>여기서 재 보는 것</th><th>이 쪽</th></tr><tr><td>무엇을 버릴까</td><td>규칙이 버린 것을 직접 읽기</td><td>②</td></tr><tr><td>겹치는 글</td><td>똑같은 것, 거의 같은 것</td><td>③④</td></tr><tr><td>토크나이저</td><td>분야마다 압축률</td><td>⑤</td></tr><tr><td>무엇을 얼마나 섞을까</td><td>작은 실험의 순위를 믿고 회귀로 고르기</td><td>⑥⑦</td></tr></table><p><a href="gpt-generation.html">작은 GPT</a>에서 말뭉치를 정리하고 BPE를 배웠다면, 이 쪽은 그 선택들을 숫자로 재 봐요. 한국어 서비스라면 특히 ⑤⑦이 비용과 바로 이어져요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>모으기 → 규칙으로 거르기 → 똑같은 것 빼기 → 거의 같은 것 빼기 → 토크나이저의 압축률 → 섞는 비율 바꾸기 → 비율 고르기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/pretrain_data/mix_tokenizer.py</code> 하나예요. 받을 파일 없이 이 노트의 한국어 글과 파이썬 표준 라이브러리로 말뭉치를 만들어요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 말뭉치 모으기</h3><p class="does">한국어(옛 Day 노트), 영어(표준 라이브러리 설명문), 코드(표준 라이브러리 소스) 세 분야를 문단 단위로 모아요.</p><p>실제 LLM의 학습 데이터도 분야(웹, PDF, 코드, 수학, 대화)마다 따로 모으고, 따로 거른 뒤, 마지막에 비율을 정해 섞어요. 분야마다 크기도 품질도 다르기 때문이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>inspect.getdoc(obj)</code></td><td>함수, 클래스의 설명문</td></tr><tr><td><code>inspect.getsource(module)</code></td><td>모듈의 소스 코드</td></tr><tr><td><code>re.sub(r&#x27;&quot;&quot;&quot;.*?&quot;&quot;&quot;&#x27;, &#x27;&#x27;, src, flags=re.S)</code></td><td>코드에서 설명문 빼기 (영어 쪽과 겹치지 않게)</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 규칙으로 거르기</h3><p class="does">너무 짧은 것, 기호와 숫자가 대부분인 것, 같은 단어가 되풀이되는 것을 버려요.</p><p>웹 문서에는 메뉴, 광고, 표 조각, 자동 생성 글이 섞여 있어요. 가장 먼저 쓰는 건 이런 <b>규칙(휴리스틱) 거르기</b>예요. 빠르고 설명하기 쉽지만, 기준 하나가 좋은 글까지 버릴 수 있어요. 그다음에 품질 분류기(좋은 글을 닮았나를 맞히는 작은 모델)를 더 쓰기도 해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>sum(ch.isalpha() for ch in text) / len(text)</code></td><td>글자(한글, 알파벳) 비율</td></tr><tr><td><code>len(set(words)) / len(words)</code></td><td>서로 다른 단어의 비율 (낮으면 반복)</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 한국어에서 글자 비율 기준을 0.4부터 0.7까지 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t2"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 똑같은 것 빼기</h3><p class="does">완전히 같은 문단은 처음 나온 하나만 남겨요.</p><p>파이썬 dict는 넣은 순서를 기억하고 같은 키를 한 번만 담아요. 그래서 <code>list(dict.fromkeys(docs))</code> 한 줄이 "순서를 지키며 중복 빼기"예요. 큰 말뭉치에서는 문서마다 해시를 만들어 같은 해시를 빼요.</p><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 거의 같은 것 빼기: MinHash</h3><p class="does">단어 5개짜리 조각들의 집합으로 문단을 보고, 두 집합이 얼마나 겹치는지(Jaccard)를 지문 64칸으로 빠르게 어림해요.</p><p>한두 단어만 다른 글은 해시가 달라서 ③으로 못 잡아요. 두 문단의 조각 집합이 얼마나 겹치는지를 <b>Jaccard 유사도</b>(겹치는 조각 수 ÷ 합친 조각 수)로 재면 되지만, 모든 짝을 비교하면 문단 수의 제곱만큼 걸려요.</p><p><b>MinHash</b>는 해시 함수 하나로 조각들을 섞어 가장 작은 값만 남겨요. 두 집합의 가장 작은 값이 같을 확률이 정확히 Jaccard 유사도라서, 해시 64개의 "가장 작은 값" 64칸(지문)이 몇 칸 같은지로 유사도를 어림해요. <b>LSH</b>는 지문을 4칸씩 16묶음으로 나눠 한 묶음이라도 똑같은 짝만 후보로 골라, 대부분의 짝을 비교하지 않고 넘어가요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>zlib.crc32(조각)</code></td><td>조각을 숫자로</td></tr><tr><td><code>(a × x + b) mod p 의 최솟값</code></td><td>해시 하나의 MinHash, 64번</td></tr><tr><td><code>sig[:, b*4:(b+1)*4].tobytes()</code></td><td>묶음이 같은 문단끼리 같은 칸에</td></tr></table><div class="out" data-out="f_funnel"></div><details class="try"><summary>🔁 바꿔 보기: 닮은 정도 기준을 0.5부터 0.9까지 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t4"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 토크나이저의 압축률</h3><p class="does">가진 비율대로 섞은 글로 BPE 토크나이저를 배우고, 분야마다 토큰 하나가 몇 글자를 담는지 재요.</p><p><b>압축률</b>은 같은 글을 몇 개의 토큰으로 바꾸나예요. 압축률이 높으면 같은 글이 적은 토큰이 돼서, 학습과 추론이 싸지고 문맥 창에 더 많이 들어가요. BPE는 학습 글에서 자주 붙어 나오는 조각부터 합치기 때문에, 학습 글에 적게 들어간 분야는 잘게 쪼개져요.</p><p>여기서는 바이트 단위 BPE(GPT-2 방식)를 써요. 처음 어휘가 바이트 256개라서 어떤 글자도 모르는 토큰이 되지 않지만, 합쳐진 조각이 없으면 한글 한 글자가 바이트 3개로 쪼개져요.</p><div class="out" data-out="t5"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>pre_tokenizers.ByteLevel()</code></td><td>글을 바이트로 보고 띄어쓰기 단위로 미리 나누기</td></tr><tr><td><code>trainers.BpeTrainer(vocab_size=4000)</code></td><td>자주 붙는 조각을 어휘 4,000개가 될 때까지 합치기</td></tr><tr><td><code>len(text) / len(tok.encode(text).ids)</code></td><td>압축률: 토큰 하나에 담긴 글자 수</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 어휘 크기를 1,000, 4,000, 16,000으로 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t5b"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 섞는 비율을 바꾸면: 작은 대리 토크나이저</h3><p class="does">비율 조합 24가지로 토크나이저를 두 크기로 배우고, 작은 쪽의 순위가 큰 쪽에서도 그대로인지 봐요.</p><p>최적의 비율을 찾으려면 비율마다 토크나이저를 배워 봐야 하는데, 실제 크기(어휘 수만 개, 글 수백 GB)로는 비싸요. TReX는 <b>작은 대리(proxy) 토크나이저</b>로 많은 조합을 시험하고, 그 순위가 큰 토크나이저에서도 유지된다는 걸 확인한 뒤 써요. 같은 생각을 데이터 섞기 전체에 쓰는 방법(작은 모델로 비율을 시험하고 회귀로 고르기)도 있어요.</p><div class="out" data-out="f_mix"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>rng.dirichlet(np.ones(3), 24)</code></td><td>합이 1인 비율 조합 24가지</td></tr><tr><td><code>spearmanr(proxy[:, j], full[:, j])</code></td><td>두 크기에서 순위가 같은 정도</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 회귀로 비율 고르기</h3><p class="does">대리 토크나이저의 결과로 "비율 → 압축률" 회귀를 맞추고, 서비스 글의 토큰 수가 가장 적은 비율을 골라 실제 크기로 확인해요.</p><p>무엇을 기준으로 "좋은 비율"인지부터 정해야 해요. 여기서는 <b>서비스에 들어올 글</b>(한국어 60%, 영어 20%, 코드 20%) 1,000자에 드는 토큰 수를 줄이는 게 목표예요. 분야마다 압축률을 로그 비율의 직선으로 근사하고, 비율 격자 전체에서 예측이 가장 좋은 점을 골라요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>features(m) = [1, log(비율)]</code></td><td>비율에서 압축률을 맞히는 특징</td></tr><tr><td><code>np.linalg.lstsq</code></td><td>최소제곱으로 계수 맞추기</td></tr><tr><td><code>TRAFFIC / chars_per_token</code></td><td>분야마다 글자 수 ÷ 압축률 = 토큰 수</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 서비스 글의 비율이 다르면 회귀가 고르는 비율은?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t7"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s7"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/pretrain_data/mix_tokenizer.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>한국어 서비스를 만든다</td><td>쓸 모델의 토크나이저로 우리 글의 압축률부터 재요. 같은 내용이 모델마다 1.5배 넘게 토큰이 차이 날 수 있고, 그게 곧 비용과 문맥 길이예요.</td></tr><tr><td>말뭉치를 거른다</td><td>규칙은 분야마다 따로 맞추고, 버린 것과 남긴 것을 무작위로 뽑아 꼭 읽어요. 중복 빼기는 거의 항상 이득이에요.</td></tr><tr><td>데이터를 섞는다</td><td>"가진 만큼"이 아니라 쓰일 곳의 비율에서 출발해요. 조합이 많으면 작은 실험의 순위를 믿고 회귀로 고르고, 마지막 후보만 크게 확인해요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①②③</td><td><code>inspect</code>, <code>importlib</code>, <code>re</code>, <code>collections.Counter</code></td><td>말뭉치 모으기, 거르기, 세기</td></tr><tr><td>④</td><td><code>zlib.crc32</code>, NumPy</td><td>MinHash 지문</td></tr><tr><td>⑤⑥⑦</td><td><code>tokenizers</code> (Hugging Face), <code>scipy.stats.spearmanr</code>, <code>np.linalg.lstsq</code></td><td>BPE 학습, 순위 상관, 회귀</td></tr></table>
+      <p><code>docs_of</code>, <code>code_of</code>, <code>bad_reason</code>, <code>minhash</code>, <code>near_duplicates</code>, <code>train_tokenizer</code>, <code>chars_per_token</code>, <code>features</code>, <code>tokens_per_1k</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="gpt-generation.html">작은 GPT와 디코딩</a></td><td>BPE를 배우고 GPT를 처음부터</td></tr><tr><td><a href="llm-architectures.html">요즘 LLM의 부품</a></td><td>같은 카테고리</td></tr><tr><td><a href="../backend/chunking.html">Chunking</a></td><td>토큰 수와 비용</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: Upstage 10Talks Lecture 04 "Technical Choices and Strategy: Lessons from Olmo 3"(사전 학습 평가 고르기, 웹 데이터의 규칙 거르기와 3단계 중복 빼기, PDF와 코드와 수학, 섞기와 뽑기), Lecture 06 "TReX: Tokenizer Regression for Optimal Data Mixture"(압축률, 대리 토크나이저와 순위 불변성, 혼합비 회귀). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/pretrain_data.py</code>가 <code>examples/pretrain_data/mix_tokenizer.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="pretrain-data-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

@@ -87,7 +87,14 @@
    - `rl-games.html` (예제 `examples/rl/matrix_games.py`): 행렬 게임의 내시, 미니맥스와 상관 균형 선형 계획, 가상 플레이, 후회 매칭, IGA와 WoLF, 반복 죄수의 딜레마
    - `rl-multiagent.html` (예제 `examples/rl/multi_agent.py`): 오르막 게임, 움직이는 과녁, 함께 드는 상자(중앙, 각자, VDN), 표 크기
    - 책과 다르게 나온 결과도 그대로 적었어요: TD(0)보다 MC가 빠름(1쪽 ⑤), 경험 재생만 쓴 DQN이 둘 다 쓴 DQN보다 나음(2쪽 ②), 둘뿐이면 VDN이 독립 학습보다 낫지 않음(4쪽 ③)
-7. **세미나 "읽기 노트"**: Upstage, PyCon, 가짜연구소, OSSummit, 밋업 자료를 담아요. 예제 코드 없이 가벼운 형식으로 써요.
+7. **밋업 자료 중 이론** (일부 끝남). 방침이 바뀌었어요: 읽기 노트 대신, 기존 쪽에 없는 이론만 골라 예제가 있는 주제 쪽으로 만들어요. 원본은 OneDrive `자료/md/Upstage10Talks/`
+   - 새 카테고리 "추천과 평생 학습"
+     - `recsys.html` (예제 `examples/recsys/recommend.py`): 가상 이용 기록 600 × 400. 인기순, 아이템과 사용자 이웃, BPR, EASE, LightGCN, 기록 수별 성능, 인기 편향. 경희대 추천 특강과 Lec01
+     - `continual.html` (예제 `examples/continual/remember_forget.py`): 손글씨 숫자와 픽셀 섞은 숫자로 파국적 망각, 리플레이, EWC. 숫자 3 지우기를 다시 학습, 남은 것으로 더, 경사 상승, 작업 벡터 빼기로 비교. Lec03
+   - `pretrain-data.html` ("순서와 언어 모델", 예제 `examples/pretrain_data/mix_tokenizer.py`): 한국어 노트, 표준 라이브러리 설명문과 소스로 규칙 거르기, 중복 빼기, MinHash, BPE 압축률, 섞는 비율과 대리 토크나이저, 회귀로 비율 고르기. Lec04, Lec06. 영어와 코드 말뭉치가 파이썬 버전에 따라 조금 달라져요
+   - 책이나 논문과 다르게 나온 결과도 그대로 적었어요: BPR이 단순한 이웃보다 낮음(추천 ④), 회귀가 고른 비율이 "서비스 비율 그대로"보다 조금 나쁨(데이터 ⑦)
+   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec05(여러 정답으로 채점하기: BLEU는 `gpt-generation`에 일부 있음), Lec09(작은 추론 에이전트의 도메인 적응), Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성). Olmo 3의 사전 학습 평가 고르기와 추론 RL(Lec04 1, 3부)도 아직이에요
+   - 아직 안 본 밋업 자료: PyCon, OSSummit, 가짜연구소, 컨텍스트 엔지니어링 밋업 등
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).
 9. **정보처리기사 정리**를 넣어요.
 10. **UDL 21장(윤리)**: 아직 안 넣었어요.

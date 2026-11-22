@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>평생 학습과 머신 언러닝 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>평생 학습과 머신 언러닝: 잊지 않게, 잊게 하기</h1>
+      <div class="meta">모델 &gt; 추천과 평생 학습</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">새 일을 배우면 예전 일을 덮어써서 <b>파국적으로 잊어요</b>. 예전 데이터를 조금 섞거나(<b>리플레이</b>) 중요한 가중치를 묶으면(<b>EWC</b>) 덜 잊어요. 반대로 일부를 <b>골라 잊게</b> 할 때는 처음부터 다시 배운 모델을 정답으로 두고, <b>경사 상승</b>이나 <b>작업 벡터 빼기</b>로 싸게 흉내 내요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>모델은 한 번 배우고 끝나지 않아요. 새 데이터와 새 일이 계속 생기고(<b>평생 학습</b>, 지속 학습), 반대로 "제 데이터를 지워 주세요"처럼 배운 것의 일부를 없애야 할 때도 있어요(<b>머신 언러닝</b>). 둘 다 "처음부터 다시 학습"하면 정확하지만 큰 모델에서는 너무 비싸요.</p><table><tr><th></th><th>평생 학습</th><th>머신 언러닝</th></tr><tr><td>원하는 것</td><td>새로 배우면서 예전 것은 지키기</td><td>골라서 잊고 나머지는 지키기</td></tr><tr><td>어려운 점</td><td>새 일을 배우면 예전 것을 덮어씀 (파국적 망각)</td><td>안 보여 주기만으로는 잘 안 잊음, 잊었는지 확인도 어려움</td></tr><tr><td>정답 (비쌈)</td><td>모든 데이터로 처음부터</td><td>지울 데이터를 빼고 처음부터</td></tr><tr><td>이 쪽</td><td>②~⑤</td><td>⑥⑦</td></tr></table><p>이 쪽은 작은 손글씨 숫자 모델로 두 문제를 직접 재현해요. 개인정보를 외운 LLM에서 그 정보만 지우거나, 자율주행 모델에 새 도시의 데이터를 더하는 일이 같은 문제의 큰 버전이에요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>두 가지 일 → 그냥 이어서 → 리플레이 → EWC → 비교 → 지워 달라는 요청 → 빠르게 잊기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/continual/remember_forget.py</code> 하나예요. 데이터는 scikit-learn에 들어 있어서 받을 파일이 없어요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 숫자와 두 번째 일</h3><p class="does">8 × 8 손글씨 숫자로 일 A를 배우고, 같은 숫자의 픽셀을 섞은 일 B를 준비해요.</p><p>평생 학습에는 몇 가지 꼴이 있어요. 같은 답을 다른 입력에서 맞히는 <b>도메인 증가</b>(여기처럼, 또는 낮 사진 다음 밤 사진), 새 클래스가 계속 늘어나는 <b>클래스 증가</b>, 일마다 출력 머리가 따로 있는 <b>작업 증가</b>예요. 클래스 증가가 가장 어려워요.</p><div class="out" data-out="f_task"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>load_digits()</code></td><td>scikit-learn에 들어 있는 손글씨 숫자 1,797장</td></tr><tr><td><code>X_tr[:, shuffle]</code></td><td>64픽셀을 정해진 순서로 섞은 일 B</td></tr><tr><td><code>nn.Linear(64, 128) → ReLU → nn.Linear(128, 10)</code></td><td>작은 신경망 하나를 두 일이 함께 써요</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 그냥 이어서 배우면: 파국적 망각</h3><p class="does">일 A를 배운 모델에게 일 B만 30에폭 가르치고, 에폭마다 일 A와 일 B 정확도를 재요.</p><p>경사하강은 지금 보는 데이터의 손실만 줄여요. 일 B를 배우는 동안 일 A의 데이터는 없으니, 일 A에 중요했던 가중치도 거리낌 없이 바뀌어요. 그래서 예전 일을 갑자기 크게 잊어요. 이걸 <b>파국적 망각</b>이라고 해요. <a href="rl-deep.html">심층 강화학습</a>에서 경험 재생이 필요했던 이유도 같아요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>train(copy.deepcopy(base), B, watch=(A_test, B_test))</code></td><td>일 A 모델을 복사해 일 B로만 학습, 에폭마다 두 일을 채점</td></tr></table></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 예전 것을 조금 다시 보기: 리플레이</h3><p class="does">일 A의 학습 데이터에서 100장만 남겨 두고, 일 B를 배울 때 배치마다 같은 수만큼 섞어요.</p><p>가장 단순하고 강한 방법이에요. 예전 데이터를 조금 저장해 두고(기억 버퍼) 새 데이터와 섞어 배워요. 예전 데이터를 저장할 수 없으면, 생성 모델로 예전 데이터를 닮은 가짜를 만들어 섞기도 해요(생성 리플레이).</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>torch.randperm(...)[:k]</code></td><td>일 A에서 k장 고르기</td></tr><tr><td><code>torch.cat([x, replay[0][r]])</code></td><td>배치마다 같은 수의 예전 데이터를 섞기</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 남겨 두는 장 수를 20, 100, 300으로 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t3"></div></details></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 중요한 가중치는 덜 움직이게: EWC</h3><p class="does">일 A에서 가중치마다 중요도(Fisher 정보)를 재 두고, 일 B를 배울 때 중요한 가중치가 멀리 가면 벌점을 줘요.</p><p>모든 가중치가 일 A에 똑같이 중요하지는 않아요. 조금만 바꿔도 일 A의 출력이 크게 흔들리는 가중치가 중요한 거예요. 그 정도를 재는 게 <b>Fisher 정보</b>예요. 모델이 내는 분포에서 답을 뽑아 그 log 확률의 기울기를 제곱해 평균 내요.</p><p><b>EWC</b>(Elastic Weight Consolidation)는 일 B의 손실에 <code>λ/2 × Σ Fᵢ (θᵢ − θᵢ_A)²</code>를 더해요. 중요한 가중치는 고무줄로 일 A 때 자리에 묶이고, 덜 중요한 가중치는 일 B를 위해 자유롭게 움직여요. 예전 데이터를 저장하지 않아도 되는 게 장점이에요.</p><p>이 밖에 예전 모델의 출력을 새 모델이 따라 하게 하는 LwF(<a href="model-compression.html">모델 가볍게</a>의 지식 정제와 같은 생각), 일마다 작은 전문가를 두고 입력에 따라 골라 쓰는 방법(전문가 혼합)도 있어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>fisher_diag(m, data)</code></td><td>가중치마다 기울기 제곱의 평균</td></tr><tr><td><code>lam / 2 * Σ F × (θ − θ_A)²</code></td><td>EWC 벌점: 중요한 가중치가 멀리 갈수록 커요</td></tr></table><details class="try"><summary>🔁 바꿔 보기: λ를 10부터 10,000까지 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t4"></div></details></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 같이 놓고 비교하기</h3><p class="does">다섯 가지 방법을 일 A, 일 B 정확도로 나란히 놓고, 일 B를 배우는 동안의 변화를 그림으로 봐요.</p><div class="out" data-out="s2"></div><div class="out" data-out="f_curve"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>joint</code></td><td>두 일을 처음부터 함께 배운 모델 (상한)</td></tr></table></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 숫자 3을 지워 주세요: 처음부터 다시, 남은 것만 더</h3><p class="does">일 A 모델에서 숫자 3에 대한 지식만 없애요. 지울 데이터 없이 처음부터 다시 배운 모델을 정답으로 두고 비교해요.</p><p>개인정보 삭제 요청(잊힐 권리), 저작권 문제, 잘못된 데이터, 위험한 지식처럼 모델에서 일부를 빼야 할 때가 있어요. 확실한 방법은 지울 데이터를 빼고 처음부터 다시 배우는 거예요. 머신 언러닝의 목표는 이 모델과 <b>구별되지 않는</b> 모델을 훨씬 싸게 얻는 거예요.</p><p>잘 잊었는지는 세 가지로 봐요. 지울 데이터에서 성능이 다시 배운 모델만큼 떨어졌나, 나머지 성능은 지켰나, 그리고 모델의 반응으로 "이 데이터가 학습에 쓰였는지"를 알아낼 수 없나(멤버십 추론)예요. 여기서는 클래스 하나를 통째로 지워서 앞의 둘로 충분해요. 특정 사람의 몇 건만 지우는 경우는 성능 차이가 작아서 세 번째가 중요해져요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>y_tr != FORGET</code></td><td>숫자 3이 아닌 데이터 = 남길 데이터</td></tr><tr><td><code>check(m)</code></td><td>지울 숫자의 test 정확도, 나머지의 test 정확도, 지울 숫자의 학습 데이터 정확도</td></tr></table></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 빠르게 잊게 하기: 경사 상승과 작업 벡터 빼기</h3><p class="does">지울 데이터의 손실을 일부러 키우는 방법과, "지울 데이터 쪽으로 가는 가중치 방향"을 빼는 방법을 비교해요.</p><p><b>경사 상승</b>: 지울 데이터에서는 손실을 줄이는 대신 키워요. 남길 데이터의 손실도 같이 줄여서 나머지가 무너지지 않게 잡아 줘요. LLM에서는 이걸 기본으로, 손실이 끝없이 커지지 않게 묶은 NPO 같은 변형을 써요.</p><p><b>작업 벡터 빼기</b>: 지울 데이터만 더 배운 모델에서 원래 모델을 빼면 "그 지식 쪽으로 가는 방향"이 나와요(작업 벡터). 이걸 원래 모델에서 빼면 그 지식이 약해져요. 학습 없이 가중치 덧셈뿐이라 빠르고, 여러 설정으로 만든 작업 벡터들에서 부호가 같은 칸만 모아 빼면(NegMerge) 더 안정적이라는 연구도 있어요. LLM에서는 Fisher 정보로 지울 지식과 관련된 가중치만 골라 손대기도 해요.</p><div class="out" data-out="s6"></div><div class="out" data-out="f_ul"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>-cross_entropy(forget) + cross_entropy(retain)</code></td><td>지울 것은 손실을 키우고, 남길 것은 줄이기</td></tr><tr><td><code>p1 - p0</code></td><td>작업 벡터: 지울 데이터로 더 배운 가중치 − 원래 가중치</td></tr><tr><td><code>p -= alpha * tv</code></td><td>그 방향의 반대로 α배</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 작업 벡터를 1, 2, 4, 8배 빼면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t7"></div></details></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/continual/remember_forget.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>새 데이터가 계속 들어온다</td><td>가장 먼저 리플레이를 써요. 예전 데이터 일부를 남기기 어렵다면 EWC 같은 규제나, 일마다 작은 어댑터(LoRA)를 따로 두는 방법을 봐요.</td></tr><tr><td>잊혀야 하는 데이터가 생겼다</td><td>법적 요구라면 결국 다시 학습하는 게 가장 확실해요. 빠른 방법은 다시 학습할 때까지의 응급 처치로 쓰고, 지울 데이터, 남길 데이터, 멤버십 추론 셋으로 확인해요.</td></tr><tr><td>애초에 덜 외우게</td><td>학습할 때 개인정보를 걸러내고, 중복을 없애고, 차분 프라이버시 같은 방법을 쓰면 나중에 지울 일이 줄어요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①</td><td><code>sklearn.datasets.load_digits</code>, <code>train_test_split</code></td><td>데이터</td></tr><tr><td>②~⑦</td><td><code>torch</code>, <code>copy.deepcopy</code></td><td>학습, 모델 복사, 가중치 연산</td></tr></table>
+      <p><code>model</code>, <code>acc</code>, <code>train</code>, <code>replay_run</code>, <code>fisher_diag</code>, <code>ewc</code>, <code>check</code>, <code>gradient_ascent</code>, <code>negate</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="dl-training-stability.html">학습을 안정시키기</a></td><td>규제, weight decay</td></tr><tr><td><a href="model-compression.html">모델 가볍게</a></td><td>지식 정제</td></tr><tr><td><a href="recsys.html">추천 시스템</a></td><td>같은 카테고리</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: Upstage 10Talks Lecture 03 "Towards Sustainable Machine Learning: Continual Learning and Machine Unlearning"(파국적 망각, 다시 학습과 미세조정과 평생 학습의 한계, 일마다 전문가를 두고 분포로 골라 쓰기, Fisher 정보로 지울 지식의 가중치 찾기와 그 보정, LoRA 근사, 작업 벡터 빼기와 부호 일관성으로 합치기, TOFU 같은 언러닝 평가). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/continual.py</code>가 <code>examples/continual/remember_forget.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="continual-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

@@ -6540,6 +6540,302 @@ window.GLOSSARY = [
   "keyDays": []
  },
  {
+  "term": "협업 필터링",
+  "aliases": [
+   "Collaborative Filtering",
+   "CF"
+  ],
+  "full": "Collaborative Filtering",
+  "short": "다른 사람들의 이용 기록으로 추천하는 방법. 나와 비슷하게 본 사람이 본 것(사용자 기반), 내가 본 것과 함께 자주 보인 것(아이템 기반)을 골라요. 아이템 내용은 몰라도 돼요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "암묵적 피드백",
+  "aliases": [
+   "Implicit Feedback"
+  ],
+  "full": "Implicit Feedback",
+  "short": "별점처럼 직접 말한 평가가 아니라 클릭, 구매, 재생처럼 행동으로 남은 기록. 본 것은 알지만, 안 본 것이 싫어서인지 몰라서인지는 알 수 없어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "NDCG",
+  "aliases": [
+   "NDCG@10",
+   "nDCG"
+  ],
+  "full": "Normalized Discounted Cumulative Gain",
+  "short": "추천 목록의 순서까지 보는 지표. 맞힌 아이템이 위에 있을수록 크게 쳐 주고(1/log₂(순위+1)), 가장 잘 줄 세웠을 때의 값으로 나눠 0~1로 만들어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "BPR",
+  "aliases": [
+   "Bayesian Personalized Ranking"
+  ],
+  "full": "Bayesian Personalized Ranking",
+  "short": "본 아이템의 점수가 안 본 아이템보다 높아지도록 사용자 벡터와 아이템 벡터를 배우는 손실. 점수 자체가 아니라 순서를 맞혀요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "행렬 분해",
+  "aliases": [
+   "Matrix Factorization",
+   "MF"
+  ],
+  "full": "Matrix Factorization",
+  "short": "사용자 × 아이템 표를 사용자 벡터와 아이템 벡터의 곱으로 근사하는 방법. 벡터의 각 칸이 장르 같은 숨은 취향을 담게 돼요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "EASE",
+  "aliases": [],
+  "full": "Embarrassingly Shallow Autoencoder",
+  "short": "아이템 × 아이템 가중치 하나로 \"이걸 봤으면 저것도\"를 배우는 추천 모델. 대각선을 0으로 묶은 릿지 회귀라 닫힌 식 한 번으로 풀려요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LightGCN",
+  "aliases": [],
+  "full": "Light Graph Convolution Network",
+  "short": "사용자와 아이템을 노드, 이용 기록을 선으로 둔 그래프에서 이웃의 벡터를 몇 번 모아 평균 내는 추천 모델. GNN에서 가중치와 활성화 함수를 뺐어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "콜드 스타트",
+  "aliases": [
+   "Cold Start"
+  ],
+  "full": "Cold Start",
+  "short": "기록이 거의 없는 새 사용자나 새 아이템이라 협업 필터링이 잘 안 되는 문제. 인기순, 내용 정보, 처음에 취향 묻기로 메워요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "인기 편향",
+  "aliases": [
+   "Popularity Bias"
+  ],
+  "full": "Popularity Bias",
+  "short": "추천이 이미 인기 있는 아이템에 몰리는 경향. 데이터가 인기 아이템에 많아서 생기고, 추천이 그걸 더 키워요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "평생 학습",
+  "aliases": [
+   "지속 학습",
+   "Continual Learning",
+   "Lifelong Learning"
+  ],
+  "full": "Continual Learning",
+  "short": "새 데이터나 새 일을 차례로 배우면서 예전에 배운 것을 잊지 않게 하는 학습. 매번 처음부터 다시 학습하지 않는 게 목표예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "파국적 망각",
+  "aliases": [
+   "Catastrophic Forgetting"
+  ],
+  "full": "Catastrophic Forgetting",
+  "short": "새 일을 배우는 동안 같은 가중치가 덮어써져 예전 일을 갑자기 크게 잊는 현상.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "리플레이",
+  "aliases": [
+   "Replay",
+   "기억 버퍼"
+  ],
+  "full": "Replay",
+  "short": "예전 데이터를 조금 저장해 두고 새 데이터와 섞어 배우는 평생 학습 방법. 단순하지만 강해요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "EWC",
+  "aliases": [
+   "Elastic Weight Consolidation"
+  ],
+  "full": "Elastic Weight Consolidation",
+  "short": "예전 일에 중요한 가중치(Fisher 정보가 큰 것)가 멀리 움직이면 벌점을 줘서 덜 잊게 하는 방법. 예전 데이터를 저장하지 않아도 돼요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Fisher 정보",
+  "aliases": [
+   "Fisher Information"
+  ],
+  "full": "Fisher Information",
+  "short": "가중치를 조금 바꿨을 때 모델의 출력 분포가 얼마나 흔들리나. log 확률의 기울기 제곱의 평균으로 어림해요. 클수록 그 일에 중요한 가중치예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "머신 언러닝",
+  "aliases": [
+   "Machine Unlearning",
+   "언러닝"
+  ],
+  "full": "Machine Unlearning",
+  "short": "학습한 데이터의 일부를 모델에서 지우는 일. 그 데이터 없이 처음부터 다시 학습한 모델과 구별되지 않게, 그보다 싸게 하는 게 목표예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "작업 벡터",
+  "aliases": [
+   "Task Vector"
+  ],
+  "full": "Task Vector",
+  "short": "어떤 일로 미세조정한 가중치에서 원래 가중치를 뺀 차이. 더하면 그 능력이 생기고, 빼면 그 지식이 약해져요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "MinHash",
+  "aliases": [],
+  "full": "MinHash",
+  "short": "두 집합이 얼마나 겹치는지(Jaccard)를 짧은 지문으로 어림하는 방법. 해시마다 가장 작은 값만 남기면, 두 집합의 그 값이 같을 확률이 Jaccard 유사도예요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "LSH",
+  "aliases": [
+   "Locality Sensitive Hashing"
+  ],
+  "full": "Locality Sensitive Hashing",
+  "short": "비슷한 것끼리 같은 칸에 들어가게 하는 해시. 모든 짝을 비교하지 않고 같은 칸에 든 짝만 후보로 봐요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Jaccard 유사도",
+  "aliases": [
+   "Jaccard"
+  ],
+  "full": "Jaccard Similarity",
+  "short": "두 집합의 겹치는 원소 수 ÷ 합친 원소 수. 0이면 하나도 안 겹치고 1이면 같아요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "압축률",
+  "aliases": [
+   "Compression Rate"
+  ],
+  "full": "Compression Rate",
+  "short": "토크나이저가 같은 글을 몇 개의 토큰으로 바꾸나. 토큰 하나가 담는 글자 수로 재고, 높을수록 학습과 추론이 싸져요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "데이터 혼합비",
+  "aliases": [
+   "Data Mixture",
+   "데이터 섞기"
+  ],
+  "full": "Data Mixture",
+  "short": "학습 데이터를 분야(웹, 코드, 수학, 언어)마다 어떤 비율로 섞을지. 모델의 능력과 토크나이저의 압축률이 함께 바뀌어요.",
+  "analogy": "",
+  "first": 12,
+  "days": [
+   12
+  ],
+  "keyDays": []
+ },
+ {
   "term": "픽셀",
   "aliases": [
    "Pixel"

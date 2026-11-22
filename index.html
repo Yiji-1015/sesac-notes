@@ -145,6 +145,7 @@
           <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
           <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
           <a class="item" href="topics/model/llm-architectures.html"><b>요즘 LLM의 부품</b><small>RMSNorm, SwiGLU, RoPE, GQA, KV 캐시와 prefill, decode, 슬라이딩 윈도우, MoE</small></a>
+          <a class="item" href="topics/model/pretrain-data.html"><b>LLM의 학습 데이터 만들기</b><small>규칙 거르기, 중복 빼기, MinHash와 LSH, BPE 압축률, 데이터 섞는 비율, 대리 토크나이저, 회귀로 비율 고르기</small></a>
           <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
         </div>
         <div class="cat">
@@ -160,6 +161,12 @@
           <a class="item" href="topics/model/rl-deep.html"><b>심층 강화학습</b><small>막대 세우기, DQN(경험 재생, 타깃 네트워크), REINFORCE와 베이스라인, A2C와 GAE, PPO</small></a>
           <a class="item" href="topics/model/rl-games.html"><b>게임과 균형</b><small>행렬 게임, 내시 균형, 혼합 균형, 미니맥스 선형 계획, 상관 균형, 파레토, 가상 플레이, 후회 매칭, WoLF, 반복 죄수의 딜레마</small></a>
           <a class="item" href="topics/model/rl-multiagent.html"><b>다중 에이전트 강화학습</b><small>중앙 학습과 독립 학습, 비정상성, 균형 선택, 함께 드는 상자, VDN, CTDE, 신용 할당, 규모, 셀프 플레이</small></a>
+        </div>
+        <div class="cat">
+          <h3>추천과 평생 학습</h3>
+          <p>사람마다 다른 것을 골라 주기, 그리고 배운 뒤에도 계속 바뀌는 모델</p>
+          <a class="item" href="topics/model/recsys.html"><b>추천 시스템</b><small>암묵적 피드백, 정밀도와 재현율과 NDCG@10, 인기순, 아이템과 사용자 이웃, BPR 행렬 분해, EASE, LightGCN, 콜드 스타트, 인기 편향</small></a>
+          <a class="item" href="topics/model/continual.html"><b>평생 학습과 머신 언러닝</b><small>파국적 망각, 리플레이, EWC와 Fisher 정보, 안정성 대 가소성, 다시 학습, 경사 상승, 작업 벡터 빼기</small></a>
         </div>
       </div>
     </section>
@@ -211,6 +218,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/22</td><td>새 카테고리 "추천과 평생 학습" 두 쪽: <a href="topics/model/recsys.html">추천 시스템</a>(가상 이용 기록으로 인기순, 이웃, BPR, EASE, LightGCN을 같은 지표로 비교, 기록이 적은 사용자와 인기 편향), <a href="topics/model/continual.html">평생 학습과 머신 언러닝</a>(손글씨 숫자로 파국적 망각, 리플레이, EWC, 숫자 하나 지우기를 다시 학습, 경사 상승, 작업 벡터 빼기로 비교). 그리고 <a href="topics/model/pretrain-data.html">LLM의 학습 데이터 만들기</a>(규칙 거르기, MinHash 중복 빼기, 섞는 비율과 토크나이저 압축률). Upstage 10Talks 01, 03, 04, 06</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "데이터 분석 기초" 두 쪽: <a href="topics/model/stats-describe.html">요약하고 추정하기</a>(업무 요청 100건 요약, 가상의 1년치 10만 건으로 표본 뽑기, 중심극한정리, 신뢰구간이 맞는 비율), <a href="topics/model/stats-tests.html">가설 검정과 회귀 분석</a>(검정력 실험, t검정, 분산분석, 상관과 χ², 심슨의 역설, 회귀 표를 식대로 계산, 조절 효과와 평균 중심화, 다중 비교). 경희대 통계, SPSS, Data Science 특강, PRML 1~2강</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "강화학습" 네 쪽: <a href="topics/model/rl-basics.html">강화학습 기초</a>(격자 배달 로봇으로 벨만 방정식, 동적 계획법, 밴딧, MC와 TD, SARSA와 Q-learning), <a href="topics/model/rl-deep.html">심층 강화학습</a>(막대 세우기로 DQN 장치 하나씩 빼기, REINFORCE, A2C, PPO), <a href="topics/model/rl-games.html">게임과 균형</a>(행렬 게임의 내시, 미니맥스, 상관 균형, 가상 플레이, 후회 매칭, WoLF, 반복 죄수의 딜레마), <a href="topics/model/rl-multiagent.html">다중 에이전트 강화학습</a>(오르막 게임, 움직이는 과녁, 함께 드는 상자, 가치 분해, 규모). Multi-Agent Reinforcement Learning 1~11장, Understanding Deep Learning 19장, Foundations of Machine Learning 17장</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/backend/llm-judge.html">LLM으로 답 채점하기 (LLM-as-a-Judge)</a> 새로 씀: 루브릭과 점수 계약, 채점 기준을 캐시하는 Claude API 요청(가짜 서버로 실제 SDK 요청 관찰), 캐시 비용 계산, 잘린 답 다시 묻기, 순서 바꿔 묻기와 가중 kappa</td></tr>

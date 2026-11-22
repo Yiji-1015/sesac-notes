@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>추천 시스템 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>추천 시스템: 아직 안 본 것 중 좋아할 것 고르기</h1>
+      <div class="meta">모델 &gt; 추천과 평생 학습</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">이용 기록 표의 <b>빈칸 중 볼 만한 것</b>을 골라요. 같이 본 기록으로 닮은 것을 찾는 <b>협업 필터링</b>, 숨은 취향 벡터를 찾는 <b>행렬 분해</b>, 닫힌 식의 <b>EASE</b>, 그래프의 <b>LightGCN</b>을 상위 k개 지표로 비교하고, <b>인기 편향과 콜드 스타트</b>를 함께 봐요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>음악, 영상, 쇼핑, 채용 공고처럼 고를 것이 수만 개일 때, 사용자마다 볼 만한 몇 개를 골라 주는 게 <b>추천 시스템</b>이에요. 분류처럼 정답 표가 있지 않고, 사람들이 무엇을 봤는지(이용 기록)에서 취향을 짐작해요.</p><table><tr><th></th><th>분류 (머신러닝 기초)</th><th>추천</th></tr><tr><td>데이터</td><td>행마다 정답이 있는 표</td><td>사용자 × 아이템 이용 기록, 대부분 빈칸</td></tr><tr><td>예측</td><td>이 행의 답</td><td>이 사람이 아직 안 본 것 중 좋아할 순서</td></tr><tr><td>빈칸의 뜻</td><td>-</td><td>싫어한다가 아니라 "모른다" (암묵적 피드백)</td></tr><tr><td>평가</td><td>정확도, F1</td><td>상위 k개의 정밀도, 재현율, NDCG, 다양성</td></tr></table><p>이 쪽은 사용자마다 숨은 장르 취향을 정해 둔 가상 기록으로, 고전적인 방법부터 그래프 모델까지 같은 지표로 비교해요. 진짜 취향을 아니까 "가장 잘해도 이 정도"인 천장도 잴 수 있어요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>기록과 나누기 → 지표와 기준선 → 이웃 → 숨은 취향 벡터 → 닫힌 식 → 그래프 → 편향. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/recsys/recommend.py</code> 하나예요. CPU로 10초 남짓 걸려요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 이용 기록 만들고 나누기</h3><p class="does">사용자마다 장르 취향, 아이템마다 장르와 인기도를 정해 이용 기록을 만들고, 사용자마다 30%를 숨겨 정답으로 둬요.</p><p>평점처럼 "얼마나 좋았는지"를 직접 받은 것은 <b>명시적 피드백</b>, 봤다, 눌렀다, 샀다처럼 행동만 남은 것은 <b>암묵적 피드백</b>이에요. 실제 서비스는 대부분 암묵적이라 여기서도 "봤다"만 있어요.</p><p>나눌 때는 사용자마다 일부를 숨겨요. 행을 통째로 나누면 test 사용자의 기록이 하나도 없어 추천할 수 없어요. 시간이 있는 데이터면 마지막 몇 개를 숨겨서 "과거로 미래 맞히기"를 해요.</p><div class="out" data-out="s1"></div><div class="out" data-out="f_pop"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>rng.pareto(1.2, I) + 1</code></td><td>소수만 크게 인기 있는 분포</td></tr><tr><td><code>rng.dirichlet(np.full(G, 0.3))</code></td><td>사용자마다 몇 장르에 몰린 취향</td></tr><tr><td><code>train[u, hide] = False</code></td><td>사용자마다 30%를 숨겨 정답으로</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 평가 지표와 인기순 기준선</h3><p class="does">사용자마다 10개를 추천하고, 숨긴 정답이 몇 개 들어 있는지와 몇 번째에 있는지로 채점해요.</p><p><b>정밀도@k</b>: 추천 k개 중 정답 비율. <b>재현율@k</b>: 정답 중 k개 안에 든 비율. <b>NDCG@k</b>: 위에 있을수록 크게 쳐서(1 ÷ log₂(순위 + 1)) 더한 뒤, 가장 잘 늘어놓았을 때 값으로 나눈 것이에요. 순서까지 보는 지표라 추천에서 가장 많이 써요. 이 밖에 MAP, MRR(첫 정답의 순위 역수), AUC도 써요. 그리고 정확도만 보면 모두 인기 아이템만 받게 되니, <b>커버리지</b>(추천에 한 번이라도 나온 아이템 비율)나 다양성을 같이 봐요.</p><div class="out" data-out="s2"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>s[train] = -np.inf</code></td><td>이미 본 것은 추천에서 빼기</td></tr><tr><td><code>np.argsort(-s, axis=1)[:, :K]</code></td><td>사용자마다 점수 상위 10개</td></tr><tr><td><code>DISCOUNT = 1 / np.log2(...)</code></td><td>NDCG의 순위 무게</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 이웃으로 추천하기: 협업 필터링</h3><p class="does">같은 사람들이 함께 본 아이템일수록 닮았다고 보고, 내가 본 것과 닮은 아이템을 추천해요.</p><p><b>협업 필터링</b>은 아이템 내용을 보지 않고 "나와 비슷한 사람들의 기록"만으로 추천해요. <b>아이템 기반</b>: 아이템을 "본 사람들" 벡터로 보고 코사인 유사도를 구한 뒤, 내가 본 아이템들과의 유사도를 더해 점수를 매겨요. <b>사용자 기반</b>: 나와 닮은 사용자들이 본 것을 모아요. 아이템 수가 사용자 수보다 적고 덜 바뀌는 서비스에서는 아이템 기반이 계산과 설명("이걸 본 사람들이 본")에 유리해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>cosine(X)</code></td><td>열(아이템)끼리 코사인 유사도, 자기 자신은 0</td></tr><tr><td><code>X @ item_sim</code></td><td>내가 본 아이템들과의 유사도 합</td></tr><tr><td><code>user_sim @ X</code></td><td>닮은 사용자들의 기록을 유사도만큼 섞기</td></tr></table></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 숨은 취향 찾기: 행렬 분해 (BPR)</h3><p class="does">사용자와 아이템을 64칸 벡터로 두고, 내적이 "본 것 > 안 본 것"이 되게 배워요.</p><p><b>행렬 분해</b>는 사용자 × 아이템 표를 (사용자 × d) 행렬과 (d × 아이템) 행렬의 곱으로 근사해요. d칸 벡터는 사람이 정하지 않은 숨은 취향 축이에요(이 데이터라면 장르 비슷한 것). 점수는 두 벡터의 내적이에요.</p><p>암묵적 피드백에서는 빈칸이 정답 0이 아니라서, 점수 자체를 맞히는 대신 <b>순서</b>를 배워요. <b>BPR</b>은 "본 아이템 i의 점수가 아무거나 뽑은 아이템 j보다 크다"의 확률 σ(점수ᵢ − 점수ⱼ)를 키워요. 안 본 것을 뽑아 쓰는 걸 <b>음성 샘플링</b>이라고 해요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>P, Q</code></td><td>사용자 벡터, 아이템 벡터 (각 64칸)</td></tr><tr><td><code>x = (P[u] * (Q[i] - Q[j])).sum(dim=1)</code></td><td>본 것 점수 − 뽑은 것 점수</td></tr><tr><td><code>-logsigmoid(x)</code></td><td>BPR 손실: 순서가 맞을수록 작아요</td></tr><tr><td><code>reg * (...)</code></td><td>벡터가 커지지 않게 누르는 규제</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 규제 세기 reg를 0.01, 0.05, 0.1로 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t4"></div></details></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 닫힌 식 하나로: EASE</h3><p class="does">아이템 × 아이템 가중치 B를 "내가 본 것들로 각 아이템을 다시 만들기"로 두고, 역행렬 하나로 한 번에 풀어요.</p><p><b>EASE</b>는 은닉층이 없는 아주 얕은 AutoEncoder예요. 사용자 기록 x를 넣어 xB로 다시 만들되, 아이템이 자기 자신을 베끼지 못하게 B의 대각선을 0으로 묶어요. 이 문제는 <code>B = I − P × diag(1 ÷ diag(P)), P = (XᵀX + λI)⁻¹</code>로 한 번에 풀려서 학습 반복이 없어요. 아이템이 수만 개를 넘으면 역행렬이 무거워져요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.linalg.inv(X.T @ X + lam * np.eye(I))</code></td><td>P = (XᵀX + λI)의 역행렬</td></tr><tr><td><code>-P / np.diag(P)[None, :]</code></td><td>열마다 대각 값으로 나누기</td></tr><tr><td><code>np.fill_diagonal(B, 0)</code></td><td>자기 자신 베끼기 금지</td></tr></table><details class="try"><summary>🔁 바꿔 보기: λ를 50, 200, 500으로 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t5"></div></details></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 이용 기록을 그래프로: LightGCN</h3><p class="does">사용자와 아이템을 노드로, 본 기록을 선으로 그린 그래프에서 이웃 벡터를 모아 행렬 분해를 강화해요.</p><p>이용 기록은 사용자와 아이템 사이에만 선이 있는 그래프예요. <a href="gnn.html">GNN</a>처럼 이웃 벡터를 모으면 1층에서 "내가 본 아이템", 2층에서 "그걸 본 다른 사람들", 3층에서 "그 사람들이 본 아이템"까지 정보가 와요. NGCF는 여기에 가중치와 활성화 함수를 넣었는데, LightGCN은 그걸 빼고 정규화한 합만 남겼더니 더 잘 됐어요. 층마다의 벡터를 평균 내서 최종 벡터로 써요.</p><div class="out" data-out="s3"></div><div class="out" data-out="f_cmp"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>A_norm</code></td><td>사용자와 아이템을 함께 둔 정규화 인접 행렬 (1,000 × 1,000)</td></tr><tr><td><code>h = A_norm @ h</code></td><td>이웃 벡터 모으기 (가중치, 활성화 없음)</td></tr><tr><td><code>torch.stack(out).mean(dim=0)</code></td><td>0층부터 마지막 층까지 평균</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 층 수를 0, 1, 2, 3으로 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t6"></div></details></section><section class="step" data-step="7" id="s7"><span class="label">코드의 ⑦ 부분</span><h3>⑦ 기록이 적은 사용자와 인기 편향</h3><p class="does">기록 수로 사용자를 셋으로 나눠 점수를 보고, 추천 목록이 인기 아이템으로 얼마나 기우는지 재요.</p><div class="out" data-out="s7"></div><div class="out" data-out="s7b"></div><p><b>더 나아간 추천들</b>: 행렬 분해의 내적을 신경망으로 바꾼 NCF, 사용자 기록을 통째로 넣고 다시 만드는 AutoRec과 Multi-VAE(<a href="generative-models.html">생성 모델</a>의 VAE), 아이템 내용이나 사용자 정보(나이, 장르, 지식 그래프)를 함께 넣는 Wide &amp; Deep, 본 순서를 BERT처럼 가려 맞히는 BERT4Rec이 있어요. 서비스에서는 수백만 개 중 수백 개를 빨리 고르는 <b>후보 생성</b>(사용자와 아이템 벡터의 근사 최근접 검색, <a href="../backend/embedding.html">임베딩 검색</a>)과 그 수백 개를 꼼꼼히 순서 매기는 <b>랭킹</b> 두 단계로 나눠요.</p><p><b>LLM으로 추천하기</b>: 음악을 오디오 토큰과 글 토큰으로 바꿔 LLM이 대화로 추천하게 하는 시도도 있어요. "비 오는 날 듣기 좋은, 기타 위주 90년대 노래"처럼 말로 한 요청과 콜드 스타트에 강하지만, 아이템이 수십만 개면 결국 검색과 함께 써요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.quantile(activity, [1 / 3, 2 / 3])</code></td><td>기록 수로 사용자를 셋으로</td></tr><tr><td><code>np.isin(top, head).mean()</code></td><td>추천 목록 중 인기 상위 10%의 비율</td></tr></table></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/recsys/recommend.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>어디서부터</td><td>인기순 → 아이템 이웃 → EASE를 먼저 같은 나누기와 지표로 재고, 학습형 모델은 그걸 넘을 때만 들여요(③).</td></tr><tr><td>오프라인 점수와 실제</td><td>숨긴 기록 맞히기는 "원래 볼 것"을 맞히는 거라, 새로운 걸 발견하게 해 주는 추천은 낮게 나와요. 최종 판단은 A/B 검정으로(<a href="stats-tests.html">가설 검정</a>).</td></tr><tr><td>새 사용자, 새 아이템</td><td>협업 필터링은 기록이 없으면 못 써요. 가입 때 관심사 묻기, 인기순, 아이템 내용 기반 추천을 섞어 시작해요.</td></tr><tr><td>추천이 한쪽으로 몰린다</td><td>인기 편향(⑦), 비슷한 것만 계속 보여 주는 문제가 생겨요. 다양성 점수를 섞거나 탐색(<a href="rl-basics.html">강화학습</a>의 밴딧)을 넣어요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①②③⑤⑦</td><td><code>numpy</code></td><td>기록, 지표, 이웃, EASE</td></tr><tr><td>④⑥</td><td><code>torch</code></td><td>BPR 행렬 분해, LightGCN</td></tr></table>
+      <p><code>evaluate</code>, <code>cosine</code>, <code>bpr_mf</code>, <code>ease</code>, <code>lightgcn</code>, <code>ndcg_by_group</code>, <code>head_share</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="gnn.html">그래프 신경망</a></td><td>이웃 모으기, 과평활</td></tr><tr><td><a href="../backend/embedding.html">임베딩과 벡터 검색</a></td><td>후보 생성</td></tr><tr><td><a href="generative-models.html">생성 모델</a></td><td>VAE</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: 경희대 특강(2025년 1월) "Deep Learning 기반 추천 시스템"(NCF, ConvNCF, AutoRec, CDAE, Multi-VAE, EASE, 사이드 정보와 Wide &amp; Deep, NGCF와 LightGCN, BERT4Rec, Cornac 실습의 MF, NeuMF, EASE, UserKNN, ItemKNN, Precision, Recall, NDCG, MAP), Upstage 10Talks Lecture 01 "An LLM-based Music Recommendation"(멀티모달 LLM, 토큰, 대화형 추천). 원래 실습 데이터(채용 지원 기록)는 쓰지 않고 가상 기록으로 다시 계산했어요</li><li>결과 값과 그림: <code>tools/pages/recsys.py</code>가 <code>examples/recsys/recommend.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="recsys-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>
