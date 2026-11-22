@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>추론 모델과 검증 가능한 보상 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>추론 모델과 검증 가능한 보상: 생각을 가르치고, 맞았는지로 강화하기</h1>
+      <div class="meta">모델 &gt; 강화학습</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">중간 단계를 적게 하면(<b>생각</b>) 처음 보는 문제도 아는 단계로 나눠 풀어요. 풀이를 따라 배운 뒤(<b>생각 SFT</b>), 정답을 기계로 확인하는 보상으로 <b>GRPO</b>를 돌려요. 그런데 같은 문제의 답이 <b>모두 맞거나 모두 틀리면 신호가 없어서</b>, 출발 모델이 가끔이라도 맞히는 범위 안에서만 배워요. 생각 단계도 채점하면(<b>단계별 보상</b>) 그 한계가 줄어요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>o1, DeepSeek-R1, Olmo 3 Think 같은 <b>추론 모델</b>(LRM)은 답하기 전에 긴 "생각"을 써요. 이 능력은 보통 두 단계로 만들어요. 먼저 잘 푸는 모델이 쓴 풀이를 따라 배우고(<b>생각 SFT</b>), 그다음 정답을 기계로 확인할 수 있는 문제(수학, 코드)에서 <b>맞았는지만 보상으로 주는 강화학습</b>을 해요. 사람이 매번 점수를 매기지 않아도 돼서 크게 돌릴 수 있어요.</p><table><tr><th></th><th>사람 선호로 학습 (RLHF)</th><th>검증 가능한 보상 (RLVR)</th></tr><tr><td>보상</td><td>사람 선호를 흉내 낸 보상 모델의 점수</td><td>채점기: 정답이면 1, 아니면 0</td></tr><tr><td>잘 맞는 일</td><td>말투, 도움 됨, 안전</td><td>수학, 코드, 형식이 정해진 답</td></tr><tr><td>어려운 점</td><td>보상 모델을 속이기</td><td>정답이 드물게 나옴, 답이 길어 비쌈</td></tr></table><p>이 쪽은 숫자 세 개를 더하는 아주 작은 문제로 이 과정을 그대로 재현해요. <a href="rl-deep.html">심층 강화학습</a>의 REINFORCE, PPO를 알면 더 쉬워요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>생각하고 답하기 → 출발점과 pass@k → 맞았는지만 보고 강화학습 → 신호 없는 그룹 → 단계별 보상 → 문제 고르기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/reasoning_rl/verifiable_rl.py</code> 하나예요. 모델이 작아서 CPU로 1분이면 돌아요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 생각하고 답하기</h3><p class="does">(a + b + c)의 일의 자리를 바로 답하는 모델과, (a + b)를 먼저 적고 답하는 모델을 같은 풀이로 가르쳐 처음 보는 문제에서 비교해요.</p><p>"생각"은 답 전에 쓰는 중간 토큰이에요. 여기서는 중간값 하나지만, 추론 모델은 수천 토큰을 써요. 생각을 길게 쓰려면 긴 문맥을 다룰 수 있어야 해서, Olmo 3는 강화학습이 잘 되려면 데이터보다 구조(GQA, RoPE 설정)가 먼저였다고 해요(<a href="llm-architectures.html">요즘 LLM의 부품</a>).</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>Thinker.first(p)</code></td><td>a, b → 중간 생각 (a + b의 일의 자리)</td></tr><tr><td><code>Thinker.second(mid, p)</code></td><td>중간 생각, c → 답</td></tr><tr><td><code>sft(m, p, epochs)</code></td><td>선생님 풀이(생각 + 답)를 따라 하기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 출발점과 pass@k</h3><p class="does">풀이 100개를 조금만 배운 모델을 강화학습의 출발점으로 두고, 답을 여러 번 뽑으면 얼마나 맞히는지 재요.</p><p><b>pass@k</b>는 답을 k번 뽑아 한 번이라도 맞으면 푼 것으로 치는 지표예요. pass@1과 pass@k의 차이가 "강화학습이 끌어올릴 수 있는 여지"예요.</p><p>Olmo 3는 생각 SFT 다음에 <b>생각 DPO</b>도 해요. 같은 문제에 큰 모델과 작은 모델이 쓴 풀이를 짝지어 "큰 모델 쪽이 낫다"를 배우게 해요. 둘의 차이가 일정하면 둘 다 완벽하지 않아도 배울 신호가 된다는 생각이에요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>p.repeat_interleave(k, dim=0)</code></td><td>문제마다 k번</td></tr><tr><td><code>hit.any(dim=1)</code></td><td>한 번이라도 맞았나</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 맞았는지만 보고 강화학습: GRPO</h3><p class="does">문제마다 답을 8개 뽑아 채점하고, 같은 문제의 답끼리 비교한 값으로 정책을 고쳐요.</p><p><b>GRPO</b>(Group Relative Policy Optimization)는 가치 함수(비평가) 없이, 같은 문제에 대한 답 여러 개의 평균을 기준값으로 써요. 장점 = (보상 − 그룹 평균) ÷ 그룹 표준편차. PPO처럼 비평가 신경망을 따로 학습하지 않아도 돼서 큰 LLM에서 많이 써요. 실제 구현은 여기에 PPO식 잘라내기(clipping)를 더해요.</p><div class="out" data-out="f_curve"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>(a == answer(p)).float()</code></td><td>검증 가능한 보상: 맞으면 1</td></tr><tr><td><code>(r − r.mean(1)) / r.std(1)</code></td><td>GRPO: 같은 문제의 답끼리 비교</td></tr><tr><td><code>−(adv × logp).mean()</code></td><td>정책 경사 손실 (생각과 답의 log 확률 합)</td></tr></table><details class="try"><summary>🔁 바꿔 보기: 문제마다 뽑는 답을 4, 8, 16개로 바꾸면?</summary><p class="hint">먼저 예상해 보고 펼쳐 보세요.</p><div class="out" data-out="t3"></div></details><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 신호가 없는 그룹</h3><p class="does">강화학습 동안 그룹 중 "모두 맞음"과 "모두 틀림"이 얼마나 되는지 세고, 출발점이 못 풀던 문제를 풀게 됐는지 봐요.</p><p>추론 모델의 강화학습이 어려운 가장 큰 이유가 이거예요. 답 하나가 길어서 뽑는 데 오래 걸리는데, 정답 신호는 드물어요. Olmo 3 강연도 "생각 모드로 답 공간을 탐색 → 긴 추론 시간 → 정답 신호가 드묾 → 학습이 비효율적이고 불안정"이라고 정리해요.</p><div class="out" data-out="f_sig"></div><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 생각 단계도 채점하면</h3><p class="does">중간 생각이 맞으면 0.5, 답이 맞으면 0.5를 주고, SFT 모델과 아무것도 안 배운 모델에서 각각 출발해 봐요.</p><p>답만 채점하는 걸 <b>결과 보상</b>, 단계마다 채점하는 걸 <b>과정(단계별) 보상</b>이라고 해요. 결과 보상은 만들기 쉽지만, 긴 풀이 중 어디가 틀렸는지 알려 주지 않아요. 생각 경로 여러 개를 나무처럼 펼쳐 탐색하는 방법(MCTS)도 단계별 점수가 있어야 쓸 수 있어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>0.5 × (mid == thought(p)) + 0.5 × (a == answer(p))</code></td><td>생각과 답을 반씩 채점</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 어려운 정도로 문제 고르기</h3><p class="does">출발점이 학습 문제마다 8번 풀어 보고, 가끔 맞히는 문제만 남겨 강화학습해요.</p><p>다 맞히는 문제와 다 틀리는 문제는 GRPO에 신호를 주지 않으니, 처음부터 빼면 계산을 아낄 수 있어요. 강연의 검색 에이전트(LNS)도 "먼저 올바르게 행동하기 → 의미 있는 검색 → 정답 정확도"로 단계를 나누고, 어려운 정도로 데이터를 골라 뽑는 답을 크게 줄였어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>rate = 8번 중 맞은 비율</code></td><td>문제마다 어려운 정도</td></tr><tr><td><code>train[(rate &gt; 0) &amp; (rate &lt; 1)]</code></td><td>가끔 맞히는 문제만</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/reasoning_rl/verifiable_rl.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>작은 모델에 추론을 가르친다</td><td>강화학습보다 좋은 풀이로 SFT부터 해요. 출발 모델이 가끔이라도 맞혀야 강화학습이 시작돼요. 출발점의 pass@k를 먼저 재 보면 강화학습으로 얼마나 오를지 짐작할 수 있어요.</td></tr><tr><td>강화학습을 돌린다</td><td>"모두 맞음", "모두 틀림" 그룹 비율을 함께 기록해요. 이 비율이 높으면 문제 난이도나 그룹 크기를 바꿀 때예요. 정답률만 보면 왜 멈췄는지 알 수 없어요.</td></tr><tr><td>보상을 설계한다</td><td>기계로 확인되는 보상(정답, 테스트 통과, 형식)부터 써요. 중간 단계를 채점할 수 있으면 신호가 드문 초반에 큰 도움이 돼요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①~⑥</td><td><code>torch</code>, <code>torch.distributions.Categorical</code></td><td>작은 정책 신경망, 답 뽑기와 log 확률</td></tr></table>
+      <p><code>Thinker</code>, <code>Direct</code>, <code>generate</code>, <code>accuracy</code>, <code>sft</code>, <code>pass_at_k</code>, <code>rl</code>은 이 파일 안에서 정의했어요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="rl-deep.html">심층 강화학습</a></td><td>REINFORCE, 베이스라인, PPO</td></tr><tr><td><a href="rl-basics.html">강화학습 기초</a></td><td>같은 카테고리</td></tr><tr><td><a href="llm-architectures.html">요즘 LLM의 부품</a></td><td>긴 문맥, GQA</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: Upstage 10Talks Lecture 04 "Lessons from Olmo 3" 3부(강화학습의 어려움, 구조와 긴 문맥, 생각 SFT, 생각 DPO와 차이 학습), Lecture 09 "Vertical Domain Adaptation for Smaller Reasoning Agent"(추론 모델의 학습 흐름, 단계별 보상, 구조적 탐색, 단계별 커리큘럼 강화학습과 어려운 정도로 고르기). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/rl_reasoning.py</code>가 <code>examples/reasoning_rl/verifiable_rl.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="rl-reasoning-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

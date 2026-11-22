@@ -1383,5 +1383,76 @@
   "analogy": "",
   "day": 12,
   "key": false
+ },
+ {
+  "term": "추론 모델",
+  "aliases": [
+   "LRM",
+   "Large Reasoning Model",
+   "Reasoning Model"
+  ],
+  "full": "Large Reasoning Model",
+  "short": "답하기 전에 긴 생각(중간 풀이)을 쓰도록 학습한 LLM. 생각 SFT와 검증 가능한 보상의 강화학습으로 만들어요. o1, DeepSeek-R1, Olmo 3 Think가 예예요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "검증 가능한 보상",
+  "aliases": [
+   "RLVR",
+   "Verifiable Reward"
+  ],
+  "full": "Reinforcement Learning with Verifiable Rewards",
+  "short": "정답을 기계로 확인할 수 있는 문제(수학, 코드)에서 맞으면 1, 틀리면 0을 보상으로 주는 강화학습. 사람이 점수를 매기지 않아도 돼요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "GRPO",
+  "aliases": [
+   "Group Relative Policy Optimization"
+  ],
+  "full": "Group Relative Policy Optimization",
+  "short": "같은 문제에 답을 여러 개 뽑아, 그룹 평균보다 나은 답은 밀고 못한 답은 누르는 정책 경사 방법. 비평가 신경망이 필요 없어요. 답이 모두 맞거나 모두 틀리면 신호가 0이에요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "pass@k",
+  "aliases": [
+   "pass at k"
+  ],
+  "full": "pass@k",
+  "short": "답을 k번 뽑아 한 번이라도 맞으면 푼 것으로 치는 비율. pass@1과의 차이가 강화학습으로 끌어올릴 수 있는 여지예요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "단계별 보상",
+  "aliases": [
+   "과정 보상",
+   "Process Reward",
+   "PRM"
+  ],
+  "full": "Process Reward",
+  "short": "풀이의 중간 단계마다 맞았는지 점수를 주는 보상. 답만 채점하는 결과 보상보다 어디가 틀렸는지 잘 알려 줘서, 신호가 드물 때 특히 도움이 돼요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "생각 SFT",
+  "aliases": [
+   "Thinking SFT"
+  ],
+  "full": "Thinking Supervised Fine-Tuning",
+  "short": "잘 푸는 모델이 쓴 생각과 답을 따라 배우게 하는 미세조정. 추론 모델 강화학습의 출발점을 만들어요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
  }
 ]

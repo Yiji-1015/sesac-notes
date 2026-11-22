@@ -95,7 +95,9 @@
    - `backend/multi-ref.html` ("LLM 활용", 예제 `examples/eval_refs/multi_ref.py`): `pages.jsonl` 문장을 해요/합니다/한다체 정답 셋으로 바꾸고 오류 둘을 넣어 BLEU, GLEU, 정답 합치기 네 가지, 짝마다 줄 세우기, 정답 늘리기. Lec05
    - 새 카테고리 "성능과 하드웨어": `backend/simd-speed.html` (예제 `examples/speed/simd_numpy.py`): 반복문과 NumPy, SIMD 다섯 단계, 자료형 폭, stride와 전치, 캐시 크기, 임시 배열, 마스크. 시간을 재는 쪽이라 다시 빌드하면 숫자가 조금씩 바뀌어요(주장은 `S.claim`으로 넉넉한 배수만 확인). LLM_wiki `everyone-should-know-simd`, PyCon 가속기 발표
    - 책이나 논문과 다르게 나온 결과도 그대로 적었어요: BPR이 단순한 이웃보다 낮음(추천 ④), 회귀가 고른 비율이 "서비스 비율 그대로"보다 조금 나쁨(데이터 ⑦)
-   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09(작은 추론 에이전트의 도메인 적응), Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성). Olmo 3의 사전 학습 평가 고르기와 추론 RL(Lec04 1, 3부)도 아직이에요
+   - `model/rl-reasoning.html` ("강화학습", 예제 `examples/reasoning_rl/verifiable_rl.py`): (a + b + c)의 일의 자리를 생각하고 답하기 vs 바로 답하기, 생각 SFT, pass@k, REINFORCE와 GRPO, 신호 없는 그룹, 단계별 보상, 미리 고른 문제. Lec04 3부, Lec09
+     - 다르게 나온 결과: 미리 가끔 맞히는 문제만 고르면 오히려 낮아짐(⑥, 목록이 금방 낡음), SFT에서 출발하면 단계별 보상의 차이가 거의 없음(⑤)
+   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09의 문화 VQA 부분, Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성), Olmo 3의 사전 학습 평가 고르기(Lec04 1부)
    - 아직 안 넣은 밋업 자료(LLM_wiki `wiki/sources/`): PyCon의 엣지 AI와 FastAPI 모듈러 모놀리스, OSSummit OpenSSF, 가짜연구소(에이전트 운영, 피지컬 AI), 컨텍스트 엔지니어링 밋업, 카카오 에이전트 자동화, open-code-review. 대부분 경험담이라 이론 쪽으로 만들 거리가 적어요
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).
 9. **정보처리기사 정리**를 넣어요.
