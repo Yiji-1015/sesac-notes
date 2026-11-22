@@ -97,7 +97,9 @@
    - 책이나 논문과 다르게 나온 결과도 그대로 적었어요: BPR이 단순한 이웃보다 낮음(추천 ④), 회귀가 고른 비율이 "서비스 비율 그대로"보다 조금 나쁨(데이터 ⑦)
    - `model/rl-reasoning.html` ("강화학습", 예제 `examples/reasoning_rl/verifiable_rl.py`): (a + b + c)의 일의 자리를 생각하고 답하기 vs 바로 답하기, 생각 SFT, pass@k, REINFORCE와 GRPO, 신호 없는 그룹, 단계별 보상, 미리 고른 문제. Lec04 3부, Lec09
      - 다르게 나온 결과: 미리 가끔 맞히는 문제만 고르면 오히려 낮아짐(⑥, 목록이 금방 낡음), SFT에서 출발하면 단계별 보상의 차이가 거의 없음(⑤)
-   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09의 문화 VQA 부분, Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성), Olmo 3의 사전 학습 평가 고르기(Lec04 1부)
+   - `model/eval-select.html` ("순서와 언어 모델", 예제 `examples/eval_select/pick_benchmarks.py`): 크기 8~48 모델 여섯 개의 에폭별 체크포인트로 평가 넷(작음, 큼, 쉬움, 픽셀 섞음) × 지표 둘(정답률, 손실)의 SNR, 문제 수, 초반 순서, 상관 군집. Lec04 1부
+     - 다르게 볼 점: 픽셀 섞은 평가의 손실은 SNR이 높은데 순서가 거꾸로(⑤)
+   - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09의 문화 VQA 부분, Lec10(다국어 LLM과 코드 스위칭), SP01(OpenClaw), SP03(영상 생성)
    - 아직 안 넣은 밋업 자료(LLM_wiki `wiki/sources/`): PyCon의 엣지 AI와 FastAPI 모듈러 모놀리스, OSSummit OpenSSF, 가짜연구소(에이전트 운영, 피지컬 AI), 컨텍스트 엔지니어링 밋업, 카카오 에이전트 자동화, open-code-review. 대부분 경험담이라 이론 쪽으로 만들 거리가 적어요
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).
 9. **정보처리기사 정리**를 넣어요.

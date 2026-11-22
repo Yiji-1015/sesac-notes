@@ -1454,5 +1454,50 @@
   "analogy": "",
   "day": 12,
   "key": false
+ },
+ {
+  "term": "신호 대 잡음비",
+  "aliases": [
+   "SNR",
+   "Signal-to-Noise Ratio"
+  ],
+  "full": "Signal-to-Noise Ratio",
+  "short": "평가에서는 모델끼리 점수 차이(신호)를 같은 모델의 체크포인트끼리 흔들림(잡음)으로 나눈 값. 클수록 \"이 모델이 낫다\"를 믿을 수 있어요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "체크포인트",
+  "aliases": [],
+  "full": "Checkpoint",
+  "short": "학습 도중에 저장한 가중치 사본. 학습을 이어서 하거나, 중간 상태를 평가하거나, 가장 좋았던 때로 되돌릴 때 써요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "창발",
+  "aliases": [
+   "Emergence",
+   "Emergent Ability"
+  ],
+  "full": "Emergent Ability",
+  "short": "작은 모델에서는 거의 없다가 계산량이 어느 규모를 넘으면 나타나는 능력. 그 전에는 평가 점수가 찍는 수준이라 진척을 볼 수 없어요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
+ },
+ {
+  "term": "macro 평균",
+  "aliases": [
+   "Macro Average",
+   "매크로 평균"
+  ],
+  "full": "Macro Average",
+  "short": "묶음(또는 클래스)마다 평균을 낸 뒤, 묶음끼리 같은 무게로 다시 평균 내기. 항목이 많은 묶음이 전체를 독차지하지 않게 해요.",
+  "analogy": "",
+  "day": 12,
+  "key": false
  }
 ]

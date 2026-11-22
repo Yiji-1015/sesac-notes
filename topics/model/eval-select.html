@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학습 중에 무엇으로 재나 | 부트캠프 학습 노트</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../topics/steps.css">
+</head>
+<body>
+  <main class="container wide">
+    <a class="back" href="../../index.html">← 목록으로</a>
+    <header class="note-header">
+      <span class="tag dl">모델</span>
+      <h1>학습 중에 무엇으로 재나: 평가의 신호와 잡음</h1>
+      <div class="meta">모델 &gt; 순서와 언어 모델</div>
+    </header>
+    <article class="note">
+      <h2 id="what">💡 한 문장으로</h2>
+      <p class="one-line">학습 중 평가는 <b>모델끼리 차이(신호)</b>가 <b>체크포인트끼리 흔들림(잡음)</b>보다 훨씬 커야 믿을 수 있어요. 문제가 적거나 너무 쉬운 평가는 신호가 잡음에 묻히고, <b>정답률보다 손실</b>이 더 매끄러워요. 아직 너무 어려운 평가는 신호가 커 보여도 <b>순서가 거꾸로</b>일 수 있어요.</p>
+      <h2 id="why">🤔 왜 필요할까?</h2>
+      <p>큰 모델은 GPU 수천 개로 몇 달을 학습해요. 그동안 "잘 되고 있나", "이 데이터 섞기가 나은가"를 계속 판단해야 하는데, 검증 손실 하나로는 수학, 코드, 한국어 같은 능력별 진척을 알 수 없어요. 그렇다고 평가를 다 돌리면 오래 걸리고, 어떤 평가는 숫자가 너무 흔들리거나 너무 쉽거나 아직 너무 어려워서 판단에 도움이 안 돼요.</p><table><tr><th>평가의 문제</th><th>증상</th><th>이 쪽</th></tr><tr><td>잡음</td><td>같은 모델인데 체크포인트마다, 문제를 다시 뽑을 때마다 점수가 뜀</td><td>③④</td></tr><tr><td>천장 (너무 쉬움)</td><td>모델끼리 차이가 안 남</td><td>③</td></tr><tr><td>창발 전 (너무 어려움)</td><td>다 찍는 수준이거나, 순서가 거꾸로</td><td>⑤</td></tr><tr><td>겹침</td><td>같은 능력을 재는 평가가 여러 개</td><td>⑥</td></tr></table><p>이 쪽은 손글씨 숫자를 읽는 작은 모델들로 같은 판단을 해 봐요. <a href="ml-learning-theory.html">학습 이론</a>의 "몇 건이면 믿을 수 있나"와 같은 질문을 평가 쪽에서 묻는 거예요.</p>
+      <h2 id="whole">🗺️ 통째로 한 번</h2>
+      <p>체크포인트 → 평가 넷과 지표 둘 → 신호 대 잡음비 → 문제 수 → 초반 순서 → 평가 묶기. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>
+<p>코드는 <code>examples/eval_select/pick_benchmarks.py</code> 하나예요. 데이터는 scikit-learn에 들어 있어요.</p>
+      <h2 id="steps">🔎 한 단계씩: 설명과 코드를 나란히</h2>
+      <div class="scrolly">
+        <div class="steps">
+          <section class="step" data-step="1" id="s1"><span class="label">코드의 ① 부분</span><h3>① 크기가 다른 모델, 에폭마다 체크포인트</h3><p class="does">숨은 층 크기 8~48의 모델 여섯 개를 40에폭 학습하며 에폭마다 가중치를 저장해요.</p><p>체크포인트는 학습 중간의 가중치 사본이에요. 같은 모델의 연속한 체크포인트는 실력이 거의 같아서, 그 점수가 흔들리는 만큼이 그 평가의 <b>잡음</b>이에요. 서로 다른 모델의 점수 차이가 <b>신호</b>예요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>m.state_dict()</code></td><td>지금의 가중치</td></tr><tr><td><code>v.clone()</code></td><td>학습이 계속돼도 바뀌지 않게 복사</td></tr><tr><td><code>m.load_state_dict(state)</code></td><td>저장한 체크포인트로 되돌리기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s1"></div></section><section class="step" data-step="2" id="s2"><span class="label">코드의 ② 부분</span><h3>② 평가 넷, 지표 둘</h3><p class="does">남겨 둔 숫자로 작은 평가(40문제), 큰 평가(600문제), 쉬운 평가(0과 1만), 아직 너무 어려운 평가(픽셀을 섞은 숫자)를 만들고, 정답률과 손실로 재요.</p><div class="out" data-out="f_curves"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>(logits.argmax(1) == y).mean()</code></td><td>정답률</td></tr><tr><td><code>−cross_entropy / log 2</code></td><td>−손실 (비트): 정답에 준 확률의 −log₂ 평균의 음수</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s2"></div></section><section class="step" data-step="3" id="s3"><span class="label">코드의 ③ 부분</span><h3>③ 신호 대 잡음비</h3><p class="does">평가와 지표마다 "모델끼리 차이"를 "체크포인트끼리 흔들림"으로 나눠요.</p><p>SNR이 낮은 평가로 두 설정을 비교하면, 어느 쪽이 나은지가 아니라 어느 체크포인트를 골랐는지에 따라 결론이 바뀌어요. Olmo 3는 13B 모델의 마지막 체크포인트 50개와 비슷한 계산량의 외부 모델 10개로 평가마다 SNR을 재서, 흔들리는 평가를 뺐어요.</p><div class="out" data-out="f_snr"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>finals.max() − finals.min()</code></td><td>신호: 모델끼리 차이</td></tr><tr><td><code>curve[−10:].std()</code></td><td>잡음: 마지막 체크포인트 10개의 흔들림</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s3"></div></section><section class="step" data-step="4" id="s4"><span class="label">코드의 ④ 부분</span><h3>④ 작은 평가가 흔들리는 이유: 문제 수</h3><p class="does">같은 모델로 평가 문제를 n개씩 200번 다시 뽑아, 정답률이 얼마나 흔들리는지 재요.</p><p>평가 점수는 "이 문제들에서의 정답률"이지 모델의 진짜 실력이 아니에요. 문제 n개로 잰 정답률은 동전을 n번 던진 비율처럼 흔들려요(표준편차 √(p(1−p)/n)). 그래서 작은 평가에서 1~2%p 차이는 거의 의미가 없어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>r.choice(len(y), n, replace=False)</code></td><td>평가 문제 n개 다시 뽑기</td></tr><tr><td><code>np.std(vals)</code></td><td>200번의 흔들림</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s4"></div></section><section class="step" data-step="5" id="s5"><span class="label">코드의 ⑤ 부분</span><h3>⑤ 학습 초반에 잰 순서가 끝까지 맞나</h3><p class="does">에폭 2, 5, 10의 점수로 매긴 모델 순서를, 끝(큰 평가의 손실)의 순서와 비교해요.</p><p>실제로는 작은 모델이나 학습 초반의 결과로 큰 실험을 할지 정해요. 그러려면 초반 평가의 순서가 나중에도 유지돼야 해요. Olmo 3는 평가마다 "계산량이 얼마일 때부터 능력이 나타나나"를 봐서, 작은 규모에는 쉬운 평가 모음(Base Easy), 중간 학습에는 본 평가(Base Main)를 쓰도록 나눴어요.</p><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>spearmanr(early, TRUTH)</code></td><td>두 순서가 같은 정도</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s5"></div></section><section class="step" data-step="6" id="s6"><span class="label">코드의 ⑥ 부분</span><h3>⑥ 비슷한 평가끼리 묶기</h3><p class="does">모든 모델과 체크포인트의 점수로 평가끼리 상관을 재고, 계층 군집으로 세 묶음으로 나눠요.</p><div class="out" data-out="f_corr"></div><p class="kicker">코드 읽기</p><table><tr><th>코드</th><th>뜻</th></tr><tr><td><code>np.corrcoef(profile)</code></td><td>평가끼리 점수의 상관</td></tr><tr><td><code>linkage(..., metric=&quot;correlation&quot;)</code></td><td>상관이 높은 것부터 묶기</td></tr><tr><td><code>fcluster(..., t=3)</code></td><td>세 묶음으로 자르기</td></tr></table><p class="kicker">이 단계까지 실행하면</p><div class="out" data-out="s6"></div></section>
+        </div>
+        <aside class="codepanel" id="panel">
+          <div class="bar"><span class="file">examples/eval_select/pick_benchmarks.py</span><span id="pills"></span><button class="pill" id="showall" type="button">전체 보기</button></div>
+          <div class="now" id="now"></div>
+          <div class="legend"><i style="background:#3ddc84"></i>이 단계에서 추가된 줄<i style="background:rgba(255,255,255,.35)"></i>앞 단계에서 만든 줄</div>
+          <div class="codewrap"><pre class="code" id="code"></pre></div>
+        </aside>
+      </div>
+      <h2 id="practice">🛠️ 실제로 할 때</h2>
+      <table><tr><th>상황</th><th>어떻게</th></tr><tr><td>학습 중에 진척을 본다</td><td>체크포인트 몇 개로 평가마다 흔들림부터 재요. 비교하려는 차이가 흔들림보다 작으면 그 평가로는 판단하지 않아요.</td></tr><tr><td>작은 모델로 미리 시험한다</td><td>정답률보다 손실(정답에 준 확률) 같은 연속 지표를 써요. 아직 다 찍는 수준인 평가는 빼고, 그 능력이 나타나는 규모가 되면 넣어요.</td></tr><tr><td>평가 모음을 만든다</td><td>비슷한 평가를 묶어 묶음끼리 같은 무게로 평균 내요. 묶음마다 SNR이 높고 빨리 도는 평가를 대표로 골라요.</td></tr></table>
+      <h2 id="libs">📦 이 코드에 쓴 라이브러리</h2>
+      <table><tr><th>단계</th><th>함수</th><th>하는 일</th></tr><tr><td>①②</td><td><code>torch</code>, <code>sklearn.datasets.load_digits</code></td><td>작은 모델, 체크포인트</td></tr><tr><td>⑤⑥</td><td><code>scipy.stats.spearmanr</code>, <code>scipy.cluster.hierarchy</code></td><td>순위 상관, 계층 군집</td></tr></table>
+      <p><code>train_with_checkpoints</code>, <code>score</code>, <code>curve</code>, <code>snr</code>, <code>sample_noise</code>, <code>early_agreement</code>는 이 파일 안에서 정의한 함수예요.</p>
+      <h2 id="next">이어서 볼 주제</h2>
+      <table><tr><th>주제</th><th>연결</th></tr><tr><td><a href="pretrain-data.html">LLM의 학습 데이터 만들기</a></td><td>같은 강연의 데이터 쪽</td></tr><tr><td><a href="ml-learning-theory.html">학습 이론</a></td><td>몇 건이면 믿을 수 있나</td></tr><tr><td><a href="../backend/llm-judge.html">LLM으로 답 채점하기</a></td><td>채점 자체의 흔들림</td></tr></table>
+      <h2>원본 자료</h2>
+      <ul><li>다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요</li><li>함께 정리한 자료: Upstage 10Talks Lecture 04 "Technical Choices and Strategy: Lessons from Olmo 3" 1부(검증 손실을 넘는 평가, 모든 평가를 쓰지 않는 이유: 시간, 잡음, 천장, 창발, 평가 군집과 macro 평균, 스케일링 분석과 바이트당 비트, 신호 대 잡음 분석, OlmoBaseEval). 실험은 이 노트용으로 새로 짰어요</li><li>결과 값과 그림: <code>tools/pages/eval_select.py</code>가 <code>examples/eval_select/pick_benchmarks.py</code>를 단계별로 실제 실행한 결과 (seed 0)</li><li>실행 환경: <span id="env"></span></li></ul>
+    </article>
+  </main>
+  <script src="../../glossary.js"></script>
+  <script src="../../note.js"></script>
+  <script src="eval-select-data.js"></script>
+  <script src="../../topics/steps.js"></script>
+  
+</body>
+</html>

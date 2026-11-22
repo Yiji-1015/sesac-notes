@@ -146,6 +146,7 @@
           <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
           <a class="item" href="topics/model/llm-architectures.html"><b>요즘 LLM의 부품</b><small>RMSNorm, SwiGLU, RoPE, GQA, KV 캐시와 prefill, decode, 슬라이딩 윈도우, MoE</small></a>
           <a class="item" href="topics/model/pretrain-data.html"><b>LLM의 학습 데이터 만들기</b><small>규칙 거르기, 중복 빼기, MinHash와 LSH, BPE 압축률, 데이터 섞는 비율, 대리 토크나이저, 회귀로 비율 고르기</small></a>
+          <a class="item" href="topics/model/eval-select.html"><b>학습 중에 무엇으로 재나</b><small>체크포인트 평가, 신호 대 잡음비, 정답률과 손실, 문제 수와 1/√n, 천장과 창발 전, 초반 순서, 평가 묶기와 macro 평균</small></a>
           <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
         </div>
         <div class="cat">
@@ -225,6 +226,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/22</td><td><a href="topics/model/eval-select.html">학습 중에 무엇으로 재나</a> 새로 씀: 크기가 다른 작은 모델 여섯 개의 체크포인트로 평가 넷(작음, 큼, 쉬움, 아직 너무 어려움)의 신호 대 잡음비, 문제 수, 초반 순서, 평가 묶기를 재기. Upstage 10Talks 04 1부</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/model/rl-reasoning.html">추론 모델과 검증 가능한 보상</a> 새로 씀: 숫자 셋 더하기로 생각 단계의 효과, 생각 SFT, GRPO, 다 맞거나 다 틀린 그룹, 단계별 보상, 미리 고른 문제가 금방 낡는 것까지 직접 재기. Upstage 10Talks 04, 09</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/backend/multi-ref.html">여러 정답으로 채점하기</a> 새로 씀: 문체만 다른 정답 셋과 일부러 넣은 오류로 BLEU와 GLEU를 재고, 정답을 합치는 네 가지 방법과 정답 수의 효과를 비교. 새 카테고리 "성능과 하드웨어": <a href="topics/backend/simd-speed.html">SIMD와 메모리</a>(반복문과 NumPy, 자료형 폭, 메모리 배치, 캐시, 임시 배열, 마스크). Upstage 10Talks 05, Everyone Should Know SIMD, PyCon Korea 2026</td></tr>
         <tr><td class="when">11/22</td><td>새 카테고리 "추천과 평생 학습" 두 쪽: <a href="topics/model/recsys.html">추천 시스템</a>(가상 이용 기록으로 인기순, 이웃, BPR, EASE, LightGCN을 같은 지표로 비교, 기록이 적은 사용자와 인기 편향), <a href="topics/model/continual.html">평생 학습과 머신 언러닝</a>(손글씨 숫자로 파국적 망각, 리플레이, EWC, 숫자 하나 지우기를 다시 학습, 경사 상승, 작업 벡터 빼기로 비교). 그리고 <a href="topics/model/pretrain-data.html">LLM의 학습 데이터 만들기</a>(규칙 거르기, MinHash 중복 빼기, 섞는 비율과 토크나이저 압축률). Upstage 10Talks 01, 03, 04, 06</td></tr>
