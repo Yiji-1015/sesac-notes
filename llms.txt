@@ -1,15 +1,91 @@
-# SeSAC Vision·멀티모달 AI 부트캠프 학습 노트
+# SeSAC 부트캠프 학습 노트
 
-> 매일 강의 PDF를 바탕으로 쉽게 다시 정리한 부트캠프 학습 노트. 머신러닝(Day6~8), 딥러닝(Day9~12, 14), 컴퓨터비전(Day13, 15, 16), LLM·RAG 서비스(Day17~). 각 Day 페이지는 이론, 필요한 패키지, '왜 그런지' 설명, 직접 만든 그림을 담고, 명령어·인자·실제 실행 입출력은 도구별 명령어 사전(commands.html)에 모여 있다.
+> 부트캠프 강의와 책, 세미나 자료를 주제별로 다시 정리한 학습 노트. 모델 쪽(데이터 분석, 머신러닝, 딥러닝, 이미지, 언어 모델, 생성 모델, 강화학습, 추천과 평생 학습)과 백엔드 쪽(API, 데이터베이스, LLM 활용, 검색과 RAG, 성능)으로 나뉜다. 주제 페이지마다 예제 코드 하나가 단계별로 자라고, 본문의 숫자와 그림은 그 코드를 실제로 실행한 결과다.
 
 AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가장 쉽다.
 
 ## 전체 본문 (글만)
-- [all-notes.md](https://yiji-1015.github.io/sesac-notes/all-notes.md): 모든 Day 본문 + Day별 용어 설명을 한 파일로
-- [용어 사전](https://yiji-1015.github.io/sesac-notes/glossary.html): 수업 용어 전체 (쉬운 설명·비유)
-- [명령어 사전](https://yiji-1015.github.io/sesac-notes/commands.html): 도구별 코드·인자·실제 실행 입출력
+- [all-notes.md](https://yiji-1015.github.io/sesac-notes/all-notes.md): 주제 페이지(실행 결과 포함)와 Day 노트를 한 파일로
+- [용어 사전](https://yiji-1015.github.io/sesac-notes/glossary.html): 용어 전체 (쉬운 설명)
+- [명령어 사전](https://yiji-1015.github.io/sesac-notes/commands.html): Day 노트 시절의 도구별 코드, 인자, 실제 실행 입출력
 
-## Day별 페이지
+## 주제 페이지
+
+### 🧠 모델 > 데이터 분석 기초
+- [요약하고 추정하기](https://yiji-1015.github.io/sesac-notes/topics/model/stats-describe.html): 요약하고 추정하기: 기술통계와 신뢰구간
+- [가설 검정과 회귀 분석](https://yiji-1015.github.io/sesac-notes/topics/model/stats-tests.html): 가설 검정과 회귀 분석: 그 차이는 우연일까
+
+### 🧠 모델 > 머신러닝 기초
+- [회귀, 분류, KNN, 모델 비교](https://yiji-1015.github.io/sesac-notes/topics/model/ml-regression-classification.html): 회귀와 분류: 표 데이터로 예측하기
+- [트리, 앙상블, 교차검증](https://yiji-1015.github.io/sesac-notes/topics/model/ml-trees-cv.html): 트리와 앙상블, 교차검증: 더 나은 모델을 믿을 만하게 고르기
+- [평가지표, 특성 설계, K-Means](https://yiji-1015.github.io/sesac-notes/topics/model/ml-metrics-clustering.html): 평가지표, 특성 설계, 군집: 기준을 정하고 마지막에 한 번 채점하기
+- [SVM, 판별분석, 차원 축소](https://yiji-1015.github.io/sesac-notes/topics/model/ml-svm-lda-pca.html): SVM, 판별분석, 차원 축소: 도로, 분포, 방향으로 가르기
+- [학습 이론: 몇 건이면 믿을 수 있나](https://yiji-1015.github.io/sesac-notes/topics/model/ml-learning-theory.html): 학습 이론: 몇 건이면 믿을 수 있나
+
+### 🧠 모델 > 딥러닝 기초
+- [GPU, Tensor, ANN](https://yiji-1015.github.io/sesac-notes/topics/model/dl-tensor-training.html): Tensor와 신경망 학습: 층을 쌓아 경계를 배우기
+- [Optimizer와 Regularization](https://yiji-1015.github.io/sesac-notes/topics/model/dl-training-stability.html): 학습을 안정시키기: 학습률, Optimizer, 과적합
+
+### 🧠 모델 > 이미지
+- [CNN과 이미지 분류](https://yiji-1015.github.io/sesac-notes/topics/model/cnn.html): CNN과 이미지 분류: 작은 무늬를 어디서든 찾기
+- [OpenCV 이미지와 영상 전처리](https://yiji-1015.github.io/sesac-notes/topics/model/opencv-preprocessing.html): OpenCV 이미지 전처리: 잡음, 조명, 모양 다루기
+- [전이학습과 오류 분석](https://yiji-1015.github.io/sesac-notes/topics/model/transfer-learning.html): 전이학습과 오류 분석: 미리 배운 특징을 빌려 쓰기
+- [객체 탐지와 YOLO](https://yiji-1015.github.io/sesac-notes/topics/model/object-detection.html): 객체 탐지: 박스를 채점하고 정리하고 잇기
+- [OCR, 문서 구조화, VLM, 엣지 배포](https://yiji-1015.github.io/sesac-notes/topics/model/ocr-documents.html): OCR과 문서 구조화: 사진 속 청구서를 값으로
+
+### 🧠 모델 > 순서와 언어 모델
+- [순서 모델](https://yiji-1015.github.io/sesac-notes/topics/model/sequence-models.html): 순서 모델: RNN, LSTM, Attention, Autoencoder
+- [Transformer 구조](https://yiji-1015.github.io/sesac-notes/topics/model/llm-principles.html): Transformer 구조: 토큰 벡터에 문맥이 섞이기까지
+- [문장 분류와 미세조정](https://yiji-1015.github.io/sesac-notes/topics/model/text-classification.html): 문장 분류: 고정한 벡터, 미세조정, 라벨이 적을 때
+- [토큰 분류와 질문 답변](https://yiji-1015.github.io/sesac-notes/topics/model/token-classification.html): 토큰 분류와 질문 답변: 문장 속 어디가 무엇인지
+- [작은 GPT와 디코딩](https://yiji-1015.github.io/sesac-notes/topics/model/gpt-generation.html): 작은 GPT를 처음부터: 학습하고, 고르고, 재기
+- [요즘 LLM의 부품](https://yiji-1015.github.io/sesac-notes/topics/model/llm-architectures.html): 요즘 LLM의 부품: GPT-2의 블록은 어떻게 바뀌었나
+- [LLM의 학습 데이터 만들기](https://yiji-1015.github.io/sesac-notes/topics/model/pretrain-data.html): LLM의 학습 데이터 만들기: 거르고, 빼고, 섞기
+- [학습 중에 무엇으로 재나](https://yiji-1015.github.io/sesac-notes/topics/model/eval-select.html): 학습 중에 무엇으로 재나: 평가의 신호와 잡음
+- [한국어와 영어가 섞일 때](https://yiji-1015.github.io/sesac-notes/topics/model/codeswitch.html): 한국어와 영어가 섞일 때: 코드 스위칭
+- [모델 가볍게](https://yiji-1015.github.io/sesac-notes/topics/model/model-compression.html): 모델 가볍게: 어휘 줄이기, 지식 정제, 양자화, 가지치기
+
+### 🧠 모델 > 생성 모델과 그래프
+- [생성 모델](https://yiji-1015.github.io/sesac-notes/topics/model/generative-models.html): 생성 모델: 데이터를 닮은 새 데이터 만들기
+- [그래프 신경망 (GNN)](https://yiji-1015.github.io/sesac-notes/topics/model/gnn.html): 그래프 신경망: 이웃을 모아 나를 고치기
+
+### 🧠 모델 > 강화학습
+- [강화학습 기초](https://yiji-1015.github.io/sesac-notes/topics/model/rl-basics.html): 강화학습 기초: 해 보면서 배우기
+- [심층 강화학습](https://yiji-1015.github.io/sesac-notes/topics/model/rl-deep.html): 심층 강화학습: DQN에서 PPO까지
+- [게임과 균형](https://yiji-1015.github.io/sesac-notes/topics/model/rl-games.html): 게임과 균형: 상대도 배울 때의 "가장 좋은 정책"
+- [다중 에이전트 강화학습](https://yiji-1015.github.io/sesac-notes/topics/model/rl-multiagent.html): 다중 에이전트 강화학습: 여럿이 함께 배우기
+- [추론 모델과 검증 가능한 보상](https://yiji-1015.github.io/sesac-notes/topics/model/rl-reasoning.html): 추론 모델과 검증 가능한 보상: 생각을 가르치고, 맞았는지로 강화하기
+
+### 🧠 모델 > 추천과 평생 학습
+- [추천 시스템](https://yiji-1015.github.io/sesac-notes/topics/model/recsys.html): 추천 시스템: 아직 안 본 것 중 좋아할 것 고르기
+- [평생 학습과 머신 언러닝](https://yiji-1015.github.io/sesac-notes/topics/model/continual.html): 평생 학습과 머신 언러닝: 잊지 않게, 잊게 하기
+
+### 🛠️ 백엔드 > API 서버
+- [FastAPI 지식 관리 API](https://yiji-1015.github.io/sesac-notes/topics/backend/fastapi.html): FastAPI로 지식 API 만들기
+
+### 🛠️ 백엔드 > 데이터베이스
+- [PostgreSQL 입문](https://yiji-1015.github.io/sesac-notes/topics/backend/postgres.html): PostgreSQL 기초: 지식을 테이블에 저장하고 꺼내기
+- [FastAPI와 PostgreSQL 연동](https://yiji-1015.github.io/sesac-notes/topics/backend/fastapi-postgres.html): FastAPI와 PostgreSQL 연동: API 요청을 DB 행으로
+
+### 🛠️ 백엔드 > LLM 활용
+- [Prompt와 Context Engineering](https://yiji-1015.github.io/sesac-notes/topics/backend/prompt-contract.html): Prompt와 출력 계약: 모델의 답을 믿을 수 있게 만들기
+- [LLM API 클라이언트](https://yiji-1015.github.io/sesac-notes/topics/backend/llm-client.html): LLM API 클라이언트: 모델을 안전하게 부르기
+- [LLM으로 답 채점하기 (LLM-as-a-Judge)](https://yiji-1015.github.io/sesac-notes/topics/backend/llm-judge.html): LLM으로 답 채점하기: LLM-as-a-Judge
+- [여러 정답으로 채점하기](https://yiji-1015.github.io/sesac-notes/topics/backend/multi-ref.html): 여러 정답으로 채점하기: BLEU, GLEU, 정답을 합치는 법
+
+### 🛠️ 백엔드 > 검색과 RAG
+- [Embedding과 Vector Search](https://yiji-1015.github.io/sesac-notes/topics/backend/embedding.html): Embedding과 벡터 검색: 글자가 아니라 뜻으로 찾기
+- [1. 문서 읽기](https://yiji-1015.github.io/sesac-notes/topics/backend/document-reading.html): 문서 읽기: 여러 형식의 파일을 깨끗한 글로
+- [2. Chunking](https://yiji-1015.github.io/sesac-notes/topics/backend/chunking.html): Chunking: 글을 검색할 조각으로 나누기
+- [3. 인덱싱](https://yiji-1015.github.io/sesac-notes/topics/backend/indexing.html): 인덱싱: 조각을 DB에 넣고 검색하기
+
+### 🛠️ 백엔드 > 성능과 하드웨어
+- [SIMD와 메모리](https://yiji-1015.github.io/sesac-notes/topics/backend/simd-speed.html): SIMD와 메모리: 같은 계산이 수십 배 빨라지는 이유
+
+### 🛠️ 백엔드 > 외전: 서비스를 완성하는 흐름
+- [로직 밖에서 서비스를 완성하기](https://yiji-1015.github.io/sesac-notes/topics/backend/service-flow.html): 로직 밖에서 서비스를 완성하기
+
+## Day별 노트 (처음에 쓴 것)
 - [Day6 · 회귀·분류·KNN·모델 비교](https://yiji-1015.github.io/sesac-notes/notes/day06.html): 2026-10-26(월) · 선형회귀 · 로지스틱회귀 · KNN · 스케일링 · 공정한 비교
 - [Day7 · 트리·앙상블·교차검증](https://yiji-1015.github.io/sesac-notes/notes/day07.html): 2026-10-27(화) · Decision Tree · Random Forest · XGBoost · 특성 중요도 · 5-fold CV
 - [Day8 · 평가지표·특성설계·K-Means](https://yiji-1015.github.io/sesac-notes/notes/day08.html): 2026-10-28(수) · Precision/Recall/F1 · ROC-AUC · 교차검증 · Feature Engineering · K-Means · 최종 평가
@@ -31,5 +107,5 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 - [Day24 · Document Parsing · Chunking · Indexing — 문서를 검색 데이터로](https://yiji-1015.github.io/sesac-notes/notes/day24.html): 2026-11-19(목) · Ingestion Pipeline · Manifest · SHA-256 · TXT/Markdown/HTML/PDF Parsing · needs_ocr · Cleaning · NFC · Chunking · Overlap · Token 한도 · Span · Coverage · Metadata · chunk_id · Staging/Publish · citation_id
 
 ## 참고
-- 저장소(원본 HTML·그림 생성 스크립트): https://github.com/Yiji-1015/sesac-notes
+- 저장소(원본 HTML, 예제 코드, 페이지를 만드는 스크립트): https://github.com/Yiji-1015/sesac-notes
 - 노트는 수강생 정리본이며 강의 원본 PDF는 포함하지 않는다.

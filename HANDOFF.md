@@ -112,8 +112,8 @@
 - 위키의 개체(entity) 항목은 페이지가 아니라 용어집 항목으로 옮겨요.
 
 그 밖에 해 둘 일:
-- `README.md`는 아직 옛 Day별 구성으로 적혀 있어요. 주제별 구성에 맞게 고쳐야 해요.
-- `tools/build_llms.py`가 `topics/` 페이지도 읽게 바꿔야 해요.
+- (끝남) `README.md`를 주제별 구성으로 고쳤어요. 카테고리가 늘면 README의 "무엇이 있나" 표도 같이 고쳐요.
+- (끝남) `tools/build_llms.py`가 `index.html`의 순서대로 주제 페이지를 읽어, `-data.js`의 실행 결과(표, 줄 상자, 그림 설명)까지 `all-notes.md`에 넣어요. 옛 RAG 세 쪽(`document-reading`, `chunking`, `indexing`)은 결과 형식이 달라서 본문 글만 들어가요. 페이지를 고친 뒤 `python tools/build_llms.py`를 다시 돌려요.
 - 부트캠프 강의는 계속 진행 중이에요. 새 강의는 맞는 주제 페이지에 보강하거나 새 주제 페이지로 넣어요.
 
 ---
