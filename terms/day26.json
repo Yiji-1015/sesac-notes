@@ -1,0 +1,9 @@
+[
+  {"term":"LangChain","aliases":["랭체인","langchain-core","langchain-openai"],"full":"LangChain","short":"LLM을 쓰는 프로그램의 단계(Prompt, 모델 호출, 검색, 출력 읽기)를 같은 방식으로 만들고 잇게 해 주는 라이브러리예요. 무엇을 찾고 답이 맞는지는 정해 주지 않아요.","analogy":"콘센트 모양을 맞춰 주는 멀티탭. 꽂을 기계는 직접 골라요.","day":26,"key":true},
+  {"term":"Runnable","aliases":["RunnableLambda","RunnableSequence","LCEL","invoke"],"full":"LangChain Runnable","short":"입력을 받아 결과를 내는 LangChain의 실행 단위. Prompt, Chat Model, 함수 모두 invoke로 부르고 a | b로 이어요. 이은 것도 Runnable이에요.","analogy":"같은 규격의 레고 블록. 무엇이든 끼워 이을 수 있어요.","day":26,"key":true},
+  {"term":"Document (LangChain)","aliases":["page_content","langchain Document"],"full":"langchain_core.documents.Document","short":"본문(page_content)과 출처 같은 부가 정보(metadata)를 함께 담는 LangChain의 자료 객체. 검색 결과를 단계 사이에 넘길 때 써요.","analogy":"내용물과 송장이 같이 붙은 택배 상자.","day":26,"key":false},
+  {"term":"ChatPromptTemplate","aliases":["from_messages"],"full":"ChatPromptTemplate","short":"system, human 같은 역할별 메시지 틀. {question}, {context} 같은 자리에 값을 채우면 모델에게 보낼 메시지가 돼요. 채우는 것만으로는 모델을 부르지 않아요.","analogy":"빈칸이 있는 신청서 양식.","day":26,"key":false},
+  {"term":"AIMessage","aliases":["response_metadata","usage_metadata"],"full":"langchain_core.messages.AIMessage","short":"Chat Model이 돌려주는 응답 객체. text(생성한 글), content(내용 블록), response_metadata(완료 여부 같은 정보), usage_metadata(토큰 수)를 담아요. SDK의 Response와 다른 객체예요.","analogy":"답장 편지와 봉투 겉면의 우체국 도장.","day":26,"key":false},
+  {"term":"Citation","aliases":["출처 표시","included_docs"],"full":"Citation","short":"답이 근거로 쓴 자료를 가리키는 표시. 허용 번호는 검색 후보 전체가 아니라 실제로 모델에게 넣어 준 조각에서만 만들어요. 번호가 맞아도 내용이 맞는지(grounding)는 따로 확인해요.","analogy":"보고서 각주. 각주가 달렸다고 그 문장이 맞는 건 아니에요.","day":26,"key":true},
+  {"term":"candidate_k","aliases":["context_k","max_chars","글자 예산"],"full":"candidate_k와 context_k","short":"candidate_k는 검색에서 가져올 후보 수, context_k는 그중 모델에게 넣을 조각 수예요. 글자 예산(max_chars)을 넘는 조각은 자르지 않고 통째로 빼요.","analogy":"서류 열 장을 찾아 그중 두 장만 결재판에 끼우기.","day":26,"key":false}
+]

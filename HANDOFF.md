@@ -120,6 +120,15 @@
 
 ## 3. 작업할 때 알아 둘 것
 
+### Day26 (2026-11-23) Basic RAG와 LangChain
+
+- `topics/backend/rag-service.html` (예제 `examples/rag/rag_service.py`, 생성기 `tools/pages/rag_service.py`). "검색과 RAG" 카테고리, RAG 지도의 "질문에 답할 때" 줄 끝(검사와 출처)
+- 기존 쪽과 겹치지 않게: 검색은 인덱싱 ⑱, Prompt 틀과 출처 규칙은 Prompt와 출력 계약, SDK 호출은 LLM API 클라이언트로 링크하고, 이 쪽은 잇는 부분(Runnable, Document, 후보 수와 넣을 수, 허용 출처는 included_docs에서만, raw/parsed/parsing_error 묶음, 정보 부족과 실패 구분, 422와 502)만 다뤄요
+- 검색 대상은 인덱싱 쪽의 가람 도서관 조각 12개(`examples/ingest/out/chunks.json`), e5로 메모리에서 검색. 답은 ChatOpenAI에 가짜 서버(MockTransport)를 붙여 받음(키, 비용 없음)
+- 이 PC의 venv에 `langchain-core` 1.8.4, `langchain-openai` 1.8.5를 설치했어요(사용자 허락). 다른 PC에서 다시 빌드하려면 같은 두 패키지가 필요해요
+- 판에 따라 다른 점을 그대로 적었어요: 깨진 JSON과 글자 ID는 parsing_error가 아니라 invoke 예외(generation_error)로 옴. 거절만 parsing_error에 담김
+- 원본: `강의자료-원본/Day26_20261123_Basic_RAG_LangChain.html` (저장소에는 안 올라가요). 용어 `terms/day26.json`, 용어집의 Day26 링크는 이 쪽으로
+
 ### 백엔드 외전 (2026-11-20)
 
 - `topics/backend/service-flow.html`: 로직 밖에서 서비스를 완성하기. 기존 CRUD 설명을 연결하여 설정, DB 준비, Session 수명, autobegin, Service의 트랜잭션 책임, Router와 Health, Postman 검증 순서를 설명해요.
