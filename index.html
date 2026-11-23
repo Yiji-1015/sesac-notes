@@ -138,18 +138,26 @@
           <a class="item" href="topics/model/ocr-documents.html"><b>OCR, 문서 구조화, VLM, 엣지 배포</b><small>Tesseract, 근거 검증, TensorRT, Jetson</small></a>
         </div>
         <div class="cat">
-          <h3>순서와 언어 모델</h3>
-          <p>순서가 있는 데이터를 읽는 모델에서 LLM까지</p>
+          <h3>순서 모델과 Transformer</h3>
+          <p>순서가 있는 데이터를 읽는 모델에서 요즘 LLM의 구조와 생성까지</p>
           <a class="item" href="topics/model/sequence-models.html"><b>순서 모델</b><small>RNN, LSTM, Autoencoder, Attention 입문</small></a>
           <a class="item" href="topics/model/llm-principles.html"><b>Transformer 구조</b><small>Token, 위치 벡터, Attention과 head, 층 하나 직접 계산, 인코더와 디코더, 다음 토큰</small></a>
-          <a class="item" href="topics/model/text-classification.html"><b>문장 분류와 미세조정</b><small>단어 세기 기준선, e5 문장 벡터, 고정 vs 미세조정, 오류 분석, 라벨이 적을 때, 자기 학습</small></a>
-          <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
           <a class="item" href="topics/model/gpt-generation.html"><b>작은 GPT와 디코딩</b><small>말뭉치 정리, BPE Tokenizer 학습, GPT 처음부터, greedy, beam, top-k, top-p, ROUGE</small></a>
           <a class="item" href="topics/model/llm-architectures.html"><b>요즘 LLM의 부품</b><small>RMSNorm, SwiGLU, RoPE, GQA, KV 캐시와 prefill, decode, 슬라이딩 윈도우, MoE</small></a>
-          <a class="item" href="topics/model/pretrain-data.html"><b>LLM의 학습 데이터 만들기</b><small>규칙 거르기, 중복 빼기, MinHash와 LSH, BPE 압축률, 데이터 섞는 비율, 대리 토크나이저, 회귀로 비율 고르기</small></a>
-          <a class="item" href="topics/model/eval-select.html"><b>학습 중에 무엇으로 재나</b><small>체크포인트 평가, 신호 대 잡음비, 정답률과 손실, 문제 수와 1/√n, 천장과 창발 전, 초반 순서, 평가 묶기와 macro 평균</small></a>
+        </div>
+        <div class="cat">
+          <h3>언어 모델로 문제 풀기</h3>
+          <p>미리 학습된 모델을 빌려 분류하고, 찾고, 가볍게 만들기</p>
+          <a class="item" href="topics/model/text-classification.html"><b>문장 분류와 미세조정</b><small>단어 세기 기준선, e5 문장 벡터, 고정 vs 미세조정, 오류 분석, 라벨이 적을 때, 자기 학습</small></a>
+          <a class="item" href="topics/model/token-classification.html"><b>토큰 분류와 질문 답변</b><small>개체명 인식, BIO 라벨, 조사 떼기, 언어 간 전이, 답의 시작과 끝, 찾아서 읽기</small></a>
           <a class="item" href="topics/model/codeswitch.html"><b>한국어와 영어가 섞일 때</b><small>코드 스위칭, 주언어와 삽입 언어, 다국어 토크나이저, 한국어와 영어로 설명 찾기, 교차 언어 일관성, 조금씩 섞기, 두 언어 함께 적기</small></a>
           <a class="item" href="topics/model/model-compression.html"><b>모델 가볍게</b><small>크기, 시간, 정확도 재기, 어휘 줄이기, 지식 정제, int8 양자화, 가지치기</small></a>
+        </div>
+        <div class="cat">
+          <h3>LLM 학습 데이터와 평가</h3>
+          <p>큰 모델을 학습시킬 때 무엇을 넣고 무엇으로 재나</p>
+          <a class="item" href="topics/model/pretrain-data.html"><b>LLM의 학습 데이터 만들기</b><small>규칙 거르기, 중복 빼기, MinHash와 LSH, BPE 압축률, 데이터 섞는 비율, 대리 토크나이저, 회귀로 비율 고르기</small></a>
+          <a class="item" href="topics/model/eval-select.html"><b>학습 중에 무엇으로 재나</b><small>체크포인트 평가, 신호 대 잡음비, 정답률과 손실, 문제 수와 1/√n, 천장과 창발 전, 초반 순서, 평가 묶기와 macro 평균</small></a>
         </div>
         <div class="cat">
           <h3>생성 모델과 그래프</h3>
@@ -207,7 +215,7 @@
           <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
           <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
           <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
-          <a class="item" href="topics/backend/rag-service.html"><b>RAG 서비스</b><span class="badge new">새 형식</span><small>찾은 조각으로 출처가 붙은 답 만들기. LangChain Runnable, Document, 근거 고르기, 구조화 출력 검사, 정보 부족과 실패 구분, FastAPI</small></a>
+          <a class="item" href="topics/backend/rag-service.html"><b>RAG 서비스</b><small>찾은 조각으로 출처가 붙은 답 만들기. LangChain Runnable, Document, 근거 고르기, 구조화 출력 검사, 정보 부족과 실패 구분, FastAPI</small></a>
         </div>
         <div class="cat">
           <h3>성능과 하드웨어</h3>

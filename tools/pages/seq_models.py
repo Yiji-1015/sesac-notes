@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > 순서 모델 (RNN, LSTM, Attention, Autoencoder).
+"""모델 > 순서 모델과 Transformer > 순서 모델 (RNN, LSTM, Attention, Autoencoder).
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/pages/seq_models.py
 """
 import sys
@@ -68,7 +68,7 @@ practice = [("문장을 다룬다", "글자를 숫자로 바꾸는 단계(Tokeni
             ("앞을 예측한다", "지금까지의 창으로 다음 값을 맞히는 회귀로 바꾸면 돼요. 미래 값이 입력에 섞이지 않게, 시간 순서대로 train, valid, test를 나눠요."),
             ("이상 기준", "평균 + 3σ는 출발점일 뿐이에요. 알람이 너무 많거나 적으면 업무 비용을 보고 조정해요.")]
 libs = [("①", "<code>pad_sequence</code>, <code>torch.arange</code>", "묶기 (torch)"), ("③④", "<code>nn.RNN</code>, <code>nn.LSTM</code>, <code>pack_padded_sequence</code>", "순서 모델"), ("⑤", "<code>torch.softmax</code>, <code>masked_fill</code>", "Attention"), ("⑥", "<code>Tensor.unfold</code>, <code>nn.Sequential</code>", "Autoencoder")]
-K.build(ROOT / "topics" / "model" / "sequence-models.html", title="순서 모델", h1="순서 모델: RNN, LSTM, Attention, Autoencoder", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "sequence-models.html", title="순서 모델", h1="순서 모델: RNN, LSTM, Attention, Autoencoder", track="모델", crumb="모델 &gt; 순서 모델과 Transformer",
         one_line="순서가 있는 데이터는 <b>순서를 읽어야</b> 구분돼요. RNN과 LSTM은 <b>차례로 읽으며 기억</b>하고, Attention은 <b>중요한 시점을 골라</b> 보고, Autoencoder는 <b>잘 되살려지지 않는 구간</b>을 이상으로 찾아요.",
         why=why, whole=whole, steps=steps, code_file="examples/seq/seq_models.py", practice=practice, libs=libs, libs_note="<code>batch</code>, <code>fit</code>, <code>windows</code>와 모델 클래스들은 이 파일 안에서 정의했어요.",
         next_rows=[("<a href=\"llm-principles.html\">Transformer 구조</a>", "Attention을 쌓은 Transformer와 LLM"), ("<a href=\"dl-tensor-training.html\">Tensor와 신경망 학습</a>", "학습 루프의 기본")],

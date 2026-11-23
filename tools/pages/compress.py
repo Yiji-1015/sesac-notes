@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > 모델 가볍게. examples/compress/compress_classifier.py 하나가 ①~⑦로 자란다.
+"""모델 > 언어 모델로 문제 풀기 > 모델 가볍게. examples/compress/compress_classifier.py 하나가 ①~⑦로 자란다.
 NLP with Transformers 8장(효율적인 Transformer: 지식 정제, 양자화, 가지치기)을 합친 쪽.
 실행: HF_HUB_OFFLINE=1 python tools/pages/compress.py   (CPU로 3분쯤)
 e5 모델을 받아 두지 않은 PC에서는 아무 파일도 바꾸지 않고 끝낸다.
@@ -217,7 +217,7 @@ practice = [("어디서부터 할까", "먼저 ①처럼 잣대를 정하고 ②
 libs = [("①", "<code>torch.save</code>, <code>io.BytesIO</code>, <code>time.perf_counter</code>, <code>torch.set_num_threads</code>", "잣대"), ("③", "<code>torch.nn.Embedding(_weight=...)</code>", "작은 어휘 표"),
         ("④", "<code>F.kl_div</code>, <code>F.log_softmax</code>", "지식 정제"), ("⑤", "<code>torch.ao.quantization.quantize_dynamic</code>, <code>per_channel_dynamic_qconfig</code>", "동적 양자화"),
         ("⑥", "<code>torch.nn.utils.prune.global_unstructured</code>, <code>L1Unstructured</code>, <code>prune.remove</code>", "가지치기")]
-K.build(ROOT / "topics" / "model" / "model-compression.html", title="모델 가볍게", h1="모델 가볍게: 어휘 줄이기, 지식 정제, 양자화, 가지치기", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "model-compression.html", title="모델 가볍게", h1="모델 가볍게: 어휘 줄이기, 지식 정제, 양자화, 가지치기", track="모델", crumb="모델 &gt; 언어 모델로 문제 풀기",
         one_line="모델을 가볍게 만드는 방법은 줄이는 곳이 저마다 달라요. 안 쓰는 <b>어휘</b>를 덜면 정확도 그대로 크기가 줄고, 큰 모델의 답을 작은 <b>학생</b>에게 가르치면 빨라지고, 숫자를 <b>8비트</b>로 바꾸면 크기가 4분의 1이 돼요. 작은 가중치를 <b>지우기</b>만 해서는 크기도 시간도 안 줄어요.",
         why=why, whole=whole, steps=steps, code_file="examples/compress/compress_classifier.py", practice=practice, libs=libs,
         libs_note="<code>encode</code>, <code>train</code>, <code>benchmark</code>, <code>first_layers</code>, <code>int8</code>, <code>pruned</code>은 이 파일 안에서 정의한 함수, <code>Classifier</code>, <code>SmallVocab</code>은 클래스예요.",

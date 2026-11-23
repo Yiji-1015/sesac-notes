@@ -33,17 +33,21 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 - [객체 탐지와 YOLO](https://yiji-1015.github.io/sesac-notes/topics/model/object-detection.html): 객체 탐지: 박스를 채점하고 정리하고 잇기
 - [OCR, 문서 구조화, VLM, 엣지 배포](https://yiji-1015.github.io/sesac-notes/topics/model/ocr-documents.html): OCR과 문서 구조화: 사진 속 청구서를 값으로
 
-### 🧠 모델 > 순서와 언어 모델
+### 🧠 모델 > 순서 모델과 Transformer
 - [순서 모델](https://yiji-1015.github.io/sesac-notes/topics/model/sequence-models.html): 순서 모델: RNN, LSTM, Attention, Autoencoder
 - [Transformer 구조](https://yiji-1015.github.io/sesac-notes/topics/model/llm-principles.html): Transformer 구조: 토큰 벡터에 문맥이 섞이기까지
-- [문장 분류와 미세조정](https://yiji-1015.github.io/sesac-notes/topics/model/text-classification.html): 문장 분류: 고정한 벡터, 미세조정, 라벨이 적을 때
-- [토큰 분류와 질문 답변](https://yiji-1015.github.io/sesac-notes/topics/model/token-classification.html): 토큰 분류와 질문 답변: 문장 속 어디가 무엇인지
 - [작은 GPT와 디코딩](https://yiji-1015.github.io/sesac-notes/topics/model/gpt-generation.html): 작은 GPT를 처음부터: 학습하고, 고르고, 재기
 - [요즘 LLM의 부품](https://yiji-1015.github.io/sesac-notes/topics/model/llm-architectures.html): 요즘 LLM의 부품: GPT-2의 블록은 어떻게 바뀌었나
-- [LLM의 학습 데이터 만들기](https://yiji-1015.github.io/sesac-notes/topics/model/pretrain-data.html): LLM의 학습 데이터 만들기: 거르고, 빼고, 섞기
-- [학습 중에 무엇으로 재나](https://yiji-1015.github.io/sesac-notes/topics/model/eval-select.html): 학습 중에 무엇으로 재나: 평가의 신호와 잡음
+
+### 🧠 모델 > 언어 모델로 문제 풀기
+- [문장 분류와 미세조정](https://yiji-1015.github.io/sesac-notes/topics/model/text-classification.html): 문장 분류: 고정한 벡터, 미세조정, 라벨이 적을 때
+- [토큰 분류와 질문 답변](https://yiji-1015.github.io/sesac-notes/topics/model/token-classification.html): 토큰 분류와 질문 답변: 문장 속 어디가 무엇인지
 - [한국어와 영어가 섞일 때](https://yiji-1015.github.io/sesac-notes/topics/model/codeswitch.html): 한국어와 영어가 섞일 때: 코드 스위칭
 - [모델 가볍게](https://yiji-1015.github.io/sesac-notes/topics/model/model-compression.html): 모델 가볍게: 어휘 줄이기, 지식 정제, 양자화, 가지치기
+
+### 🧠 모델 > LLM 학습 데이터와 평가
+- [LLM의 학습 데이터 만들기](https://yiji-1015.github.io/sesac-notes/topics/model/pretrain-data.html): LLM의 학습 데이터 만들기: 거르고, 빼고, 섞기
+- [학습 중에 무엇으로 재나](https://yiji-1015.github.io/sesac-notes/topics/model/eval-select.html): 학습 중에 무엇으로 재나: 평가의 신호와 잡음
 
 ### 🧠 모델 > 생성 모델과 그래프
 - [생성 모델](https://yiji-1015.github.io/sesac-notes/topics/model/generative-models.html): 생성 모델: 데이터를 닮은 새 데이터 만들기

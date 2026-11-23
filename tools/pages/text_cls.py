@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > 문장 분류와 미세조정. examples/classify/issue_classifier.py 하나가 ①~⑧로 자란다.
+"""모델 > 언어 모델로 문제 풀기 > 문장 분류와 미세조정. examples/classify/issue_classifier.py 하나가 ①~⑧로 자란다.
 NLP with Transformers 2장(텍스트 분류), 9장(레이블 부족 문제)을 합친 쪽.
 실행: HF_HUB_OFFLINE=1 python tools/pages/text_cls.py   (CPU로 1분쯤)
 e5 모델을 받아 두지 않은 PC에서는 아무 파일도 바꾸지 않고 끝낸다.
@@ -267,7 +267,7 @@ practice = [("데이터가 많고 GPU가 있다", "전체 미세조정이 보통
 libs = [("①", "<code>pd.read_csv</code>, <code>f1_score(average=\"macro\")</code>", "데이터, 지표"), ("②", "<code>TfidfVectorizer</code>, <code>MultinomialNB</code>, <code>make_pipeline</code>", "단어 세기 (scikit-learn)"),
         ("③", "<code>AutoTokenizer</code>, <code>AutoModel</code>, <code>last_hidden_state</code>, <code>F.normalize</code>", "문장 벡터 (transformers, torch)"), ("④⑦⑧", "<code>LogisticRegression</code>, <code>predict_proba</code>", "벡터 위 분류기"),
         ("⑤", "<code>requires_grad_</code>, <code>torch.optim.AdamW</code>, <code>F.cross_entropy</code>", "미세조정 (torch)"), ("⑥", "<code>confusion_matrix</code>, <code>groupby</code>", "오류 분석")]
-K.build(ROOT / "topics" / "model" / "text-classification.html", title="문장 분류와 미세조정", h1="문장 분류: 고정한 벡터, 미세조정, 라벨이 적을 때", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "text-classification.html", title="문장 분류와 미세조정", h1="문장 분류: 고정한 벡터, 미세조정, 라벨이 적을 때", track="모델", crumb="모델 &gt; 언어 모델로 문제 풀기",
         one_line="문장을 미리 학습된 모델(e5)로 <b>벡터</b>로 바꾸면, 그 위에 단순한 분류기만 얹어도 처음 보는 말투까지 잘 나눠요. 모델까지 고치는 <b>미세조정</b>은 데이터가 적으면 외우기 쉬워서, 고칠 범위를 골라야 해요. 라벨이 적으면 벡터와 라벨 없는 문장을 최대한 활용해요.",
         why=why, whole=whole, steps=steps, code_file="examples/classify/issue_classifier.py", practice=practice, libs=libs,
         libs_note="<code>macro_f1</code>, <code>bag_model</code>, <code>encode</code>, <code>mean_pool</code>, <code>embed</code>, <code>fine_tune</code>, <code>label_curve</code>, <code>self_train</code>은 이 파일 안에서 정의한 함수, <code>Classifier</code>는 클래스예요.",

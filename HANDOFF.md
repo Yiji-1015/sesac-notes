@@ -91,15 +91,15 @@
    - 새 카테고리 "추천과 평생 학습"
      - `recsys.html` (예제 `examples/recsys/recommend.py`): 가상 이용 기록 600 × 400. 인기순, 아이템과 사용자 이웃, BPR, EASE, LightGCN, 기록 수별 성능, 인기 편향. 경희대 추천 특강과 Lec01
      - `continual.html` (예제 `examples/continual/remember_forget.py`): 손글씨 숫자와 픽셀 섞은 숫자로 파국적 망각, 리플레이, EWC. 숫자 3 지우기를 다시 학습, 남은 것으로 더, 경사 상승, 작업 벡터 빼기로 비교. Lec03
-   - `pretrain-data.html` ("순서와 언어 모델", 예제 `examples/pretrain_data/mix_tokenizer.py`): 한국어 노트, 표준 라이브러리 설명문과 소스로 규칙 거르기, 중복 빼기, MinHash, BPE 압축률, 섞는 비율과 대리 토크나이저, 회귀로 비율 고르기. Lec04, Lec06. 영어와 코드 말뭉치가 파이썬 버전에 따라 조금 달라져요
+   - `pretrain-data.html` ("LLM 학습 데이터와 평가", 예제 `examples/pretrain_data/mix_tokenizer.py`): 한국어 노트, 표준 라이브러리 설명문과 소스로 규칙 거르기, 중복 빼기, MinHash, BPE 압축률, 섞는 비율과 대리 토크나이저, 회귀로 비율 고르기. Lec04, Lec06. 영어와 코드 말뭉치가 파이썬 버전에 따라 조금 달라져요
    - `backend/multi-ref.html` ("LLM 활용", 예제 `examples/eval_refs/multi_ref.py`): `pages.jsonl` 문장을 해요/합니다/한다체 정답 셋으로 바꾸고 오류 둘을 넣어 BLEU, GLEU, 정답 합치기 네 가지, 짝마다 줄 세우기, 정답 늘리기. Lec05
    - 새 카테고리 "성능과 하드웨어": `backend/simd-speed.html` (예제 `examples/speed/simd_numpy.py`): 반복문과 NumPy, SIMD 다섯 단계, 자료형 폭, stride와 전치, 캐시 크기, 임시 배열, 마스크. 시간을 재는 쪽이라 다시 빌드하면 숫자가 조금씩 바뀌어요(주장은 `S.claim`으로 넉넉한 배수만 확인). LLM_wiki `everyone-should-know-simd`, PyCon 가속기 발표
    - 책이나 논문과 다르게 나온 결과도 그대로 적었어요: BPR이 단순한 이웃보다 낮음(추천 ④), 회귀가 고른 비율이 "서비스 비율 그대로"보다 조금 나쁨(데이터 ⑦)
    - `model/rl-reasoning.html` ("강화학습", 예제 `examples/reasoning_rl/verifiable_rl.py`): (a + b + c)의 일의 자리를 생각하고 답하기 vs 바로 답하기, 생각 SFT, pass@k, REINFORCE와 GRPO, 신호 없는 그룹, 단계별 보상, 미리 고른 문제. Lec04 3부, Lec09
      - 다르게 나온 결과: 미리 가끔 맞히는 문제만 고르면 오히려 낮아짐(⑥, 목록이 금방 낡음), SFT에서 출발하면 단계별 보상의 차이가 거의 없음(⑤)
-   - `model/eval-select.html` ("순서와 언어 모델", 예제 `examples/eval_select/pick_benchmarks.py`): 크기 8~48 모델 여섯 개의 에폭별 체크포인트로 평가 넷(작음, 큼, 쉬움, 픽셀 섞음) × 지표 둘(정답률, 손실)의 SNR, 문제 수, 초반 순서, 상관 군집. Lec04 1부
+   - `model/eval-select.html` ("LLM 학습 데이터와 평가", 예제 `examples/eval_select/pick_benchmarks.py`): 크기 8~48 모델 여섯 개의 에폭별 체크포인트로 평가 넷(작음, 큼, 쉬움, 픽셀 섞음) × 지표 둘(정답률, 손실)의 SNR, 문제 수, 초반 순서, 상관 군집. Lec04 1부
      - 다르게 볼 점: 픽셀 섞은 평가의 손실은 SNR이 높은데 순서가 거꾸로(⑤)
-   - `model/codeswitch.html` ("순서와 언어 모델", 예제 `examples/codeswitch/mixed_language.py`): 노트 문장의 코드 스위칭 세기, 용어집 한국어/영어 이름으로 e5 설명 찾기, 교차 언어 일관성, 조금씩 섞기, 함께 적기. Lec10. 용어집(`terms/`)을 읽기 때문에 용어를 더하면 숫자가 바뀌어요. 용어를 더한 뒤 다시 빌드해요
+   - `model/codeswitch.html` ("언어 모델로 문제 풀기", 예제 `examples/codeswitch/mixed_language.py`): 노트 문장의 코드 스위칭 세기, 용어집 한국어/영어 이름으로 e5 설명 찾기, 교차 언어 일관성, 조금씩 섞기, 함께 적기. Lec10. 용어집(`terms/`)을 읽기 때문에 용어를 더하면 숫자가 바뀌어요. 용어를 더한 뒤 다시 빌드해요
    - 아직 안 넣은 Upstage 자료: Lec02(사람과 AI 협업), Lec09의 문화 VQA 부분, SP01(OpenClaw), SP03(영상 생성)
    - 아직 안 넣은 밋업 자료(LLM_wiki `wiki/sources/`): PyCon의 엣지 AI와 FastAPI 모듈러 모놀리스, OSSummit OpenSSF, 가짜연구소(에이전트 운영, 피지컬 AI), 컨텍스트 엔지니어링 밋업, 카카오 에이전트 자동화, open-code-review. 대부분 경험담이라 이론 쪽으로 만들 거리가 적어요
 8. **업무, 도메인 자료**도 넣어요(본인만 보는 사이트라서 포함).

@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > 토큰 분류와 질문 답변. examples/tokens/token_tasks.py 하나가 ①~⑧로 자란다.
+"""모델 > 언어 모델로 문제 풀기 > 토큰 분류와 질문 답변. examples/tokens/token_tasks.py 하나가 ①~⑧로 자란다.
 NLP with Transformers 4장(다중 언어 개체명 인식), 7장(질문 답변)을 합친 쪽.
 실행: HF_HUB_OFFLINE=1 python tools/pages/token_cls.py   (CPU로 2분쯤)
 e5 모델을 받아 두지 않은 PC에서는 아무 파일도 바꾸지 않고 끝낸다.
@@ -242,7 +242,7 @@ practice = [("공개 데이터와 모델", "NER은 WikiANN(PAN-X), 한국어는 
             ("답을 새로 써야 한다", "답이 문서에 그대로 없거나 여러 곳을 합쳐야 하면, 꺼내는 모델 대신 생성 모델을 써요(RAG). 대신 근거 없는 답을 지어내지 않는지 검사해요 (<a href=\"../backend/prompt-contract.html\">Prompt와 출력 계약</a>).")]
 libs = [("②", "<code>return_offsets_mapping=True</code>, <code>torch.full</code>", "토큰과 글자 위치 (transformers)"), ("③⑦", "<code>AutoModel</code>, <code>nn.Linear</code>, <code>F.cross_entropy(ignore_index=-100)</code>", "몸통 + 머리, 미세조정"),
         ("④", "집합 연산 <code>&amp;</code>, <code>-</code>", "개체 단위 채점"), ("⑦", "<code>tok(questions, contexts)</code>, <code>sequence_ids</code>", "질문과 메시지 쌍"), ("⑧", "<code>F.normalize</code>, 행렬 곱 <code>@</code>", "벡터 검색")]
-K.build(ROOT / "topics" / "model" / "token-classification.html", title="토큰 분류와 질문 답변", h1="토큰 분류와 질문 답변: 문장 속 어디가 무엇인지", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "token-classification.html", title="토큰 분류와 질문 답변", h1="토큰 분류와 질문 답변: 문장 속 어디가 무엇인지", track="모델", crumb="모델 &gt; 언어 모델로 문제 풀기",
         one_line="문장 분류가 문장마다 라벨 하나를 붙인다면, <b>토큰 분류</b>는 토큰마다 라벨을 붙여 문장 속 이름, 날짜, 금액을 찾아요(<b>개체명 인식</b>). 메시지에서 질문의 답이 시작하고 끝나는 토큰을 찾으면 <b>질문 답변</b>이에요. 여러 언어를 함께 배운 모델은 한 언어로 배운 것을 다른 언어에도 써요.",
         why=why, whole=whole, steps=steps, code_file="examples/tokens/token_tasks.py", practice=practice, libs=libs,
         libs_note="<code>encode_ner</code>, <code>fine_tune</code>, <code>tag_loss</code>, <code>tag_spans</code>, <code>predict_tags</code>, <code>score_ner</code>, <code>strip_josa</code>, <code>extract</code>, <code>exact_rate</code>, <code>encode_qa</code>, <code>span_loss</code>, <code>answer</code>, <code>score_qa</code>, <code>embed</code>는 이 파일 안에서 정의한 함수, <code>Tagger</code>, <code>Reader</code>는 클래스예요.",

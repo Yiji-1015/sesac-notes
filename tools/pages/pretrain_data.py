@@ -222,7 +222,7 @@ practice = [("한국어 서비스를 만든다", "쓸 모델의 토크나이저�
 libs = [("①②③", "<code>inspect</code>, <code>importlib</code>, <code>re</code>, <code>collections.Counter</code>", "말뭉치 모으기, 거르기, 세기"), ("④", "<code>zlib.crc32</code>, NumPy", "MinHash 지문"),
         ("⑤⑥⑦", "<code>tokenizers</code> (Hugging Face), <code>scipy.stats.spearmanr</code>, <code>np.linalg.lstsq</code>", "BPE 학습, 순위 상관, 회귀")]
 K.build(ROOT / "topics" / "model" / "pretrain-data.html", title="LLM의 학습 데이터 만들기", h1="LLM의 학습 데이터 만들기: 거르고, 빼고, 섞기", track="모델",
-        crumb="모델 &gt; 순서와 언어 모델",
+        crumb="모델 &gt; LLM 학습 데이터와 평가",
         one_line="LLM을 학습하기 전에 <b>규칙으로 거르고</b>, <b>똑같은 것과 거의 같은 것(MinHash)을 빼고</b>, 분야를 <b>어떤 비율로 섞을지</b> 정해요. 섞는 비율은 토크나이저의 <b>압축률</b>을 바꿔서, 한국어처럼 적게 섞인 언어는 토큰이 많이 들어요. 비율은 <b>작은 대리 실험의 순위</b>를 믿고 회귀로 골라요.",
         why=why, whole=whole, steps=steps, code_file="examples/pretrain_data/mix_tokenizer.py", practice=practice, libs=libs,
         libs_note="<code>docs_of</code>, <code>code_of</code>, <code>bad_reason</code>, <code>minhash</code>, <code>near_duplicates</code>, <code>train_tokenizer</code>, <code>chars_per_token</code>, <code>features</code>, <code>tokens_per_1k</code>는 이 파일 안에서 정의한 함수예요.",

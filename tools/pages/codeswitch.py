@@ -144,7 +144,7 @@ practice = [("한국어 서비스에서 LLM이 엉뚱한 언어로 답한다", "
             ("안전장치를 만든다", "영어로만 시험하지 말고, 다른 언어와 섞인 질문으로도 시험해요. 자원이 적은 언어일수록 안전장치가 약해요.")]
 libs = [("①", "<code>re</code>, <code>collections.Counter</code>", "글자로 언어 나누기, 세기"), ("②~⑥", "<code>transformers</code>(AutoTokenizer, AutoModel), <code>torch</code>", "다국어 임베딩")]
 K.build(ROOT / "topics" / "model" / "codeswitch.html", title="한국어와 영어가 섞일 때", h1="한국어와 영어가 섞일 때: 코드 스위칭", track="모델",
-        crumb="모델 &gt; 순서와 언어 모델",
+        crumb="모델 &gt; 언어 모델로 문제 풀기",
         one_line="이 노트 문장의 절반쯤은 <b>한국어 뼈대에 영어 용어</b>가 섞여 있어요(코드 스위칭). 다국어 임베딩도 <b>같은 언어끼리 더 가깝고</b>, 같은 개념을 한국어와 영어로 물으면 <b>찾는 결과가 자주 달라요</b>. 문서 언어에 맞춰 묻거나 <b>두 언어를 함께 적으면</b> 나아져요.",
         why=why, whole=whole, steps=steps, code_file="examples/codeswitch/mixed_language.py", practice=practice, libs=libs,
         libs_note="<code>word_kind</code>, <code>embed</code>, <code>found</code>, <code>mix</code>, <code>found_subset</code>은 이 파일 안에서 정의한 함수예요.",

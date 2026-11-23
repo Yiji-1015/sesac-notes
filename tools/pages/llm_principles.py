@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > Transformer 구조. examples/llm_theory/llm_parts.py 하나가 ①~⑧로 자란다.
+"""모델 > 순서 모델과 Transformer > Transformer 구조. examples/llm_theory/llm_parts.py 하나가 ①~⑧로 자란다.
 e5-small의 실제 가중치로 모델 안의 계산을 한 단계씩 다시 하고, 모델이 낸 값과 같은지 확인한다.
 실행: HF_HUB_OFFLINE=1 python tools/pages/llm_principles.py
 e5 모델을 받아 두지 않은 PC에서는 아무 파일도 바꾸지 않고 끝낸다 (기존 페이지를 그대로 둠).
@@ -335,7 +335,7 @@ libs = [("①", "<code>AutoTokenizer</code>, <code>padding=True</code>, <code>co
         ("③④⑤", "<code>query</code>, <code>key</code>, <code>value</code>, <code>attention.output.dense</code>, <code>intermediate.dense</code>, <code>F.gelu</code>", "층 하나의 실제 가중치"),
         ("③⑥", "<code>output_attentions=True</code>, <code>output_hidden_states=True</code>, <code>torch.allclose</code>", "모델 값과 비교"),
         ("⑦⑧", "<code>torch.triu</code>, <code>torch.softmax</code>, <code>torch.multinomial</code>", "가리기와 고르기 (torch)")]
-K.build(ROOT / "topics" / "model" / "llm-principles.html", title="Transformer 구조", h1="Transformer 구조: 토큰 벡터에 문맥이 섞이기까지", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "llm-principles.html", title="Transformer 구조", h1="Transformer 구조: 토큰 벡터에 문맥이 섞이기까지", track="모델", crumb="모델 &gt; 순서 모델과 Transformer",
         one_line="Transformer는 토큰 벡터에 위치를 더한 뒤, <b>Attention</b>(토큰끼리 정보 나누기)과 <b>작은 신경망</b>(토큰마다 생각하기)을 잔차 연결과 LayerNorm으로 묶은 층을 여러 번 쌓아요. 뒤를 가리면 글을 만드는 디코더가 돼요.",
         why=why, whole=whole, steps=steps, code_file="examples/llm_theory/llm_parts.py", practice=practice, libs=libs,
         libs_note="<code>cos</code>, <code>split</code>, <code>encoder_layer</code>는 이 파일 안에서 정의한 함수예요.",

@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > 요즘 LLM의 부품. examples/llm_arch/modern_llm.py 하나가 ①~⑧로 자란다.
+"""모델 > 순서 모델과 Transformer > 요즘 LLM의 부품. examples/llm_arch/modern_llm.py 하나가 ①~⑧로 자란다.
 모델은 받지 않고 설정(config)만으로 무작위 가중치 모델을 만들어 모양, 크기, 계산 방식을 본다 (CPU, 1분 안쪽).
 실행: HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/llm_arch.py
 """
@@ -250,7 +250,7 @@ practice = [("새 모델의 설정 읽기", "<code>config.json</code>에서 <cod
 libs = [("①", "<code>GPT2Config</code>, <code>LlamaConfig</code>, <code>LlamaForCausalLM</code>", "설정으로 모델 만들기 (transformers)"), ("②③", "<code>input_layernorm</code>, <code>gate_proj</code>, <code>up_proj</code>, <code>down_proj</code>, <code>F.silu</code>", "블록 안 부품"),
         ("④", "<code>rotary_emb</code>, <code>apply_rotary_pos_emb</code>", "RoPE"), ("⑤⑥", "<code>num_key_value_heads</code>, <code>past_key_values</code>, <code>use_cache</code>, <code>crop</code>, <code>generate</code>", "GQA, KV 캐시"),
         ("⑦", "<code>MistralConfig(sliding_window=...)</code>", "슬라이딩 윈도우"), ("⑧", "<code>MixtralConfig</code>, <code>output_router_logits</code>, <code>topk</code>, <code>bincount</code>", "MoE")]
-K.build(ROOT / "topics" / "model" / "llm-architectures.html", title="요즘 LLM의 부품", h1="요즘 LLM의 부품: GPT-2의 블록은 어떻게 바뀌었나", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "llm-architectures.html", title="요즘 LLM의 부품", h1="요즘 LLM의 부품: GPT-2의 블록은 어떻게 바뀌었나", track="모델", crumb="모델 &gt; 순서 모델과 Transformer",
         one_line="2023년 Llama 이후의 LLM도 골격은 <b>디코더 블록을 쌓은 Transformer</b>예요. 블록 안에서는 정규화가 <b>RMSNorm</b>, 작은 신경망이 <b>SwiGLU</b>, 위치가 <b>RoPE</b>, Attention이 K, V를 나눠 쓰는 <b>GQA</b>로 바뀌었어요. 그리고 생성할 때의 메모리와 시간을 줄이려고 <b>KV 캐시</b>를 다시 쓰고, <b>슬라이딩 윈도우</b>와 <b>MoE</b>를 붙여요.",
         why=why, whole=whole, steps=steps, code_file="examples/llm_arch/modern_llm.py", practice=practice, libs=libs,
         libs_note="<code>count</code>, <code>rope_score</code>, <code>kv_bytes</code>, <code>best_of</code>는 이 파일 안에서 정의한 함수예요.",

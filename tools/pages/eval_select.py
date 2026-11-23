@@ -171,7 +171,7 @@ practice = [("학습 중에 진척을 본다", "체크포인트 몇 개로 평�
             ("평가 모음을 만든다", "비슷한 평가를 묶어 묶음끼리 같은 무게로 평균 내요. 묶음마다 SNR이 높고 빨리 도는 평가를 대표로 골라요.")]
 libs = [("①②", "<code>torch</code>, <code>sklearn.datasets.load_digits</code>", "작은 모델, 체크포인트"), ("⑤⑥", "<code>scipy.stats.spearmanr</code>, <code>scipy.cluster.hierarchy</code>", "순위 상관, 계층 군집")]
 K.build(ROOT / "topics" / "model" / "eval-select.html", title="학습 중에 무엇으로 재나", h1="학습 중에 무엇으로 재나: 평가의 신호와 잡음", track="모델",
-        crumb="모델 &gt; 순서와 언어 모델",
+        crumb="모델 &gt; LLM 학습 데이터와 평가",
         one_line="학습 중 평가는 <b>모델끼리 차이(신호)</b>가 <b>체크포인트끼리 흔들림(잡음)</b>보다 훨씬 커야 믿을 수 있어요. 문제가 적거나 너무 쉬운 평가는 신호가 잡음에 묻히고, <b>정답률보다 손실</b>이 더 매끄러워요. 아직 너무 어려운 평가는 신호가 커 보여도 <b>순서가 거꾸로</b>일 수 있어요.",
         why=why, whole=whole, steps=steps, code_file="examples/eval_select/pick_benchmarks.py", practice=practice, libs=libs,
         libs_note="<code>train_with_checkpoints</code>, <code>score</code>, <code>curve</code>, <code>snr</code>, <code>sample_noise</code>, <code>early_agreement</code>는 이 파일 안에서 정의한 함수예요.",

@@ -1,4 +1,4 @@
-"""모델 > 순서와 언어 모델 > 작은 GPT와 디코딩. examples/gpt/tiny_gpt.py 하나가 ①~⑧로 자란다.
+"""모델 > 순서 모델과 Transformer > 작은 GPT와 디코딩. examples/gpt/tiny_gpt.py 하나가 ①~⑧로 자란다.
 NLP with Transformers 5장(텍스트 생성), 10장(밑바닥부터 학습), 6장(요약과 ROUGE)을 합친 쪽.
 실행: HF_HUB_OFFLINE=1 python tools/pages/gpt_gen.py   (CPU로 3분쯤)
 e5 모델을 받아 두지 않은 PC에서는 아무 파일도 바꾸지 않고 끝낸다.
@@ -228,7 +228,7 @@ practice = [("실제 LLM을 처음부터 만든다면", "수천억에서 수조 
 libs = [("①", "<code>Counter</code>, <code>dict.fromkeys</code>", "중복 세기, 빼기"), ("②", "<code>tokenizers</code>: <code>Tokenizer</code>, <code>models.BPE</code>, <code>BpeTrainer</code>, <code>Metaspace</code>", "Tokenizer 학습"),
         ("④⑤", "<code>GPT2Config</code>, <code>GPT2LMHeadModel</code>, <code>OneCycleLR</code>, <code>clip_grad_norm_</code>", "작은 GPT와 학습"), ("⑥⑦", "<code>generate(num_beams, no_repeat_ngram_size, do_sample, temperature, top_k, top_p)</code>", "디코딩"),
         ("⑧", "<code>AutoModel</code>(e5), <code>Counter &amp;</code>", "대표 문장, ROUGE")]
-K.build(ROOT / "topics" / "model" / "gpt-generation.html", title="작은 GPT와 디코딩", h1="작은 GPT를 처음부터: 학습하고, 고르고, 재기", track="모델", crumb="모델 &gt; 순서와 언어 모델",
+K.build(ROOT / "topics" / "model" / "gpt-generation.html", title="작은 GPT와 디코딩", h1="작은 GPT를 처음부터: 학습하고, 고르고, 재기", track="모델", crumb="모델 &gt; 순서 모델과 Transformer",
         one_line="GPT는 글만 있으면 <b>다음 토큰 맞히기</b>로 스스로 배워요. 다 배운 뒤에도 다음 토큰을 <b>어떻게 고르느냐</b>에 따라 글이 달라져요. 가장 그럴듯한 것만 고르면 같은 말을 되풀이하고, 확률대로 뽑으면 다양하지만 엉뚱해져서, 상위 후보만 남겨 뽑는 방법을 많이 써요.",
         why=why, whole=whole, steps=steps, code_file="examples/gpt/tiny_gpt.py", practice=practice, libs=libs,
         libs_note="<code>train_tokenizer</code>, <code>to_blocks</code>, <code>valid_loss</code>, <code>generate</code>, <code>repeat_rate</code>, <code>avg_nll</code>, <code>distinct2</code>, <code>embed</code>, <code>pieces</code>, <code>rouge</code>는 이 파일 안에서 정의한 함수예요.",
