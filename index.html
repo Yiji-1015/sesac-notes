@@ -89,6 +89,7 @@
         <span class="node plain">질문</span><span class="arr">→</span>
         <a class="node backend" href="topics/backend/fastapi.html">API 서버</a><span class="arr">→</span>
         <a class="node backend" href="topics/backend/embedding.html">벡터 검색</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/rag-rerank.html">검색 고치기</a><span class="arr">→</span>
         <a class="node backend" href="topics/backend/prompt-contract.html">Prompt와 Context</a><span class="arr">→</span>
         <a class="node backend" href="topics/backend/llm-client.html">LLM API 호출</a><span class="arr">→</span>
         <a class="node backend" href="topics/backend/rag-service.html">검사와 출처</a><span class="arr">→</span>
@@ -216,6 +217,7 @@
           <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
           <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
           <a class="item" href="topics/backend/rag-service.html"><b>RAG 서비스</b><small>찾은 조각으로 출처가 붙은 답 만들기. LangChain Runnable, Document, 근거 고르기, 구조화 출력 검사, 정보 부족과 실패 구분, FastAPI</small></a>
+          <a class="item" href="topics/backend/rag-rerank.html"><b>RAG 검색 고치기</b><small>실패를 자리별로 나누기, 질문 다시 쓰기, 후보 수와 판 조건, 용어 넓히기와 여러 질문, Cross-Encoder 재정렬, 하나씩 켜서 비교</small></a>
         </div>
         <div class="cat">
           <h3>성능과 하드웨어</h3>
@@ -237,6 +239,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/24</td><td><a href="topics/backend/rag-rerank.html">RAG 검색 고치기</a> 새로 씀: Day27 LangChain RAG와 Reranking. RAG 서비스 쪽 코드를 ⑨~⑯으로 이어 키워요. 가람 도서관 조각을 26개로 늘리고 정답을 미리 정한 질문 6개로 실패를 자리별(통과, 순위 밀림, 후보 밖)로 나눈 뒤, 질문 다시 쓰기(가짜 서버), 후보 수와 판 조건, 용어 넓히기와 여러 질문, bge-reranker-v2-m3 재정렬(GPU)을 하나씩 켜서 정답 순위와 시간을 비교. 재정렬은 후보 밖 정답을 못 데려온다는 것, 점수로는 최신 판을 못 가린다는 것을 실행으로 확인</td></tr>
         <tr><td class="when">11/23</td><td><a href="topics/backend/rag-service.html">RAG 서비스</a> 새로 씀: Day26 Basic RAG와 LangChain. 인덱싱 쪽의 가람 도서관 조각으로 검색, 근거 고르기(후보 수, 넣을 수, 글자 예산), Runnable과 Document, Prompt, ChatOpenAI(가짜 서버), 구조화 출력 묶음 검사, 서비스 조립, FastAPI까지. 출처를 맞게 댄 것과 내용이 맞는 것은 다른 검사라는 것, 정보 부족(200)과 실패(502)를 나누는 것을 실행으로 확인</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/model/codeswitch.html">한국어와 영어가 섞일 때</a> 새로 씀: 이 노트 문장의 코드 스위칭을 세고, 용어집의 한국어와 영어 이름으로 다국어 임베딩의 설명 찾기, 교차 언어 일관성, 조금씩 섞기, 함께 적기를 재기. Upstage 10Talks 10</td></tr>
         <tr><td class="when">11/22</td><td><a href="topics/model/eval-select.html">학습 중에 무엇으로 재나</a> 새로 씀: 크기가 다른 작은 모델 여섯 개의 체크포인트로 평가 넷(작음, 큼, 쉬움, 아직 너무 어려움)의 신호 대 잡음비, 문제 수, 초반 순서, 평가 묶기를 재기. Upstage 10Talks 04 1부</td></tr>

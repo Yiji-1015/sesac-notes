@@ -1,6 +1,6 @@
 # 작업 인계 노트
 
-마지막 정리: 2026-11-20 (커밋 `e5e9bd1` 기준)
+마지막 정리: 2026-11-24 (Day27 RAG 검색 고치기까지)
 
 이 파일은 다음에 작업을 이어받는 사람(또는 AI)이 지금 상태를 바로 알 수 있게 적은 메모예요.
 쓰는 규칙은 [`STYLE.md`](STYLE.md)가 기준이고, 여기에는 **무엇이 바뀌었고 무엇이 남았는지**만 적어요.
@@ -119,6 +119,19 @@
 ---
 
 ## 3. 작업할 때 알아 둘 것
+
+### Day27 (2026-11-24) LangChain RAG와 Reranking
+
+- `topics/backend/rag-rerank.html` "RAG 검색 고치기" (생성기 `tools/pages/rag_rerank.py`). "검색과 RAG" 카테고리의 RAG 서비스 다음, RAG 지도의 "벡터 검색 → 검색 고치기 → Prompt와 Context"
+- 코드는 새 파일이 아니라 `examples/rag/rag_service.py`를 ⑨~⑯으로 이어 키워요(문서 적재 세 쪽이 `ingest.py` 하나를 나눠 쓰는 것과 같아요). RAG 서비스 쪽은 `range [1, 8]`, 이 쪽은 `[9, 16]`. ⑨~⑯용 import 줄은 `#@13`, `#@15` 표시로 위쪽에 있어요
+  - RAG 서비스 쪽 생성기도 다시 돌렸어요(이 쪽으로 가는 링크 추가). 출력 값은 그대로이고, 코드 패널에 ⑨~⑯ 줄이 숨은 채로 들어가요
+- 조각: 인덱싱 쪽 12개 + `examples/rag/data/more_chunks.json` 14개(`tools/make_rag_more.py`로 만든 가상 안내문: 스터디룸, 도서 예약, 프로그램, 기기, 2025년과 2026년 공지). 2025년 공지만 `current: false`
+- 질문 6개와 정답 조각은 ⑨의 `EVAL`. 다시 쓰기는 가짜 서버(`REWRITES`, 미리 정한 값), 재정렬은 `BAAI/bge-reranker-v2-m3`를 **CUDA GPU에서 실제로** 돌려요. GPU가 없으면 ⑬에서 멈춰요(CPU로 바꾸지 않게 해 둠)
+  - 모델은 2026-11-24 사용자 허락으로 받았어요(HF 캐시 약 2.2GB). 이 쪽 전체에 GPU 메모리 최대 약 2.6GB
+  - 빌드: `HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/rag_rerank.py` (1분 안쪽). ⑮의 시간은 실행마다 조금 달라져요(주장은 순서만 `S.claim`으로 확인)
+- 실제로 나온 결과: 다시 쓰기가 후속 질문 둘을, 재정렬이 '안 가면' 질문을, 용어 넓히기가 '상호대차'(e5 11위, 후보 밖)를 고쳐요. 상호대차는 재정렬 1위지만 점수 0.002라 모델도 잘 모름. 2025년과 2026년 공지는 e5와 재정렬 점수가 거의 같아서 판 조건으로 걸러요
+- 원본: `강의자료-원본/Day27_20261124_LangChain_RAG_Reranking.html`. 용어 `terms/day27.json`, 용어집의 Day27 링크는 이 쪽으로
+- 다음 강의(Recall@k, MRR, nDCG 같은 검색 평가)는 ⑨의 `EVAL`과 ⑮의 비교표를 이어 쓰면 돼요
 
 ### Day26 (2026-11-23) Basic RAG와 LangChain
 

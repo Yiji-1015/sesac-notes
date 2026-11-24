@@ -5,8 +5,16 @@ window.PAGE = {
    "s": 1
   },
   {
+   "t": "import math",
+   "s": 13
+  },
+  {
    "t": "import re",
    "s": 5
+  },
+  {
+   "t": "import time",
+   "s": 15
   },
   {
    "t": "from pathlib import Path",
@@ -25,8 +33,16 @@ window.PAGE = {
    "s": 1
   },
   {
+   "t": "import torch",
+   "s": 13
+  },
+  {
    "t": "from sentence_transformers import SentenceTransformer",
    "s": 1
+  },
+  {
+   "t": "from sentence_transformers import CrossEncoder",
+   "s": 13
   },
   {
    "t": "from langchain_core.documents import Document",
@@ -1143,6 +1159,1150 @@ window.PAGE = {
   {
    "t": "api[\"모델 서버 오류\"] = (r.status_code, r.json())",
    "s": 8
+  },
+  {
+   "t": "",
+   "s": 8
+  },
+  {
+   "t": "# ⑨ 조각을 더 넣고 실패 나누기",
+   "s": 9
+  },
+  {
+   "t": "MORE = json.loads((HERE / \"data\" / \"more_chunks.json\").read_text(encoding=\"utf-8\"))  # 스터디룸, 도서 예약, 프로그램, 기기, 연도별 공지",
+   "s": 9
+  },
+  {
+   "t": "CATEGORY.update({\"room.md\": \"이용\", \"holds.md\": \"이용\", \"programs.md\": \"이용\", \"devices.md\": \"이용\",",
+   "s": 9
+  },
+  {
+   "t": "                 \"notice_2025.txt\": \"공지\", \"notice_2026.txt\": \"공지\"})",
+   "s": 9
+  },
+  {
+   "t": "for n, c in enumerate(MORE, start=len(CHUNKS) + 1):",
+   "s": 9
+  },
+  {
+   "t": "    c[\"citation_id\"] = n",
+   "s": 9
+  },
+  {
+   "t": "    c[\"category\"] = CATEGORY[c[\"file\"]]",
+   "s": 9
+  },
+  {
+   "t": "CHUNKS += MORE  # ①의 search_hits는 CHUNKS와 vectors를 읽으니 그대로 26개에서 찾아요",
+   "s": 9
+  },
+  {
+   "t": "vectors = encoder.encode([f\"passage: {c['heading'] or ''}\\n{c['body']}\".strip() for c in CHUNKS], normalize_embeddings=True)",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "def cid(name):  # 제목이나 파일 이름으로 citation_id 찾기",
+   "s": 9
+  },
+  {
+   "t": "    return next(c[\"citation_id\"] for c in CHUNKS if name in (c[\"heading\"], c[\"file\"]))",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "EVAL = [  # 결과를 보기 전에 정해 둔 (앞선 질문들, 질문, 분류, 정답 조각)",
+   "s": 9
+  },
+  {
+   "t": "    ([\"스터디룸은 어떻게 예약해?\"], \"그럼 취소는?\", \"이용\", cid(\"예약 철회\")),",
+   "s": 9
+  },
+  {
+   "t": "    ([\"노트북도 빌릴 수 있어?\"], \"몇 시간까지 쓸 수 있어?\", \"이용\", cid(\"노트북 대여\")),",
+   "s": 9
+  },
+  {
+   "t": "    ([], \"상호대차 신청하면 며칠 걸려요?\", \"이용\", cid(\"다른 도서관 책 받아 보기\")),",
+   "s": 9
+  },
+  {
+   "t": "    ([], \"예약해 놓고 안 가면 어떻게 돼요?\", \"이용\", cid(\"노쇼\")),",
+   "s": 9
+  },
+  {
+   "t": "    ([], \"스터디룸 예약을 철회하려면 어떻게 하나요?\", \"이용\", cid(\"예약 철회\")),",
+   "s": 9
+  },
+  {
+   "t": "    ([], \"책을 잃어버리면 어떻게 하나요?\", \"이용\", cid(\"분실과 훼손\")),",
+   "s": 9
+  },
+  {
+   "t": "]",
+   "s": 9
+  },
+  {
+   "t": "CANDIDATE_K, CONTEXT_K = 10, 3  # 예시 설정: 후보 10개를 찾아 3개를 넣어요",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "def rank_of(gold, ids):  # 정답이 몇 번째인지 (없으면 None)",
+   "s": 9
+  },
+  {
+   "t": "    return ids.index(gold) + 1 if gold in ids else None",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "def diagnose(rank):  # 실패가 어느 단계에서 났나",
+   "s": 9
+  },
+  {
+   "t": "    if rank is None or rank > CANDIDATE_K:",
+   "s": 9
+  },
+  {
+   "t": "        return \"후보 밖\"  # 검색이 못 찾음. 뒤에서 순서를 바꿔도 소용없어요",
+   "s": 9
+  },
+  {
+   "t": "    return \"통과\" if rank <= CONTEXT_K else \"순위 밀림\"  # 찾기는 했는데 넣을 3개 안에 못 들었어요",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "baseline = []",
+   "s": 9
+  },
+  {
+   "t": "for history, question, category, gold in EVAL:",
+   "s": 9
+  },
+  {
+   "t": "    order = [h[\"citation_id\"] for h in search_hits(question, category, k=len(CHUNKS))]  # 분류 안 전체 순서",
+   "s": 9
+  },
+  {
+   "t": "    rank = rank_of(gold, order)",
+   "s": 9
+  },
+  {
+   "t": "    baseline.append({\"question\": question, \"rank\": rank, \"diagnosis\": diagnose(rank), \"top\": order[:CONTEXT_K]})",
+   "s": 9
+  },
+  {
+   "t": "",
+   "s": 9
+  },
+  {
+   "t": "# ⑩ 질문 다시 쓰기: 대화에서 빠진 대상 채우기",
+   "s": 10
+  },
+  {
+   "t": "class SearchQuery(BaseModel):  # 다시 쓰기 모델에게 받을 모양",
+   "s": 10
+  },
+  {
+   "t": "    model_config = ConfigDict(extra=\"forbid\", strict=True)",
+   "s": 10
+  },
+  {
+   "t": "    standalone_query: str",
+   "s": 10
+  },
+  {
+   "t": "    needs_clarification: bool",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "REWRITE_RULES = (\"앞선 질문들을 근거로, 대화를 모르는 사람도 알아듣는 검색용 질문 하나로 다시 쓰세요.\\n\"",
+   "s": 10
+  },
+  {
+   "t": "                 \"대화에 없는 대상, 날짜, 숫자, 조건을 더하지 말고, 기간과 부정 표현은 그대로 두세요.\\n\"",
+   "s": 10
+  },
+  {
+   "t": "                 \"무엇을 가리키는지 대화로 정할 수 없으면 needs_clarification을 true로, standalone_query는 원래 질문 그대로 쓰세요.\")",
+   "s": 10
+  },
+  {
+   "t": "rewrite_prompt = ChatPromptTemplate.from_messages([(\"system\", REWRITE_RULES), (\"human\", \"앞선 질문:\\n{history}\\n\\n현재 질문:\\n{question}\")])",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "REWRITES = {  # 가짜 서버가 돌려줄 미리 정한 다시 쓰기 (실제 모델이 아니에요). 키는 (마지막 앞선 질문, 현재 질문)",
+   "s": 10
+  },
+  {
+   "t": "    (\"스터디룸은 어떻게 예약해?\", \"그럼 취소는?\"): (\"스터디룸 예약을 취소하는 방법은?\", False),",
+   "s": 10
+  },
+  {
+   "t": "    (\"노트북도 빌릴 수 있어?\", \"몇 시간까지 쓸 수 있어?\"): (\"노트북은 몇 시간까지 빌려 쓸 수 있나요?\", False),",
+   "s": 10
+  },
+  {
+   "t": "    (\"스터디룸은 하루에 몇 시간까지 쓸 수 있어?\", \"올해도 똑같아?\"): (\"올해 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?\", False),",
+   "s": 10
+  },
+  {
+   "t": "    (\"(없음)\", \"그거 바꿀 수 있어?\"): (\"그거 바꿀 수 있어?\", True),",
+   "s": 10
+  },
+  {
+   "t": "}",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "def fake_rewriter(request):  # 다시 쓰기 전용 가짜 서버. 표에 없는 질문은 그대로 돌려줘요",
+   "s": 10
+  },
+  {
+   "t": "    payload = json.loads(request.content)",
+   "s": 10
+  },
+  {
+   "t": "    sent.append(payload)",
+   "s": 10
+  },
+  {
+   "t": "    history, question = payload[\"input\"][-1][\"content\"].split(\"앞선 질문:\\n\")[1].split(\"\\n\\n현재 질문:\\n\")",
+   "s": 10
+  },
+  {
+   "t": "    query, unclear = REWRITES.get((history.splitlines()[-1], question), (question, False))",
+   "s": 10
+  },
+  {
+   "t": "    text = json.dumps({\"standalone_query\": query, \"needs_clarification\": unclear}, ensure_ascii=False)",
+   "s": 10
+  },
+  {
+   "t": "    return httpx.Response(200, json=response_body([{\"type\": \"output_text\", \"text\": text, \"annotations\": []}]))",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "rewrite_model = ChatOpenAI(model=\"demo-small-model\", api_key=\"sk-test-not-a-real-key\", use_responses_api=True, output_version=\"responses/v1\",",
+   "s": 10
+  },
+  {
+   "t": "                           timeout=10, max_retries=1, http_client=httpx.Client(transport=httpx.MockTransport(fake_rewriter)))",
+   "s": 10
+  },
+  {
+   "t": "rewrite_chain = rewrite_prompt | rewrite_model.with_structured_output(SearchQuery, method=\"json_schema\", strict=True)",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "TIME_WORDS = (\"올해\", \"작년\", \"내년\", \"오늘\", \"내일\", \"이번 달\")",
+   "s": 10
+  },
+  {
+   "t": "def check_rewrite(question, history, rewritten):  # 대화에 없던 숫자를 더했나, 때를 가리키는 말을 뺐나",
+   "s": 10
+  },
+  {
+   "t": "    source = \" \".join(history + [question])",
+   "s": 10
+  },
+  {
+   "t": "    problems = [f\"없던 숫자 {n}\" for n in re.findall(r\"\\d+\", rewritten) if n not in source]",
+   "s": 10
+  },
+  {
+   "t": "    problems += [f\"빠진 말 {w}\" for w in TIME_WORDS if w in question and w not in rewritten]",
+   "s": 10
+  },
+  {
+   "t": "    return problems",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "def rewrite_step(state):  # 원래 질문은 그대로 두고, 검색용 질문을 따로 적어요",
+   "s": 10
+  },
+  {
+   "t": "    history = \"\\n\".join(state[\"history\"][-6:]) or \"(없음)\"  # 최근 6개만",
+   "s": 10
+  },
+  {
+   "t": "    result = rewrite_chain.invoke({\"history\": history, \"question\": state[\"question\"]})",
+   "s": 10
+  },
+  {
+   "t": "    problems = check_rewrite(state[\"question\"], state[\"history\"], result.standalone_query)",
+   "s": 10
+  },
+  {
+   "t": "    if result.needs_clarification or problems:",
+   "s": 10
+  },
+  {
+   "t": "        return {**state, \"status\": \"needs_clarification\", \"rewrite_problems\": problems}",
+   "s": 10
+  },
+  {
+   "t": "    return {**state, \"status\": \"ready\", \"search_query\": result.standalone_query}",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "rewritten = [rewrite_step({\"history\": h, \"question\": q, \"category\": cat}) for h, q, cat, _ in EVAL[:2]]",
+   "s": 10
+  },
+  {
+   "t": "after_rewrite = [rank_of(gold, [h[\"citation_id\"] for h in search_hits(s[\"search_query\"], cat, k=len(CHUNKS))])",
+   "s": 10
+  },
+  {
+   "t": "                 for s, (_, _, cat, gold) in zip(rewritten, EVAL[:2])]",
+   "s": 10
+  },
+  {
+   "t": "year_case = rewrite_step({\"history\": [\"스터디룸은 하루에 몇 시간까지 쓸 수 있어?\"], \"question\": \"올해도 똑같아?\", \"category\": \"공지\"})",
+   "s": 10
+  },
+  {
+   "t": "unclear_case = rewrite_step({\"history\": [], \"question\": \"그거 바꿀 수 있어?\", \"category\": \"이용\"})",
+   "s": 10
+  },
+  {
+   "t": "rewrite_checks = {text: check_rewrite(\"올해도 똑같아?\", [\"스터디룸은 하루에 몇 시간까지 쓸 수 있어?\"], text)",
+   "s": 10
+  },
+  {
+   "t": "                  for text in (\"올해 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?\", \"2025년 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?\",",
+   "s": 10
+  },
+  {
+   "t": "                               \"스터디룸은 하루에 몇 시간까지 쓸 수 있나요?\")}",
+   "s": 10
+  },
+  {
+   "t": "",
+   "s": 10
+  },
+  {
+   "t": "# ⑪ 후보 모으기: 몇 개를, 어떤 조건으로",
+   "s": 11
+  },
+  {
+   "t": "def search_now(query, category, k):  # 분류에 더해 '지금 유효한 판'인 조각만 k개",
+   "s": 11
+  },
+  {
+   "t": "    hits = search_hits(query, category, k=len(CHUNKS))",
+   "s": 11
+  },
+  {
+   "t": "    return [h for h in hits if CHUNKS[h[\"citation_id\"] - 1].get(\"current\", True)][:k]",
+   "s": 11
+  },
+  {
+   "t": "",
+   "s": 11
+  },
+  {
+   "t": "q3, gold3 = EVAL[2][1], EVAL[2][3]",
+   "s": 11
+  },
+  {
+   "t": "order3 = [h[\"citation_id\"] for h in search_now(q3, \"이용\", k=len(CHUNKS))]",
+   "s": 11
+  },
+  {
+   "t": "k_sweep = {k: gold3 in order3[:k] for k in (3, 5, 10, 20)}  # 후보 수를 바꾸면 정답이 후보에 들어오나",
+   "s": 11
+  },
+  {
+   "t": "year_q = year_case[\"search_query\"]",
+   "s": 11
+  },
+  {
+   "t": "all_versions = search_hits(year_q, \"공지\", k=2)  # 판을 가리지 않으면",
+   "s": 11
+  },
+  {
+   "t": "now_only = search_now(year_q, \"공지\", k=2)  # 지금 유효한 판만",
+   "s": 11
+  },
+  {
+   "t": "",
+   "s": 11
+  },
+  {
+   "t": "# ⑫ 여러 질문으로 찾기: 용어 넓히기와 합치기",
+   "s": 12
+  },
+  {
+   "t": "TERMS = {\"상호대차\": [\"다른 도서관 책 받아 보기\"], \"취소\": [\"철회\"]}  # 도서관 용어집: 사람들이 쓰는 말 → 안내문이 쓰는 말",
+   "s": 12
+  },
+  {
+   "t": "",
+   "s": 12
+  },
+  {
+   "t": "def expand(query):  # 용어집의 말로 바꾼 질문들",
+   "s": 12
+  },
+  {
+   "t": "    return [query.replace(term, alt) for term, alts in TERMS.items() if term in query for alt in alts]",
+   "s": 12
+  },
+  {
+   "t": "",
+   "s": 12
+  },
+  {
+   "t": "def prepare_queries(original, variants, limit=3):  # 원래 질문을 맨 앞에, 같은 질문은 한 번만, 최대 limit개",
+   "s": 12
+  },
+  {
+   "t": "    queries = []",
+   "s": 12
+  },
+  {
+   "t": "    for q in [original, *variants]:",
+   "s": 12
+  },
+  {
+   "t": "        if q.strip() and q.strip() not in queries:",
+   "s": 12
+  },
+  {
+   "t": "            queries.append(q.strip())",
+   "s": 12
+  },
+  {
+   "t": "    return queries[:limit]",
+   "s": 12
+  },
+  {
+   "t": "",
+   "s": 12
+  },
+  {
+   "t": "def multi_search(queries, category, k):  # 질문마다 같은 조건으로 찾고 chunk_id로 합치기",
+   "s": 12
+  },
+  {
+   "t": "    merged, found_by = {}, {}",
+   "s": 12
+  },
+  {
+   "t": "    for q in queries:",
+   "s": 12
+  },
+  {
+   "t": "        for h in search_now(q, category, k):",
+   "s": 12
+  },
+  {
+   "t": "            merged.setdefault(h[\"chunk_id\"], h)  # 처음 찾은 Hit(본문, 출처)를 그대로 둬요",
+   "s": 12
+  },
+  {
+   "t": "            found_by.setdefault(h[\"chunk_id\"], []).append(q)",
+   "s": 12
+  },
+  {
+   "t": "    return list(merged.values()), found_by",
+   "s": 12
+  },
+  {
+   "t": "",
+   "s": 12
+  },
+  {
+   "t": "queries3 = prepare_queries(q3, expand(q3))",
+   "s": 12
+  },
+  {
+   "t": "per_query = {q: [h[\"citation_id\"] for h in search_now(q, \"이용\", 5)] for q in queries3}",
+   "s": 12
+  },
+  {
+   "t": "union3, found3 = multi_search(queries3, \"이용\", 5)",
+   "s": 12
+  },
+  {
+   "t": "",
+   "s": 12
+  },
+  {
+   "t": "# ⑬ 다시 순위 매기기: Cross-Encoder",
+   "s": 13
+  },
+  {
+   "t": "if not torch.cuda.is_available():",
+   "s": 13
+  },
+  {
+   "t": "    raise RuntimeError(\"CUDA GPU가 필요해요\")  # 조용히 CPU로 바꾸지 않아요",
+   "s": 13
+  },
+  {
+   "t": "reranker = CrossEncoder(\"BAAI/bge-reranker-v2-m3\", device=\"cuda:0\")  # 질문과 조각을 함께 읽는 모델",
+   "s": 13
+  },
+  {
+   "t": "",
+   "s": 13
+  },
+  {
+   "t": "def rerank(query, docs):  # 후보마다 (질문, 본문) 짝의 점수 → 높은 순서. 후보 밖 조각은 만들지 않아요",
+   "s": 13
+  },
+  {
+   "t": "    if not docs:",
+   "s": 13
+  },
+  {
+   "t": "        return []",
+   "s": 13
+  },
+  {
+   "t": "    scores = reranker.predict([(query, d.page_content) for d in docs], batch_size=16)",
+   "s": 13
+  },
+  {
+   "t": "    if len(scores) != len(docs) or not all(math.isfinite(float(s)) for s in scores):",
+   "s": 13
+  },
+  {
+   "t": "        raise ValueError(\"invalid rerank scores\")",
+   "s": 13
+  },
+  {
+   "t": "    pairs = sorted(zip(scores, docs), key=lambda p: float(p[0]), reverse=True)",
+   "s": 13
+  },
+  {
+   "t": "    return [Document(page_content=d.page_content, metadata={**d.metadata, \"rerank_score\": round(float(s), 4)}) for s, d in pairs]",
+   "s": 13
+  },
+  {
+   "t": "",
+   "s": 13
+  },
+  {
+   "t": "q4, gold4 = EVAL[3][1], EVAL[3][3]",
+   "s": 13
+  },
+  {
+   "t": "cands4 = hits_to_documents(search_now(q4, \"이용\", CANDIDATE_K))",
+   "s": 13
+  },
+  {
+   "t": "ranked4 = rerank(q4, cands4)",
+   "s": 13
+  },
+  {
+   "t": "logits4 = reranker.predict([(q4, d.page_content) for d in cands4], activation_fn=torch.nn.Identity())  # 0~1로 줄이기 전의 값",
+   "s": 13
+  },
+  {
+   "t": "ranked3 = rerank(q3, hits_to_documents(union3))  # ⑫에서 합친 후보",
+   "s": 13
+  },
+  {
+   "t": "year_scores = rerank(year_q, hits_to_documents(all_versions))  # 2025년, 2026년 공지를 둘 다 넣으면",
+   "s": 13
+  },
+  {
+   "t": "",
+   "s": 13
+  },
+  {
+   "t": "# ⑭ Runnable로 잇기: 단계마다 이름을 붙여 남기기",
+   "s": 14
+  },
+  {
+   "t": "def retrieve_step(state):  # 검색용 질문(넓히기를 켜면 여러 개)으로 후보 모으기",
+   "s": 14
+  },
+  {
+   "t": "    queries = prepare_queries(state[\"search_query\"], expand(state[\"search_query\"]) if state.get(\"use_expand\") else [])",
+   "s": 14
+  },
+  {
+   "t": "    hits, found_by = multi_search(queries, state[\"category\"], state[\"candidate_k\"])",
+   "s": 14
+  },
+  {
+   "t": "    return {**state, \"search_queries\": queries, \"candidate_docs\": hits_to_documents(hits), \"found_by\": found_by}",
+   "s": 14
+  },
+  {
+   "t": "",
+   "s": 14
+  },
+  {
+   "t": "def rerank_step(state):  # 켜져 있으면 재정렬, 꺼져 있으면 검색 순서 그대로",
+   "s": 14
+  },
+  {
+   "t": "    if not state.get(\"use_rerank\", True):",
+   "s": 14
+  },
+  {
+   "t": "        return {**state, \"ranked_docs\": state[\"candidate_docs\"]}",
+   "s": 14
+  },
+  {
+   "t": "    return {**state, \"ranked_docs\": rerank(state[\"search_query\"], state[\"candidate_docs\"])}",
+   "s": 14
+  },
+  {
+   "t": "",
+   "s": 14
+  },
+  {
+   "t": "def context_step(state):  # ③의 build_context로 넣을 조각 고르기",
+   "s": 14
+  },
+  {
+   "t": "    context, included = build_context(state[\"ranked_docs\"], max_items=state[\"context_k\"])",
+   "s": 14
+  },
+  {
+   "t": "    return {**state, \"context\": context, \"included_docs\": included}",
+   "s": 14
+  },
+  {
+   "t": "",
+   "s": 14
+  },
+  {
+   "t": "search_pipeline = (RunnableLambda(rewrite_step) | RunnableLambda(retrieve_step)",
+   "s": 14
+  },
+  {
+   "t": "                   | RunnableLambda(rerank_step) | RunnableLambda(context_step))",
+   "s": 14
+  },
+  {
+   "t": "calls_before = len(sent)  # 이어 붙이기만 한 지금은 아무것도 부르지 않았어요",
+   "s": 14
+  },
+  {
+   "t": "state1 = search_pipeline.invoke({\"history\": EVAL[0][0], \"question\": EVAL[0][1], \"category\": \"이용\",",
+   "s": 14
+  },
+  {
+   "t": "                                 \"candidate_k\": CANDIDATE_K, \"context_k\": CONTEXT_K, \"use_expand\": False, \"use_rerank\": True})",
+   "s": 14
+  },
+  {
+   "t": "calls_after = len(sent)",
+   "s": 14
+  },
+  {
+   "t": "",
+   "s": 14
+  },
+  {
+   "t": "# ⑮ 고치기 전후 비교: 하나씩 켜 보기와 걸린 시간",
+   "s": 15
+  },
+  {
+   "t": "SETTINGS = {\"기준\": (False, False, False), \"다시 쓰기만\": (True, False, False), \"재정렬만\": (False, False, True),",
+   "s": 15
+  },
+  {
+   "t": "            \"다시 쓰기 + 재정렬\": (True, False, True), \"셋 다 (+ 넓히기)\": (True, True, True)}  # (다시 쓰기, 넓히기, 재정렬)",
+   "s": 15
+  },
+  {
+   "t": "",
+   "s": 15
+  },
+  {
+   "t": "def run_search(history, question, category, use_rewrite, use_expand, use_rerank):",
+   "s": 15
+  },
+  {
+   "t": "    state = {\"history\": history, \"question\": question, \"category\": category, \"candidate_k\": CANDIDATE_K, \"context_k\": CONTEXT_K,",
+   "s": 15
+  },
+  {
+   "t": "             \"use_expand\": use_expand, \"use_rerank\": use_rerank, \"status\": \"ready\", \"search_query\": question}",
+   "s": 15
+  },
+  {
+   "t": "    if use_rewrite:",
+   "s": 15
+  },
+  {
+   "t": "        state = rewrite_step(state)",
+   "s": 15
+  },
+  {
+   "t": "    return context_step(rerank_step(retrieve_step(state)))",
+   "s": 15
+  },
+  {
+   "t": "",
+   "s": 15
+  },
+  {
+   "t": "compare = {}",
+   "s": 15
+  },
+  {
+   "t": "for name, flags in SETTINGS.items():",
+   "s": 15
+  },
+  {
+   "t": "    for history, question, category, gold in EVAL:",
+   "s": 15
+  },
+  {
+   "t": "        s = run_search(history, question, category, *flags)",
+   "s": 15
+  },
+  {
+   "t": "        compare[name, question] = rank_of(gold, [d.metadata[\"citation_id\"] for d in s[\"ranked_docs\"]])",
+   "s": 15
+  },
+  {
+   "t": "",
+   "s": 15
+  },
+  {
+   "t": "def timed(name, fn, state, log):  # 단계 하나의 시간. GPU 작업은 끝날 때까지 기다렸다 재요",
+   "s": 15
+  },
+  {
+   "t": "    torch.cuda.synchronize()",
+   "s": 15
+  },
+  {
+   "t": "    start = time.perf_counter()",
+   "s": 15
+  },
+  {
+   "t": "    out = fn(state)",
+   "s": 15
+  },
+  {
+   "t": "    torch.cuda.synchronize()",
+   "s": 15
+  },
+  {
+   "t": "    log.append((name, (time.perf_counter() - start) * 1000))",
+   "s": 15
+  },
+  {
+   "t": "    return out",
+   "s": 15
+  },
+  {
+   "t": "",
+   "s": 15
+  },
+  {
+   "t": "timing = []",
+   "s": 15
+  },
+  {
+   "t": "for _ in range(20):",
+   "s": 15
+  },
+  {
+   "t": "    s = {\"history\": EVAL[0][0], \"question\": EVAL[0][1], \"category\": \"이용\", \"candidate_k\": CANDIDATE_K,",
+   "s": 15
+  },
+  {
+   "t": "         \"context_k\": CONTEXT_K, \"use_expand\": True, \"use_rerank\": True}",
+   "s": 15
+  },
+  {
+   "t": "    for name, fn in ((\"다시 쓰기\", rewrite_step), (\"검색\", retrieve_step), (\"재정렬\", rerank_step), (\"근거 고르기\", context_step)):",
+   "s": 15
+  },
+  {
+   "t": "        s = timed(name, fn, s, timing)",
+   "s": 15
+  },
+  {
+   "t": "rerank_cost = []",
+   "s": 15
+  },
+  {
+   "t": "for k in (5, 10, 17):",
+   "s": 15
+  },
+  {
+   "t": "    docs = hits_to_documents(search_now(q4, \"이용\", k))",
+   "s": 15
+  },
+  {
+   "t": "    for _ in range(20):",
+   "s": 15
+  },
+  {
+   "t": "        timed(k, lambda d: rerank(q4, d), docs, rerank_cost)",
+   "s": 15
+  },
+  {
+   "t": "",
+   "s": 15
+  },
+  {
+   "t": "# ⑯ 서비스와 API로 열기",
+   "s": 16
+  },
+  {
+   "t": "FAKE.update({  # ⑤의 가짜 서버가 새 질문에 쓸 답 문장과 근거 구절 (원래 질문으로 찾아요)",
+   "s": 16
+  },
+  {
+   "t": "    \"그럼 취소는?\": (\"이용 시작 1시간 전까지 홈페이지의 '나의 신청'에서 철회하면 됩니다.\", \"이용 시작 1시간 전까지\"),",
+   "s": 16
+  },
+  {
+   "t": "    \"예약해 놓고 안 가면 어떻게 돼요?\": (\"노쇼로 기록되고, 한 달에 2번 쌓이면 30일 동안 스터디룸을 예약할 수 없습니다.\", \"노쇼로 기록\"),",
+   "s": 16
+  },
+  {
+   "t": "})",
+   "s": 16
+  },
+  {
+   "t": "",
+   "s": 16
+  },
+  {
+   "t": "def make_enhanced_service(rerank_fn=rerank, log=None):",
+   "s": 16
+  },
+  {
+   "t": "    def run(req):",
+   "s": 16
+  },
+  {
+   "t": "        state = {**req, \"status\": \"ready\", \"search_query\": req[\"question\"]}",
+   "s": 16
+  },
+  {
+   "t": "        if req[\"use_rewrite\"]:",
+   "s": 16
+  },
+  {
+   "t": "            try:",
+   "s": 16
+  },
+  {
+   "t": "                state = rewrite_step(state)",
+   "s": 16
+  },
+  {
+   "t": "            except Exception as exc:",
+   "s": 16
+  },
+  {
+   "t": "                raise RagServiceError(\"rewrite_error\") from exc",
+   "s": 16
+  },
+  {
+   "t": "        if state[\"status\"] != \"ready\":  # 무엇을 가리키는지 모르면 찾지 않고 되물어요",
+   "s": 16
+  },
+  {
+   "t": "            return {\"status\": \"needs_clarification\", \"message\": \"어떤 것을 말씀하시는지 알려 주세요.\",",
+   "s": 16
+  },
+  {
+   "t": "                    \"problems\": state.get(\"rewrite_problems\", [])}",
+   "s": 16
+  },
+  {
+   "t": "        try:",
+   "s": 16
+  },
+  {
+   "t": "            state = retrieve_step(state)",
+   "s": 16
+  },
+  {
+   "t": "        except Exception as exc:",
+   "s": 16
+  },
+  {
+   "t": "            raise RagServiceError(\"retrieval_error\") from exc",
+   "s": 16
+  },
+  {
+   "t": "        try:",
+   "s": 16
+  },
+  {
+   "t": "            ranked = rerank_fn(state[\"search_query\"], state[\"candidate_docs\"]) if req[\"use_rerank\"] else state[\"candidate_docs\"]",
+   "s": 16
+  },
+  {
+   "t": "        except Exception as exc:  # 재정렬이 고장 나도 검색 순서로 몰래 바꾸지 않아요",
+   "s": 16
+  },
+  {
+   "t": "            raise RagServiceError(\"rerank_error\") from exc",
+   "s": 16
+  },
+  {
+   "t": "        state = context_step({**state, \"ranked_docs\": ranked})",
+   "s": 16
+  },
+  {
+   "t": "        by_id = index_sources(state[\"included_docs\"])",
+   "s": 16
+  },
+  {
+   "t": "        obj = generate_from_context(state[\"question\"], state[\"context\"], set(by_id))  # 답은 원래 질문으로",
+   "s": 16
+  },
+  {
+   "t": "        if log is not None:",
+   "s": 16
+  },
+  {
+   "t": "            log.append({\"question\": req[\"question\"], \"search_query\": state[\"search_query\"],",
+   "s": 16
+  },
+  {
+   "t": "                        \"candidates\": [d.metadata[\"citation_id\"] for d in state[\"candidate_docs\"]],",
+   "s": 16
+  },
+  {
+   "t": "                        \"included\": list(by_id), \"status\": obj.status})",
+   "s": 16
+  },
+  {
+   "t": "        return {\"status\": obj.status, \"search_query\": state[\"search_query\"], \"result\": obj.model_dump(),",
+   "s": 16
+  },
+  {
+   "t": "                \"sources\": [by_id[i] for i in obj.source_ids]}",
+   "s": 16
+  },
+  {
+   "t": "    return run",
+   "s": 16
+  },
+  {
+   "t": "",
+   "s": 16
+  },
+  {
+   "t": "class EnhancedRagRequest(BaseModel):",
+   "s": 16
+  },
+  {
+   "t": "    model_config = ConfigDict(extra=\"forbid\", strict=True)",
+   "s": 16
+  },
+  {
+   "t": "    question: str = Field(min_length=1, max_length=1000)",
+   "s": 16
+  },
+  {
+   "t": "    category: Literal[\"이용\", \"공지\", \"규정\", \"시설\"]",
+   "s": 16
+  },
+  {
+   "t": "    history: list[str] = Field(default_factory=list, max_length=6)  # 앞선 질문은 최근 6개까지",
+   "s": 16
+  },
+  {
+   "t": "    candidate_k: int = Field(default=10, ge=1, le=20)",
+   "s": 16
+  },
+  {
+   "t": "    context_k: int = Field(default=3, ge=1, le=3)",
+   "s": 16
+  },
+  {
+   "t": "    use_rewrite: bool = True",
+   "s": 16
+  },
+  {
+   "t": "    use_expand: bool = False",
+   "s": 16
+  },
+  {
+   "t": "    use_rerank: bool = True",
+   "s": 16
+  },
+  {
+   "t": "",
+   "s": 16
+  },
+  {
+   "t": "def create_enhanced_app(service):",
+   "s": 16
+  },
+  {
+   "t": "    app = FastAPI()",
+   "s": 16
+  },
+  {
+   "t": "",
+   "s": 16
+  },
+  {
+   "t": "    @app.post(\"/rag/enhanced\")",
+   "s": 16
+  },
+  {
+   "t": "    def rag_enhanced(req: EnhancedRagRequest):",
+   "s": 16
+  },
+  {
+   "t": "        try:",
+   "s": 16
+  },
+  {
+   "t": "            return service(req.model_dump())",
+   "s": 16
+  },
+  {
+   "t": "        except RagServiceError as exc:",
+   "s": 16
+  },
+  {
+   "t": "            raise HTTPException(status_code=502, detail=str(exc)) from exc",
+   "s": 16
+  },
+  {
+   "t": "    return app",
+   "s": 16
+  },
+  {
+   "t": "",
+   "s": 16
+  },
+  {
+   "t": "def broken_reranker(query, docs):",
+   "s": 16
+  },
+  {
+   "t": "    raise RuntimeError(\"CUDA out of memory\")  # GPU 메모리가 모자란 상황",
+   "s": 16
+  },
+  {
+   "t": "",
+   "s": 16
+  },
+  {
+   "t": "enhanced_log = []",
+   "s": 16
+  },
+  {
+   "t": "client2 = TestClient(create_enhanced_app(make_enhanced_service(log=enhanced_log)))",
+   "s": 16
+  },
+  {
+   "t": "broken2 = TestClient(create_enhanced_app(make_enhanced_service(rerank_fn=broken_reranker)))",
+   "s": 16
+  },
+  {
+   "t": "calls2 = {",
+   "s": 16
+  },
+  {
+   "t": "    \"앞선 질문이 있는 후속 질문\": (client2, {\"question\": \"그럼 취소는?\", \"category\": \"이용\", \"history\": [\"스터디룸은 어떻게 예약해?\"]}),",
+   "s": 16
+  },
+  {
+   "t": "    \"가리키는 대상이 없음\": (client2, {\"question\": \"그거 바꿀 수 있어?\", \"category\": \"이용\"}),",
+   "s": 16
+  },
+  {
+   "t": "    \"재정렬 켬\": (client2, {\"question\": \"예약해 놓고 안 가면 어떻게 돼요?\", \"category\": \"이용\"}),",
+   "s": 16
+  },
+  {
+   "t": "    \"재정렬 끔\": (client2, {\"question\": \"예약해 놓고 안 가면 어떻게 돼요?\", \"category\": \"이용\", \"use_rerank\": False}),",
+   "s": 16
+  },
+  {
+   "t": "    \"앞선 질문 7개\": (client2, {\"question\": \"그럼 취소는?\", \"category\": \"이용\", \"history\": [\"스터디룸은 어떻게 예약해?\"] * 7}),",
+   "s": 16
+  },
+  {
+   "t": "    \"candidate_k가 25\": (client2, {\"question\": \"그럼 취소는?\", \"category\": \"이용\", \"candidate_k\": 25}),",
+   "s": 16
+  },
+  {
+   "t": "    \"재정렬 모델 고장\": (broken2, {\"question\": \"그럼 취소는?\", \"category\": \"이용\", \"history\": [\"스터디룸은 어떻게 예약해?\"]}),",
+   "s": 16
+  },
+  {
+   "t": "}",
+   "s": 16
+  },
+  {
+   "t": "api2 = {}",
+   "s": 16
+  },
+  {
+   "t": "for name, (c, body) in calls2.items():",
+   "s": 16
+  },
+  {
+   "t": "    r = c.post(\"/rag/enhanced\", json=body)",
+   "s": 16
+  },
+  {
+   "t": "    api2[name] = (r.status_code, r.json())",
+   "s": 16
   }
  ],
  "names": {
@@ -1153,7 +2313,15 @@ window.PAGE = {
   "5": "Chat Model: 가짜 서버에 붙여 부르기",
   "6": "정해진 모양으로 받고 검사하기",
   "7": "서비스로 조립하기",
-  "8": "API로 열기"
+  "8": "API로 열기",
+  "9": "조각을 더 넣고 실패 나누기",
+  "10": "질문 다시 쓰기: 대화에서 빠진 대상 채우기",
+  "11": "후보 모으기: 몇 개를, 어떤 조건으로",
+  "12": "여러 질문으로 찾기: 용어 넓히기와 합치기",
+  "13": "다시 순위 매기기: Cross-Encoder",
+  "14": "Runnable로 잇기: 단계마다 이름을 붙여 남기기",
+  "15": "고치기 전후 비교: 하나씩 켜 보기와 걸린 시간",
+  "16": "서비스와 API로 열기"
  },
  "range": [
   1,
@@ -1599,5 +2767,5 @@ window.PAGE = {
    "200, 422, 502"
   ]
  ],
- "env": "Python 3.13.16, langchain-core 1.8.4, langchain-openai 1.8.5, openai 3.52.0, fastapi 0.162.2, pydantic 2.14.3, sentence-transformers 6.3.0, intfloat/multilingual-e5-small"
+ "env": "Python 3.13.16, langchain-core 1.8.4, langchain-openai 1.8.5, openai 3.57.0, fastapi 0.141.1, pydantic 2.13.4, sentence-transformers 6.3.0, intfloat/multilingual-e5-small"
 };

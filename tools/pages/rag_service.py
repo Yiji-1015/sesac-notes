@@ -219,7 +219,7 @@ steps = [
     K.step(8, "API로 열기", "FastAPI가 요청 모양을 먼저 검사하고(422), 서비스 안의 실패는 502로 알려요. 정상 답과 정보 부족은 둘 다 200이에요.",
            "<p>요청 모델 <code>RagRequest</code>는 검색에 필요한 조건을 입구에서 확인해요. 질문은 공백만이면 안 되고, 분류는 정해진 넷 중 하나, 후보 수는 1~20, 넣을 수는 1~3이에요. strict라서 숫자 자리에 글자 \"3\"이 오면 바꿔 주지 않고 거부해요.</p>"
            + K.out("t8")
-           + "<p>여기까지가 기본 RAG예요. 다음 단계로 검색을 좋게 하는 방법(질문 다시 쓰기, 키워드 검색과 섞기, 다시 순위 매기기)과, 이 검색을 도구 하나로 쓰는 Agent가 이 흐름 위에 붙어요.</p>"
+           + "<p>여기까지가 기본 RAG예요. 다음 단계로 검색을 좋게 하는 방법(질문 다시 쓰기, 여러 질문으로 찾기, 다시 순위 매기기)은 <a href=\"rag-rerank.html\">RAG 검색 고치기</a>에서 이 코드를 ⑨부터 이어 키워요. 이 검색을 도구 하나로 쓰는 Agent도 이 흐름 위에 붙어요.</p>"
            + K.code_table([("class RagRequest(BaseModel)", "요청 본문의 모양과 범위 (strict)"), ("@field_validator(\"query\")", "공백만인 질문 거부, 앞뒤 공백 빼기"), ("HTTPException(status_code=502, detail=...)", "서비스 실패를 HTTP로"),
                            ("TestClient(app).post(\"/rag/answer\", json=...)", "서버를 띄우지 않고 API 부르기")]), "s8"),
 ]
@@ -237,7 +237,7 @@ K.build(ROOT / "topics" / "backend" / "rag-service.html", title="RAG 서비스",
         one_line="<b>RAG</b>는 질문과 관련된 조각을 <b>찾아서</b> 모델 입력에 <b>보태고</b>, 그걸 근거로 <b>답하게</b> 하는 방식이에요. 모델을 다시 학습시키지 않아요. 서비스로 만들 때 핵심은 셋이에요. 답이 <b>실제로 넣어 준 조각만</b> 출처로 대게 하고, 출처를 맞게 댄 것과 내용이 맞는 것을 다르게 보고, <b>정보 부족</b>과 <b>실패</b>를 다른 응답으로 나눠요.",
         why=why, whole=whole, steps=steps, code_file="examples/rag/rag_service.py", practice=practice, libs=libs,
         libs_note="<code>search_hits</code>, <code>hits_to_documents</code>, <code>retrieve</code>, <code>build_context</code>, <code>fake_answer</code>, <code>validate_answer</code>, <code>check_raw_message</code>, <code>receive_bundle</code>, <code>generate_from_context</code>, <code>index_sources</code>, <code>make_rag_service</code>, <code>create_app</code>은 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"indexing.html\">문서 적재 3. 인덱싱</a>", "이 쪽이 검색하는 조각을 만든 곳"), ("<a href=\"prompt-contract.html\">Prompt와 출력 계약</a>", "출력 모양과 출처 검사 규칙"),
+        next_rows=[("<a href=\"rag-rerank.html\">RAG 검색 고치기</a>", "이 코드를 ⑨~⑯으로 이어서: 질문 다시 쓰기, 여러 질문, 재정렬"), ("<a href=\"indexing.html\">문서 적재 3. 인덱싱</a>", "이 쪽이 검색하는 조각을 만든 곳"), ("<a href=\"prompt-contract.html\">Prompt와 출력 계약</a>", "출력 모양과 출처 검사 규칙"),
                    ("<a href=\"llm-client.html\">LLM API 클라이언트</a>", "SDK로 직접 부르기, 재시도, 비용"), ("<a href=\"llm-judge.html\">LLM으로 답 채점하기</a>", "답이 근거와 맞는지 따로 재기"), ("<a href=\"fastapi.html\">FastAPI 기초</a>", "요청 모델과 응답 코드")],
         sources=["다루는 범위: Day26 (2026-11-23) Basic RAG와 LangChain. Summary, RAG, 미세조정 비교, Hit와 Context, candidate_k와 context_k, 글자 예산, Runnable과 invoke, Document, ChatPromptTemplate, ChatOpenAI와 AIMessage, 구조화 출력 묶음, citation과 grounding, 실패 구분, 서비스 조립과 FastAPI. 수업의 출석, 과제, 시설 문서 대신 이 노트의 가람 도서관 조각으로 같은 흐름을 다시 만들었어요",
                  "예제: <code>examples/rag/rag_service.py</code>. 검색 대상은 <code>examples/ingest/out/chunks.json</code>(문서 적재 1~3쪽의 결과). 분류는 파일마다 붙인 예시 값이에요",

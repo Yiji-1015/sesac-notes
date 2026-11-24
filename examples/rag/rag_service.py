@@ -1,16 +1,23 @@
 # 질문에 출처가 붙은 답을 돌려주는 RAG 서비스 전체 코드. 노트의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
+# ①~⑧은 "RAG 서비스" 쪽, ⑨~⑯은 "RAG 검색 고치기" 쪽이에요. 한 파일이 두 쪽에 걸쳐 자라요.
 # 검색 대상: 문서 읽기 → Chunking → 인덱싱 쪽에서 만든 가람 도서관 조각 12개 (../ingest/out/chunks.json)
+#   ⑨부터는 같은 도서관의 안내 조각 14개(data/more_chunks.json, tools/make_rag_more.py로 만듦)를 더해요.
 # 검색은 intfloat/multilingual-e5-small(이 PC에 받아 둔 것)로 메모리에서 해요. 실제로는 인덱싱 쪽 ⑱의 pgvector 검색 자리예요.
-# 답변은 ChatOpenAI에 가짜 서버(httpx.MockTransport)를 붙여 받아요. OpenAI에는 요청을 보내지 않아요(키, 비용 없음).
+# 재정렬(⑬)은 BAAI/bge-reranker-v2-m3를 CUDA GPU에서 실제로 돌려요.
+# 답변과 질문 다시 쓰기는 ChatOpenAI에 가짜 서버(httpx.MockTransport)를 붙여 받아요. OpenAI에는 요청을 보내지 않아요(키, 비용 없음).
 # 줄 끝의 "#@N" 표시는 노트가 "이 줄은 N단계에서 추가됨"을 알기 위한 표시예요(실행과 무관).
 
 import json                                                      #@1
+import math                                                      #@13
 import re                                                        #@5
+import time                                                      #@15
 from pathlib import Path                                         #@1
 from typing import Literal                                       #@6
 import httpx                                                     #@5
 import numpy as np                                               #@1
+import torch                                                     #@13
 from sentence_transformers import SentenceTransformer            #@1
+from sentence_transformers import CrossEncoder                   #@13
 from langchain_core.documents import Document                    #@2
 from langchain_core.runnables import RunnableLambda              #@2
 from langchain_core.prompts import ChatPromptTemplate            #@4
@@ -290,3 +297,289 @@ for name, (c, body) in calls.items():
 NEXT.extend([("error", None), ("error", None)])
 r = client.post("/rag/answer", json={"query": "대출 기간은 며칠인가요?", "category": "이용"})
 api["모델 서버 오류"] = (r.status_code, r.json())
+
+# ⑨ 조각을 더 넣고 실패 나누기
+MORE = json.loads((HERE / "data" / "more_chunks.json").read_text(encoding="utf-8"))   # 스터디룸, 도서 예약, 프로그램, 기기, 연도별 공지
+CATEGORY.update({"room.md": "이용", "holds.md": "이용", "programs.md": "이용", "devices.md": "이용",
+                 "notice_2025.txt": "공지", "notice_2026.txt": "공지"})
+for n, c in enumerate(MORE, start=len(CHUNKS) + 1):
+    c["citation_id"] = n
+    c["category"] = CATEGORY[c["file"]]
+CHUNKS += MORE                                                   # ①의 search_hits는 CHUNKS와 vectors를 읽으니 그대로 26개에서 찾아요
+vectors = encoder.encode([f"passage: {c['heading'] or ''}\n{c['body']}".strip() for c in CHUNKS], normalize_embeddings=True)
+
+def cid(name):                                                   # 제목이나 파일 이름으로 citation_id 찾기
+    return next(c["citation_id"] for c in CHUNKS if name in (c["heading"], c["file"]))
+
+EVAL = [  # 결과를 보기 전에 정해 둔 (앞선 질문들, 질문, 분류, 정답 조각)
+    (["스터디룸은 어떻게 예약해?"], "그럼 취소는?", "이용", cid("예약 철회")),
+    (["노트북도 빌릴 수 있어?"], "몇 시간까지 쓸 수 있어?", "이용", cid("노트북 대여")),
+    ([], "상호대차 신청하면 며칠 걸려요?", "이용", cid("다른 도서관 책 받아 보기")),
+    ([], "예약해 놓고 안 가면 어떻게 돼요?", "이용", cid("노쇼")),
+    ([], "스터디룸 예약을 철회하려면 어떻게 하나요?", "이용", cid("예약 철회")),
+    ([], "책을 잃어버리면 어떻게 하나요?", "이용", cid("분실과 훼손")),
+]
+CANDIDATE_K, CONTEXT_K = 10, 3                                   # 예시 설정: 후보 10개를 찾아 3개를 넣어요
+
+def rank_of(gold, ids):                                          # 정답이 몇 번째인지 (없으면 None)
+    return ids.index(gold) + 1 if gold in ids else None
+
+def diagnose(rank):                                              # 실패가 어느 단계에서 났나
+    if rank is None or rank > CANDIDATE_K:
+        return "후보 밖"                                          # 검색이 못 찾음. 뒤에서 순서를 바꿔도 소용없어요
+    return "통과" if rank <= CONTEXT_K else "순위 밀림"            # 찾기는 했는데 넣을 3개 안에 못 들었어요
+
+baseline = []
+for history, question, category, gold in EVAL:
+    order = [h["citation_id"] for h in search_hits(question, category, k=len(CHUNKS))]   # 분류 안 전체 순서
+    rank = rank_of(gold, order)
+    baseline.append({"question": question, "rank": rank, "diagnosis": diagnose(rank), "top": order[:CONTEXT_K]})
+
+# ⑩ 질문 다시 쓰기: 대화에서 빠진 대상 채우기
+class SearchQuery(BaseModel):                                    # 다시 쓰기 모델에게 받을 모양
+    model_config = ConfigDict(extra="forbid", strict=True)
+    standalone_query: str
+    needs_clarification: bool
+
+REWRITE_RULES = ("앞선 질문들을 근거로, 대화를 모르는 사람도 알아듣는 검색용 질문 하나로 다시 쓰세요.\n"
+                 "대화에 없는 대상, 날짜, 숫자, 조건을 더하지 말고, 기간과 부정 표현은 그대로 두세요.\n"
+                 "무엇을 가리키는지 대화로 정할 수 없으면 needs_clarification을 true로, standalone_query는 원래 질문 그대로 쓰세요.")
+rewrite_prompt = ChatPromptTemplate.from_messages([("system", REWRITE_RULES), ("human", "앞선 질문:\n{history}\n\n현재 질문:\n{question}")])
+
+REWRITES = {  # 가짜 서버가 돌려줄 미리 정한 다시 쓰기 (실제 모델이 아니에요). 키는 (마지막 앞선 질문, 현재 질문)
+    ("스터디룸은 어떻게 예약해?", "그럼 취소는?"): ("스터디룸 예약을 취소하는 방법은?", False),
+    ("노트북도 빌릴 수 있어?", "몇 시간까지 쓸 수 있어?"): ("노트북은 몇 시간까지 빌려 쓸 수 있나요?", False),
+    ("스터디룸은 하루에 몇 시간까지 쓸 수 있어?", "올해도 똑같아?"): ("올해 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?", False),
+    ("(없음)", "그거 바꿀 수 있어?"): ("그거 바꿀 수 있어?", True),
+}
+
+def fake_rewriter(request):                                      # 다시 쓰기 전용 가짜 서버. 표에 없는 질문은 그대로 돌려줘요
+    payload = json.loads(request.content)
+    sent.append(payload)
+    history, question = payload["input"][-1]["content"].split("앞선 질문:\n")[1].split("\n\n현재 질문:\n")
+    query, unclear = REWRITES.get((history.splitlines()[-1], question), (question, False))
+    text = json.dumps({"standalone_query": query, "needs_clarification": unclear}, ensure_ascii=False)
+    return httpx.Response(200, json=response_body([{"type": "output_text", "text": text, "annotations": []}]))
+
+rewrite_model = ChatOpenAI(model="demo-small-model", api_key="sk-test-not-a-real-key", use_responses_api=True, output_version="responses/v1",
+                           timeout=10, max_retries=1, http_client=httpx.Client(transport=httpx.MockTransport(fake_rewriter)))
+rewrite_chain = rewrite_prompt | rewrite_model.with_structured_output(SearchQuery, method="json_schema", strict=True)
+
+TIME_WORDS = ("올해", "작년", "내년", "오늘", "내일", "이번 달")
+def check_rewrite(question, history, rewritten):                 # 대화에 없던 숫자를 더했나, 때를 가리키는 말을 뺐나
+    source = " ".join(history + [question])
+    problems = [f"없던 숫자 {n}" for n in re.findall(r"\d+", rewritten) if n not in source]
+    problems += [f"빠진 말 {w}" for w in TIME_WORDS if w in question and w not in rewritten]
+    return problems
+
+def rewrite_step(state):                                         # 원래 질문은 그대로 두고, 검색용 질문을 따로 적어요
+    history = "\n".join(state["history"][-6:]) or "(없음)"        # 최근 6개만
+    result = rewrite_chain.invoke({"history": history, "question": state["question"]})
+    problems = check_rewrite(state["question"], state["history"], result.standalone_query)
+    if result.needs_clarification or problems:
+        return {**state, "status": "needs_clarification", "rewrite_problems": problems}
+    return {**state, "status": "ready", "search_query": result.standalone_query}
+
+rewritten = [rewrite_step({"history": h, "question": q, "category": cat}) for h, q, cat, _ in EVAL[:2]]
+after_rewrite = [rank_of(gold, [h["citation_id"] for h in search_hits(s["search_query"], cat, k=len(CHUNKS))])
+                 for s, (_, _, cat, gold) in zip(rewritten, EVAL[:2])]
+year_case = rewrite_step({"history": ["스터디룸은 하루에 몇 시간까지 쓸 수 있어?"], "question": "올해도 똑같아?", "category": "공지"})
+unclear_case = rewrite_step({"history": [], "question": "그거 바꿀 수 있어?", "category": "이용"})
+rewrite_checks = {text: check_rewrite("올해도 똑같아?", ["스터디룸은 하루에 몇 시간까지 쓸 수 있어?"], text)
+                  for text in ("올해 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?", "2025년 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?",
+                               "스터디룸은 하루에 몇 시간까지 쓸 수 있나요?")}
+
+# ⑪ 후보 모으기: 몇 개를, 어떤 조건으로
+def search_now(query, category, k):                              # 분류에 더해 '지금 유효한 판'인 조각만 k개
+    hits = search_hits(query, category, k=len(CHUNKS))
+    return [h for h in hits if CHUNKS[h["citation_id"] - 1].get("current", True)][:k]
+
+q3, gold3 = EVAL[2][1], EVAL[2][3]
+order3 = [h["citation_id"] for h in search_now(q3, "이용", k=len(CHUNKS))]
+k_sweep = {k: gold3 in order3[:k] for k in (3, 5, 10, 20)}       # 후보 수를 바꾸면 정답이 후보에 들어오나
+year_q = year_case["search_query"]
+all_versions = search_hits(year_q, "공지", k=2)                  # 판을 가리지 않으면
+now_only = search_now(year_q, "공지", k=2)                       # 지금 유효한 판만
+
+# ⑫ 여러 질문으로 찾기: 용어 넓히기와 합치기
+TERMS = {"상호대차": ["다른 도서관 책 받아 보기"], "취소": ["철회"]}   # 도서관 용어집: 사람들이 쓰는 말 → 안내문이 쓰는 말
+
+def expand(query):                                               # 용어집의 말로 바꾼 질문들
+    return [query.replace(term, alt) for term, alts in TERMS.items() if term in query for alt in alts]
+
+def prepare_queries(original, variants, limit=3):                # 원래 질문을 맨 앞에, 같은 질문은 한 번만, 최대 limit개
+    queries = []
+    for q in [original, *variants]:
+        if q.strip() and q.strip() not in queries:
+            queries.append(q.strip())
+    return queries[:limit]
+
+def multi_search(queries, category, k):                          # 질문마다 같은 조건으로 찾고 chunk_id로 합치기
+    merged, found_by = {}, {}
+    for q in queries:
+        for h in search_now(q, category, k):
+            merged.setdefault(h["chunk_id"], h)                  # 처음 찾은 Hit(본문, 출처)를 그대로 둬요
+            found_by.setdefault(h["chunk_id"], []).append(q)
+    return list(merged.values()), found_by
+
+queries3 = prepare_queries(q3, expand(q3))
+per_query = {q: [h["citation_id"] for h in search_now(q, "이용", 5)] for q in queries3}
+union3, found3 = multi_search(queries3, "이용", 5)
+
+# ⑬ 다시 순위 매기기: Cross-Encoder
+if not torch.cuda.is_available():
+    raise RuntimeError("CUDA GPU가 필요해요")                     # 조용히 CPU로 바꾸지 않아요
+reranker = CrossEncoder("BAAI/bge-reranker-v2-m3", device="cuda:0")   # 질문과 조각을 함께 읽는 모델
+
+def rerank(query, docs):                                         # 후보마다 (질문, 본문) 짝의 점수 → 높은 순서. 후보 밖 조각은 만들지 않아요
+    if not docs:
+        return []
+    scores = reranker.predict([(query, d.page_content) for d in docs], batch_size=16)
+    if len(scores) != len(docs) or not all(math.isfinite(float(s)) for s in scores):
+        raise ValueError("invalid rerank scores")
+    pairs = sorted(zip(scores, docs), key=lambda p: float(p[0]), reverse=True)
+    return [Document(page_content=d.page_content, metadata={**d.metadata, "rerank_score": round(float(s), 4)}) for s, d in pairs]
+
+q4, gold4 = EVAL[3][1], EVAL[3][3]
+cands4 = hits_to_documents(search_now(q4, "이용", CANDIDATE_K))
+ranked4 = rerank(q4, cands4)
+logits4 = reranker.predict([(q4, d.page_content) for d in cands4], activation_fn=torch.nn.Identity())   # 0~1로 줄이기 전의 값
+ranked3 = rerank(q3, hits_to_documents(union3))                  # ⑫에서 합친 후보
+year_scores = rerank(year_q, hits_to_documents(all_versions))    # 2025년, 2026년 공지를 둘 다 넣으면
+
+# ⑭ Runnable로 잇기: 단계마다 이름을 붙여 남기기
+def retrieve_step(state):                                        # 검색용 질문(넓히기를 켜면 여러 개)으로 후보 모으기
+    queries = prepare_queries(state["search_query"], expand(state["search_query"]) if state.get("use_expand") else [])
+    hits, found_by = multi_search(queries, state["category"], state["candidate_k"])
+    return {**state, "search_queries": queries, "candidate_docs": hits_to_documents(hits), "found_by": found_by}
+
+def rerank_step(state):                                          # 켜져 있으면 재정렬, 꺼져 있으면 검색 순서 그대로
+    if not state.get("use_rerank", True):
+        return {**state, "ranked_docs": state["candidate_docs"]}
+    return {**state, "ranked_docs": rerank(state["search_query"], state["candidate_docs"])}
+
+def context_step(state):                                         # ③의 build_context로 넣을 조각 고르기
+    context, included = build_context(state["ranked_docs"], max_items=state["context_k"])
+    return {**state, "context": context, "included_docs": included}
+
+search_pipeline = (RunnableLambda(rewrite_step) | RunnableLambda(retrieve_step)
+                   | RunnableLambda(rerank_step) | RunnableLambda(context_step))
+calls_before = len(sent)                                         # 이어 붙이기만 한 지금은 아무것도 부르지 않았어요
+state1 = search_pipeline.invoke({"history": EVAL[0][0], "question": EVAL[0][1], "category": "이용",
+                                 "candidate_k": CANDIDATE_K, "context_k": CONTEXT_K, "use_expand": False, "use_rerank": True})
+calls_after = len(sent)
+
+# ⑮ 고치기 전후 비교: 하나씩 켜 보기와 걸린 시간
+SETTINGS = {"기준": (False, False, False), "다시 쓰기만": (True, False, False), "재정렬만": (False, False, True),
+            "다시 쓰기 + 재정렬": (True, False, True), "셋 다 (+ 넓히기)": (True, True, True)}   # (다시 쓰기, 넓히기, 재정렬)
+
+def run_search(history, question, category, use_rewrite, use_expand, use_rerank):
+    state = {"history": history, "question": question, "category": category, "candidate_k": CANDIDATE_K, "context_k": CONTEXT_K,
+             "use_expand": use_expand, "use_rerank": use_rerank, "status": "ready", "search_query": question}
+    if use_rewrite:
+        state = rewrite_step(state)
+    return context_step(rerank_step(retrieve_step(state)))
+
+compare = {}
+for name, flags in SETTINGS.items():
+    for history, question, category, gold in EVAL:
+        s = run_search(history, question, category, *flags)
+        compare[name, question] = rank_of(gold, [d.metadata["citation_id"] for d in s["ranked_docs"]])
+
+def timed(name, fn, state, log):                                 # 단계 하나의 시간. GPU 작업은 끝날 때까지 기다렸다 재요
+    torch.cuda.synchronize()
+    start = time.perf_counter()
+    out = fn(state)
+    torch.cuda.synchronize()
+    log.append((name, (time.perf_counter() - start) * 1000))
+    return out
+
+timing = []
+for _ in range(20):
+    s = {"history": EVAL[0][0], "question": EVAL[0][1], "category": "이용", "candidate_k": CANDIDATE_K,
+         "context_k": CONTEXT_K, "use_expand": True, "use_rerank": True}
+    for name, fn in (("다시 쓰기", rewrite_step), ("검색", retrieve_step), ("재정렬", rerank_step), ("근거 고르기", context_step)):
+        s = timed(name, fn, s, timing)
+rerank_cost = []
+for k in (5, 10, 17):
+    docs = hits_to_documents(search_now(q4, "이용", k))
+    for _ in range(20):
+        timed(k, lambda d: rerank(q4, d), docs, rerank_cost)
+
+# ⑯ 서비스와 API로 열기
+FAKE.update({  # ⑤의 가짜 서버가 새 질문에 쓸 답 문장과 근거 구절 (원래 질문으로 찾아요)
+    "그럼 취소는?": ("이용 시작 1시간 전까지 홈페이지의 '나의 신청'에서 철회하면 됩니다.", "이용 시작 1시간 전까지"),
+    "예약해 놓고 안 가면 어떻게 돼요?": ("노쇼로 기록되고, 한 달에 2번 쌓이면 30일 동안 스터디룸을 예약할 수 없습니다.", "노쇼로 기록"),
+})
+
+def make_enhanced_service(rerank_fn=rerank, log=None):
+    def run(req):
+        state = {**req, "status": "ready", "search_query": req["question"]}
+        if req["use_rewrite"]:
+            try:
+                state = rewrite_step(state)
+            except Exception as exc:
+                raise RagServiceError("rewrite_error") from exc
+        if state["status"] != "ready":                           # 무엇을 가리키는지 모르면 찾지 않고 되물어요
+            return {"status": "needs_clarification", "message": "어떤 것을 말씀하시는지 알려 주세요.",
+                    "problems": state.get("rewrite_problems", [])}
+        try:
+            state = retrieve_step(state)
+        except Exception as exc:
+            raise RagServiceError("retrieval_error") from exc
+        try:
+            ranked = rerank_fn(state["search_query"], state["candidate_docs"]) if req["use_rerank"] else state["candidate_docs"]
+        except Exception as exc:                                 # 재정렬이 고장 나도 검색 순서로 몰래 바꾸지 않아요
+            raise RagServiceError("rerank_error") from exc
+        state = context_step({**state, "ranked_docs": ranked})
+        by_id = index_sources(state["included_docs"])
+        obj = generate_from_context(state["question"], state["context"], set(by_id))   # 답은 원래 질문으로
+        if log is not None:
+            log.append({"question": req["question"], "search_query": state["search_query"],
+                        "candidates": [d.metadata["citation_id"] for d in state["candidate_docs"]],
+                        "included": list(by_id), "status": obj.status})
+        return {"status": obj.status, "search_query": state["search_query"], "result": obj.model_dump(),
+                "sources": [by_id[i] for i in obj.source_ids]}
+    return run
+
+class EnhancedRagRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    question: str = Field(min_length=1, max_length=1000)
+    category: Literal["이용", "공지", "규정", "시설"]
+    history: list[str] = Field(default_factory=list, max_length=6)   # 앞선 질문은 최근 6개까지
+    candidate_k: int = Field(default=10, ge=1, le=20)
+    context_k: int = Field(default=3, ge=1, le=3)
+    use_rewrite: bool = True
+    use_expand: bool = False
+    use_rerank: bool = True
+
+def create_enhanced_app(service):
+    app = FastAPI()
+
+    @app.post("/rag/enhanced")
+    def rag_enhanced(req: EnhancedRagRequest):
+        try:
+            return service(req.model_dump())
+        except RagServiceError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return app
+
+def broken_reranker(query, docs):
+    raise RuntimeError("CUDA out of memory")                    # GPU 메모리가 모자란 상황
+
+enhanced_log = []
+client2 = TestClient(create_enhanced_app(make_enhanced_service(log=enhanced_log)))
+broken2 = TestClient(create_enhanced_app(make_enhanced_service(rerank_fn=broken_reranker)))
+calls2 = {
+    "앞선 질문이 있는 후속 질문": (client2, {"question": "그럼 취소는?", "category": "이용", "history": ["스터디룸은 어떻게 예약해?"]}),
+    "가리키는 대상이 없음": (client2, {"question": "그거 바꿀 수 있어?", "category": "이용"}),
+    "재정렬 켬": (client2, {"question": "예약해 놓고 안 가면 어떻게 돼요?", "category": "이용"}),
+    "재정렬 끔": (client2, {"question": "예약해 놓고 안 가면 어떻게 돼요?", "category": "이용", "use_rerank": False}),
+    "앞선 질문 7개": (client2, {"question": "그럼 취소는?", "category": "이용", "history": ["스터디룸은 어떻게 예약해?"] * 7}),
+    "candidate_k가 25": (client2, {"question": "그럼 취소는?", "category": "이용", "candidate_k": 25}),
+    "재정렬 모델 고장": (broken2, {"question": "그럼 취소는?", "category": "이용", "history": ["스터디룸은 어떻게 예약해?"]}),
+}
+api2 = {}
+for name, (c, body) in calls2.items():
+    r = c.post("/rag/enhanced", json=body)
+    api2[name] = (r.status_code, r.json())
