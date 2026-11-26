@@ -96,6 +96,14 @@
         <span class="node plain">답</span>
       </div>
       <div class="lane">
+        <span class="lname">Agent가 고를 때</span>
+        <span class="node plain">질문</span><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/agent-tools.html">Agent (도구 고르기)</a><span class="arr">→</span>
+        <a class="node backend" href="topics/backend/rag-service.html">RAG 도구</a>
+        <a class="node backend" href="topics/backend/postgres.html">DB 도구</a><span class="arr">→</span>
+        <span class="node plain">답</span>
+      </div>
+      <div class="lane">
         <span class="lname">잘 되는지 잴 때</span>
         <span class="node plain">정답 묶음</span><span class="arr">→</span>
         <a class="node backend" href="topics/backend/rag-eval.html">검색과 답 따로 재기</a><span class="arr">→</span>
@@ -227,6 +235,11 @@
           <a class="item" href="topics/backend/rag-eval.html"><b>RAG 평가</b><small>정답 묶음, Hit@k, Recall@k, Precision@k, MRR, nDCG, 충실성과 정보 부족, 평가 Runner와 JSONL, 하나씩 바꿔 비교, 실패 유형, 품질 게이트</small></a>
         </div>
         <div class="cat">
+          <h3>Agent</h3>
+          <p>모델이 상황을 보고 도구를 골라 부르게 하기. 앞에서 만든 RAG와 DB를 도구로</p>
+          <a class="item" href="topics/backend/agent-tools.html"><b>AI Agent와 도구</b><small>Tool Calling 메시지, @tool과 입력 모양, RAG를 도구로, 읽기 전용 DB 도구와 ToolRuntime, create_agent, 반복 상한, 출처 확인, 회귀 테스트, API</small></a>
+        </div>
+        <div class="cat">
           <h3>성능과 하드웨어</h3>
           <p>같은 코드가 왜 빠르고 느린지, CPU와 메모리 쪽에서 보기</p>
           <a class="item" href="topics/backend/simd-speed.html"><b>SIMD와 메모리</b><small>파이썬 반복문과 NumPy, SIMD 다섯 단계, 자료형 폭과 칸 수, 캐시 줄과 stride, 캐시 크기, 임시 배열과 out=, 마스크로 갈림길 없애기</small></a>
@@ -246,6 +259,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/26</td><td><a href="topics/backend/agent-tools.html">AI Agent와 도구</a> 새로 씀(새 카테고리 "Agent"): Day29 AI Agent Fundamentals와 Tool Calling. RAG를 rag_search 도구로, 노트 전용 PostgreSQL의 예약 표를 읽기 전용 lookup_reservation 도구로 만들어 create_agent로 묶고, Tool Calling 한 바퀴, 반복 상한, 남의 것과 DB 장애, 출처 확인, 회귀 테스트, 인증된 API까지 실행으로 확인</td></tr>
         <tr><td class="when">11/26</td><td><a href="topics/backend/rag-eval.html">RAG 평가</a> 새로 씀: Day28 RAG Evaluation과 Debugging. RAG 서비스와 검색 고치기의 코드를 ⑰~㉔로 이어, 결과 전에 정한 15문항 정답 묶음으로 검색(Hit, Recall, Precision, MRR, nDCG)과 답(충실성, 정답성, 정보 부족)을 따로 재고, 다섯 설정을 질문별로 비교하고, 실패를 고칠 곳으로 나누고, 게이트로 막힘을 확인. 코드 단계 번호를 ㉟까지 쓸 수 있게 늘림</td></tr>
         <tr><td class="when">11/24</td><td><a href="topics/backend/rag-rerank.html">RAG 검색 고치기</a> 새로 씀: Day27 LangChain RAG와 Reranking. RAG 서비스 쪽 코드를 ⑨~⑯으로 이어 키워요. 가람 도서관 조각을 26개로 늘리고 정답을 미리 정한 질문 6개로 실패를 자리별(통과, 순위 밀림, 후보 밖)로 나눈 뒤, 질문 다시 쓰기(가짜 서버), 후보 수와 판 조건, 용어 넓히기와 여러 질문, bge-reranker-v2-m3 재정렬(GPU)을 하나씩 켜서 정답 순위와 시간을 비교. 재정렬은 후보 밖 정답을 못 데려온다는 것, 점수로는 최신 판을 못 가린다는 것을 실행으로 확인</td></tr>
         <tr><td class="when">11/23</td><td><a href="topics/backend/rag-service.html">RAG 서비스</a> 새로 씀: Day26 Basic RAG와 LangChain. 인덱싱 쪽의 가람 도서관 조각으로 검색, 근거 고르기(후보 수, 넣을 수, 글자 예산), Runnable과 Document, Prompt, ChatOpenAI(가짜 서버), 구조화 출력 묶음 검사, 서비스 조립, FastAPI까지. 출처를 맞게 댄 것과 내용이 맞는 것은 다른 검사라는 것, 정보 부족(200)과 실패(502)를 나누는 것을 실행으로 확인</td></tr>

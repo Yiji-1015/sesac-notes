@@ -120,6 +120,17 @@
 
 ## 3. 작업할 때 알아 둘 것
 
+### Day29 (2026-11-26) AI Agent Fundamentals와 Tool Calling
+
+- `topics/backend/agent-tools.html` "AI Agent와 도구" (생성기 `tools/pages/agent_tools.py`). 백엔드에 새 카테고리 "Agent"(검색과 RAG 다음), RAG 지도에 "Agent가 고를 때" 줄
+- 코드는 `examples/rag/rag_service.py`를 ㉕~㉜로 이어 키워요(한 파일이 네 쪽). rag_search는 ⑯의 서비스를 그대로 감싸고, lookup_reservation은 PostgreSQL 예약 표(가상의 회원 둘)를 읽기 전용 연결과 `ToolRuntime[Member]`로 읽어요
+- Agent의 판단(어떤 도구를 부를지, 답 문장)은 ChatOpenAI에 붙인 가짜 서버(`fake_agent_reply`)의 규칙이에요. 도구 실행, DB, RAG(GPU 재정렬), 검사, API는 실제 실행. 응답마다 ID를 다르게 줘야 해요(같으면 langgraph가 앞 메시지를 덮어써요)
+- 빌드에 노트 전용 DB가 필요해요: `NOTES_PG_ENV=<.env> HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/agent_tools.py` (1분쯤, 끝나면 DB를 지워요). 예약 표 시간은 `use_date`와 `start_hour`
+- 이 PC의 venv에 `langchain` 1.5.2(langgraph 1.2.24 같이)를 설치했어요(사용자 허락). `create_agent`, `ToolCallLimitMiddleware`, `ToolRuntime`이 여기 있어요
+- 실제로 나온 동작: 입력 오류와 없는 도구는 멈추지 않고 오류 문장이 ToolMessage로 모델에게 돌아감, 도구 호출 5번째에서 `ToolCallLimitExceededError`, DB 장애는 예외로 올라와 API 502, 본문의 member_id는 422(extra_forbid), 남의 예약과 없는 번호는 같은 not_found_or_forbidden
+- 원본: `강의자료-원본/Day29_20261126_AI_Agent_Tool_Calling.html` (내용은 `globalThis.DAY29_DATA` JSON 안). 용어 `terms/day29.json`(AI Agent는 이미 있어서 6개), 용어집의 Day29 링크는 이 쪽으로
+- 다음 수업 예고(Day29 자료 기준): 11/27 개인 프로젝트, 11/30 LangGraph State, 12/01 보안과 Guardrails, 12/02 MCP
+
 ### Day28 (2026-11-25) RAG Evaluation과 Debugging
 
 - `topics/backend/rag-eval.html` "RAG 평가" (생성기 `tools/pages/rag_eval.py`). "검색과 RAG" 카테고리의 검색 고치기 다음, RAG 지도에 "잘 되는지 잴 때" 줄을 새로 둠

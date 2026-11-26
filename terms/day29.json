@@ -1,0 +1,8 @@
+[
+  {"term":"Tool Calling","aliases":["tool_calls","ToolMessage","bind_tools","function calling","Function Calling"],"full":"Tool Calling","short":"모델이 글 대신 '이 도구를 이 인수로 불러 달라'는 요청(tool_calls)을 돌려주는 기능. 실행은 서버가 하고, 결과는 요청 id를 붙인 ToolMessage로 모델에게 돌려줘요.","analogy":"주문서를 쓰는 손님과, 주문서대로 요리하는 주방.","day":29,"key":true},
+  {"term":"@tool","aliases":["Tool Schema","tool_call_schema","args_schema"],"full":"LangChain @tool","short":"파이썬 함수를 모델이 부를 수 있는 도구로 만드는 데코레이터. 함수 이름이 도구 이름, docstring이 설명, 타입 힌트가 입력 모양(JSON Schema)이 돼요.","analogy":"메뉴판에 요리 이름, 설명, 고를 수 있는 옵션을 적어 두기.","day":29,"key":false},
+  {"term":"ToolRuntime","aliases":["context_schema","runtime.context"],"full":"LangChain ToolRuntime","short":"Agent가 도구를 실행할 때 서버가 넣어 주는 실행 정보(로그인한 사용자 등). 모델에게 보이는 입력 모양에 들어가지 않아서, 누구의 데이터를 읽을지를 모델이 정할 수 없게 해요.","analogy":"주문서에는 없고 주방만 아는 '주문한 손님의 회원 번호'.","day":29,"key":false},
+  {"term":"create_agent","aliases":["agent.invoke"],"full":"langchain.agents.create_agent","short":"모델, 도구, 규칙, 미들웨어를 받아 Agent 루프(호출 요청, 실행, 결과 전달, 반복)를 돌려주는 LangChain 함수. 권한 검사와 결과 확인은 해 주지 않아요.","analogy":"주문을 받아 주방에 넘기고 음식을 다시 손님에게 전하는 홀 매니저.","day":29,"key":false},
+  {"term":"ToolCallLimitMiddleware","aliases":["도구 호출 상한","run_limit","ToolCallLimitExceededError"],"full":"ToolCallLimitMiddleware","short":"한 번의 Agent 실행에서 도구를 부를 수 있는 횟수의 상한. 넘으면 멈추거나 예외를 내서, 같은 조회를 끝없이 되풀이하는 걸 막아요.","analogy":"하루에 쓸 수 있는 법인카드 결제 횟수 한도.","day":29,"key":false},
+  {"term":"Audit Log","aliases":["감사 로그","보안 기록"],"full":"Audit Log","short":"누가 어떤 도구로 무엇에 접근했고 결과가 어땠는지 남기는 보안 기록. 실행 과정을 보는 trace와 달리, 토큰, 키, 개인정보, 원문은 남기지 않아요.","analogy":"건물 출입 기록부. 누가 언제 어느 문을 열었는지만 적어요.","day":29,"key":false}
+]

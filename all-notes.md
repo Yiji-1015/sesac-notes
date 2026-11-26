@@ -6,7 +6,7 @@
 
 ---
 
-# 1부: 주제 페이지 (49쪽)
+# 1부: 주제 페이지 (50쪽)
 
 ---
 
@@ -11725,6 +11725,7 @@ evaluate, cosine, bpr_mf, ease, lightgcn, ndcg_by_group, head_share는 이 파�
 | 그래프 신경망 | 이웃 모으기, 과평활 |
 | 임베딩과 벡터 검색 | 후보 생성 |
 | 생성 모델 | VAE |
+| RAG 평가 | 같은 순위 지표(재현율@k, NDCG)로 검색 결과를 재기 |
 
 ### 원본 자료
 
@@ -16838,8 +16839,10 @@ request_of, run_target, hit_at_k, recall_at_k, precision_at_k, mean, reciprocal_
 |---|---|
 | RAG 검색 고치기 | 여기서 재는 다시 쓰기, 넓히기, 재정렬 |
 | RAG 서비스 | 출처 검사와 정보 부족 응답 |
+| AI Agent와 도구 | 게이트를 넘은 RAG를 도구로 쓰기 |
 | LLM으로 답 채점하기 | 충실성을 LLM에게 채점시킬 때 |
 | 평가지표와 군집 | 분류의 정밀도와 재현율 (이름은 같고 대상이 달라요) |
+| 추천 | 같은 지표(재현율@k, NDCG@10)를 추천 목록에. 대상만 조각에서 아이템으로 |
 
 ### 원본 자료
 
@@ -16850,6 +16853,489 @@ request_of, run_target, hit_at_k, recall_at_k, precision_at_k, mean, reciprocal_
 - 결과 값: tools/pages/rag_eval.py가 단계별로 실제 실행한 결과 (Python 3.13.16, langchain-core 1.8.4, langchain-openai 1.8.5, sentence-transformers 6.3.0, torch 2.14.0+cu130, NVIDIA GeForce RTX 5080 Laptop GPU, intfloat/multilingual-e5-small, BAAI/bge-reranker-v2-m3). 답 문장은 가짜 서버의 미리 정한 값이고, 시간은 PC와 그때의 상태에 따라 달라져요
 
 - 공식 문서: scikit-learn nDCG, Ragas Faithfulness, LangSmith: Evaluate a RAG application
+
+- 실행 환경:
+
+---
+
+## AI Agent와 도구: RAG와 DB를 골라 부르게 하기
+_백엔드 > Agent_  /  페이지: https://yiji-1015.github.io/sesac-notes/topics/backend/agent-tools.html  /  예제 코드: https://github.com/Yiji-1015/sesac-notes/blob/main/examples/rag/rag_service.py  /  실행 환경: Python 3.13.16, langchain 1.5.2, langgraph 1.2.24, langchain-core 1.8.4, langchain-openai 1.8.5, psycopg 3.3.8, fastapi 0.141.1, PostgreSQL 18.6
+
+
+### 💡 한 문장으로
+
+Agent는 모델이 질문을 보고 어떤 도구를 부를지 제안하고, 서버가 그 도구를 실제로 실행해 결과를 돌려주면, 모델이 다시 판단해 답하는 구조예요. 모델은 제안만 하고, 실행, 권한, 반복 상한, 출처 확인은 서버가 해요. 이 쪽은 앞에서 만든 RAG를 도구 하나로, 예약 DB 조회를 또 하나의 도구로 만들어 묶어요.
+
+### 🤔 왜 필요할까?
+
+지금까지의 RAG는 순서가 정해져 있었어요. 질문이 오면 늘 검색하고, 근거를 고르고, 답해요. 그런데 "스터디룸 철회 규정이랑 내 101번 예약 상태"를 물으면, 규정은 문서에 있고 내 예약은 DB에 있어요. 질문마다 필요한 자료가 다르면 "무엇을 조회할지"부터 정해야 해요.
+
+| 방식 | 다음 단계를 누가 정하나 | 맞는 때 |
+|---|---|---|
+| 고정 RAG | 개발자가 검색 → 답 순서를 고정 | 늘 같은 종류의 질문 (규정 문의) |
+| 규칙 Workflow | if/else 같은 정해 둔 조건 | 절차가 분명하고 안정성이 가장 중요할 때 |
+| Tool Calling Agent | 모델이 도구를 부를지, 무엇을 부를지, 언제 답할지 제안 | 질문마다 필요한 자료와 순서가 다를 때 |
+
+AI Agent는 모델이 상황과 쓸 수 있는 도구 목록을 보고 다음 행동(도구 호출 또는 답)을 고르고, 실행 환경이 그 행동을 실제로 해서 결과를 다시 모델에게 주는 구조예요. 역할이 셋으로 나뉘어요.
+
+| 누가 | 하는 일 | 하지 않는 일 |
+|---|---|---|
+| 모델 | 도구 이름과 인수를 제안, 결과를 읽고 답 쓰기 | DB 접속, 실제 실행, 권한 판단 |
+| 도구 (Tool) | 검색, 조회 같은 실제 일을 하는 함수. 이름, 설명, 입력 모양, 결과 약속을 가져요 | 다른 도구 부르기 |
+| 실행 환경 (Harness) | 도구 실행, 결과 전달, 반복 상한, 오류 처리 | 무엇을 부를지 정하기 |
+
+이 쪽은 RAG 서비스, 검색 고치기, RAG 평가에서 키운 RAG를 그대로 도구 하나(rag_search)로 감싸고, PostgreSQL의 예약 표를 읽는 도구(lookup_reservation)를 더해, create_agent로 묶어요. 도구 실행, DB, RAG, 검사, API는 모두 실제로 돌리고, 모델의 판단(무엇을 부를지, 답 문장)만 가짜 서버가 정해 둔 규칙으로 해요. 그래서 이 쪽의 숫자는 "모델이 똑똑한가"가 아니라 요청, 실행, 권한, 오류가 어떻게 흐르나에 대한 거예요.
+
+### 🗺️ 통째로 한 번
+
+도구 둘을 만들고(㉕㉖), Agent 루프를 손으로 한 바퀴 돌려 본 뒤(㉗), create_agent에 맡기고(㉘), 이상한 호출을 막고(㉙), 답을 서버에서 확인하고(㉚), 시나리오로 시험하고(㉛), API로 열어요(㉜). 상자를 누르면 그 단계로 가요.
+
+### 🔎 한 단계씩: 설명과 코드를 나란히
+
+코드의 ㉕ 부분
+
+#### ㉕ RAG를 도구로: 이름, 설명, 입력 모양, 결과 약속
+
+이미 있는 RAG 서비스를 @tool 함수 하나로 감싸요. 모델은 이 도구의 이름, 설명, 입력 모양만 보고 부를지 정해요.
+
+도구는 그냥 함수 이름 목록이 아니라 약속이에요. 모델에게는 이름, 설명, 입력 모양이 보이고, 서버에게는 결과 모양이 약속이에요.
+
+| 약속 | 이 도구에서 | 왜 |
+|---|---|---|
+| 이름 | rag_search | 모델이 고르는 이름 |
+| 설명 | docstring | 언제 쓰고 무엇은 못 하는지. 모델의 선택을 좌우해요 |
+| 입력 모양 | query (필수), category (넷 중 하나) | 이상한 값이 서비스에 닿기 전에 걸러요 |
+| 결과 약속 | answered / insufficient_context, 그리고 오류는 그대로 | 정보 부족과 고장을 섞지 않아요 |
+
+**▶ ㉕ 모델에게 보이는 rag_search (tool_call_schema)**
+
+```
+name: rag_search
+description: 도서관 이용 규정과 안내문을 검색해, 근거가 확인된 답과 출처 번호를 돌려줘요. 회원 개인의 예약 상태는 찾지 못해요.
+parameters: query (글자, 필수), category (이용, 공지, 규정, 시설 중 하나, 기본 이용)
+rag_search.invoke("스터디룸 예약을 철회하려면 어떻게 하나요?") → status answered, 출처 [14] (room.md#전체)
+rag_search.invoke("연체료는 하루에 얼마인가요?", category="규정") → status insufficient_context, 출처 []
+```
+
+모델이 고를 때 보는 이름이에요. 짧고 하는 일이 드러나게 지어요.
+
+설명은 "언제 쓰는지"와 "무엇은 못 하는지"를 같이 적어요. 이 설명을 보고 모델이 개인 예약 질문에 이 도구를 부르지 않게 돼요. 함수의 docstring이 그대로 설명이 돼요.
+
+타입 힌트에서 입력 모양(JSON Schema)이 만들어져요. Literal로 분류를 넷으로 묶어 두면 모델이 다른 값을 넣을 수 없어요.
+
+안쪽은 RAG 검색 고치기 ⑯의 서비스 그대로예요. 결과는 서버가 확인한 출처만 담아 정해진 모양(status, answer, sources)으로 바꿔 돌려줘요.
+
+자료에 답이 없으면 정보 부족이에요. 이건 정상 결과고, 서비스가 고장 나면 이 모양으로 바꾸지 않고 오류를 그대로 올려요.
+
+RAG를 도구로 만드는 방법은 둘이에요. 이 쪽처럼 RAG가 답까지 써서 돌려주는 방식(Answer Tool)은 이미 있는 서비스를 그대로 쓰기 쉬워요. 대신 Agent 모델이 그 답을 다시 쓰면 LLM을 두 번 부르게 돼요. 근거와 출처만 돌려주고 답은 Agent가 쓰게 하는 방식(Evidence Tool)도 있어요. 시간, 비용, 출처 관리 중 무엇이 중요한지로 골라요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| @tool | 함수를 LangChain 도구로. 이름은 함수 이름, 설명은 docstring, 입력 모양은 타입 힌트에서 |
+| rag_search.tool_call_schema.model_json_schema() | 모델에게 보이는 입력 모양 |
+| rag_search.invoke({"query": ..., "category": ...}) | 모델 없이 도구만 직접 실행 |
+
+이 단계까지 실행하면
+
+**▶ ㉕ 모델에게 보이는 rag_search (tool_call_schema)**
+
+```
+name: rag_search
+description: 도서관 이용 규정과 안내문을 검색해, 근거가 확인된 답과 출처 번호를 돌려줘요. 회원 개인의 예약 상태는 찾지 못해요.
+parameters: query (글자, 필수), category (이용, 공지, 규정, 시설 중 하나, 기본 이용)
+rag_search.invoke("스터디룸 예약을 철회하려면 어떻게 하나요?") → status answered, 출처 [14] (room.md#전체)
+rag_search.invoke("연체료는 하루에 얼마인가요?", category="규정") → status insufficient_context, 출처 []
+```
+
+모델이 고를 때 보는 이름이에요. 짧고 하는 일이 드러나게 지어요.
+
+설명은 "언제 쓰는지"와 "무엇은 못 하는지"를 같이 적어요. 이 설명을 보고 모델이 개인 예약 질문에 이 도구를 부르지 않게 돼요. 함수의 docstring이 그대로 설명이 돼요.
+
+타입 힌트에서 입력 모양(JSON Schema)이 만들어져요. Literal로 분류를 넷으로 묶어 두면 모델이 다른 값을 넣을 수 없어요.
+
+안쪽은 RAG 검색 고치기 ⑯의 서비스 그대로예요. 결과는 서버가 확인한 출처만 담아 정해진 모양(status, answer, sources)으로 바꿔 돌려줘요.
+
+자료에 답이 없으면 정보 부족이에요. 이건 정상 결과고, 서비스가 고장 나면 이 모양으로 바꾸지 않고 오류를 그대로 올려요.
+
+코드의 ㉖ 부분
+
+#### ㉖ DB를 도구로: 읽기 전용, 본인 것만
+
+예약 상태처럼 계속 바뀌는 정보는 DB에서 읽어요. 누구의 것을 읽을지는 모델이 아니라 서버가 정해요.
+
+규정은 문서에 있지만, "내 예약이 지금 어떤 상태인가"는 DB의 최신 값이에요. RAG가 대신할 수 없어요. 그래서 두 번째 도구는 PostgreSQL의 예약 표를 읽어요.
+
+DB 도구에서 지킬 것은 셋이에요. ① 모델에게 SQL을 쓰게 하지 않고, 개발자가 쓴 SQL에 값만 %s로 넘겨요. ② 누구의 예약인지(member_id)는 로그인한 서버 값으로 정하고, WHERE에 꼭 넣어요. ③ 읽기만 하는 연결과 계정으로 열어요.
+
+**▶ ㉖ read_reservation(번호, 회원) (노트 전용 PostgreSQL)**
+
+| 누가 | 무엇을 | 결과 |
+|---|---|---|
+| m-001 | 101 | {"status": "ok", "reservation_id": 101, "room": "스터디룸 A", "use_date": "2026-11-28", "start… |
+| m-001 | 202 (남 | {"status": "not_found_or_forbidden", "reservation_id": 202} |
+| m-002 | 202 | {"status": "ok", "reservation_id": 202, "room": "스터디룸 A", "use_date": "2026-11-28", "start… |
+| m-001 | 999 (없는 번호) | {"status": "not_found_or_forbidden", "reservation_id": 999} |
+
+SQL의 WHERE에 member_id = %s가 있어서, 같은 202번이라도 주인(m-002)에게만 보여요.
+
+남의 예약과 없는 번호가 같은 결과(not_found_or_forbidden)예요. "그 번호는 다른 사람 것"이라고 알려 주는 것도 정보가 새는 거라 구별하지 않아요.
+
+LangChain에서는 ToolRuntime으로 ②를 해요. 도구 함수에 runtime: ToolRuntime[Member] 인수를 두면, Agent가 실행할 때 서버가 넘긴 값(context=Member(...))이 들어오고, 모델에게 보이는 입력 모양에서는 빠져요.
+
+**▶ 모델에게 보이는 것과 막히는 것**
+
+```
+lookup_reservation의 입력 모양 → ['reservation_id']만 (runtime은 없음)
+reservation_id=-1 → greater_than_equal
+reservation_id=&#x27;101&#x27; → int_type
+reservation_id=&#x27;101 OR 1=1&#x27; → int_type
+읽기 전용 연결로 UPDATE → ReadOnlySqlTransaction
+```
+
+함수 인수의 runtime: ToolRuntime[Member]는 Agent가 실행할 때 서버가 채워 넣는 자리라, 모델에게 보이는 입력 모양에 없어요. 그래서 모델은 "누구의 예약인지"를 정할 수 없어요.
+
+Pydantic의 Field(ge=1, strict=True)가 음수와 글자를 SQL에 닿기 전에 막아요. "101 OR 1=1" 같은 글자는 정수가 아니라 걸려요. 값이 통과해도 SQL에는 %s 자리로만 넘겨서, 글자가 SQL 문장으로 읽히지 않아요.
+
+연결을 읽기 전용으로 열어 두면 도구 안의 실수로도 바꿀 수 없어요. 실제 서비스에서는 SELECT만 허락된 DB 계정을 따로 써요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| conn.execute(SQL, (reservation_id, member_id)) | 값을 %s 자리로 넘기기 (SQL 문장에 이어 붙이지 않아요) |
+| conn.read_only = True | 이 연결의 트랜잭션을 읽기 전용으로 |
+| ToolRuntime[Member] | 서버가 채워 주는 실행 정보. runtime.context.member_id |
+| @tool(args_schema=LookupArgs) | 입력 모양을 Pydantic 모델로 (범위, strict) |
+
+이 단계까지 실행하면
+
+**▶ 모델에게 보이는 것과 막히는 것**
+
+```
+lookup_reservation의 입력 모양 → ['reservation_id']만 (runtime은 없음)
+reservation_id=-1 → greater_than_equal
+reservation_id=&#x27;101&#x27; → int_type
+reservation_id=&#x27;101 OR 1=1&#x27; → int_type
+읽기 전용 연결로 UPDATE → ReadOnlySqlTransaction
+```
+
+함수 인수의 runtime: ToolRuntime[Member]는 Agent가 실행할 때 서버가 채워 넣는 자리라, 모델에게 보이는 입력 모양에 없어요. 그래서 모델은 "누구의 예약인지"를 정할 수 없어요.
+
+Pydantic의 Field(ge=1, strict=True)가 음수와 글자를 SQL에 닿기 전에 막아요. "101 OR 1=1" 같은 글자는 정수가 아니라 걸려요. 값이 통과해도 SQL에는 %s 자리로만 넘겨서, 글자가 SQL 문장으로 읽히지 않아요.
+
+연결을 읽기 전용으로 열어 두면 도구 안의 실수로도 바꿀 수 없어요. 실제 서비스에서는 SELECT만 허락된 DB 계정을 따로 써요.
+
+코드의 ㉗ 부분
+
+#### ㉗ Tool Calling 한 바퀴를 손으로: 요청 → 실행 → 결과 → 답
+
+모델이 도구 호출을 요청하고, 서버가 실행해 결과를 붙여 다시 물으면, 모델이 답을 써요. 이 한 바퀴가 Agent 루프예요.
+
+메시지가 네 종류예요.
+
+| 메시지 | 누가 만드나 | 담는 것 |
+|---|---|---|
+| SystemMessage | 개발자 | 역할, 규칙 |
+| HumanMessage | 사용자 | 질문 |
+| AIMessage | 모델 | 답 글 또는 tool_calls (도구 이름, 인수, id) |
+| ToolMessage | 실행 환경 | 도구 결과와 tool_call_id (어느 요청의 결과인지) |
+
+**▶ ㉗ 손으로 한 바퀴**
+
+```
+bind_tools 뒤 요청에 실린 tools → ['rag_search', 'lookup_reservation']
+1) 모델의 응답 AIMessage.tool_calls → rag_search({"query": "스터디룸 예약을 철회하려면 어떻게 하나요?", "category": "이용"}) id=call_1_0; lookup_reservation({"reservation_id": 101}) id=call_1_1
+2) 서버가 실행 → ToolMessage(name=rag_search, tool_call_id=call_1_0, content={"status": "answered", "answer": "이용 시작 1시간 전까지 홈페…)
+2) 서버가 실행 → ToolMessage(name=lookup_reservation, tool_call_id=call_1_1, content={"status": "ok", "reservation_id": 101, "room": "스…)
+3) 다시 보낸 요청의 input → ['message', 'function_call', 'function_call', 'function_call_output', 'function_call_output']
+4) 최종 답 → "이용 시작 1시간 전까지 홈페이지의 &#x27;나의 신청&#x27;에서 철회합니다. [출처 14] 101번 예약은 스터디룸 A, 2026-11-28 14시, 상태는 예약됨이에요."
+```
+
+bind_tools는 도구의 이름, 설명, 입력 모양을 요청에 실어 보내기만 해요. 도구를 실행하지는 않아요.
+
+모델은 글 대신 "이 도구를 이 인수로 불러 달라"는 요청을 돌려줘요. 한 번에 둘을 요청할 수도 있어요. 이건 요청일 뿐이라 아직 아무것도 조회되지 않았어요.
+
+실행은 우리 서버가 해요. 허용 목록에 있는 도구인지 보고, 예약 조회에는 모델이 준 인수가 아니라 서버가 아는 회원(m-001)을 넣어요. 결과는 요청의 id를 붙인 ToolMessage가 돼서, 여러 호출이어도 어느 결과가 어느 요청 것인지 짝이 맞아요.
+
+앞의 대화, 모델의 호출 요청, 도구 결과를 모두 붙여 모델을 다시 불러요. 모델 쪽에서 보면 대화가 이어지는 거예요.
+
+도구 결과를 읽은 모델이 답을 써요(여기서는 가짜 서버가 결과를 이어 붙여요). 이 "요청 → 실행 → 결과 → 다시 판단"을 답이 나올 때까지 되풀이하는 것이 Agent 루프예요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| model.bind_tools([...]) | 도구 목록을 요청에 싣는 모델 (실행은 안 해요) |
+| ai_message.tool_calls | [{name, args, id}, ...] |
+| ToolMessage(content, tool_call_id, name) | 도구 결과를 요청 id와 짝지어 돌려주기 |
+
+이 단계까지 실행하면
+
+**▶ ㉗ 손으로 한 바퀴**
+
+```
+bind_tools 뒤 요청에 실린 tools → ['rag_search', 'lookup_reservation']
+1) 모델의 응답 AIMessage.tool_calls → rag_search({"query": "스터디룸 예약을 철회하려면 어떻게 하나요?", "category": "이용"}) id=call_1_0; lookup_reservation({"reservation_id": 101}) id=call_1_1
+2) 서버가 실행 → ToolMessage(name=rag_search, tool_call_id=call_1_0, content={"status": "answered", "answer": "이용 시작 1시간 전까지 홈페…)
+2) 서버가 실행 → ToolMessage(name=lookup_reservation, tool_call_id=call_1_1, content={"status": "ok", "reservation_id": 101, "room": "스…)
+3) 다시 보낸 요청의 input → ['message', 'function_call', 'function_call', 'function_call_output', 'function_call_output']
+4) 최종 답 → "이용 시작 1시간 전까지 홈페이지의 &#x27;나의 신청&#x27;에서 철회합니다. [출처 14] 101번 예약은 스터디룸 A, 2026-11-28 14시, 상태는 예약됨이에요."
+```
+
+bind_tools는 도구의 이름, 설명, 입력 모양을 요청에 실어 보내기만 해요. 도구를 실행하지는 않아요.
+
+모델은 글 대신 "이 도구를 이 인수로 불러 달라"는 요청을 돌려줘요. 한 번에 둘을 요청할 수도 있어요. 이건 요청일 뿐이라 아직 아무것도 조회되지 않았어요.
+
+실행은 우리 서버가 해요. 허용 목록에 있는 도구인지 보고, 예약 조회에는 모델이 준 인수가 아니라 서버가 아는 회원(m-001)을 넣어요. 결과는 요청의 id를 붙인 ToolMessage가 돼서, 여러 호출이어도 어느 결과가 어느 요청 것인지 짝이 맞아요.
+
+앞의 대화, 모델의 호출 요청, 도구 결과를 모두 붙여 모델을 다시 불러요. 모델 쪽에서 보면 대화가 이어지는 거예요.
+
+도구 결과를 읽은 모델이 답을 써요(여기서는 가짜 서버가 결과를 이어 붙여요). 이 "요청 → 실행 → 결과 → 다시 판단"을 답이 나올 때까지 되풀이하는 것이 Agent 루프예요.
+
+코드의 ㉘ 부분
+
+#### ㉘ create_agent로 묶기
+
+모델, 도구, 규칙을 넘기면 ㉗의 루프(요청, 실행, 결과 전달, 끝날 때까지 반복)를 대신 돌려줘요.
+
+create_agent(model, tools, system_prompt, context_schema, middleware)가 Agent를 만들어요. agent.invoke({"messages": [...]}, context=Member(...))로 부르면 모델이 도구 호출을 멈추고 답할 때까지 루프를 돌아요. 권한 검사나 결과 확인까지 해 주지는 않아서, 그건 여전히 도구 안과 서버(㉙㉚)에서 해요.
+
+**▶ ㉘ agent.invoke(질문, context=Member("m-001")) 네 번**
+
+| 질문 | 메시지 순서 | 부른 도구 | 최종 답 (final_text) |
+|---|---|---|---|
+| 스터디룸 예약을 철회하려면 어떻게 해? | Human → AI → Tool → AI | rag_search | 이용 시작 1시간 전까지 홈페이지의 &#x27;나의 신청&#x27;에서 철회합니다. [출처 14] |
+| 내 101번 예약 어떻게 됐어? | Human → AI → Tool → AI | lookup_reservation | 101번 예약은 스터디룸 A, 2026-11-28 14시, 상태는 예약됨이에요. |
+| 스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알려줘 | Human → AI → Tool → Tool → AI | rag_search, lookup_reservation | 이용 시작 1시간 전까지 홈페이지의 &#x27;나의 신청&#x27;에서 철회합니다. [출처 14] 101번 예약은 스터디룸 A, 2026-11-28 14시, 상태는 예약됨이에요. |
+| 안녕 | Human → AI | 없음 | 도서관 규정이나 내 예약을 물어봐 주세요. |
+
+규정만 물으면 rag_search 하나, 내 예약만 물으면 lookup_reservation 하나, 둘 다 물으면 둘, 인사에는 도구 없이 바로 답했어요. 몇 개를 부를지는 모델이 정해서, "이 질문엔 꼭 두 번"이라고 가정하면 안 돼요.
+
+결과는 답 글 하나가 아니라 메시지 목록이에요. 맨 뒤의 "도구 호출이 없는 AIMessage"가 답이에요. 중간의 ToolMessage는 실행 기록이라, 출처 확인(㉚)에 써요.
+
+둘을 한 번에 요청하면 두 도구가 함께 실행돼서, 끝나는 순서는 매번 다를 수 있어요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| create_agent(model=..., tools=[...], system_prompt=..., context_schema=Member, middleware=[...]) | Agent 만들기 |
+| agent.invoke({"messages": [...]}, context=Member("m-001")) | 질문 하나 실행. 결과는 {"messages": [...]} |
+| final_text(messages) | 맨 뒤의 도구 호출 없는 AIMessage 글 |
+
+이 단계까지 실행하면
+
+코드의 ㉙ 부분
+
+#### ㉙ 안전장치: 잘못된 인수, 남의 것, 없는 도구, 반복, DB 장애
+
+모델이 이상한 호출을 해도 서버에서 걸러지고, 끝없이 돌지 않고, 고장은 고장으로 올라오는지 봐요.
+
+도구 실패는 하나로 뭉치면 안 돼요. 어디서 실패했는지에 따라 다시 시도할지, 멈출지, 사용자에게 뭐라고 할지가 달라요.
+
+**▶ ㉙ 가짜 모델이 이상한 호출을 하면**
+
+| 경우 | 무슨 일이 일어났나 | 결과 (모델이 본 것 또는 오류) |
+|---|---|---|
+| 잘못된 인수 (-1) | 입력 모양 검사에서 걸려, 오류 문장이 ToolMessage로 모델에게 돌아감 | 답함: Error invoking tool &#x27;lookup_reservation&#x27; with kwargs {&#x27;reservation_id&#x27;: -1} with… |
+| 남의 예약 (202) | 정상 실행, SQL이 본인 것만 읽어서 결과 없음 | 답함: {"status": "not_found_or_forbidden", "reservation_id": 202} |
+| 없는 도구 | 등록되지 않은 이름이라 실행 안 함, 오류 문장이 모델에게 돌아감 | 답함: Error: delete_reservation is not a valid tool, try one of [rag_search, lookup_re… |
+| 같은 도구를 계속 | 다섯 번째 호출에서 상한(4번)에 걸려 실행 전체가 멈춤 | 중단: ToolCallLimitExceededError: Tool call limit reached: run limit exceeded (5/4 cal… |
+| DB 장애 | 도구 안의 예외가 그대로 올라와 실행이 멈춤 | 중단: RuntimeError: db_unavailable |
+
+입력 오류와 없는 도구는 create_agent가 실행을 멈추지 않고 "고쳐서 다시 해 보라"는 문장을 모델에게 돌려줘요. 모델이 다시 시도할 수 있게 하려는 거예요. 그래서 반복 상한이 꼭 있어야 해요.
+
+ToolCallLimitMiddleware(run_limit=4, exit_behavior="error")는 한 번의 실행에서 도구 호출이 4번을 넘으면 예외로 멈춰요. 같은 조회를 끝없이 되풀이해 비용이 쌓이는 걸 막아요. 도구별 상한(tool_name=)도 따로 걸 수 있어요.
+
+남의 예약은 실패가 아니라 정상 결과예요. 권한은 Prompt로 "남의 것은 보지 마"라고 부탁하는 게 아니라 서버의 SQL에서 막아요.
+
+DB 장애는 "예약이 없음"으로 바꾸지 않고 오류로 올려요. 사용자에게 "예약이 없어요"라고 잘못 말하는 것보다 "지금 조회할 수 없어요"가 맞으니까요(㉜에서 502).
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| ToolCallLimitMiddleware(run_limit=4, exit_behavior="error") | 한 번 실행에 도구 호출 4번까지 |
+| ToolCallLimitExceededError | 상한을 넘었을 때의 예외 |
+
+이 단계까지 실행하면
+
+코드의 ㉚ 부분
+
+#### ㉚ 서버에서 결과 확인하기: 출처와 기록
+
+Agent의 마지막 답을 그대로 믿지 않고, 이번 실행에서 실제로 확인된 출처와 대조하고, 보안 기록을 남겨요.
+
+**▶ ㉚ validate_agent_answer와 보안 기록**
+
+```
+"스터디룸 예약을 철회하려면 어떻게 해?" → 답의 출처 [14], 이번 실행에서 확인된 출처 [14], 통과 True
+"내 101번 예약 어떻게 됐어?" → 답의 출처 [], 이번 실행에서 확인된 출처 [], 통과 True
+"스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알…" → 답의 출처 [14], 이번 실행에서 확인된 출처 [14], 통과 True
+"안녕" → 답의 출처 [], 이번 실행에서 확인된 출처 [], 통과 True
+출처를 지어낸 답 "… [출처 99]" → 확인 안 된 출처 [99]
+보안 기록 → {"request_id": "req-001", "actor": "b1bfdd3b4c", "tool": "lookup_reservation", "status": "ok"}
+보안 기록 → {"request_id": "req-001", "actor": "b1bfdd3b4c", "tool": "rag_search", "status": "answered"}
+```
+
+답에 붙은 출처 번호를 모델의 말이 아니라 이번 실행에서 rag_search가 실제로 돌려준 번호(서버가 따로 남긴 TOOL_LEDGER)와 대조해요. RAG 서비스 ⑥의 "넣은 조각만 출처로"를 Agent에 옮긴 거예요.
+
+모델이 그럴듯한 출처 번호를 지어내도 이번 실행 기록에 없으면 걸려요. 내용이 그 출처와 맞는지(충실성)는 RAG 평가 ⑳처럼 따로 재요.
+
+실행 기록(trace)은 개발할 때 "어떻게 실행됐나"를 보려는 것이고, 보안 기록(audit)은 "누가 어떤 도구로 무엇에 접근했나"를 남기는 거예요. 보안 기록에는 회원 ID를 해시로 바꾸고, 질문 원문, 토큰, 키는 남기지 않아요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| validate_agent_answer(answer, ledger) | 답의 [출처 n]이 이번 실행에서 rag_search가 돌려준 번호 안에 있나 |
+| audit_record(request_id, member_id, ledger) | 누가(해시), 어떤 도구를, 결과가 어땠나 |
+| hashlib.sha256(...).hexdigest()[:10] | 회원 ID를 그대로 남기지 않기 |
+
+이 단계까지 실행하면
+
+**▶ ㉚ validate_agent_answer와 보안 기록**
+
+```
+"스터디룸 예약을 철회하려면 어떻게 해?" → 답의 출처 [14], 이번 실행에서 확인된 출처 [14], 통과 True
+"내 101번 예약 어떻게 됐어?" → 답의 출처 [], 이번 실행에서 확인된 출처 [], 통과 True
+"스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알…" → 답의 출처 [14], 이번 실행에서 확인된 출처 [14], 통과 True
+"안녕" → 답의 출처 [], 이번 실행에서 확인된 출처 [], 통과 True
+출처를 지어낸 답 "… [출처 99]" → 확인 안 된 출처 [99]
+보안 기록 → {"request_id": "req-001", "actor": "b1bfdd3b4c", "tool": "lookup_reservation", "status": "ok"}
+보안 기록 → {"request_id": "req-001", "actor": "b1bfdd3b4c", "tool": "rag_search", "status": "answered"}
+```
+
+답에 붙은 출처 번호를 모델의 말이 아니라 이번 실행에서 rag_search가 실제로 돌려준 번호(서버가 따로 남긴 TOOL_LEDGER)와 대조해요. RAG 서비스 ⑥의 "넣은 조각만 출처로"를 Agent에 옮긴 거예요.
+
+모델이 그럴듯한 출처 번호를 지어내도 이번 실행 기록에 없으면 걸려요. 내용이 그 출처와 맞는지(충실성)는 RAG 평가 ⑳처럼 따로 재요.
+
+실행 기록(trace)은 개발할 때 "어떻게 실행됐나"를 보려는 것이고, 보안 기록(audit)은 "누가 어떤 도구로 무엇에 접근했나"를 남기는 거예요. 보안 기록에는 회원 ID를 해시로 바꾸고, 질문 원문, 토큰, 키는 남기지 않아요.
+
+코드의 ㉛ 부분
+
+#### ㉛ 회귀 테스트: 바꿀 때마다 같은 시나리오로
+
+정상, 복합, 남의 것, 자료에 없는 질문, 도구가 필요 없는 질문을 시나리오로 정해 두고, 도구 선택과 답과 출처를 함께 확인해요.
+
+**▶ ㉛ 회귀 테스트 일곱 개**
+
+| 시나리오 | 부른 도구 | 도구 선택 | 답 내용 | 출처 확인 |
+|---|---|---|---|---|
+| 규정만 | rag_search | 통과 | 통과 | 통과 |
+| 내 예약만 | lookup_reservation | 통과 | 통과 | 통과 |
+| 둘 다 | lookup_reservation, rag_search | 통과 | 통과 | 통과 |
+| 남의 예약 | lookup_reservation | 통과 | 통과 | 통과 |
+| 주인은 보임 | lookup_reservation | 통과 | 통과 | 통과 |
+| 자료에 없는 규정 | rag_search | 통과 | 통과 | 통과 |
+| 도구가 필요 없음 | 없음 | 통과 | 통과 | 통과 |
+
+Agent는 답 문장만 보면 안 되고, 어떤 도구를 불렀는지까지 봐야 해요. 규정 질문에 DB만 보고 답했다면 문장이 그럴듯해도 실패예요.
+
+Prompt, 도구 설명, 모델을 바꿀 때마다 같은 시나리오를 다시 돌려요. 이 쪽은 가짜 모델이라 늘 통과하지만, 실제 모델은 판마다 도구 선택이 달라질 수 있어서 이 표가 가장 먼저 깨지는 곳이에요. 검색과 답의 품질은 RAG 평가의 지표로 따로 재요.
+
+실제 모델로 돌릴 때는 같은 시나리오를 여러 번 돌려 도구 선택이 흔들리는지도 봐요. 이 표에 DB 장애, 반복 상한(㉙)도 함께 넣어 두면, 오류 처리가 바뀌었을 때도 바로 알 수 있어요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| SCENARIOS = [(이름, 질문, 회원, 호출돼야 할 도구, 통과 조건), ...] | 시나리오 표 |
+| {c["name"] for m in msgs if isinstance(m, AIMessage) for c in m.tool_calls} | 이번 실행에서 부른 도구들 |
+
+이 단계까지 실행하면
+
+코드의 ㉜ 부분
+
+#### ㉜ API로 열기
+
+FastAPI가 로그인한 회원을 정하고, Agent를 부르고, 확인을 못 넘긴 답은 내보내지 않아요.
+
+Agent를 API로 열 때의 순서예요. ① 인증으로 회원을 정해요(본문에서 받지 않아요). ② 질문 모양을 검사해요. ③ agent.invoke(..., context=Member(회원))로 실행해요. ④ 답의 출처를 확인해요(㉚). ⑤ 실패를 HTTP 코드로 나눠요.
+
+**▶ ㉜ TestClient로 POST /agent/ask**
+
+| 요청 | HTTP | 응답 요약 |
+|---|---|---|
+| 로그인 없음 | 401 | detail "login_required" |
+| 회원 a의 둘 다 | 200 | tools ['lookup_reservation', 'rag_search'], sources [14], answer "이용 시작 1시간 전까지 홈페이지의 &#x27;나의 신청&#x27;에서 철회합니다. [출처…" |
+| 회원 a가 202번 | 200 | tools ['lookup_reservation'], sources [], answer "202번 예약은 찾을 수 없어요." |
+| 본문에 member_id | 422 | extra_forbidden at body.member_id |
+| 빈 질문 | 422 | string_too_short at body.question |
+| DB 장애 | 502 | detail "agent_error" |
+
+회원은 요청 본문이 아니라 인증 단계(여기서는 X-Member-Token 헤더를 토큰표에서 찾는 예시)에서 정해요. 로그인이 없으면 Agent를 부르기도 전에 401이에요.
+
+본문에 member_id를 넣어 남의 예약을 보려 하면, 요청 모양에 없는 칸이라 422로 막혀요(extra="forbid"). 신원을 본문에서 받지 않는 게 핵심이에요.
+
+DB가 멈추면 502예요. 반복 상한에 걸리거나 출처 확인을 못 넘긴 답도 502로 막아서, 확인되지 않은 답이 사용자에게 가지 않게 해요.
+
+여기서 다음으로 이어지는 주제는 여러 단계와 상태를 그래프로 다루는 LangGraph, Prompt Injection 같은 보안, 도구를 표준 방식으로 붙이는 MCP예요.
+
+코드 읽기
+
+| 코드 | 뜻 |
+|---|---|
+| Depends(current_member) | 인증 함수를 거쳐 회원을 받기 |
+| Header(default=None) | 요청 헤더 값 읽기 |
+| model_config = ConfigDict(extra="forbid") | 모양에 없는 칸(member_id)이 오면 422 |
+
+이 단계까지 실행하면
+
+examples/rag/rag_service.py
+
+이 단계에서 추가된 줄앞 단계에서 만든 줄
+
+```
+
+```
+
+### 🛠️ 실제로 할 때
+
+| 상황 | 어떻게 |
+|---|---|
+| 도구 설명이 곧 라우팅 | 모델은 이름, 설명, 입력 모양만 보고 고르니까, 설명에 "무엇은 못 한다"까지 적어요. 비슷한 도구가 둘이면 설명으로 경계를 분명히 해요. |
+| 신원은 서버에서 | user_id, member_id 같은 값은 도구 인수로 받지 않고 ToolRuntime이나 서버 변수로 넣어요. 모델 인수로 받으면 프롬프트 한 줄로 남의 정보를 볼 수 있어요. |
+| DB 도구는 읽기부터 | 처음엔 SELECT만 허락된 계정, 정해 둔 SQL, 값 바인딩으로 시작해요. 바꾸는 도구(예약 취소 같은)는 사용자 확인 단계를 따로 둬요. |
+| 반복 상한은 필수 | 입력 오류나 없는 도구는 모델에게 돌아가 다시 시도하게 되니까, 실행 전체와 도구별 호출 수에 상한을 걸어요. 시간과 비용 상한도 따로 둬요. |
+| 정보 부족과 고장을 나누기 | "자료에 없음", "남의 것이라 안 보임", "DB 장애", "인증 실패"는 다른 상태예요. 고장을 '없음'으로 바꾸면 사용자에게 틀린 답을 주게 돼요. |
+| 답을 그대로 믿지 않기 | Agent의 마지막 문장은 모델이 쓴 글이에요. 출처, 부른 도구, 도구 결과를 서버의 실행 기록과 대조한 뒤 내보내요. |
+| 기록은 최소한으로 | 실행 기록에는 단계와 시간, 보안 기록에는 누가 어떤 도구를 썼는지만 남기고, 토큰, 키, 개인정보, 문서 원문은 남기지 않아요. |
+
+### 📦 이 코드에 쓴 라이브러리
+
+| 단계 | 함수 | 하는 일 |
+|---|---|---|
+| ㉕ | @tool, tool_call_schema, invoke | 도구 만들기 (langchain) |
+| ㉖ | psycopg.connect, read_only, ToolRuntime, Field | 읽기 전용 DB 도구 |
+| ㉗ | bind_tools, tool_calls, ToolMessage | Tool Calling 메시지 |
+| ㉘ | create_agent, agent.invoke | Agent (langchain, langgraph 위에서 동작) |
+| ㉙ | ToolCallLimitMiddleware, ToolCallLimitExceededError | 반복 상한 |
+| ㉚ | hashlib.sha256, re.findall | 출처 대조, 보안 기록 |
+| ㉜ | Depends, Header, HTTPException, TestClient | API |
+
+normalize_rag, rag_search, read_reservation, lookup_reservation, fake_agent_reply, fake_agent_server, dispatch, run_agent, final_text, call_with, validate_agent_answer, audit_record, current_member, create_agent_app은 이 파일 안에서 정의한 함수예요.
+
+### 이어서 볼 주제
+
+| 주제 | 연결 |
+|---|---|
+| RAG 서비스 | rag_search 안쪽의 검색, 근거, 출처 검사 |
+| RAG 평가 | 도구가 돌려주는 답의 품질 재기 |
+| PostgreSQL 기초 | 표, 조회, 트랜잭션 |
+| LLM API 클라이언트 | 모델 호출, 구조화 출력, 실패 |
+
+### 원본 자료
+
+- 다루는 범위: Day29 (2026-11-26) AI Agent Fundamentals와 Tool Calling. 고정 RAG, Workflow, Agent 비교, Agent 루프, Tool Calling 메시지(tool_calls, ToolMessage, bind_tools), @tool과 입력 모양, RAG를 도구로(Answer Tool과 Evidence Tool), PostgreSQL 읽기 전용 도구와 ToolRuntime, create_agent, 신뢰성(입력, 권한, 반복 상한, 실패 구분, 결과 확인, trace와 audit), 회귀 테스트, FastAPI 연결. 수업의 과제 제출 상태 대신 이 노트의 스터디룸 예약으로 같은 흐름을 다시 만들었어요
+
+- 예제: examples/rag/rag_service.py의 ㉕~㉜. 예약 표는 예시 데이터(가상의 회원 둘)이고, 노트 전용 DB에 만들었다가 빌드가 끝나면 지워요
+
+- 결과 값: tools/pages/agent_tools.py가 단계별로 실제 실행한 결과 (Python 3.13.16, langchain 1.5.2, langgraph 1.2.24, langchain-core 1.8.4, langchain-openai 1.8.5, psycopg 3.3.8, fastapi 0.141.1, PostgreSQL 18.6). Agent의 도구 선택과 답 문장은 가짜 서버의 규칙이에요
+
+- 공식 문서: LangChain Agents, Tools, Middleware, psycopg: Passing parameters
 
 - 실행 환경:
 

@@ -1,10 +1,11 @@
 # 질문에 출처가 붙은 답을 돌려주는 RAG 서비스 전체 코드. 노트의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
-# ①~⑧은 "RAG 서비스" 쪽, ⑨~⑯은 "RAG 검색 고치기" 쪽, ⑰~㉔는 "RAG 평가" 쪽이에요. 한 파일이 세 쪽에 걸쳐 자라요.
+# ①~⑧은 "RAG 서비스" 쪽, ⑨~⑯은 "RAG 검색 고치기" 쪽, ⑰~㉔는 "RAG 평가" 쪽, ㉕~㉜는 "AI Agent와 도구" 쪽이에요. 한 파일이 네 쪽에 걸쳐 자라요.
 # 검색 대상: 문서 읽기 → Chunking → 인덱싱 쪽에서 만든 가람 도서관 조각 12개 (../ingest/out/chunks.json)
 #   ⑨부터는 같은 도서관의 안내 조각 14개(data/more_chunks.json, tools/make_rag_more.py로 만듦)를 더해요.
 # 검색은 intfloat/multilingual-e5-small(이 PC에 받아 둔 것)로 메모리에서 해요. 실제로는 인덱싱 쪽 ⑱의 pgvector 검색 자리예요.
 # 재정렬(⑬)은 BAAI/bge-reranker-v2-m3를 CUDA GPU에서 실제로 돌려요.
 # 답변과 질문 다시 쓰기는 ChatOpenAI에 가짜 서버(httpx.MockTransport)를 붙여 받아요. OpenAI에는 요청을 보내지 않아요(키, 비용 없음).
+# ㉖부터는 PostgreSQL이 필요해요 (접속 정보는 환경 변수 PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE). Agent의 판단도 가짜 서버가 해요.
 # 줄 끝의 "#@N" 표시는 노트가 "이 줄은 N단계에서 추가됨"을 알기 위한 표시예요(실행과 무관).
 
 import json                                                      #@1
@@ -26,6 +27,18 @@ from langchain_openai import ChatOpenAI                          #@5
 from pydantic import BaseModel, ConfigDict, Field, field_validator   #@6
 from fastapi import FastAPI, HTTPException                       #@8
 from fastapi.testclient import TestClient                        #@8
+import hashlib                                                   #@30
+import os                                                        #@29
+from dataclasses import dataclass                                #@26
+from datetime import date                                        #@26
+import psycopg                                                   #@26
+from pydantic import ValidationError                             #@26
+from langchain.tools import tool, ToolRuntime                    #@25
+from langchain_core.messages import HumanMessage, ToolMessage    #@27
+from langchain.agents import create_agent                        #@28
+from langchain.agents.middleware import ToolCallLimitMiddleware  #@28
+from langchain.agents.middleware.tool_call_limit import ToolCallLimitExceededError   #@32
+from fastapi import Depends, Header                               #@32
 
 HERE = Path(__file__).resolve().parent                           #@1
 
@@ -754,3 +767,275 @@ def quality_gate(setting, baseline="A 기준"):
     return all(ok for _, _, ok in checks.values()), checks, unsupported
 
 gate = {s: quality_gate(s) for s in ("D 다시 쓰기 + 재정렬", "E D + 넓히기")}
+
+# ㉕ RAG를 도구로: 이름, 설명, 입력 모양, 결과 약속
+rag_service = make_enhanced_service()                            # ⑯의 서비스 (다시 쓰기, 재정렬 켬)
+TOOL_LEDGER = []                                                 # 서버가 따로 남기는 도구 실행 기록 (㉚에서 출처 검사에 써요)
+
+def normalize_rag(out):                                          # 서비스 결과 → 도구 결과 약속 (answered / insufficient_context / 오류)
+    status = out.get("status")
+    if status == "answered":
+        if not out["sources"]:
+            raise RuntimeError("answered인데 출처가 없어요")
+        return {"status": "answered", "answer": out["result"]["answer"],
+                "sources": [{"citation_id": s["citation_id"], "where": f"{s['file']}#{s['where']}"} for s in out["sources"]]}
+    if status in ("insufficient_context", "needs_clarification"):
+        return {"status": "insufficient_context", "answer": NO_ANSWER, "sources": []}
+    raise RuntimeError(f"RAG 실행 실패: {status}")                # 서비스 오류를 '정보 부족'으로 바꾸지 않아요
+
+@tool
+def rag_search(query: str, category: Literal["이용", "공지", "규정", "시설"] = "이용") -> str:
+    """도서관 이용 규정과 안내문을 검색해, 근거가 확인된 답과 출처 번호를 돌려줘요. 회원 개인의 예약 상태는 찾지 못해요."""
+    out = rag_service({"question": query, "category": category, "history": [], "candidate_k": 10, "context_k": 3,
+                       "use_rewrite": False, "use_expand": False, "use_rerank": True})
+    result = normalize_rag(out)
+    TOOL_LEDGER.append({"tool": "rag_search", "status": result["status"], "source_ids": [s["citation_id"] for s in result["sources"]]})
+    return json.dumps(result, ensure_ascii=False)
+
+rag_schema = rag_search.tool_call_schema.model_json_schema()     # 모델에게 보이는 입력 모양
+rag_direct = {q: json.loads(rag_search.invoke({"query": q, "category": c}))
+              for q, c in (("스터디룸 예약을 철회하려면 어떻게 하나요?", "이용"), ("연체료는 하루에 얼마인가요?", "규정"))}
+
+# ㉖ DB를 도구로: 읽기 전용, 본인 것만
+RESERVATIONS = [(101, "m-001", "스터디룸 A", date(2026, 11, 28), 14, "예약됨"),   # 예시 데이터 (가상의 회원 둘)
+                (102, "m-001", "스터디룸 B", date(2026, 11, 21), 10, "철회함"),
+                (202, "m-002", "스터디룸 A", date(2026, 11, 28), 16, "예약됨")]
+with psycopg.connect() as admin:                                 # 관리자 쪽에서 미리 만들어 둔 표라고 쳐요 (접속 정보는 PG* 환경 변수)
+    admin.execute("""CREATE TABLE IF NOT EXISTS room_reservations (
+        reservation_id int PRIMARY KEY, member_id text NOT NULL, room text, use_date date, start_hour int, status text)""")
+    admin.execute("TRUNCATE room_reservations")
+    with admin.cursor() as cur:
+        cur.executemany("INSERT INTO room_reservations VALUES (%s, %s, %s, %s, %s, %s)", RESERVATIONS)
+
+READ_SQL = """SELECT reservation_id, room, use_date, start_hour, status
+              FROM room_reservations WHERE reservation_id = %s AND member_id = %s"""   # 값은 %s 자리로만 넘겨요
+
+def read_reservation(reservation_id, member_id):                 # 로그인한 회원 본인의 예약만
+    try:
+        with psycopg.connect(connect_timeout=3) as conn:
+            conn.read_only = True                                # 이 연결로는 바꾸는 SQL이 실패해요 (실제로는 SELECT만 허락된 계정도)
+            row = conn.execute(READ_SQL, (reservation_id, member_id)).fetchone()
+    except psycopg.OperationalError as exc:
+        raise RuntimeError("db_unavailable") from exc            # DB 장애는 '없음'이 아니라 오류
+    if row is None:                                              # 없는 번호와 남의 예약을 구별해서 알려 주지 않아요
+        return {"status": "not_found_or_forbidden", "reservation_id": reservation_id}
+    return {"status": "ok", "reservation_id": row[0], "room": row[1], "use_date": row[2].isoformat(),
+            "start_hour": row[3], "reservation_status": row[4]}
+
+@dataclass
+class Member:                                                    # 서버가 로그인으로 확인한 사람 (모델이 정하지 않아요)
+    member_id: str
+
+class LookupArgs(BaseModel):
+    reservation_id: int = Field(ge=1, strict=True, description="조회할 스터디룸 예약 번호 (양의 정수)")
+
+@tool(args_schema=LookupArgs)
+def lookup_reservation(reservation_id: int, runtime: ToolRuntime[Member]) -> str:
+    """로그인한 회원 본인의 스터디룸 예약 상태를 예약 번호로 읽어요. 이용 규정은 찾지 못해요."""
+    result = read_reservation(reservation_id, runtime.context.member_id)
+    TOOL_LEDGER.append({"tool": "lookup_reservation", "status": result["status"], "source_ids": []})
+    return json.dumps(result, ensure_ascii=False)
+
+lookup_schema = lookup_reservation.tool_call_schema.model_json_schema()   # runtime은 모델에게 안 보여요
+db_checks = {"m-001의 101": read_reservation(101, "m-001"), "m-001의 202 (남의 예약)": read_reservation(202, "m-001"),
+             "m-002의 202": read_reservation(202, "m-002"), "m-001의 999 (없는 번호)": read_reservation(999, "m-001")}
+bad_args = {}
+for raw in (-1, "101", "101 OR 1=1"):                            # 모델이 이상한 값을 보내면
+    try:
+        LookupArgs.model_validate({"reservation_id": raw})
+    except ValidationError as exc:
+        bad_args[repr(raw)] = exc.errors()[0]["type"]
+try:
+    with psycopg.connect() as conn:
+        conn.read_only = True
+        conn.execute("UPDATE room_reservations SET status = '철회함' WHERE reservation_id = 101")
+    write_blocked = None
+except psycopg.Error as exc:
+    write_blocked = type(exc).__name__                           # 읽기 전용 연결에서 바꾸려 하면
+
+# ㉗ Tool Calling 한 바퀴를 손으로: 요청 → 실행 → 결과 → 답
+agent_sent, AGENT_NEXT, resp_n = [], [], [0]
+AGENT_PLAN = [("철회", "스터디룸 예약을 철회하려면 어떻게 하나요?", "이용"), ("안 가면", "예약해 놓고 안 가면 어떻게 돼요?", "이용"),
+              ("연체료", "연체료는 하루에 얼마인가요?", "규정")]   # 가짜 모델이 규정 질문을 알아보는 말과, 검색에 쓸 질문
+
+def fake_agent_reply(payload):                                   # 가짜 모델: 도구가 필요하면 호출을 요청하고, 결과를 받으면 답을 써요
+    outputs = [json.loads(x["output"]) if x["output"].startswith("{") else {"error": x["output"]}
+               for x in payload["input"] if x.get("type") == "function_call_output"]
+    if outputs:
+        parts = []
+        for o in outputs:
+            if o.get("status") == "answered":
+                parts.append(f"{o['answer']} [출처 {', '.join(str(s['citation_id']) for s in o['sources'])}]")
+            elif o.get("status") == "insufficient_context":
+                parts.append("규정 자료로는 답할 수 없어요.")
+            elif o.get("status") == "ok":
+                parts.append(f"{o['reservation_id']}번 예약은 {o['room']}, {o['use_date']} {o['start_hour']}시, 상태는 {o['reservation_status']}이에요.")
+            elif o.get("status") == "not_found_or_forbidden":
+                parts.append(f"{o['reservation_id']}번 예약은 찾을 수 없어요.")
+            else:
+                parts.append("조회하지 못했어요. 입력을 확인해 주세요.")
+        return [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": " ".join(parts), "annotations": []}]}]
+    text = next(x["content"] for x in reversed(payload["input"]) if x.get("role") == "user")
+    calls = [("rag_search", {"query": q, "category": c}) for key, q, c in AGENT_PLAN if key in text][:1]
+    calls += [("lookup_reservation", {"reservation_id": int(n)}) for n in re.findall(r"(\d+)번", text)]
+    if not calls:
+        return [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "도서관 규정이나 내 예약을 물어봐 주세요.", "annotations": []}]}]
+    return [{"type": "function_call", "name": n, "arguments": json.dumps(a, ensure_ascii=False)} for n, a in calls]
+
+def fake_agent_server(request):
+    payload = json.loads(request.content)
+    agent_sent.append(payload)
+    resp_n[0] += 1
+    items = AGENT_NEXT.pop(0) if AGENT_NEXT else fake_agent_reply(payload)
+    for i, it in enumerate(items):                               # 응답마다 다른 ID (같은 ID면 앞 메시지를 덮어써요)
+        it.update({"id": f"item_{resp_n[0]}_{i}", "status": "completed"})
+        if it["type"] == "function_call":
+            it["call_id"] = f"call_{resp_n[0]}_{i}"
+    return httpx.Response(200, json={**response_body([]), "id": f"resp_{resp_n[0]}", "output": items})
+
+agent_model = ChatOpenAI(model="demo-agent-model", api_key="sk-test-not-a-real-key", use_responses_api=True, output_version="responses/v1",
+                         timeout=30, max_retries=0, http_client=httpx.Client(transport=httpx.MockTransport(fake_agent_server)))
+bound = agent_model.bind_tools([rag_search, lookup_reservation])  # 도구 목록을 모델에게 알려 주기만 해요 (실행은 안 해요)
+server_member = Member("m-001")                                  # 로그인으로 확인했다고 치는 회원
+history = [HumanMessage("스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알려줘")]
+first = bound.invoke(history)                                    # 1) 모델이 도구 호출을 요청
+tools_sent = agent_sent[-1]["tools"]
+ALLOWED = {"rag_search": rag_search}
+
+def dispatch(call):                                              # 2) 허용된 도구인지 보고, 서버가 실행
+    if call["name"] == "lookup_reservation":                     # 신원은 모델 인수가 아니라 서버 값으로
+        content = json.dumps(read_reservation(LookupArgs.model_validate(call["args"]).reservation_id, server_member.member_id), ensure_ascii=False)
+    elif call["name"] in ALLOWED:
+        content = ALLOWED[call["name"]].invoke(call["args"])
+    else:
+        raise ValueError(f"허용되지 않은 도구: {call['name']}")
+    return ToolMessage(content=content, tool_call_id=call["id"], name=call["name"])
+
+tool_msgs = [dispatch(c) for c in first.tool_calls]
+final = bound.invoke(history + [first] + tool_msgs)              # 3) 결과를 붙여 다시 물으면 4) 답
+second_input = [x.get("type", x.get("role")) for x in agent_sent[-1]["input"]]
+
+# ㉘ create_agent로 묶기
+SYSTEM = ("도서관 규정 질문은 rag_search로, 회원의 예약 상태는 lookup_reservation으로 확인하세요. "
+          "도구 결과에 없는 내용은 추측하지 말고, 규정 답에는 출처 번호를 붙이세요.")
+agent = create_agent(model=agent_model, tools=[rag_search, lookup_reservation], system_prompt=SYSTEM,
+                     context_schema=Member, middleware=[ToolCallLimitMiddleware(run_limit=4, exit_behavior="error")])
+
+def run_agent(question, member_id="m-001"):                      # 질문 하나 → 메시지 기록과 최종 답
+    TOOL_LEDGER.clear()
+    result = agent.invoke({"messages": [{"role": "user", "content": question}]}, context=Member(member_id))
+    return result["messages"], list(TOOL_LEDGER)
+
+def final_text(messages):                                        # 맨 뒤의 '도구 호출이 없는' AIMessage가 답이에요
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and not m.tool_calls:
+            return m.text
+    raise ValueError("최종 답이 없어요")
+
+ASKS = ["스터디룸 예약을 철회하려면 어떻게 해?", "내 101번 예약 어떻게 됐어?", "스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알려줘", "안녕"]
+traces = {}
+for q in ASKS:
+    msgs, ledger = run_agent(q)
+    traces[q] = {"kinds": [type(m).__name__ for m in msgs], "tools": [c["name"] for m in msgs if isinstance(m, AIMessage) for c in m.tool_calls],
+                 "answer": final_text(msgs), "ledger": ledger}
+
+# ㉙ 안전장치: 잘못된 인수, 남의 것, 없는 도구, 반복, DB 장애
+def call_with(items_list, question="예약 확인해 줘", member_id="m-001"):   # 가짜 모델의 다음 응답을 정해 두고 실행
+    AGENT_NEXT.extend(items_list)
+    try:
+        msgs, ledger = run_agent(question, member_id)
+        tool_texts = [m.content for m in msgs if isinstance(m, ToolMessage)]
+        return {"outcome": "답함", "answer": final_text(msgs), "tool_results": tool_texts}
+    except Exception as exc:
+        return {"outcome": "중단", "error": type(exc).__name__, "detail": str(exc)[:120]}
+    finally:
+        AGENT_NEXT.clear()
+
+fc = lambda name, args: {"type": "function_call", "name": name, "arguments": json.dumps(args, ensure_ascii=False)}   # noqa: E731
+guards = {"잘못된 인수 (-1)": call_with([[fc("lookup_reservation", {"reservation_id": -1})]]),
+          "남의 예약 (202)": call_with([[fc("lookup_reservation", {"reservation_id": 202})]]),
+          "없는 도구": call_with([[fc("delete_reservation", {"reservation_id": 101})]]),
+          "같은 도구를 계속": call_with([[fc("lookup_reservation", {"reservation_id": 101})]] * 6)}
+real_port = os.environ.get("PGPORT")
+os.environ["PGPORT"] = "1"                                       # DB가 멈춘 상황 (닫힌 포트)
+guards["DB 장애"] = call_with([[fc("lookup_reservation", {"reservation_id": 101})]])
+os.environ["PGPORT"] = real_port
+
+# ㉚ 서버에서 결과 확인하기: 출처와 기록
+def validate_agent_answer(answer, ledger):                        # 답에 붙은 출처 번호가 이번 실행에서 rag_search가 돌려준 번호 안에 있나
+    cited = {int(n) for grp in re.findall(r"\[출처 ([\d, ]+)\]", answer) for n in grp.split(",")}
+    verified = {i for e in ledger if e["tool"] == "rag_search" for i in e["source_ids"]}
+    problems = []
+    if not cited <= verified:
+        problems.append(f"확인 안 된 출처 {sorted(cited - verified)}")
+    if any(e["status"] not in ("answered", "insufficient_context", "ok", "not_found_or_forbidden") for e in ledger):
+        problems.append("도구 실패")
+    return {"cited": sorted(cited), "verified": sorted(verified), "ok": not problems, "problems": problems}
+
+checks = {q: validate_agent_answer(t["answer"], t["ledger"]) for q, t in traces.items()}
+fake_cite = validate_agent_answer("1시간 전까지 철회합니다. [출처 99]", traces[ASKS[0]]["ledger"])   # 모델이 출처를 지어내면
+
+def audit_record(request_id, member_id, ledger):                 # 보안 기록: 누가, 어떤 도구를, 결과가 어땠나 (본문과 토큰은 안 남겨요)
+    actor = hashlib.sha256(member_id.encode()).hexdigest()[:10]
+    return [{"request_id": request_id, "actor": actor, "tool": e["tool"], "status": e["status"]} for e in ledger]
+
+audit = audit_record("req-001", "m-001", traces[ASKS[2]]["ledger"])
+
+# ㉛ 회귀 테스트: 바꿀 때마다 같은 시나리오로
+SCENARIOS = [  # (이름, 질문, 회원, 호출돼야 할 도구, 통과 조건)
+    ("규정만", "스터디룸 예약을 철회하려면 어떻게 해?", "m-001", {"rag_search"}, lambda r: "[출처" in r["answer"]),
+    ("내 예약만", "내 101번 예약 어떻게 됐어?", "m-001", {"lookup_reservation"}, lambda r: "예약됨" in r["answer"]),
+    ("둘 다", "스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알려줘", "m-001", {"rag_search", "lookup_reservation"}, lambda r: "[출처" in r["answer"] and "예약됨" in r["answer"]),
+    ("남의 예약", "202번 예약 상태 알려줘", "m-001", {"lookup_reservation"}, lambda r: "찾을 수 없어요" in r["answer"]),
+    ("주인은 보임", "202번 예약 상태 알려줘", "m-002", {"lookup_reservation"}, lambda r: "예약됨" in r["answer"]),
+    ("자료에 없는 규정", "연체료는 얼마야?", "m-001", {"rag_search"}, lambda r: "답할 수 없어요" in r["answer"]),
+    ("도구가 필요 없음", "안녕", "m-001", set(), lambda r: "[출처" not in r["answer"]),
+]
+regression = []
+for name, q, member, need, passed in SCENARIOS:
+    msgs, ledger = run_agent(q, member)
+    r = {"answer": final_text(msgs), "tools": {c["name"] for m in msgs if isinstance(m, AIMessage) for c in m.tool_calls}}
+    v = validate_agent_answer(r["answer"], ledger)
+    regression.append({"name": name, "tools": sorted(r["tools"]), "tools_ok": r["tools"] == need, "answer_ok": passed(r), "citations_ok": v["ok"]})
+
+# ㉜ API로 열기
+TOKENS = {"tok-a": "m-001", "tok-b": "m-002"}                    # 로그인 대신 쓰는 예시 토큰표 (실제로는 세션이나 JWT 검증)
+
+def current_member(x_member_token: str | None = Header(default=None)):   # 신원은 요청 본문이 아니라 인증 단계에서
+    if x_member_token not in TOKENS:
+        raise HTTPException(status_code=401, detail="login_required")
+    return TOKENS[x_member_token]
+
+class AgentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    question: str = Field(min_length=1, max_length=500)
+
+def create_agent_app():
+    app = FastAPI()
+
+    @app.post("/agent/ask")
+    def ask(body: AgentRequest, member_id: str = Depends(current_member)):
+        try:
+            msgs, ledger = run_agent(body.question, member_id)
+        except ToolCallLimitExceededError as exc:
+            raise HTTPException(status_code=502, detail="tool_call_limit") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail="agent_error") from exc
+        answer = final_text(msgs)
+        check = validate_agent_answer(answer, ledger)
+        if not check["ok"]:                                      # 검사를 못 넘긴 답은 내보내지 않아요
+            raise HTTPException(status_code=502, detail="unverified_answer")
+        return {"answer": answer, "tools": [e["tool"] for e in ledger], "sources": check["cited"]}
+    return app
+
+api_client = TestClient(create_agent_app())
+api_calls = {"로그인 없음": ({}, {"question": "내 101번 예약 어떻게 됐어?"}),
+             "회원 a의 둘 다": ({"X-Member-Token": "tok-a"}, {"question": "스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알려줘"}),
+             "회원 a가 202번": ({"X-Member-Token": "tok-a"}, {"question": "202번 예약 상태 알려줘"}),
+             "본문에 member_id": ({"X-Member-Token": "tok-a"}, {"question": "202번 예약", "member_id": "m-002"}),
+             "빈 질문": ({"X-Member-Token": "tok-a"}, {"question": ""})}
+agent_api = {name: (r.status_code, r.json()) for name, (h, b) in api_calls.items() for r in [api_client.post("/agent/ask", headers=h, json=b)]}
+os.environ["PGPORT"] = "1"
+r = api_client.post("/agent/ask", headers={"X-Member-Token": "tok-a"}, json={"question": "내 101번 예약 어떻게 됐어?"})
+agent_api["DB 장애"] = (r.status_code, r.json())
+os.environ["PGPORT"] = real_port

@@ -28,7 +28,7 @@
       const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
       const slug = t => 't-' + encodeURIComponent(t.toLowerCase());
       const pad = n => String(n).padStart(2, '0');
-      const DAY_PAGE = { 25: ['topics/backend/service-flow.html', '백엔드 외전'], 26: ['topics/backend/rag-service.html', 'Day26'], 27: ['topics/backend/rag-rerank.html', 'Day27'], 28: ['topics/backend/rag-eval.html', 'Day28'] };
+      const DAY_PAGE = { 25: ['topics/backend/service-flow.html', '백엔드 외전'], 26: ['topics/backend/rag-service.html', 'Day26'], 27: ['topics/backend/rag-rerank.html', 'Day27'], 28: ['topics/backend/rag-eval.html', 'Day28'], 29: ['topics/backend/agent-tools.html', 'Day29'] };
       const dayLink = day => DAY_PAGE[day]
         ? `<a href="${DAY_PAGE[day][0]}">${DAY_PAGE[day][1]}</a>`
         : `<a href="notes/day${pad(day)}.html">Day${day}</a>`;

@@ -24,6 +24,7 @@
 | 🛠️ 백엔드 | API 서버, 데이터베이스 | FastAPI, PostgreSQL, 둘의 연동 |
 | | LLM 활용 | Prompt와 Context Engineering, LLM API 클라이언트, LLM 채점, 여러 정답으로 채점하기 |
 | | 검색과 RAG | Embedding과 벡터 검색, 문서 읽기, Chunking, 인덱싱 |
+| | Agent | AI Agent와 도구 |
 | | 성능과 하드웨어 | SIMD와 메모리 |
 | | 외전 | 로직 밖에서 서비스를 완성하기 |
 
