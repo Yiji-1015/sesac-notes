@@ -120,11 +120,15 @@ flow = [[1, "찾기", "질문 + 분류 → 조각", f"후보 {len(hits)}개"], [
         [7, "서비스", "찾기 → 답 → 출처", "정보 부족과 실패 구분"]]
 S.save(ROOT / "topics" / "backend" / "rag-service-data.js", {"code": code, "names": S.names(code), "range": [1, 7], "outs": outs, "flow": flow, "env": ENV})
 
-why = f"""<p>LLM은 우리 회사의 최신 규정이나 내부 문서를 모르고, 학습이 끝난 뒤 바뀐 내용도 몰라요. 회사 기준으로 답하게 하는 방법은 크게 셋이에요.</p>
+why = f"""<p>LLM이 우리 회사 규정으로 답하지 못하는 이유는 둘이에요. 학습이 끝난 뒤 바뀐 내용이나 내부 문서는 <b>배운 적이 없고</b>, 한 번에 읽을 수 있는 글의 길이가 정해져 있어서 문서를 <b>전부 넣어 줄 수도 없어요</b>. 회사 기준으로 답하게 하는 방법은 크게 셋이에요.</p>
 {K.table(["방법", "하는 일", "맞는 때", "모델 가중치"], [["문서 통째로 넣기", "정해 둔 문서를 Prompt에 그대로 넣어 답하게", "문서가 적고 짧을 때", "그대로"],
                                                ["<b>RAG</b>", "질문마다 관련 조각을 <b>찾아서</b> 넣고, 그걸 근거로 답하게", "문서가 많고 자주 바뀌고, 출처가 필요할 때", "그대로"],
                                                ["미세조정", "예시로 더 학습시켜 말투, 형식, 작업 방식을 바꾸기", "형식과 행동을 바꿀 때. 새 사실을 넣는 데는 비싸고 출처를 못 대요", "바뀜"]])}
 <p>RAG(Retrieval-Augmented Generation)는 <b>찾고(Retrieval)</b>, 모델 입력에 <b>보태고(Augmented)</b>, 그걸 근거로 <b>답하게(Generation)</b> 해요. 이 쪽은 질문이 들어와 조각을 찾고, 자료를 골라 모델에게 묻고, 답을 검사해 출처와 함께 돌려주기까지를 한 파일로 만들어요.</p>
+<p>RAG를 짜는 방식도 크게 셋이에요(<a href="https://docs.langchain.com/oss/python/langchain/retrieval" target="_blank">LangChain 문서</a>의 구분). 이 노트의 RAG 쪽들이 하나씩 맡아요.</p>
+{K.table(["방식", "흐름", "좋은 점", "아쉬운 점", "이 노트"], [["2단계 RAG", "질문 → 늘 찾기 → 답", "흐름이 정해져 있어 예측하기 쉽고 빨라요", "찾을 필요가 없는 질문에도 찾아요", "이 쪽"],
+                                                        ["Agentic RAG", "모델이 찾을지, 무엇으로 찾을지 도구로 골라요", "질문에 맞게 움직여요", "몇 번 부를지 몰라 느리고 예측이 어려워요", "<a href=\"agent-tools.html\">AI Agent와 도구</a>"],
+                                                        ["Hybrid", "2단계에 질문 다듬기, 찾은 것 검사, 답 검사를 더해요", "품질을 올려요", "단계가 늘어 시간이 들어요", "<a href=\"rag-rerank.html\">RAG 검색 고치기</a>, <a href=\"rag-eval.html\">RAG 평가</a>"]])}
 <p><b>LangChain</b>은 이 연결을 돕는 라이브러리예요. 같은 규칙에 질문과 자료만 바꿔 끼우는 Prompt 틀, 회사마다 다른 모델 API를 같은 방식으로 부르는 Chat Model, 단계를 <code>|</code>로 잇고 <code>invoke</code>로 실행하는 Runnable을 줘요. 다만 무엇을 찾고, 무엇을 넣고, 답이 맞는지는 정해 주지 않아요.</p>
 <p>예제의 검색 대상은 가상의 '가람 도서관' 안내문을 나눈 조각 {len(C)}개예요(<a href="indexing.html">인덱싱</a> 쪽에서 만든 것). 검색은 e5 모델로 실제로 하고, 답을 쓰는 모델 자리는 미리 정한 답을 돌려주는 함수예요. 그래서 키도 비용도 없이 돌아가고, 근거 고르기와 검사와 서비스의 동작은 실제 실행 값이에요.</p>
 {K.table(["id", "파일", "분류", "제목", "본문 첫 줄"], [[c["id"], c["file"], c["category"], E(c["heading"] or "(없음)"), E(first_line(c["body"], 36))] for c in C])}
@@ -137,7 +141,7 @@ steps = [
                            ("search(question, category, k)", "분류 안에서 가까운 k개를 dict 목록으로")]), "s1"),
     K.step(2, "LangChain으로 잇기: Document와 Runnable", "함수를 LangChain의 실행 단위(Runnable)로 감싸면, 모든 단계를 invoke 하나로 부르고 | 로 이을 수 있어요.",
            "<p><b>Runnable</b>은 \"입력을 받아 결과를 내는 단계\"라는 약속이에요. Prompt, Chat Model, 내가 만든 함수가 모두 Runnable이 되면, 모두 <code>invoke(입력)</code>으로 부르고 <code>a | b</code>로 이어요. <code>|</code>로 이은 것도 하나의 Runnable이라 또 <code>invoke</code>로 불러요. 잇는 줄에서는 아무것도 실행되지 않고, <code>invoke</code>하는 줄에서 실행돼요.</p>"
-           "<p>LangChain은 검색 결과를 <b>Document</b>로 주고받아요. 본문은 <code>page_content</code>, 나머지는 <code>metadata</code>예요.</p>"
+           "<p>LangChain은 검색 결과를 <b>Document</b>로 주고받아요. 본문은 <code>page_content</code>, 나머지는 <code>metadata</code>예요. 그리고 질문을 받아 Document 목록을 돌려주는 것을 <b>Retriever</b>라고 불러요. 아래의 <code>retriever</code>가 그거예요. 벡터 DB에서 만든 Retriever든 직접 만든 함수든, 바깥에서 보면 똑같이 <code>invoke(질문)</code>이에요.</p>"
            + K.code_table([("RunnableLambda(f)", "파이썬 함수를 Runnable로"), ("a | b", "a의 출력을 b의 입력으로 잇기"), ("runnable.invoke(x)", "입력 하나로 실행"),
                            ("Document(page_content=..., metadata={...})", "본문과 출처 정보를 담는 LangChain의 자료 객체")]), "s2"),
     K.step(3, "근거 고르기: 후보 수, 넣을 수, 글자 예산", "찾은 후보 중 실제로 모델에게 줄 조각을 고르고, 넣은 조각을 따로 보관해요. 답이 댈 수 있는 출처는 이 조각들뿐이에요.",

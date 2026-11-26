@@ -133,7 +133,8 @@ rows_db = ns["admin"].execute("SELECT * FROM reservations ORDER BY reservation_i
 why = f"""<p>RAG 서비스는 순서가 정해져 있어요. 질문이 오면 찾고, 고르고, 답해요. 그런데 \"스터디룸 예약 철회 규정이랑 내 101번 예약 상태 알려줘\" 같은 질문은 문서 검색만으로는 답할 수 없어요. 규정은 안내문에 있지만, 내 예약의 지금 상태는 DB에 있으니까요. 질문에 따라 <b>무엇을 할지 골라야</b> 해요.</p>
 <p><b>AI Agent</b>는 모델이 질문과 쓸 수 있는 도구 목록을 보고 다음 행동(도구 호출 또는 답)을 고르고, 앱이 그 행동을 실제로 해서 결과를 다시 모델에게 주는 구조예요. 역할이 셋으로 나뉘어요.</p>
 {K.table(["누가", "하는 일", "하지 않는 일"], [["모델", "도구 이름과 인수를 <b>요청</b>, 결과를 읽고 답 쓰기", "DB 접속, 실제 실행, 권한 판단"], ["도구 (Tool)", "검색, 조회 같은 실제 일을 하는 함수. 이름, 설명, 입력 모양, 결과 모양을 가져요", "다른 도구 부르기"],
-                                    ["앱 (실행 환경)", "허용된 도구인지와 입력 확인, 실행, 결과 전달, 반복 상한, 오류 처리", "무엇을 부를지 정하기"]])}
+                                    ["하네스 (모델을 둘러싼 앱 코드)", "허용된 도구인지와 입력 확인, 실행, 결과 전달, 반복 상한, 오류 처리", "무엇을 부를지 정하기"]])}
+<p><a href="https://docs.langchain.com/oss/python/langchain/agents" target="_blank">LangChain 문서</a>도 Agent를 \"도구를 부르는 모델을 일이 끝날 때까지 반복해서 돌리는 것\"으로 정의하고, 모델 바깥의 규칙, 도구, 반복과 오류 처리를 묶어 <b>하네스(harness)</b>라고 불러요. 이 쪽 코드에서는 하네스를 \"앱\"이라고도 써요.</p>
 <p>예제는 가상의 '가람 도서관'이에요. 도구는 둘이에요. 안내문 조각 26개에서 찾는 <code>search_rules</code>와, 회원의 스터디룸 예약을 읽는 <code>lookup_reservation</code>이에요. 예약 표에는 가상의 회원 둘(m-001, m-002)의 예약 {len(rows_db)}개가 있어요.</p>
 {K.table(["예약 번호", "회원", "방", "날짜", "시작", "상태"], [[r[0], r[1], r[2], r[3], f"{r[4]}시", r[5]] for r in rows_db])}
 <p>도구는 실제로 실행해요(검색은 e5 모델, 예약은 SQLite DB). 모델 자리만 미리 정한 계획대로 도구를 부르는 가짜 함수예요. 그래서 이 쪽의 결과는 \"모델이 똑똑한가\"가 아니라 <b>요청, 실행, 권한, 오류가 어떻게 흐르나</b>를 보여 줘요.</p>
@@ -141,7 +142,7 @@ why = f"""<p>RAG 서비스는 순서가 정해져 있어요. 질문이 오면 �
 whole = """<p>도구 둘을 만들고(①②), 한 바퀴를 손으로 돌려 본 뒤(③) 반복으로 묶고(④), 이상한 요청을 막고(⑤), 답을 확인하고(⑥), 시나리오로 시험해요(⑦). 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>"""
 steps = [
     K.step(1, "규정 검색을 도구로: 이름, 설명, 입력 모양, 결과", "함수 하나에 @tool을 붙이면 도구가 돼요. 모델은 이 도구의 이름, 설명, 입력 모양만 보고 부를지 정해요.",
-           "<p>도구는 그냥 함수가 아니라 <b>약속</b>이에요. 모델에게는 이름, 설명, 입력 모양이 보이고, 앱에게는 결과 모양이 약속이에요. LangChain의 <code>@tool</code>은 함수 이름, docstring, 타입 힌트에서 이 약속을 만들어 줘요.</p>"
+           "<p>도구는 그냥 함수가 아니라 <b>약속</b>이에요. 모델에게는 이름, 설명, 입력 모양이 보이고, 앱에게는 결과 모양이 약속이에요. LangChain의 <code>@tool</code>은 함수 이름, docstring, 타입 힌트에서 이 약속을 만들어 줘요. 그래서 타입 힌트는 꼭 써야 해요. 입력 모양을 거기서 만들거든요(<a href=\"https://docs.langchain.com/oss/python/langchain/tools\" target=\"_blank\">LangChain Tools</a>).</p>"
            "<p>검색 자체는 e5로 질문과 가까운 조각을 찾는 거예요(자세한 건 <a href=\"rag-rerank.html\">RAG 검색 고치기</a> ①). 이 도구는 답을 쓰지 않고 <b>근거 조각</b>만 돌려줘요. 답은 모델이 써요.</p>"
            + K.code_table([("@tool", "함수를 LangChain 도구로. 이름은 함수 이름, 설명은 docstring, 입력 모양은 타입 힌트에서"), ("Literal[\"이용\", \"공지\", \"규정\", \"시설\"]", "넷 중 하나만 받기"),
                            ("search_rules.tool_call_schema.model_json_schema()", "모델에게 보이는 입력 모양 (JSON Schema)"), ("search_rules.invoke({\"query\": ...})", "모델 없이 도구만 직접 실행")]), "s1"),
@@ -192,7 +193,7 @@ libs = [("①", "<code>@tool</code>, <code>tool_call_schema</code>, <code>invoke
         ("②", "<code>InjectedToolArg</code>, <code>Field</code>, <code>Annotated</code>", "숨긴 인수와 입력 범위 (langchain-core, Pydantic)"),
         ("⑤", "<code>ValidationError</code>", "입력 모양 오류 (Pydantic)"), ("⑥", "<code>re.findall</code>", "답의 출처 번호 꺼내기")]
 K.build(ROOT / "topics" / "backend" / "agent-tools.html", title="AI Agent와 도구", h1="AI Agent와 도구: 모델은 고르고, 앱이 확인하고 실행한다", track="백엔드", crumb="백엔드 &gt; Agent",
-        one_line="<b>AI Agent</b>는 모델이 질문과 도구 목록을 보고 다음에 할 일(도구 호출 또는 답)을 고르고, 앱이 그걸 실제로 실행해 결과를 돌려주기를 답이 나올 때까지 되풀이하는 구조예요. 모델은 <b>요청만</b> 해요. 허용된 도구인지, 입력이 맞는지, 누구의 정보를 읽을지, 몇 번까지 돌지, 답의 출처가 맞는지는 <b>앱</b>이 정하고 확인해요.",
+        one_line="<b>AI Agent</b>는 도구를 부르는 모델을 <b>일이 끝날 때까지 반복해서</b> 돌리는 구조예요. 모델은 무엇을 할지 <b>요청만</b> 하고, 모델을 둘러싼 코드(<b>하네스</b>)가 허용된 도구인지, 입력이 맞는지, 누구의 정보를 읽을지, 몇 번까지 돌지, 답의 출처가 맞는지를 정하고 확인해요. Agent = 모델 + 하네스예요.",
         why=why, whole=whole, steps=steps, code_file="examples/agent_tools/agent.py", practice=practice, libs=libs,
         libs_note="<code>search_rules</code>, <code>read_reservation</code>, <code>lookup_reservation</code>, <code>say</code>, <code>fake_model</code>, <code>execute</code>, <code>run_agent</code>, <code>scripted</code>, <code>ask_tool</code>, <code>check_answer</code>, <code>run_regression</code>은 이 파일 안에서 정의한 함수예요.",
         next_rows=[("<a href=\"rag-service.html\">RAG 서비스</a>", "순서가 정해진 흐름 (Agent와 비교)"), ("<a href=\"rag-rerank.html\">RAG 검색 고치기</a>", "규정 검색 도구 안의 검색"),

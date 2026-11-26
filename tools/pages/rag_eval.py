@@ -161,6 +161,11 @@ why = f"""<p>RAG는 질문과 관련된 조각을 <b>찾아서</b> 모델에게 
 <p>RAG는 두 단계라서 <b>따로</b> 재요.</p>
 {K.table(["단계", "묻는 것", "재는 것"], [["찾기", "정답 조각을 찾았나, 앞에 뒀나", "Hit@k, Recall@k, Precision@k (③), MRR, nDCG (④)"], ["답하기", "답이 근거와 맞나, 정답과 맞나, 답할 수 없을 때 멈췄나", "충실성, 핵심 사실, 정보 부족 판단 (⑤)"]])}
 <p>둘을 섞어 재면 원인을 못 찾아요. 검색이 정답을 못 가져왔는데 모델만 바꾸거나, 검색은 완벽한데 답이 지어낸 말을 하는데도 검색만 고치게 돼요.</p>
+<p>무엇과 무엇을 비교하느냐로 보면 넷이에요(<a href="https://docs.langchain.com/langsmith/evaluate-rag-tutorial" target="_blank">LangSmith의 RAG 평가 튜토리얼</a>이 이렇게 나눠요). 미리 써 둔 정답 답이 꼭 있어야 하는 건 마지막 하나뿐이에요.</p>
+{K.table(["비교", "묻는 것", "미리 정한 정답이 필요?", "이 쪽"], [["질문 ↔ 찾은 조각", "찾은 게 질문과 관련 있나", "이 쪽은 정답 조각을 정해 두고 순위로 재요. 정답 없이 LLM에게 채점시킬 수도 있어요", "③④"],
+                                                        ["찾은 조각 ↔ 답", "근거에 있는 말만 했나 (충실성)", "아니요", "⑤"], ["질문 ↔ 답", "물은 것에 답했나 (관련성)", "아니요", "이 쪽에서는 재지 않음"],
+                                                        ["답 ↔ 정답", "맞는 답인가 (정답성)", "예", "⑤ 핵심 사실"]])}
+<p>순서도 튜토리얼과 같아요. 정답 묶음(dataset)을 만들고(①), 평가할 대상(target)을 돌리고(②), 채점 함수(evaluator)로 점수를 매겨요(③~⑤).</p>
 <p>예제는 가상의 '가람 도서관' 안내문 조각 {len(T)}개에 대한 질문 {len(Q)}개예요. 질문마다 정답 조각을 미리 정해 뒀고, 그중 {n_ins}개는 답이 자료에 없는 질문이에요. 검색 설정 세 가지를 실제로 돌려요.</p>
 {K.table(["설정", "하는 일"], [[E(A_), "질문을 그대로 e5로 찾아요"], [E(B_), "e5로 찾은 후보 10개를 Cross-Encoder로 다시 줄 세워요"], [E(C_), "앞선 질문이 있는 두 질문은 다시 쓴 질문으로 찾고, 재정렬도 해요"]])}
 <p>검색과 재정렬 모델은 이 PC에서 실제로 돌려요. 다시 쓴 질문과 답 문장은 LLM을 부르지 않고 미리 정한 것을 써요(답 문장에는 일부러 틀린 답 둘을 섞었어요). 검색을 좋게 하는 방법 자체는 <a href="rag-rerank.html">RAG 검색 고치기</a>에 있고, 여기서는 그 결과를 <b>재는 법</b>만 봐요.</p>
@@ -218,7 +223,7 @@ practice = [("정답 묶음은 작게 시작", "처음엔 10~20개면 충분해�
             ("기록 남기기", "질문 × 설정마다 실행 기록과 점수를 한 줄씩 JSONL 파일로 남겨 두면 나중에 다시 비교할 수 있어요. LangSmith 같은 서비스는 이런 실행 기록과 비교를 화면으로 관리해 줘요. 외부로 보낼 때는 문서 원문과 개인정보가 같이 나가지 않는지 먼저 봐요."),
             ("시간도 같이 재기", "점수가 올라도 시간이 크게 늘면 쓸 수 없을 수 있어요. GPU를 쓰면 동기화한 뒤 재고, 중앙값과 95% 지점을 함께 봐요.")]
 libs = [("①", "<code>json.loads</code>, <code>assert</code>", "정답 묶음 읽고 검사 (표준 라이브러리)"), ("②", "<code>SentenceTransformer</code>, <code>CrossEncoder</code>, <code>torch.cuda.synchronize</code>", "검색과 재정렬, 시간 재기"),
-        ("③④", "<code>set</code>의 <code>&amp;</code>, <code>math.log2</code>", "검색 지표 (직접 계산)"), ("⑤", "<code>re.findall</code>", "주장 속 숫자 규칙"), ("⑥", "<code>np.percentile</code>", "시간 분포 (NumPy)")]
+        ("③④", "<code>set</code>의 <code>&amp;</code>, <code>math.log2</code>", "검색 지표 (직접 계산)"), ("⑤", "<code>re.findall</code>", "주장 속 숫자 규칙"), ("②", "<code>CrossEncoder.rank</code>", "재정렬 (점수를 매겨 높은 순서로)"), ("⑥", "<code>np.percentile</code>", "시간 분포 (NumPy)")]
 K.build(ROOT / "topics" / "backend" / "rag-eval.html", title="RAG 평가", h1="RAG 평가: 정답 묶음으로 검색과 답을 따로 재기", track="백엔드", crumb="백엔드 &gt; 검색과 RAG",
         one_line="RAG가 좋아졌는지는 <b>결과를 보기 전에 정해 둔 정답 묶음</b>으로 재요. 찾기는 정답 조각을 찾았는지(<b>Recall@k</b>)와 앞에 뒀는지(<b>MRR, nDCG</b>)로, 답은 근거와 맞는지(<b>충실성</b>)와 답할 수 없을 때 멈췄는지로 <b>따로</b> 재요. 한 번에 하나씩 바꿔 질문별로 비교하고, 먼저 막힌 단계를 고치고, 최소 조건(<b>품질 기준</b>)을 넘어야 다음 단계로 내보내요.",
         why=why, whole=whole, steps=steps, code_file="examples/rag_eval/evaluate.py", practice=practice, libs=libs,

@@ -136,9 +136,8 @@ if not torch.cuda.is_available():
 reranker = CrossEncoder("BAAI/bge-reranker-v2-m3", device="cuda:0")   # 질문과 조각을 함께 읽는 모델
 
 def rerank(query, hits):                                         # (질문, 본문) 짝마다 점수를 매겨 높은 순서로. 후보 밖 조각은 못 데려와요
-    scores = reranker.predict([(query, h["body"]) for h in hits], batch_size=16)
-    pairs = sorted(zip(scores, hits), key=lambda p: float(p[0]), reverse=True)
-    return [{**h, "rerank": float(s)} for s, h in pairs]
+    ranked = reranker.rank(query, [h["body"] for h in hits], batch_size=16)   # [{"corpus_id": 후보 번호, "score": 점수}, ...] 높은 순서
+    return [{**hits[r["corpus_id"]], "rerank": float(r["score"])} for r in ranked]
 
 q4, gold4 = TESTS[3][1], TESTS[3][3]
 cands4 = search_now(q4, "이용", CANDIDATES)

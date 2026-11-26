@@ -160,7 +160,7 @@ rows6 = [[("<b>" + lab(h["id"]) + "</b>") if h["id"] == g4 else lab(h["id"]), f"
           f"{n + 1}위", f"{h['rerank']:.4f}", f"{float(lg[e5_ids.index(h['id'])]):.2f}"] for n, h in enumerate(r4)]
 outs["t6"] = S.table(f"⑥ \"{E(ns['q4'])}\": 후보 {len(c4)}개를 재정렬", ["조각", "e5 순위", "e5 유사도", "재정렬 순위", "재정렬 점수", "logit"], rows6,
                      [f"e5에서 {ranks0[3]}위였던 '노쇼'가 1위가 됐어요. e5 유사도로는 후보들이 {min(h['score'] for h in c4):.3f}~{max(h['score'] for h in c4):.3f}에 몰려 있었는데, 재정렬 점수는 1위만 {g4_sc:.3f}이고 나머지는 훨씬 낮아요. 질문과 본문을 같이 읽어서 '안 가면'과 '연락 없이 오지 않으면'이 같은 상황인 걸 알아봤어요.",
-                      f"재정렬 점수는 logit(모델이 낸 원래 값)을 0~1로 줄인 거예요(sigmoid). 1위의 logit {lg_g4}{J(lg_g4, '이', '가')} {g4_sc:.3f}{J(f'{g4_sc:.3f}', '이', '가')} 됐어요. 확률처럼 보여도 '맞을 확률'이 아니에요. 같은 질문 안에서 순서를 정하는 데만 써요.",
+                      f"이 모델의 재정렬 점수는 logit(모델이 낸 원래 값)을 0~1로 줄인 거예요(sigmoid). 모델마다 달라서, logit을 그대로 내는 모델도 있어요. 1위의 logit {lg_g4}{J(lg_g4, '이', '가')} {g4_sc:.3f}{J(f'{g4_sc:.3f}', '이', '가')} 됐어요. 확률처럼 보여도 '맞을 확률'이 아니에요. 같은 질문 안에서 순서를 정하는 데만 써요.",
                       "e5 유사도와 재정렬 점수는 다른 모델이 다른 방법으로 낸 값이라 숫자끼리 맞대어 비교하지 않아요."])
 r3, yr = ns["ranked3"], ns["year_ranked"]
 S.claim(r3[0]["id"] == g3 and r3[0]["rerank"] < 0.01, "⑥ 상호대차 1위지만 점수 아주 낮음")
@@ -257,12 +257,13 @@ steps = [
            "<p><b>Cross-Encoder</b>는 질문과 조각을 <b>한 입력으로 이어 붙여</b> 같이 읽고 점수 하나를 내요. 두 글의 단어가 서로를 보며 계산되니 더 정밀해요. 대신 질문이 올 때마다 후보 하나당 모델을 한 번씩 돌려야 해서, 전체 조각이 아니라 <b>좁힌 후보에만</b> 써요.</p>"
            + K.table(["", "Bi-Encoder (e5, 찾기)", "Cross-Encoder (재정렬)"], [["입력", "질문 하나, 조각 하나를 따로", "(질문, 조각) 한 쌍을 같이"], ["출력", "벡터 둘 → 유사도", "점수 하나"],
                                                                      ["미리 계산", "조각 벡터를 저장해 둠", "못 해요. 질문마다 새로"], ["쓰는 곳", "전체에서 후보 찾기", "후보 안에서 순서 정하기"]])
+           + "<p>Sentence Transformers 문서는 둘을 이렇게 함께 써요(<a href=\"https://sbert.net/examples/sentence_transformer/applications/retrieve_rerank/README.html\" target=\"_blank\">Retrieve &amp; Re-Rank</a>). 빠른 Bi-Encoder로 <b>넉넉히</b> 찾고, 그중 위쪽만 느리지만 정밀한 Cross-Encoder로 <b>다시 줄 세워요</b>. 라이브러리에 <code>rank</code>가 있어서, 질문과 본문 목록을 주면 점수를 매겨 높은 순서로 돌려줘요.</p>"
            + f"<p>이 예제는 한국어를 지원하는 <code>BAAI/bge-reranker-v2-m3</code>를 이 PC의 GPU({GPU})에서 돌려요. GPU가 없으면 조용히 CPU로 바꾸지 않고 멈춰요. CPU에서는 훨씬 느려서, 모르고 바뀌면 응답 시간이 갑자기 늘어요. 이 쪽 전체를 돌리는 동안 GPU 메모리는 최대 {VRAM:.1f}GB를 썼어요.</p>"
            + K.out("t6")
            + K.code_table([("CrossEncoder(\"BAAI/bge-reranker-v2-m3\", device=\"cuda:0\")", "재정렬 모델을 GPU에 올리기. 아직 점수는 안 냈어요"),
-                           ("reranker.predict([(query, body), ...], batch_size=16)", "짝마다 점수. 한 번에 16짝씩 GPU로"),
-                           ("activation_fn=torch.nn.Identity()", "0~1로 줄이지 않은 원래 값(logit) 받기"),
-                           ("sorted(zip(scores, hits), key=..., reverse=True)", "점수와 조각을 짝지어 높은 순서로")]), "s6"),
+                           ("reranker.rank(query, [본문, ...], batch_size=16)", "짝마다 점수를 매겨 높은 순서의 [{corpus_id, score}, ...]로. 한 번에 16짝씩 GPU로"),
+                           ("hits[r[\"corpus_id\"]]", "corpus_id는 넘긴 목록에서의 위치. 원래 후보(출처 정보 포함)를 다시 찾아요"),
+                           ("reranker.predict(pairs, activation_fn=torch.nn.Identity())", "정렬 없이 짝마다 점수만. 여기서는 0~1로 줄이기 전의 원래 값(logit)을 보려고 써요")]), "s6"),
     K.step(7, "하나씩 켜서 비교하기와 걸린 시간", f"같은 질문 {len(T)}개, 같은 조건에서 다시 쓰기, 넓히기, 재정렬을 하나씩 켜 보며 정답 순위를 비교하고, 단계마다 걸린 시간을 재요.",
            "<p>비교할 때 지킬 것이 셋 있어요. 질문과 정답 조각은 결과를 보기 전에 정해 두고 바꾸지 않아요. 조각, 분류, 후보 수, 모델에게 줄 수는 모든 설정에서 같게 둬요. 그리고 <b>한 번에 하나씩</b> 켜요. 한꺼번에 켜고 좋아졌다고만 하면 어느 단계가 필요한지 몰라요.</p>"
            + K.out("t7")
@@ -282,7 +283,7 @@ practice = [("무엇부터 고칠지", "질문, 검색용 질문, 후보, 모델
             ("좋아졌는지 재기", "질문을 많이 모아 정답 조각을 미리 정하고, 정답 순위를 숫자 하나로 모으는 지표(Recall@k, MRR 등)로 설정끼리 비교해요(<a href=\"rag-eval.html\">RAG 평가</a>).")]
 libs = [("①", "<code>SentenceTransformer</code>, <code>encode</code>", "글을 벡터로 (sentence-transformers)"), ("①", "<code>np.argsort</code>", "큰 값부터의 순서 (NumPy)"),
         ("③", "<code>str.format</code>, <code>re.search</code>, <code>re.findall</code>, <code>json.loads</code>", "Prompt 채우기, 글에서 꺼내기, JSON 읽기 (표준 라이브러리)"),
-        ("⑥", "<code>CrossEncoder</code>, <code>predict</code>", "(질문, 조각) 짝의 점수 (sentence-transformers)"),
+        ("⑥", "<code>CrossEncoder</code>, <code>rank</code>, <code>predict</code>", "(질문, 조각) 짝의 점수와 정렬 (sentence-transformers)"),
         ("⑥", "<code>torch.cuda.is_available</code>, <code>torch.nn.Identity</code>", "GPU 확인, 원래 값(logit) 받기 (PyTorch)"),
         ("⑦", "<code>torch.cuda.synchronize</code>, <code>time.perf_counter</code>", "GPU 계산을 기다렸다 시간 재기")]
 K.build(ROOT / "topics" / "backend" / "rag-rerank.html", title="RAG 검색 고치기", h1="RAG 검색 고치기: 질문 다시 쓰기와 재정렬", track="백엔드", crumb="백엔드 &gt; 검색과 RAG",

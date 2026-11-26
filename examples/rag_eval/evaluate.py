@@ -48,8 +48,8 @@ def search(query, category, k=10):                               # e5로 분류 
     return [CHUNKS[i]["chunk_id"] for i in order[:k]]
 
 def rerank(query, ids):                                          # 질문과 본문을 함께 읽어 다시 줄 세우기 (RAG 검색 고치기 ⑥)
-    scores = reranker.predict([(query, BODY[i]) for i in ids], batch_size=16)
-    return [i for _, i in sorted(zip(scores, ids), key=lambda p: -float(p[0]))]
+    ranked = reranker.rank(query, [BODY[i] for i in ids], batch_size=16)   # 점수 높은 순서의 [{"corpus_id", "score"}, ...]
+    return [ids[r["corpus_id"]] for r in ranked]
 
 REWRITTEN = {"Q03": "스터디룸 예약을 취소하는 방법은?", "Q04": "노트북은 몇 시간까지 빌려 쓸 수 있나요?"}   # 다시 쓰기 단계가 냈다고 칠 검색용 질문
 SETTINGS = {"A e5만": (False, False), "B 재정렬": (False, True), "C 다시 쓰기 + 재정렬": (True, True)}   # (다시 쓴 질문, 재정렬)

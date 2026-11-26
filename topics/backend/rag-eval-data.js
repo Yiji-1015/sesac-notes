@@ -169,11 +169,11 @@ window.PAGE = {
    "s": 2
   },
   {
-   "t": "    scores = reranker.predict([(query, BODY[i]) for i in ids], batch_size=16)",
+   "t": "    ranked = reranker.rank(query, [BODY[i] for i in ids], batch_size=16)  # 점수 높은 순서의 [{\"corpus_id\", \"score\"}, ...]",
    "s": 2
   },
   {
-   "t": "    return [i for _, i in sorted(zip(scores, ids), key=lambda p: -float(p[0]))]",
+   "t": "    return [ids[r[\"corpus_id\"]] for r in ranked]",
    "s": 2
   },
   {
@@ -761,7 +761,7 @@ window.PAGE = {
      4
     ],
     [
-     "latency_ms 55.7",
+     "latency_ms 57.0",
      5
     ]
    ],
@@ -1014,7 +1014,7 @@ window.PAGE = {
      "0.76",
      "0.78",
      "7 ms",
-     "16 ms"
+     "28 ms"
     ],
     [
      "B 재정렬",
@@ -1022,8 +1022,8 @@ window.PAGE = {
      "0.88",
      "0.83",
      "0.84",
-     "61 ms",
-     "102 ms"
+     "59 ms",
+     "90 ms"
     ],
     [
      "C 다시 쓰기 + 재정렬",
@@ -1031,14 +1031,14 @@ window.PAGE = {
      "0.88",
      "0.92",
      "0.91",
-     "54 ms",
+     "52 ms",
      "61 ms"
     ]
    ],
    "notes": [
     "후보 Recall은 셋 다 0.92로 같아요. 재정렬과 다시 쓰기는 후보 안의 순서와 질문을 바꿨을 뿐, 후보 밖(Q05 상호대차)을 데려오지 못했어요.",
     "재정렬(B)은 Context Recall@3을 0.73에서 0.88로, 다시 쓰기까지 더한 C는 MRR을 0.92까지 올렸어요.",
-    "대신 시간 중앙값이 7 ms에서 61 ms로 늘어요(GPU에서 후보 10개를 한 번 더 읽어요). 점수와 시간을 같이 보고 정해요.",
+    "대신 시간 중앙값이 7 ms에서 59 ms로 늘어요(GPU에서 후보 10개를 한 번 더 읽어요). 점수와 시간을 같이 보고 정해요.",
     "A에서 B로 바꿔 Context Recall@3이 오른 질문은 Q03, Q06, Q07이고, 내린 질문은 없어요."
    ]
   },
