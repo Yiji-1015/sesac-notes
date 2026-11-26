@@ -245,14 +245,14 @@
           <a class="item" href="topics/backend/document-reading.html"><b>1. 문서 읽기</b><small>여러 형식의 파일에서 본문만 꺼내고 잡음 정리. 인코딩, HTML, PDF, OCR, NFC</small></a>
           <a class="item" href="topics/backend/chunking.html"><b>2. Chunking</b><small>글을 검색할 조각으로 나누기. 제목 분할, 토큰 한도, 조각 ID, 검사</small></a>
           <a class="item" href="topics/backend/indexing.html"><b>3. 인덱싱</b><small>조각을 DB에 넣고 검색하기. pgvector, 판 번호, 확인 후 공개</small></a>
-          <a class="item" href="topics/backend/rag-service.html"><b>RAG 서비스</b><small>찾은 조각으로 출처가 붙은 답 만들기. LangChain Runnable, Document, 근거 고르기, 구조화 출력 검사, 정보 부족과 실패 구분, FastAPI</small></a>
+          <a class="item" href="topics/backend/rag-service.html"><b>RAG 서비스</b><small>찾은 조각으로 출처가 붙은 답 만들기. LangChain Runnable과 Document, 근거 고르기, Prompt, 답 검사, 정보 부족과 실패 구분</small></a>
           <a class="item" href="topics/backend/rag-rerank.html"><b>RAG 검색 고치기</b><small>실패를 자리별로 나누기, 질문 다시 쓰기, 후보 수와 판 조건, 용어 넓히기와 여러 질문, Cross-Encoder 재정렬, 하나씩 켜서 비교</small></a>
-          <a class="item" href="topics/backend/rag-eval.html"><b>RAG 평가</b><small>정답 묶음, Hit@k, Recall@k, Precision@k, MRR, nDCG, 충실성과 정보 부족, 평가 Runner와 JSONL, 하나씩 바꿔 비교, 실패 유형, 품질 게이트</small></a>
+          <a class="item" href="topics/backend/rag-eval.html"><b>RAG 평가</b><small>정답 묶음, Hit@k, Recall@k, Precision@k, MRR, nDCG, 충실성과 정보 부족, 설정 비교와 실패 유형, 품질 기준</small></a>
         </div>
         <div class="cat">
           <h3>Agent</h3>
           <p>모델이 상황을 보고 도구를 골라 부르게 하기. 앞에서 만든 RAG와 DB를 도구로</p>
-          <a class="item" href="topics/backend/agent-tools.html"><b>AI Agent와 도구</b><small>Tool Calling 메시지, @tool과 입력 모양, RAG를 도구로, 읽기 전용 DB 도구와 ToolRuntime, create_agent, 반복 상한, 출처 확인, 회귀 테스트, API</small></a>
+          <a class="item" href="topics/backend/agent-tools.html"><b>AI Agent와 도구</b><small>@tool과 입력 모양, 읽기 전용 DB 도구와 숨긴 인수, tool_calls 한 바퀴, 반복 상한, 안전장치, 출처 확인, 회귀 시나리오</small></a>
         </div>
         <div class="cat">
           <h3>성능과 하드웨어</h3>
@@ -274,6 +274,7 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/26</td><td><a href="topics/backend/rag-service.html">RAG 서비스</a>, <a href="topics/backend/rag-rerank.html">검색 고치기</a>, <a href="topics/backend/rag-eval.html">RAG 평가</a>, <a href="topics/backend/agent-tools.html">AI Agent와 도구</a> 다시 씀: 실습 코드를 몰라도 읽히게, 코드 하나(①~㉜)를 네 쪽이 이어 키우던 것을 쪽마다 따로 실행되는 예제(①~⑦)로 바꿈. 가짜 HTTP 서버, 응답 묶음, 요청 모델, API 단계, PostgreSQL 연결을 빼고 각 쪽의 개념만 남김. LLM 자리는 미리 정한 답을 돌려주는 함수</td></tr>
         <tr><td class="when">11/26</td><td>새 블록 "공통": <a href="topics/common/principles.html">만들 때 지킬 것</a>. 무엇을 만들든 결과를 믿을 수 있게 하는 원칙 13개를 네 묶음(결과가 어디서 왔나, 실패를 드러내기, 경계와 계약, 판단과 비교)으로 모아, 노트에서 실제로 어겨 본 단계로 잇고, 장면이 없던 일곱 가지(실행 모드, 원본 보존, 엄격한 입력과 응답 읽기, 설정, 멱등한 재시도, 판, 규칙과 모델)는 작은 예제로 직접 어겨 봄</td></tr>
         <tr><td class="when">11/26</td><td><a href="topics/backend/agent-tools.html">AI Agent와 도구</a> 새로 씀(새 카테고리 "Agent"): Day29 AI Agent Fundamentals와 Tool Calling. RAG를 rag_search 도구로, 노트 전용 PostgreSQL의 예약 표를 읽기 전용 lookup_reservation 도구로 만들어 create_agent로 묶고, Tool Calling 한 바퀴, 반복 상한, 남의 것과 DB 장애, 출처 확인, 회귀 테스트, 인증된 API까지 실행으로 확인</td></tr>
         <tr><td class="when">11/26</td><td><a href="topics/backend/rag-eval.html">RAG 평가</a> 새로 씀: Day28 RAG Evaluation과 Debugging. RAG 서비스와 검색 고치기의 코드를 ⑰~㉔로 이어, 결과 전에 정한 15문항 정답 묶음으로 검색(Hit, Recall, Precision, MRR, nDCG)과 답(충실성, 정답성, 정보 부족)을 따로 재고, 다섯 설정을 질문별로 비교하고, 실패를 고칠 곳으로 나누고, 게이트로 막힘을 확인. 코드 단계 번호를 ㉟까지 쓸 수 있게 늘림</td></tr>

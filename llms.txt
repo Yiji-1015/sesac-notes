@@ -90,7 +90,7 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 - [RAG 평가](https://yiji-1015.github.io/sesac-notes/topics/backend/rag-eval.html): RAG 평가: 정답 묶음으로 검색과 답을 따로 재기
 
 ### 🛠️ 백엔드 > Agent
-- [AI Agent와 도구](https://yiji-1015.github.io/sesac-notes/topics/backend/agent-tools.html): AI Agent와 도구: RAG와 DB를 골라 부르게 하기
+- [AI Agent와 도구](https://yiji-1015.github.io/sesac-notes/topics/backend/agent-tools.html): AI Agent와 도구: 모델은 고르고, 앱이 확인하고 실행한다
 
 ### 🛠️ 백엔드 > 성능과 하드웨어
 - [SIMD와 메모리](https://yiji-1015.github.io/sesac-notes/topics/backend/simd-speed.html): SIMD와 메모리: 같은 계산이 수십 배 빨라지는 이유

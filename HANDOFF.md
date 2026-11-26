@@ -1,6 +1,6 @@
 # 작업 인계 노트
 
-마지막 정리: 2026-11-24 (Day27 RAG 검색 고치기까지)
+마지막 정리: 2026-11-26 (RAG 네 쪽을 혼자 서는 쪽으로 다시 씀)
 
 이 파일은 다음에 작업을 이어받는 사람(또는 AI)이 지금 상태를 바로 알 수 있게 적은 메모예요.
 쓰는 규칙은 [`STYLE.md`](STYLE.md)가 기준이고, 여기에는 **무엇이 바뀌었고 무엇이 남았는지**만 적어요.
@@ -130,49 +130,54 @@
 - 빌드: `C:/practice_assignment/.venv/Scripts/python.exe tools/pages/principles.py` (몇 초, GPU와 DB 필요 없음). 필요한 패키지는 pydantic, httpx, python-dotenv
 - 새 원칙을 넣을 때: 이미 어겨 본 장면이 있으면 링크만, 없으면 예제 단계 하나. 조건이 붙는 원칙(대체 경로는 드러나게, 남의 응답은 필요한 것만 엄격하게, 재시도는 멱등할 때만)은 조건까지 같이 적어요
 
+### RAG 네 쪽을 혼자 서게 다시 씀 (2026-11-26)
+
+- 사용자 피드백: "실습 코드와 무리하게 이으려니 더 어렵고 복잡하다. 실습 코드를 몰라도 이해되게." 그래서 RAG 서비스, 검색 고치기, RAG 평가, AI Agent가 `examples/rag/rag_service.py` 하나(①~㉜, 1,041줄)를 이어 키우던 것을 **쪽마다 따로 실행되는 예제**로 바꿨어요(STYLE.md 5.1 "쪽 하나로 서요")
+- 네 쪽 모두 단계는 ①~⑦, `range [1, 7]`. 같이 쓰는 건 데이터뿐이에요: `examples/ingest/out/chunks.json`(12조각), `examples/rag/data/`의 `more_chunks.json`(14조각), `gold.json`, `answer_reviews.json`
+- 뺀 것: 가짜 HTTP 서버(MockTransport, Responses API 모양), 응답 묶음(raw, parsed, parsing_error), state 키 규칙, 요청 모델과 켜고 끄는 값, 매 쪽의 FastAPI 단계, PostgreSQL 연결, create_agent. 필요한 설명은 각 쪽 '실제로 할 때'에 글로 남겼어요
+- LLM 자리는 모두 '미리 정한 답을 돌려주는 함수'예요(RAG 서비스 `fake_llm`, 검색 고치기 `fake_llm`, AI Agent `fake_model`). RAG 평가는 답 문장을 검토표에서 그대로 써요
+- 만들 때 지킬 것(`principles.py`)의 장면 링크를 새 번호로 바꿨어요. RAG 서비스 ⑥의 "langchain-openai 판에 따라 깨진 JSON이 예외로 온다" 장면은 사라져서, '판을 적어 두기' 원칙은 RAG 평가 ①(묶음의 판과 조각의 판)으로 잇게 바꿨어요
+- 남은 일: 문서 적재 세 쪽(`examples/ingest/ingest.py` ①~⑱)도 아직 코드 하나를 나눠 써요
+
 ### Day29 (2026-11-26) AI Agent Fundamentals와 Tool Calling
 
-- `topics/backend/agent-tools.html` "AI Agent와 도구" (생성기 `tools/pages/agent_tools.py`). 백엔드에 새 카테고리 "Agent"(검색과 RAG 다음), RAG 지도에 "Agent가 고를 때" 줄
-- 코드는 `examples/rag/rag_service.py`를 ㉕~㉜로 이어 키워요(한 파일이 네 쪽). rag_search는 ⑯의 서비스를 그대로 감싸고, lookup_reservation은 PostgreSQL 예약 표(가상의 회원 둘)를 읽기 전용 연결과 `ToolRuntime[Member]`로 읽어요
-- Agent의 판단(어떤 도구를 부를지, 답 문장)은 ChatOpenAI에 붙인 가짜 서버(`fake_agent_reply`)의 규칙이에요. 도구 실행, DB, RAG(GPU 재정렬), 검사, API는 실제 실행. 응답마다 ID를 다르게 줘야 해요(같으면 langgraph가 앞 메시지를 덮어써요)
-- 빌드에 노트 전용 DB가 필요해요: `NOTES_PG_ENV=<.env> HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/agent_tools.py` (1분쯤, 끝나면 DB를 지워요). 예약 표 시간은 `use_date`와 `start_hour`
-- 이 PC의 venv에 `langchain` 1.5.2(langgraph 1.2.24 같이)를 설치했어요(사용자 허락). `create_agent`, `ToolCallLimitMiddleware`, `ToolRuntime`이 여기 있어요
-- 실제로 나온 동작: 입력 오류와 없는 도구는 멈추지 않고 오류 문장이 ToolMessage로 모델에게 돌아감, 도구 호출 5번째에서 `ToolCallLimitExceededError`, DB 장애는 예외로 올라와 API 502, 본문의 member_id는 422(extra_forbid), 남의 예약과 없는 번호는 같은 not_found_or_forbidden
-- 원본: `강의자료-원본/Day29_20261126_AI_Agent_Tool_Calling.html` (내용은 `globalThis.DAY29_DATA` JSON 안). 용어 `terms/day29.json`(AI Agent는 이미 있어서 6개), 용어집의 Day29 링크는 이 쪽으로
+- `topics/backend/agent-tools.html` "AI Agent와 도구" (생성기 `tools/pages/agent_tools.py`, 예제 `examples/agent_tools/agent.py`, 167줄). 백엔드 카테고리 "Agent", RAG 지도에 "Agent가 고를 때" 줄
+- 도구 둘: `search_rules`(e5로 26조각에서 2개, `@tool`)와 `lookup_reservation`(SQLite 메모리 DB, `PRAGMA query_only`, `WHERE member_id`, member_id는 `InjectedToolArg`로 모델에게 숨김, `Field(ge=1, strict=True)`). DB 서버도 GPU도 필요 없어요
+- 메시지는 role(user, assistant, tool)과 tool_calls를 가진 dict. 앱의 `execute`가 허용 목록, 입력 검사, 회원 주입을 맡고, `run_agent`가 `max_steps=4`로 반복
+- 실제로 나온 동작: 잘못된 입력 invalid_args, 남의 예약은 없는 번호와 같은 not_found_or_forbidden, 없는 도구 unknown_tool, 반복은 tool_call_limit로 중단, DB 장애는 db_unavailable. 지어낸 출처 [99]는 `check_answer`에서 막힘. 회귀 시나리오 6개는 모두 통과하고, PLANS를 바꿔 예약 조회를 빼먹게 하면 '둘 다'만 실패
+- 빌드: `HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/agent_tools.py` (몇십 초)
+- 처음 판(같은 날 오전)은 PostgreSQL과 create_agent, ToolCallLimitMiddleware, FastAPI까지 돌렸어요. 그때 venv에 `langchain` 1.5.2(langgraph 1.2.24 같이)를 설치했어요(사용자 허락)
+- 원본: `강의자료-원본/Day29_20261126_AI_Agent_Tool_Calling.html` (내용은 `globalThis.DAY29_DATA` JSON 안). 용어 `terms/day29.json`, 용어집의 Day29 링크는 이 쪽으로
 - 다음 수업 예고(Day29 자료 기준): 11/27 개인 프로젝트, 11/30 LangGraph State, 12/01 보안과 Guardrails, 12/02 MCP
 
 ### Day28 (2026-11-25) RAG Evaluation과 Debugging
 
-- `topics/backend/rag-eval.html` "RAG 평가" (생성기 `tools/pages/rag_eval.py`). "검색과 RAG" 카테고리의 검색 고치기 다음, RAG 지도에 "잘 되는지 잴 때" 줄을 새로 둠
-- 코드는 `examples/rag/rag_service.py`를 ⑰~㉔로 이어 키워요(한 파일이 세 쪽). 그래서 단계 번호를 ⑳ 너머로 늘렸어요: `tools/stepcode.py`(CIRCLED, HEAD), `tools/pagekit.py`(circ), `topics/steps.js`(C, labelln 정규식)가 ㉑~㉟까지 받아요
-- 정답 묶음 `examples/rag/data/gold.json`(15문항, 답 없는 질문 2, 등급 1과 2, chunk_id로 적음), 답 검토표 `answer_reviews.json`(사람이 주장마다 판정, 답 문장이 바뀌면 N/A). Q04, Q12는 일부러 근거 없는 주장을 섞은 답
-- 설정 다섯 개(A 기준, B 다시 쓰기, C 재정렬, D 둘 다, E + 넓히기) × 15문항 = 75번 실행, `examples/rag/out/eval_runs.jsonl`(무시 목록). 빌드 1분 안쪽, GPU 필요(재정렬)
-- 실제로 나온 결과: 후보 Recall은 넓히기에서만 오름, 재정렬은 MRR 0.76→0.83(Q06 0.2→1), Q10은 nDCG가 조금 내려감, 숫자 규칙은 Q12는 잡고 Q04는 놓침, 핵심 사실 글자 대조는 Q09 같은 바꿔 말하기에 0, E도 근거 없는 주장 둘 때문에 게이트에서 막힘
-- 겹치지 않게: LLM-as-a-Judge는 `llm-judge.html`, 단계별 시간은 검색 고치기 ⑮로 링크만
-- RAG 세 쪽이 읽는 `examples/ingest/out/chunks.json`이 무시 목록(`examples/*/out/`)에 걸려 저장소에 없었어요. 이 파일만 `git add -f`로 올려 다른 PC에서도 빌드되게 했어요
-- 원본: `강의자료-원본/Day28_20261125_RAG_Evaluation_Debugging.html` (강의 내용이 HTML 본문이 아니라 `globalThis.LECTURE_DATA` JSON 안에 있어요). 용어 `terms/day28.json`, 용어집의 Day28 링크는 이 쪽으로
+- `topics/backend/rag-eval.html` "RAG 평가" (생성기 `tools/pages/rag_eval.py`, 예제 `examples/rag_eval/evaluate.py`, 138줄). "검색과 RAG" 카테고리의 검색 고치기 다음, RAG 지도에 "잘 되는지 잴 때" 줄
+- 정답 묶음 `examples/rag/data/gold.json`(15문항, 답 없는 질문 2, 등급 1과 2, chunk_id로 적음), 답 검토표 `answer_reviews.json`(사람이 주장마다 판정). Q04, Q12는 일부러 근거 없는 주장을 섞은 답
+- 설정 셋(A e5만, B 재정렬, C 다시 쓴 질문 + 재정렬) × 15문항. 다시 쓴 질문은 파일 안에 고정(`REWRITTEN`). 재정렬은 GPU에서 실제로 돌려요
+- 실제로 나온 결과: 후보 Recall은 셋 다 0.92(Q05 상호대차는 후보 밖), Context Recall@3 0.73 → 0.88, MRR 0.76 → 0.92, Q10은 재정렬로 nDCG가 조금 내려감, 숫자 규칙은 Q12는 잡고 Q04는 놓치고 Q05는 헛통과, 핵심 사실 글자 대조는 Q09에 0, 충실성 평균 0.92로 기준은 넘었지만 근거 없는 답 둘 때문에 품질 기준에서 막힘
+- 단계 번호를 ⑳ 너머로 늘린 것(`tools/stepcode.py`, `tools/pagekit.py`, `topics/steps.js`가 ㉑~㉟를 받음)은 그대로 둬요
+- 빌드: `HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/rag_eval.py` (1분 안쪽, GPU 필요). 시간 값은 실행마다 조금 달라요
+- `examples/ingest/out/chunks.json`은 무시 목록(`examples/*/out/`)에 걸려 있어서 `git add -f`로 올려 뒀어요
+- 원본: `강의자료-원본/Day28_20261125_RAG_Evaluation_Debugging.html` (내용은 `globalThis.LECTURE_DATA` JSON 안). 용어 `terms/day28.json`, 용어집의 Day28 링크는 이 쪽으로
 
 ### Day27 (2026-11-24) LangChain RAG와 Reranking
 
-- `topics/backend/rag-rerank.html` "RAG 검색 고치기" (생성기 `tools/pages/rag_rerank.py`). "검색과 RAG" 카테고리의 RAG 서비스 다음, RAG 지도의 "벡터 검색 → 검색 고치기 → Prompt와 Context"
-- 코드는 새 파일이 아니라 `examples/rag/rag_service.py`를 ⑨~⑯으로 이어 키워요(문서 적재 세 쪽이 `ingest.py` 하나를 나눠 쓰는 것과 같아요). RAG 서비스 쪽은 `range [1, 8]`, 이 쪽은 `[9, 16]`. ⑨~⑯용 import 줄은 `#@13`, `#@15` 표시로 위쪽에 있어요
-  - RAG 서비스 쪽 생성기도 다시 돌렸어요(이 쪽으로 가는 링크 추가). 출력 값은 그대로이고, 코드 패널에 ⑨~⑯ 줄이 숨은 채로 들어가요
-- 조각: 인덱싱 쪽 12개 + `examples/rag/data/more_chunks.json` 14개(`tools/make_rag_more.py`로 만든 가상 안내문: 스터디룸, 도서 예약, 프로그램, 기기, 2025년과 2026년 공지). 2025년 공지만 `current: false`
-- 질문 6개와 정답 조각은 ⑨의 `EVAL`. 다시 쓰기는 가짜 서버(`REWRITES`, 미리 정한 값), 재정렬은 `BAAI/bge-reranker-v2-m3`를 **CUDA GPU에서 실제로** 돌려요. GPU가 없으면 ⑬에서 멈춰요(CPU로 바꾸지 않게 해 둠)
-  - 모델은 2026-11-24 사용자 허락으로 받았어요(HF 캐시 약 2.2GB). 이 쪽 전체에 GPU 메모리 최대 약 2.6GB
-  - 빌드: `HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/rag_rerank.py` (1분 안쪽). ⑮의 시간은 실행마다 조금 달라져요(주장은 순서만 `S.claim`으로 확인)
-- 실제로 나온 결과: 다시 쓰기가 후속 질문 둘을, 재정렬이 '안 가면' 질문을, 용어 넓히기가 '상호대차'(e5 11위, 후보 밖)를 고쳐요. 상호대차는 재정렬 1위지만 점수 0.002라 모델도 잘 모름. 2025년과 2026년 공지는 e5와 재정렬 점수가 거의 같아서 판 조건으로 걸러요
+- `topics/backend/rag-rerank.html` "RAG 검색 고치기" (생성기 `tools/pages/rag_rerank.py`, 예제 `examples/rag_rerank/search_fix.py`, 140줄). RAG 지도의 "벡터 검색 → 검색 고치기 → Prompt와 Context"
+- 조각: 인덱싱 쪽 12개 + `examples/rag/data/more_chunks.json` 14개(`tools/make_rag_more.py`로 만든 가상 안내문). 2025년 공지만 `current: false`
+- 질문 6개와 정답 조각은 ②의 `TESTS`. 다시 쓰기의 LLM 자리는 `fake_llm`(보내는 Prompt는 실제와 같음). 재정렬은 `BAAI/bge-reranker-v2-m3`를 **CUDA GPU에서 실제로** 돌리고, GPU가 없으면 ⑥에서 멈춰요. 모델은 2026-11-24 사용자 허락으로 받았어요(HF 캐시 약 2.2GB)
+- 실제로 나온 결과: 다시 쓰기가 후속 질문 둘을, 재정렬이 '안 가면' 질문을, 용어 넓히기가 '상호대차'(e5 11위, 후보 밖)를 고쳐요. 상호대차는 재정렬 1위지만 점수 0.002. 두 해 공지는 점수가 거의 같아 판 조건으로 걸러요. 재정렬 시간은 batch_size 16 단위로 늘어요
+- 빌드: `HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/rag_rerank.py` (1분 안쪽)
 - 원본: `강의자료-원본/Day27_20261124_LangChain_RAG_Reranking.html`. 용어 `terms/day27.json`, 용어집의 Day27 링크는 이 쪽으로
-- 다음 강의(Recall@k, MRR, nDCG 같은 검색 평가)는 ⑨의 `EVAL`과 ⑮의 비교표를 이어 쓰면 돼요
 
 ### Day26 (2026-11-23) Basic RAG와 LangChain
 
-- `topics/backend/rag-service.html` (예제 `examples/rag/rag_service.py`, 생성기 `tools/pages/rag_service.py`). "검색과 RAG" 카테고리, RAG 지도의 "질문에 답할 때" 줄 끝(검사와 출처)
-- 기존 쪽과 겹치지 않게: 검색은 인덱싱 ⑱, Prompt 틀과 출처 규칙은 Prompt와 출력 계약, SDK 호출은 LLM API 클라이언트로 링크하고, 이 쪽은 잇는 부분(Runnable, Document, 후보 수와 넣을 수, 허용 출처는 included_docs에서만, raw/parsed/parsing_error 묶음, 정보 부족과 실패 구분, 422와 502)만 다뤄요
-- 검색 대상은 인덱싱 쪽의 가람 도서관 조각 12개(`examples/ingest/out/chunks.json`), e5로 메모리에서 검색. 답은 ChatOpenAI에 가짜 서버(MockTransport)를 붙여 받음(키, 비용 없음)
-- 이 PC의 venv에 `langchain-core` 1.8.4, `langchain-openai` 1.8.5를 설치했어요(사용자 허락). 다른 PC에서 다시 빌드하려면 같은 두 패키지가 필요해요
-- 판에 따라 다른 점을 그대로 적었어요: 깨진 JSON과 글자 ID는 parsing_error가 아니라 invoke 예외(generation_error)로 옴. 거절만 parsing_error에 담김
-- 원본: `강의자료-원본/Day26_20261123_Basic_RAG_LangChain.html` (저장소에는 안 올라가요). 용어 `terms/day26.json`, 용어집의 Day26 링크는 이 쪽으로
+- `topics/backend/rag-service.html` "RAG 서비스" (생성기 `tools/pages/rag_service.py`, 예제 `examples/rag/rag_service.py`, 162줄). RAG 지도의 "질문에 답할 때" 줄 끝(검사와 출처)
+- ① 찾기, ② Document와 Runnable, ③ 근거 고르기(후보 수, 넣을 수, 글자 예산, 넣은 조각만 출처로), ④ Prompt, ⑤ 모델 자리의 가짜 함수(`RunnableLambda(fake_llm)`, AIMessage), ⑥ 답 검사(Pydantic `Answer`, 출처 번호, status 조합, 여섯 가지 답), ⑦ 서비스(정보 부족과 RagError 구분)
+- 검색 대상은 인덱싱 쪽의 가람 도서관 조각 12개, e5로 메모리에서 검색. 키도 비용도 없어요
+- 빌드: `HF_HUB_OFFLINE=1 C:/practice_assignment/.venv/Scripts/python.exe tools/pages/rag_service.py`
+- 이 PC의 venv에 `langchain-core` 1.8.4, `langchain-openai` 1.8.5를 설치했어요(사용자 허락). 지금 예제는 langchain-core만 써요
+- 원본: `강의자료-원본/Day26_20261123_Basic_RAG_LangChain.html`. 용어 `terms/day26.json`, 용어집의 Day26 링크는 이 쪽으로
 
 ### 백엔드 외전 (2026-11-20)
 
