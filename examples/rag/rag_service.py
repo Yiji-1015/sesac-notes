@@ -1,5 +1,5 @@
 # 질문에 출처가 붙은 답을 돌려주는 RAG 서비스 전체 코드. 노트의 단계 번호가 이 파일의 번호 주석과 1:1로 맞아요.
-# ①~⑧은 "RAG 서비스" 쪽, ⑨~⑯은 "RAG 검색 고치기" 쪽이에요. 한 파일이 두 쪽에 걸쳐 자라요.
+# ①~⑧은 "RAG 서비스" 쪽, ⑨~⑯은 "RAG 검색 고치기" 쪽, ⑰~㉔는 "RAG 평가" 쪽이에요. 한 파일이 세 쪽에 걸쳐 자라요.
 # 검색 대상: 문서 읽기 → Chunking → 인덱싱 쪽에서 만든 가람 도서관 조각 12개 (../ingest/out/chunks.json)
 #   ⑨부터는 같은 도서관의 안내 조각 14개(data/more_chunks.json, tools/make_rag_more.py로 만듦)를 더해요.
 # 검색은 intfloat/multilingual-e5-small(이 PC에 받아 둔 것)로 메모리에서 해요. 실제로는 인덱싱 쪽 ⑱의 pgvector 검색 자리예요.
@@ -583,3 +583,174 @@ api2 = {}
 for name, (c, body) in calls2.items():
     r = c.post("/rag/enhanced", json=body)
     api2[name] = (r.status_code, r.json())
+
+# ⑰ 정답 묶음과 실행 기록
+GOLD = json.loads((HERE / "data" / "gold.json").read_text(encoding="utf-8"))   # 검색 결과를 보기 전에 정해 둔 질문과 정답 조각
+known, seen = {c["chunk_id"] for c in CHUNKS}, set()
+for row in GOLD["questions"]:                                    # 정답 묶음의 기본 약속부터 검사
+    assert row["question_id"] not in seen and row["question"].strip(), "질문 ID가 겹치거나 질문이 비었어요"
+    seen.add(row["question_id"])
+    assert set(row["gold"]) <= known, "없는 조각 ID"
+    assert all(type(g) is int and g in (1, 2) for g in row["gold"].values()), "등급은 1이나 2"
+    assert (row["expected_status"] == "insufficient_context") == (not row["gold"]), "정답 조각이 없으면 정보 부족이어야 해요"
+CHUNK_OF = {c["citation_id"]: c["chunk_id"] for c in CHUNKS}     # 실행마다 붙인 번호 → 바뀌지 않는 조각 ID
+BODY_OF = {c["chunk_id"]: c["body"] for c in CHUNKS}
+FAKE.update({  # 가짜 서버가 평가 질문에 쓸 답 (⑳에서 사람이 주장마다 검토한 문장과 같아요. 일부러 틀린 답도 둘 있어요)
+    "스터디룸 예약을 철회하려면 어떻게 하나요?": ("이용 시작 1시간 전까지 홈페이지의 '나의 신청'에서 철회합니다.", "이용 시작 1시간 전까지"),
+    "몇 시간까지 쓸 수 있어?": ("노트북은 한 번에 4시간까지 쓸 수 있고, 회원증 없이도 빌릴 수 있습니다.", "한 번에 4시간까지"),
+    "상호대차 신청하면 며칠 걸려요?": ("신청한 뒤 보통 3일에서 5일 안에 도착합니다.", "3일에서 5일"),
+    "책 예약은 어떻게 취소해요?": ("홈페이지의 '나의 예약'에서 취소 버튼을 누르면 됩니다.", "나의 예약"),
+    "독서 프로그램 신청을 취소하려면 어떻게 하나요?": ("시작 전날까지 홈페이지에서 취소하면 됩니다.", "시작 전날까지"),
+    "연체가 길어지면 어떻게 되나요?": ("연체가 30일을 넘으면 회원 자격이 정지됩니다.", "30일을 넘으면"),
+    "복사는 한 장에 얼마예요?": ("흑백은 한 장에 100원, 컬러는 한 장에 200원입니다.", "흑백은 한 장에"),
+    "올해 스터디룸은 하루에 몇 시간까지 쓸 수 있나요?": ("2026년부터 하루 최대 3시간까지 쓸 수 있고, 시험 기간에는 2시간으로 줄어듭니다.", "하루 최대 3시간"),
+})
+
+def request_of(row, setting, flags):                             # 서비스에 넣는 값만 골라요. 정답(gold, reference_facts)은 넣지 않아요
+    return {"question_id": row["question_id"], "question": row["question"], "history": row["history"],
+            "category": row["category"], "setting": setting, "flags": flags}
+
+def run_target(req):                                             # 평가할 대상을 한 번 실행하고, 단계마다 무엇이 나왔는지 기록
+    start = time.perf_counter()
+    s = run_search(req["history"], req["question"], req["category"], *req["flags"])   # ⑮의 검색 (다시 쓰기, 넓히기, 재정렬)
+    obj = generate_from_context(req["question"], s["context"], {d.metadata["citation_id"] for d in s["included_docs"]})
+    torch.cuda.synchronize()                                     # GPU 작업이 끝난 뒤에 시간을 재요
+    ids = lambda docs: [CHUNK_OF[d.metadata["citation_id"]] for d in docs]   # noqa: E731
+    return {"question_id": req["question_id"], "setting": req["setting"], "search_query": s["search_query"],
+            "candidate_ids": ids(s["candidate_docs"]), "ranked_ids": ids(s["ranked_docs"]), "included_ids": ids(s["included_docs"]),
+            "status": obj.status, "answer": obj.answer, "source_ids": [CHUNK_OF[i] for i in obj.source_ids],
+            "latency_ms": round((time.perf_counter() - start) * 1000, 1)}
+
+base_records = [run_target(request_of(row, "A 기준", (False, False, False))) for row in GOLD["questions"]]
+
+# ⑱ 찾았나: Hit@k, Recall@k, Precision@k
+def hit_at_k(ids, gold, k):                                      # 정답 조각이 하나라도 들어왔으면 1
+    return None if not gold else int(bool(set(ids[:k]) & set(gold)))
+
+def recall_at_k(ids, gold, k):                                   # 정답 조각 중 몇 개를 찾았나 (분모: 정답 수)
+    return None if not gold else len(set(ids[:k]) & set(gold)) / len(gold)
+
+def precision_at_k(ids, gold, k):                                # 가져온 k개 중 몇 개가 정답인가 (분모: k)
+    return None if not gold else len(set(ids[:k]) & set(gold)) / k
+
+def mean(values):                                                # N/A(None)는 빼고 평균
+    vals = [v for v in values if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+gold_of = {row["question_id"]: row["gold"] for row in GOLD["questions"]}
+k_curve = {k: tuple(mean(f(r["ranked_ids"], gold_of[r["question_id"]], k) for r in base_records)
+                    for f in (hit_at_k, recall_at_k, precision_at_k)) for k in (1, 3, 5, 10)}
+cand_vs_ctx = {r["question_id"]: (recall_at_k(r["candidate_ids"], gold_of[r["question_id"]], len(r["candidate_ids"])),
+                                  recall_at_k(r["included_ids"], gold_of[r["question_id"]], 3)) for r in base_records}
+
+# ⑲ 앞에 뒀나: MRR과 nDCG
+def reciprocal_rank(ids, gold, k):                               # 첫 정답이 r번째면 1/r, k 안에 없으면 0
+    if not gold:
+        return None
+    return next((1 / rank for rank, i in enumerate(ids[:k], start=1) if i in gold), 0.0)
+
+def dcg(ids, grades, k):                                         # 등급이 높을수록 크게, 뒤로 갈수록 log로 덜 쳐요
+    return sum((2 ** grades.get(i, 0) - 1) / math.log2(rank + 1) for rank, i in enumerate(ids[:k], start=1))
+
+def ndcg_at_k(ids, grades, k):                                   # 가장 좋은 순서로 놓았을 때의 DCG로 나눠 0~1로
+    best = dcg(sorted(grades, key=grades.get, reverse=True), grades, k)
+    return None if best == 0 else dcg(ids, grades, k) / best
+
+rerank_records = [run_target(request_of(row, "C 재정렬만", (False, False, True))) for row in GOLD["questions"]]
+rank_pairs = {a["question_id"]: {name: (f(a[key], gold_of[a["question_id"]], 10), f(c[key], gold_of[c["question_id"]], 10))
+                                 for name, f, key in (("candidate_recall", recall_at_k, "candidate_ids"), ("mrr@10", reciprocal_rank, "ranked_ids"),
+                                                      ("ndcg@10", ndcg_at_k, "ranked_ids"))}
+              for a, c in zip(base_records, rerank_records)}
+
+# ⑳ 답은 맞나: 근거, 정답, 정보 부족
+REVIEWS = {r["question_id"]: r for r in json.loads((HERE / "data" / "answer_reviews.json").read_text(encoding="utf-8"))["reviews"]}
+
+def faithfulness(record):                                        # 사람이 주장마다 판정한 표로: 확인된 주장 ÷ 전체 주장
+    review = REVIEWS.get(record["question_id"])
+    if record["status"] != "answered" or review is None or review["answer"] != record["answer"]:
+        return None                                              # 답이 없거나, 답 문장이 바뀌어 다시 검토해야 하면 N/A
+    return sum(c["supported"] for c in review["claims"]) / len(review["claims"])
+
+def number_check(record):                                        # 사람 대신 빠르게 해 보는 규칙: 주장 속 숫자가 넣은 조각에 모두 있나
+    context = "\n".join(BODY_OF[i] for i in record["included_ids"])
+    return [all(n in context for n in re.findall(r"\d+", c["text"])) for c in REVIEWS[record["question_id"]]["claims"]]
+
+def fact_recall(record, facts):                                  # 정답의 핵심 사실이 답에 들어 있나 (정답성)
+    return None if not facts or record["status"] != "answered" else sum(f in record["answer"] for f in facts) / len(facts)
+
+best_records = [run_target(request_of(row, "D 다시 쓰기 + 재정렬", (True, False, True))) for row in GOLD["questions"]]
+answer_eval = {}
+for r, row in zip(best_records, GOLD["questions"]):
+    fa = faithfulness(r)
+    answer_eval[r["question_id"]] = {"status": r["status"], "status_ok": r["status"] == row["expected_status"],
+                                     "citation_ok": set(r["source_ids"]) <= set(r["included_ids"]), "faithfulness": fa,
+                                     "facts": fact_recall(r, row["reference_facts"]),
+                                     "human": None if fa is None else [c["supported"] for c in REVIEWS[row["question_id"]]["claims"]],
+                                     "rule": None if fa is None else number_check(r)}
+
+# ㉑ 평가 Runner: 실행하고, 끝난 뒤에 정답을 붙여 점수 매기기
+def evaluate(pair):                                              # 실행 기록 + 정답 한 줄 → 질문 하나의 점수
+    r, row = pair["record"], pair["gold"]
+    g = row["gold"]
+    n = len(r["candidate_ids"])                                  # 후보 전체 (여러 질문으로 찾으면 10개보다 많을 수 있어요)
+    return {"candidate_hit": hit_at_k(r["candidate_ids"], g, n), "candidate_recall": recall_at_k(r["candidate_ids"], g, n),
+            "context_recall@3": recall_at_k(r["included_ids"], g, 3), "mrr@10": reciprocal_rank(r["ranked_ids"], g, 10),
+            "ndcg@10": ndcg_at_k(r["ranked_ids"], g, 10), "status_ok": r["status"] == row["expected_status"],
+            "citation_ok": set(r["source_ids"]) <= set(r["included_ids"]), "faithfulness": faithfulness(r),
+            "fact_recall": fact_recall(r, row["reference_facts"])}
+
+target, evaluator = RunnableLambda(run_target), RunnableLambda(evaluate)
+SETTINGS_EVAL = {"A 기준": (False, False, False), "B 다시 쓰기만": (True, False, False), "C 재정렬만": (False, False, True),
+                 "D 다시 쓰기 + 재정렬": (True, False, True), "E D + 넓히기": (True, True, True)}   # (다시 쓰기, 넓히기, 재정렬)
+(HERE / "out").mkdir(exist_ok=True)
+report = []
+with open(HERE / "out" / "eval_runs.jsonl", "w", encoding="utf-8") as f:   # 질문 × 설정마다 한 줄
+    for setting, flags in SETTINGS_EVAL.items():
+        for row in GOLD["questions"]:
+            record = target.invoke(request_of(row, setting, flags))
+            line = {"dataset_version": GOLD["dataset_version"], "corpus_version": GOLD["corpus_version"],
+                    "flags": dict(zip(("rewrite", "expand", "rerank"), flags)), **record, **evaluator.invoke({"record": record, "gold": row})}
+            f.write(json.dumps(line, ensure_ascii=False) + "\n")
+            report.append(line)
+
+# ㉒ 하나씩 바꿔 비교하기
+METRICS = ("candidate_recall", "context_recall@3", "mrr@10", "ndcg@10", "faithfulness", "fact_recall")
+by_setting = {s: [x for x in report if x["setting"] == s] for s in SETTINGS_EVAL}
+summary = {s: {**{m: mean(x[m] for x in rows) for m in METRICS},
+               "status_ok": mean(float(x["status_ok"]) for x in rows), "citation_ok": mean(float(x["citation_ok"]) for x in rows),
+               "p50_ms": float(np.percentile([x["latency_ms"] for x in rows], 50)), "p95_ms": float(np.percentile([x["latency_ms"] for x in rows], 95))}
+           for s, rows in by_setting.items()}
+
+def per_question_delta(a, b, metric):                            # 같은 질문끼리 짝지어 비교 (평균만 보면 나빠진 질문이 숨어요)
+    pairs = [(x["question_id"], x[metric], y[metric]) for x, y in zip(by_setting[a], by_setting[b]) if x[metric] is not None]
+    return {"better": [q for q, u, v in pairs if v > u + 1e-9], "worse": [q for q, u, v in pairs if v < u - 1e-9]}
+
+deltas = {s: {m: per_question_delta("A 기준", s, m) for m in ("context_recall@3", "mrr@10")} for s in SETTINGS_EVAL if s != "A 기준"}
+
+# ㉓ 낮은 점수에서 고칠 곳으로
+def failure_type(x, row):                                        # 앞 단계부터 차례로: 먼저 막힌 곳이 원인이에요
+    if row["gold"] and not x["candidate_hit"]:
+        return "후보 밖"
+    if row["gold"] and not x["context_recall@3"]:
+        return "넣을 3개에 못 듦"
+    if not x["status_ok"]:
+        return "답 상태 틀림"
+    if x["faithfulness"] is not None and x["faithfulness"] < 1:
+        return "근거 없는 주장"
+    return "통과"
+
+rows_of = {row["question_id"]: row for row in GOLD["questions"]}
+failures = {s: {x["question_id"]: failure_type(x, rows_of[x["question_id"]]) for x in rows} for s, rows in by_setting.items()}
+
+# ㉔ 품질 게이트: Agent에 붙이기 전에
+GATE = {"context_recall@3": 0.8, "mrr@10": 0.7, "status_ok": 1.0, "citation_ok": 1.0, "faithfulness": 0.9}   # 예시 기준 (팀마다 정해요)
+
+def quality_gate(setting, baseline="A 기준"):
+    checks = {m: (summary[setting][m], need, summary[setting][m] is not None and summary[setting][m] >= need) for m, need in GATE.items()}
+    unsupported = [x["question_id"] for x in by_setting[setting] if x["faithfulness"] is not None and x["faithfulness"] < 1]
+    checks["근거 없는 주장이 있는 답"] = (len(unsupported), 0, not unsupported)
+    worse = deltas[setting]["context_recall@3"]["worse"] if setting != baseline else []
+    checks["기준보다 나빠진 질문"] = (len(worse), 0, not worse)
+    return all(ok for _, _, ok in checks.values()), checks, unsupported
+
+gate = {s: quality_gate(s) for s in ("D 다시 쓰기 + 재정렬", "E D + 넓히기")}

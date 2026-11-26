@@ -120,6 +120,17 @@
 
 ## 3. 작업할 때 알아 둘 것
 
+### Day28 (2026-11-25) RAG Evaluation과 Debugging
+
+- `topics/backend/rag-eval.html` "RAG 평가" (생성기 `tools/pages/rag_eval.py`). "검색과 RAG" 카테고리의 검색 고치기 다음, RAG 지도에 "잘 되는지 잴 때" 줄을 새로 둠
+- 코드는 `examples/rag/rag_service.py`를 ⑰~㉔로 이어 키워요(한 파일이 세 쪽). 그래서 단계 번호를 ⑳ 너머로 늘렸어요: `tools/stepcode.py`(CIRCLED, HEAD), `tools/pagekit.py`(circ), `topics/steps.js`(C, labelln 정규식)가 ㉑~㉟까지 받아요
+- 정답 묶음 `examples/rag/data/gold.json`(15문항, 답 없는 질문 2, 등급 1과 2, chunk_id로 적음), 답 검토표 `answer_reviews.json`(사람이 주장마다 판정, 답 문장이 바뀌면 N/A). Q04, Q12는 일부러 근거 없는 주장을 섞은 답
+- 설정 다섯 개(A 기준, B 다시 쓰기, C 재정렬, D 둘 다, E + 넓히기) × 15문항 = 75번 실행, `examples/rag/out/eval_runs.jsonl`(무시 목록). 빌드 1분 안쪽, GPU 필요(재정렬)
+- 실제로 나온 결과: 후보 Recall은 넓히기에서만 오름, 재정렬은 MRR 0.76→0.83(Q06 0.2→1), Q10은 nDCG가 조금 내려감, 숫자 규칙은 Q12는 잡고 Q04는 놓침, 핵심 사실 글자 대조는 Q09 같은 바꿔 말하기에 0, E도 근거 없는 주장 둘 때문에 게이트에서 막힘
+- 겹치지 않게: LLM-as-a-Judge는 `llm-judge.html`, 단계별 시간은 검색 고치기 ⑮로 링크만
+- RAG 세 쪽이 읽는 `examples/ingest/out/chunks.json`이 무시 목록(`examples/*/out/`)에 걸려 저장소에 없었어요. 이 파일만 `git add -f`로 올려 다른 PC에서도 빌드되게 했어요
+- 원본: `강의자료-원본/Day28_20261125_RAG_Evaluation_Debugging.html` (강의 내용이 HTML 본문이 아니라 `globalThis.LECTURE_DATA` JSON 안에 있어요). 용어 `terms/day28.json`, 용어집의 Day28 링크는 이 쪽으로
+
 ### Day27 (2026-11-24) LangChain RAG와 Reranking
 
 - `topics/backend/rag-rerank.html` "RAG 검색 고치기" (생성기 `tools/pages/rag_rerank.py`). "검색과 RAG" 카테고리의 RAG 서비스 다음, RAG 지도의 "벡터 검색 → 검색 고치기 → Prompt와 Context"

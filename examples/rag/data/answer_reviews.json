@@ -1,0 +1,32 @@
+{
+ "reviewed_by": "노트 작성자",
+ "rule": "답 문장을 주장 단위로 나누고, 주장마다 실제로 넣은 조각에서 확인되면 true. 답 문장이 바뀌면 다시 검토해요",
+ "reviews": [
+  {"question_id": "Q01", "answer": "대출 기간은 14일이고, 한 번 연장하면 7일이 늘어납니다.",
+   "claims": [{"text": "대출 기간은 14일", "supported": true}, {"text": "한 번 연장하면 7일이 늘어난다", "supported": true}]},
+  {"question_id": "Q02", "answer": "이용 시작 1시간 전까지 홈페이지의 '나의 신청'에서 철회합니다.",
+   "claims": [{"text": "이용 시작 1시간 전까지 철회한다", "supported": true}, {"text": "홈페이지의 '나의 신청'에서 철회한다", "supported": true}]},
+  {"question_id": "Q03", "answer": "이용 시작 1시간 전까지 홈페이지의 '나의 신청'에서 철회하면 됩니다.",
+   "claims": [{"text": "이용 시작 1시간 전까지 철회한다", "supported": true}, {"text": "홈페이지의 '나의 신청'에서 철회한다", "supported": true}]},
+  {"question_id": "Q04", "answer": "노트북은 한 번에 4시간까지 쓸 수 있고, 회원증 없이도 빌릴 수 있습니다.",
+   "claims": [{"text": "노트북은 한 번에 4시간까지 쓸 수 있다", "supported": true}, {"text": "회원증 없이도 빌릴 수 있다", "supported": false}]},
+  {"question_id": "Q05", "answer": "신청한 뒤 보통 3일에서 5일 안에 도착합니다.",
+   "claims": [{"text": "신청한 뒤 보통 3일에서 5일 안에 도착한다", "supported": true}]},
+  {"question_id": "Q06", "answer": "노쇼로 기록되고, 한 달에 2번 쌓이면 30일 동안 스터디룸을 예약할 수 없습니다.",
+   "claims": [{"text": "노쇼로 기록된다", "supported": true}, {"text": "한 달에 2번 쌓이면 30일 동안 예약할 수 없다", "supported": true}]},
+  {"question_id": "Q07", "answer": "같은 책으로 갚거나 책값을 냅니다.",
+   "claims": [{"text": "같은 책으로 갚거나 책값을 낸다", "supported": true}]},
+  {"question_id": "Q08", "answer": "홈페이지의 '나의 예약'에서 취소 버튼을 누르면 됩니다.",
+   "claims": [{"text": "홈페이지의 '나의 예약'에서 취소 버튼을 누른다", "supported": true}]},
+  {"question_id": "Q09", "answer": "열람실은 주말에 열지 않습니다.",
+   "claims": [{"text": "열람실은 주말에 열지 않는다", "supported": true}]},
+  {"question_id": "Q10", "answer": "시작 전날까지 홈페이지에서 취소하면 됩니다.",
+   "claims": [{"text": "시작 전날까지 홈페이지에서 취소한다", "supported": true}]},
+  {"question_id": "Q11", "answer": "연체가 30일을 넘으면 회원 자격이 정지됩니다.",
+   "claims": [{"text": "연체가 30일을 넘으면 회원 자격이 정지된다", "supported": true}]},
+  {"question_id": "Q12", "answer": "흑백은 한 장에 100원, 컬러는 한 장에 200원입니다.",
+   "claims": [{"text": "흑백은 한 장에 100원", "supported": false}, {"text": "컬러는 한 장에 200원", "supported": true}]},
+  {"question_id": "Q13", "answer": "2026년부터 하루 최대 3시간까지 쓸 수 있고, 시험 기간에는 2시간으로 줄어듭니다.",
+   "claims": [{"text": "2026년부터 하루 최대 3시간까지 쓸 수 있다", "supported": true}, {"text": "시험 기간에는 2시간으로 줄어든다", "supported": true}]}
+ ]
+}

@@ -46,7 +46,7 @@ def try_(question, key, hint="먼저 예상해 보고 펼쳐 보세요.", after=
 
 def step(n, name, does, body, run_key=None):
     """한 단계. run_key 가 있으면 끝에 '이 단계까지 실행하면' 상자를 붙인다."""
-    circ = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"[n - 1]
+    circ = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟"[n - 1]
     tail = f'{kicker("이 단계까지 실행하면")}{out(run_key)}' if run_key else ""
     return (f'<section class="step" data-step="{n}" id="s{n}"><span class="label">코드의 {circ} 부분</span>'
             f'<h3>{circ} {name}</h3><p class="does">{does}</p>{body}{tail}</section>')

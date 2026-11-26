@@ -13122,5 +13122,89 @@ window.GLOSSARY = [
    27
   ],
   "keyDays": []
+ },
+ {
+  "term": "Gold Dataset",
+  "aliases": [
+   "정답 묶음",
+   "Gold Label",
+   "graded relevance",
+   "골드 데이터셋"
+  ],
+  "full": "Gold Dataset",
+  "short": "평가 질문마다 정답 조각(과 관련 등급), 기대 상태, 정답 답의 핵심을 결과를 보기 전에 사람이 정해 둔 묶음. 답이 자료에 없는 질문도 넣어요.",
+  "analogy": "시험 전에 미리 만들어 봉해 둔 정답지.",
+  "first": 28,
+  "days": [
+   28
+  ],
+  "keyDays": [
+   28
+  ]
+ },
+ {
+  "term": "Recall@k",
+  "aliases": [
+   "Hit@k",
+   "Precision@k",
+   "Context Recall"
+  ],
+  "full": "Recall@k, Hit@k, Precision@k",
+  "short": "검색 결과 앞 k개가 정답 조각을 얼마나 담았나. Recall은 정답 수로, Precision은 k로 나누고, Hit는 하나라도 있으면 1. 후보 전체로 쟀는지, 실제로 넣은 조각으로 쟀는지 적어요.",
+  "analogy": "그물 안에 잡힌 물고기 중 원하던 물고기의 수.",
+  "first": 28,
+  "days": [
+   28
+  ],
+  "keyDays": [
+   28
+  ]
+ },
+ {
+  "term": "MRR",
+  "aliases": [
+   "Mean Reciprocal Rank",
+   "Reciprocal Rank"
+  ],
+  "full": "Mean Reciprocal Rank",
+  "short": "질문마다 첫 정답이 r번째면 1/r을 매기고 평균 낸 것. 정답을 앞에 뒀는지 봐요. 첫 정답 하나만 봐서, 정답이 여럿이고 등급이 다르면 NDCG를 같이 봐요.",
+  "analogy": "찾는 책이 책장 몇 번째 칸에 있었나.",
+  "first": 28,
+  "days": [
+   28
+  ],
+  "keyDays": []
+ },
+ {
+  "term": "Faithfulness",
+  "aliases": [
+   "충실성",
+   "주장 단위 평가"
+  ],
+  "full": "Faithfulness (충실성)",
+  "short": "답의 주장 하나하나가 넣어 준 근거에서 확인되는 비율. 출처 번호가 맞아도 내용이 지어낸 것이면 낮아요. 정답과 맞는지(정답성)와는 다른 질문이에요.",
+  "analogy": "보고서 문장마다 참고 자료에 정말 그 말이 있는지 대조하기.",
+  "first": 28,
+  "days": [
+   28
+  ],
+  "keyDays": [
+   28
+  ]
+ },
+ {
+  "term": "Quality Gate",
+  "aliases": [
+   "품질 게이트",
+   "Release Gate"
+  ],
+  "full": "Quality Gate",
+  "short": "새 판을 다음 단계로 내보내기 전에 넘어야 할 최소 조건을 코드로 확인하는 것. 틀리면 곤란한 항목(근거 없는 주장, 권한 위반)은 평균 대신 0개로 막아요.",
+  "analogy": "출고 전 마지막 검수대.",
+  "first": 28,
+  "days": [
+   28
+  ],
+  "keyDays": []
  }
 ];

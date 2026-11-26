@@ -348,7 +348,7 @@ practice = [("무엇부터 고칠지", "기록(⑯)의 search_query, 후보, 넣
             ("GPU 메모리와 시간", f"후보 수와 batch_size가 시간과 메모리를 정해요. 메모리가 모자라면(out of memory) 둘을 줄이거나 조각 길이를 줄여요. 이 PC에서는 이 쪽 전체에 최대 {VRAM:.1f}GB를 썼어요."),
             ("GPU가 없을 때", "CPU로 조용히 바꾸지 않아요. 응답 시간이 크게 바뀌니, 바꾼다면 정책으로 정하고 기록해요. 재정렬을 끄고 검색 순서로 답하는 것도 마찬가지예요."),
             ("판과 권한", "최신 여부와 열람 권한은 점수로 고를 수 없어요(⑪, ⑬). metadata 조건으로 검색 전에 거르고, 여러 질문으로 찾을 때도 모든 검색에 같은 조건을 붙여요."),
-            ("좋아졌는지 재기", "질문을 많이 모아 정답 조각을 미리 정하고, 정답 등수를 숫자 하나로 모으는 지표(Recall@k, MRR 등)로 설정끼리 비교해요. 이 쪽의 6개는 성질을 보이려고 고른 예예요.")]
+            ("좋아졌는지 재기", "질문을 많이 모아 정답 조각을 미리 정하고, 정답 등수를 숫자 하나로 모으는 지표(Recall@k, MRR 등)로 설정끼리 비교해요(<a href=\"rag-eval.html\">RAG 평가</a>). 이 쪽의 6개는 성질을 보이려고 고른 예예요.")]
 libs = [("⑩", "<code>ChatPromptTemplate</code>, <code>with_structured_output</code>, <code>ChatOpenAI</code>", "검색용 질문 받기 (langchain-core, langchain-openai)"),
         ("⑩", "<code>re.findall</code>", "숫자 덩어리 찾기 (표준 라이브러리)"),
         ("⑬", "<code>CrossEncoder</code>, <code>predict</code>", "질문과 조각 짝의 점수 (sentence-transformers)"),

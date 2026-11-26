@@ -3,7 +3,7 @@
    이 파일은 window.Steps 에 출력 상자용 도구(esc, q, C, hl, outBox, tbl)를 내보내요. */
 (() => {
   const P = window.PAGE;
-  const C = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+  const C = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟";
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const q = s => JSON.stringify(s);
@@ -68,7 +68,7 @@
   let html = "", run = 0;
   const flush = () => { if (run) { const t = `… 앞 쪽에서 만든 줄 ${run}개 (눌러서 펼치기)`; html += `<span class="ln prevfold" data-label="${t}">${t}</span>`; run = 0; } };
   P.code.forEach((c, i) => {
-    const lab = /^# [①-⑳] /.test(c.t) ? " labelln" : "";
+    const lab = /^# [①-⑳㉑-㉟] /.test(c.t) ? " labelln" : "";
     if (c.s < lo) { run++; html += `<span class="ln prev${lab}" data-s="${c.s}"><span class="no">${i + 1}</span>${hl(c.t) || " "}</span>`; return; }
     flush();
     html += `<span class="ln${lab}" data-s="${c.s}"><span class="no">${i + 1}</span>${hl(c.t) || " "}</span>`;

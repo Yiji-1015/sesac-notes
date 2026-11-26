@@ -10,9 +10,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
-CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
+CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟"
 TAG = re.compile(r"\s+#@(\d+)\s*$")
-HEAD = re.compile(r"^# ([①-⑳]) (.+)$")
+HEAD = re.compile(r"^# ([①-⑳㉑-㉟]) (.+)$")
 
 
 def parse(src: str) -> list[dict]:
