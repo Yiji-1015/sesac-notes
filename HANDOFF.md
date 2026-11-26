@@ -120,6 +120,16 @@
 
 ## 3. 작업할 때 알아 둘 것
 
+### 공통: 만들 때 지킬 것 (2026-11-26)
+
+- `topics/common/principles.html` (생성기 `tools/pages/principles.py`, 예제 `examples/principles/principles.py`). 트랙에 속하지 않는 첫 쪽이라 `topics/common/` 폴더와 `track="공통"`(pagekit의 tag는 `cv` 색)을 새로 둠
+- 메인에는 RAG 지도와 모델 사이에 `<section class="track common" data-track="common">` 블록. 필터 JS가 `common`은 모델, 백엔드 어느 쪽을 골라도 보이게 해요(검색에는 걸러짐)
+- 실습 안내문에 되풀이된 주의 문구 11개 + 노트를 만들며 겪은 2개(판 적기, 멱등한 재시도) = 원칙 13개, 네 묶음. 위쪽 표는 원칙마다 다른 쪽의 "어겨 본 장면" 단계로 링크하고, `L(page, n)`이 그 쪽에 `id="sN"`이 정말 있는지 `S.claim`으로 확인해요. 다른 쪽의 단계 번호를 바꾸면 이 쪽을 다시 빌드해서 링크를 확인해요
+- 장면이 없던 원칙만 ①~⑦ 작은 예제(서로 독립, 외부 연결 없음, 가상의 스터디룸 예약)로 어겨 봐요. 실습 코드와 데이터는 옮기지 않았어요
+- ⑥은 이 저장소의 `topics/*/*-data.js`에 적힌 실행 환경을 읽어서, 쪽마다 판이 다른 라이브러리를 세요. 쪽을 새로 빌드하면 값이 바뀌어요(주장은 "다섯 개 넘게"만 확인)
+- 빌드: `C:/practice_assignment/.venv/Scripts/python.exe tools/pages/principles.py` (몇 초, GPU와 DB 필요 없음). 필요한 패키지는 pydantic, httpx, python-dotenv
+- 새 원칙을 넣을 때: 이미 어겨 본 장면이 있으면 링크만, 없으면 예제 단계 하나. 조건이 붙는 원칙(대체 경로는 드러나게, 남의 응답은 필요한 것만 엄격하게, 재시도는 멱등할 때만)은 조건까지 같이 적어요
+
 ### Day29 (2026-11-26) AI Agent Fundamentals와 Tool Calling
 
 - `topics/backend/agent-tools.html` "AI Agent와 도구" (생성기 `tools/pages/agent_tools.py`). 백엔드에 새 카테고리 "Agent"(검색과 RAG 다음), RAG 지도에 "Agent가 고를 때" 줄

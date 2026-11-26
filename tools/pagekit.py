@@ -57,7 +57,7 @@ def build(path, *, title, h1, track, crumb, one_line, why, whole, steps, code_fi
     path = Path(path)
     rel = Path(*([".."] * (len(path.relative_to(ROOT).parts) - 1)))
     up = rel.as_posix()
-    tag = {"백엔드": "llm", "모델": "dl"}[track]
+    tag = {"백엔드": "llm", "모델": "dl", "공통": "cv"}[track]   # 공통: 트랙과 상관없는 쪽 (만들 때 지킬 것)
     data_js = data_js or path.with_name(path.stem + "-data.js").name
     nxt = "".join(f"<tr><td>{a}</td><td>{b}</td></tr>" for a, b in next_rows)
     src = "".join(f"<li>{s}</li>" for s in sources)
