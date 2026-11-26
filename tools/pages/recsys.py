@@ -173,7 +173,7 @@ K.build(ROOT / "topics" / "model" / "recsys.html", title="추천 시스템", h1=
         one_line="이용 기록 표의 <b>빈칸 중 볼 만한 것</b>을 골라요. 같이 본 기록으로 닮은 것을 찾는 <b>협업 필터링</b>, 숨은 취향 벡터를 찾는 <b>행렬 분해</b>, 닫힌 식의 <b>EASE</b>, 그래프의 <b>LightGCN</b>을 상위 k개 지표로 비교하고, <b>인기 편향과 콜드 스타트</b>를 함께 봐요.",
         why=why, whole=whole, steps=steps, code_file="examples/recsys/recommend.py", practice=practice, libs=libs,
         libs_note="<code>evaluate</code>, <code>cosine</code>, <code>bpr_mf</code>, <code>ease</code>, <code>lightgcn</code>, <code>ndcg_by_group</code>, <code>head_share</code>는 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"gnn.html\">그래프 신경망</a>", "이웃 모으기, 과평활"), ("<a href=\"../backend/embedding.html\">임베딩과 벡터 검색</a>", "후보 생성"), ("<a href=\"generative-models.html\">생성 모델</a>", "VAE")],
+        next_rows=[("<a href=\"gnn.html\">그래프 신경망</a>", "이웃 모으기, 과평활"), ("<a href=\"../backend/embedding.html\">임베딩과 벡터 검색</a>", "후보 생성"), ("<a href=\"generative-models.html\">생성 모델</a>", "VAE"), ("<a href=\"../backend/rag-eval.html\">RAG 평가</a>", "같은 순위 지표(재현율@k, NDCG)로 검색 결과를 재기")],
         sources=["다루는 범위: 부트캠프에서 따로 다루지 않은 주제예요",
                  "함께 정리한 자료: 경희대 특강(2025년 1월) \"Deep Learning 기반 추천 시스템\"(NCF, ConvNCF, AutoRec, CDAE, Multi-VAE, EASE, 사이드 정보와 Wide &amp; Deep, NGCF와 LightGCN, BERT4Rec, Cornac 실습의 MF, NeuMF, EASE, UserKNN, ItemKNN, Precision, Recall, NDCG, MAP), Upstage 10Talks Lecture 01 \"An LLM-based Music Recommendation\"(멀티모달 LLM, 토큰, 대화형 추천). 원래 실습 데이터(채용 지원 기록)는 쓰지 않고 가상 기록으로 다시 계산했어요",
                  "결과 값과 그림: <code>tools/pages/recsys.py</code>가 <code>examples/recsys/recommend.py</code>를 단계별로 실제 실행한 결과 (seed 0)"])
