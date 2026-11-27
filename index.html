@@ -6,7 +6,7 @@
   <title>부트캠프 학습 노트</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    :root { --t-model: var(--dl); --t-model-soft: var(--dl-soft); --t-back: var(--llm); --t-back-soft: var(--llm-soft); --t-common: var(--cv); }
+    :root { --t-model: var(--dl); --t-model-soft: var(--dl-soft); --t-back: var(--llm); --t-back-soft: var(--llm-soft); }
 
     /* 시스템 지도 */
     .sysmap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; margin-top: 28px; }
@@ -29,12 +29,10 @@
     .track > p { margin: 0 0 14px; color: var(--muted); }
     .track.model > h2 { color: var(--t-model); }
     .track.backend > h2 { color: var(--t-back); }
-    .track.common > h2 { color: var(--t-common); }
     .cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
     .cat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; border-top: 5px solid; }
     .track.model .cat { border-top-color: var(--t-model); }
     .track.backend .cat { border-top-color: var(--t-back); }
-    .track.common .cat { border-top-color: var(--t-common); }
     .cat h3 { margin: 0 0 2px; font-size: 1.1rem; }
     .cat > p { margin: 0 0 10px; color: var(--muted); font-size: .88rem; }
     .item { display: block; padding: 9px 10px; border-radius: 10px; color: var(--text); border: 1px solid transparent; }
@@ -117,19 +115,6 @@
         <a class="node model" href="topics/model/llm-principles.html">LLM과 Transformer</a>
       </div>
       <div class="legend2"><i style="border-color:var(--t-back);background:var(--t-back-soft)"></i>백엔드<i style="border-color:var(--t-model);background:var(--t-model-soft)"></i>모델<i style="border-color:var(--line);border-style:dashed"></i>입력과 출력</div>
-    </section>
-
-    <!-- ===================== 공통 (어느 갈래를 골라도 보임) ===================== -->
-    <section class="track common" data-track="common">
-      <h2>🧭 공통</h2>
-      <p>모델이든 백엔드든, 무엇을 만들든 지키는 것.</p>
-      <div class="cats">
-        <div class="cat">
-          <h3>만들 때 지킬 것</h3>
-          <p>결과를 믿을 수 있게 만드는 습관. 노트 곳곳에서 실제로 어겨 본 장면으로 이어져요</p>
-          <a class="item" href="topics/common/principles.html"><b>어디서나 통하는 원칙 13개</b><small>실행 모드 적기, 원본 보존, 판 적기, 증거의 종류, 실패 드러내기, 단계별 흔적, 엄격한 입력과 너그러운 응답 읽기, 설정, 남의 자원, 서버가 정하는 권한, 멱등한 재시도, 공정한 비교, 규칙과 모델 구분</small></a>
-        </div>
-      </div>
     </section>
 
     <!-- ===================== 모델 ===================== -->
@@ -261,8 +246,9 @@
         </div>
         <div class="cat">
           <h3>외전: 서비스를 완성하는 흐름</h3>
-          <p>기능 구현을 실행 준비, 저장 책임, 검증과 연결하기</p>
+          <p>기능 구현을 실행 준비, 저장 책임, 검증과 연결하고, 결과를 믿을 수 있게 지키기</p>
           <a class="item" href="topics/backend/service-flow.html"><b>로직 밖에서 서비스를 완성하기</b><small>환경 설정, DB 준비, Session 수명, 계층 분리, 트랜잭션, Health, Postman JSON과 전체 검증</small></a>
+          <a class="item" href="topics/backend/principles.html"><b>만들 때 지킬 것: 원칙 13개</b><small>실행 모드 적기, 원본 보존, 판 적기, 증거의 종류, 실패 드러내기, 단계별 흔적, 엄격한 입력과 필요한 칸만 읽는 응답, 설정, 남의 자원, 서버가 정하는 권한, 멱등한 재시도, 공정한 비교, 규칙과 모델 구분</small></a>
         </div>
       </div>
     </section>
@@ -274,8 +260,9 @@
       <summary><h2>🕒 업데이트 기록</h2></summary>
       <table>
         <tr><th>날짜</th><th>무엇이 바뀌었나</th></tr>
+        <tr><td class="when">11/27</td><td><a href="topics/backend/principles.html">만들 때 지킬 것</a>을 "공통" 블록에서 백엔드의 "외전: 서비스를 완성하는 흐름"으로 옮기고, 강의처럼 들리던 말(어디서나, 습관, 외우기보다)을 단정적인 문장으로 바꿈</td></tr>
         <tr><td class="when">11/26</td><td><a href="topics/backend/rag-service.html">RAG 서비스</a>, <a href="topics/backend/rag-rerank.html">검색 고치기</a>, <a href="topics/backend/rag-eval.html">RAG 평가</a>, <a href="topics/backend/agent-tools.html">AI Agent와 도구</a> 다시 씀: 실습 코드를 몰라도 읽히게, 코드 하나(①~㉜)를 네 쪽이 이어 키우던 것을 쪽마다 따로 실행되는 예제(①~⑦)로 바꿈. 가짜 HTTP 서버, 응답 묶음, 요청 모델, API 단계, PostgreSQL 연결을 빼고 각 쪽의 개념만 남김. LLM 자리는 미리 정한 답을 돌려주는 함수</td></tr>
-        <tr><td class="when">11/26</td><td>새 블록 "공통": <a href="topics/common/principles.html">만들 때 지킬 것</a>. 무엇을 만들든 결과를 믿을 수 있게 하는 원칙 13개를 네 묶음(결과가 어디서 왔나, 실패를 드러내기, 경계와 계약, 판단과 비교)으로 모아, 노트에서 실제로 어겨 본 단계로 잇고, 장면이 없던 일곱 가지(실행 모드, 원본 보존, 엄격한 입력과 응답 읽기, 설정, 멱등한 재시도, 판, 규칙과 모델)는 작은 예제로 직접 어겨 봄</td></tr>
+        <tr><td class="when">11/26</td><td>새 블록 "공통": <a href="topics/backend/principles.html">만들 때 지킬 것</a>. 무엇을 만들든 결과를 믿을 수 있게 하는 원칙 13개를 네 묶음(결과가 어디서 왔나, 실패를 드러내기, 경계와 계약, 판단과 비교)으로 모아, 노트에서 실제로 어겨 본 단계로 잇고, 장면이 없던 일곱 가지(실행 모드, 원본 보존, 엄격한 입력과 응답 읽기, 설정, 멱등한 재시도, 판, 규칙과 모델)는 작은 예제로 직접 어겨 봄</td></tr>
         <tr><td class="when">11/26</td><td><a href="topics/backend/agent-tools.html">AI Agent와 도구</a> 새로 씀(새 카테고리 "Agent"): Day29 AI Agent Fundamentals와 Tool Calling. RAG를 rag_search 도구로, 노트 전용 PostgreSQL의 예약 표를 읽기 전용 lookup_reservation 도구로 만들어 create_agent로 묶고, Tool Calling 한 바퀴, 반복 상한, 남의 것과 DB 장애, 출처 확인, 회귀 테스트, 인증된 API까지 실행으로 확인</td></tr>
         <tr><td class="when">11/26</td><td><a href="topics/backend/rag-eval.html">RAG 평가</a> 새로 씀: Day28 RAG Evaluation과 Debugging. RAG 서비스와 검색 고치기의 코드를 ⑰~㉔로 이어, 결과 전에 정한 15문항 정답 묶음으로 검색(Hit, Recall, Precision, MRR, nDCG)과 답(충실성, 정답성, 정보 부족)을 따로 재고, 다섯 설정을 질문별로 비교하고, 실패를 고칠 곳으로 나누고, 게이트로 막힘을 확인. 코드 단계 번호를 ㉟까지 쓸 수 있게 늘림</td></tr>
         <tr><td class="when">11/24</td><td><a href="topics/backend/rag-rerank.html">RAG 검색 고치기</a> 새로 씀: Day27 LangChain RAG와 Reranking. RAG 서비스 쪽 코드를 ⑨~⑯으로 이어 키워요. 가람 도서관 조각을 26개로 늘리고 정답을 미리 정한 질문 6개로 실패를 자리별(통과, 순위 밀림, 후보 밖)로 나눈 뒤, 질문 다시 쓰기(가짜 서버), 후보 수와 판 조건, 용어 넓히기와 여러 질문, bge-reranker-v2-m3 재정렬(GPU)을 하나씩 켜서 정답 순위와 시간을 비교. 재정렬은 후보 밖 정답을 못 데려온다는 것, 점수로는 최신 판을 못 가린다는 것을 실행으로 확인</td></tr>
@@ -333,7 +320,7 @@
       const q = search.value.trim().toLowerCase();
       let shown = 0;
       document.querySelectorAll('.track').forEach(t => {
-        const trackOk = track === 'all' || t.dataset.track === track || t.dataset.track === 'common';   // 공통은 어느 갈래에서도 보여요
+        const trackOk = track === 'all' || t.dataset.track === track;
         let inTrack = 0;
         t.querySelectorAll('.cat').forEach(cat => {
           const catHit = cat.querySelector('h3').textContent.toLowerCase().includes(q);

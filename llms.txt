@@ -11,9 +11,6 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 
 ## 주제 페이지
 
-### 🧭 공통 > 만들 때 지킬 것
-- [어디서나 통하는 원칙 13개](https://yiji-1015.github.io/sesac-notes/topics/common/principles.html): 만들 때 지킬 것: 어디서나 통하는 원칙 13개
-
 ### 🧠 모델 > 데이터 분석 기초
 - [요약하고 추정하기](https://yiji-1015.github.io/sesac-notes/topics/model/stats-describe.html): 요약하고 추정하기: 기술통계와 신뢰구간
 - [가설 검정과 회귀 분석](https://yiji-1015.github.io/sesac-notes/topics/model/stats-tests.html): 가설 검정과 회귀 분석: 그 차이는 우연일까
@@ -97,6 +94,7 @@ AI가 참고할 때는 아래 전체 본문 파일 하나를 읽는 것이 가�
 
 ### 🛠️ 백엔드 > 외전: 서비스를 완성하는 흐름
 - [로직 밖에서 서비스를 완성하기](https://yiji-1015.github.io/sesac-notes/topics/backend/service-flow.html): 로직 밖에서 서비스를 완성하기
+- [만들 때 지킬 것: 원칙 13개](https://yiji-1015.github.io/sesac-notes/topics/backend/principles.html): 만들 때 지킬 것: 결과를 믿을 수 있게 하는 원칙 13개
 
 ## Day별 노트 (처음에 쓴 것)
 - [Day6 · 회귀·분류·KNN·모델 비교](https://yiji-1015.github.io/sesac-notes/notes/day06.html): 2026-10-26(월) · 선형회귀 · 로지스틱회귀 · KNN · 스케일링 · 공정한 비교

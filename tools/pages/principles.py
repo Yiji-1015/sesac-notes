@@ -1,4 +1,4 @@
-"""공통 > 만들 때 지킬 것. examples/principles/principles.py 하나가 ①~⑦로 자란다 (단계마다 독립된 작은 예제).
+"""백엔드 > 외전 > 만들 때 지킬 것. examples/principles/principles.py 하나가 ①~⑦로 자란다 (단계마다 독립된 작은 예제).
 원칙 13개를 네 묶음으로 정리하고, 이 노트의 다른 쪽에 이미 '어겨 본 장면'이 있으면 그 단계로 잇는다(링크가 실제로 있는지 검사).
 장면이 없던 원칙만 이 쪽의 예제로 어겨 본다. 외부 서비스나 DB에는 연결하지 않는다.
 실행: C:/practice_assignment/.venv/Scripts/python.exe tools/pages/principles.py
@@ -115,7 +115,7 @@ outs["s7"] = S.table("⑦ 키워드 규칙으로 도구 고르기 (decided_by: r
 
 flow = [[1, "실행 모드", "live, fixture, not_run", "섞으면 평균이 반"], [2, "원본 보존", "따로 두고 비교", "사라진 숫자 1, 2, 30"], [3, "계약", "내 입력 엄격, 남의 응답 필요한 것만", "칸 하나에 깨짐"],
         [4, "설정", "누가 어느 키를 읽나", "URL 방식은 키 0개"], [5, "재시도", "멱등할 때만", "예약 두 개"], [6, "판", "결과에 적기", f"판이 갈린 라이브러리 {len(dr)}"], [7, "누가 정했나", "규칙 vs 모델", "규칙이 2개 틀림"]]
-S.save(ROOT / "topics" / "common" / "principles-data.js", {"code": code, "names": S.names(code), "range": [1, 7], "outs": outs, "flow": flow, "env": ENV})
+S.save(ROOT / "topics" / "backend" / "principles-data.js", {"code": code, "names": S.names(code), "range": [1, 7], "outs": outs, "flow": flow, "env": ENV})
 
 # ---------------- 원칙 13개 한눈에 (장면 링크는 L()이 존재를 검사)
 GROUPS = [
@@ -153,17 +153,17 @@ for g, rs in GROUPS:
 hub = "<table><tr><th>원칙</th><th>규칙</th><th>어기면</th><th>어겨 본 장면</th></tr>" + "".join(trs) + "</table>"
 
 why = f"""<p>무엇을 만들든 같은 실수가 되풀이돼요. 시험용 값으로 낸 결과를 실측처럼 보고하고, 오류를 '결과 없음'으로 숨기고, 원본을 덮어써서 무엇이 바뀌었는지 모르게 되고, 요청에 든 권한을 그대로 믿어요. 기능 코드가 맞아도 이런 실수 하나로 서비스나 실험 전체를 믿을 수 없게 돼요.</p>
-<p>이 원칙들은 특정 기술이 아니라 <b>결과를 믿을 수 있게 만드는 습관</b>이라서, 백엔드에도 모델 실험에도 평가에도 Agent에도 똑같이 적용돼요. 네 묶음으로 나누면 기억하기 쉬워요.</p>
+<p>원칙은 특정 기술에 묶이지 않아요. API 서버, 모델 실험, 평가, Agent에 같은 원칙이 그대로 적용돼요. 네 묶음은 다음과 같아요.</p>
 {K.table(["묶음", "묻는 것"], [["결과가 어디서 왔나", "이 숫자와 답을 어떻게 얻었고, 무엇으로 확인했나"], ["실패를 드러내기", "잘못됐을 때 잘못됐다고 보이나, 어디서 잘못됐는지 찾을 수 있나"],
                           ["경계와 계약", "입력, 설정, 자원, 권한, 재시도의 선을 누가 어디서 지키나"], ["판단과 비교", "더 좋아졌다는 말과 누가 정했다는 말을 믿을 수 있나"]])}
-<p>원칙마다 조건도 같이 봐야 해요. 예를 들어 대체 경로(fallback)는 그 자체로 나쁜 게 아니라 <b>조용히</b> 바뀌는 게 나빠요. 엄격한 계약도 우리가 받는 입력에는 맞지만, 남의 응답까지 똑같이 엄격하면 상대가 칸 하나만 늘려도 깨져요. 규칙을 외우기보다 \"어기면 무엇이 망가지나\"를 직접 보는 게 오래 남아서, 이 노트에 이미 있는 장면으로 잇고, 장면이 없던 것은 아래 ①~⑦에서 일부러 어겨 봐요.</p>
+<p>원칙에는 조건이 붙어요. 대체 경로(fallback)는 <b>조용히</b> 바뀔 때만 문제예요. 엄격한 계약은 우리가 받는 입력에 쓰고, 남의 응답은 필요한 칸만 엄격하게 읽어요. 남의 응답까지 전부 엄격하게 읽으면 상대가 칸 하나만 늘려도 깨져요. 아래 표는 원칙마다 어기면 무엇이 망가지는지와, 이 노트에서 실제로 어긴 장면을 함께 보여 줘요. 장면이 없는 원칙은 ①~⑦에서 일부러 어겨요.</p>
 """
 whole = f"""<p>원칙 {n_rules}개를 한 표로 모았어요. '어겨 본 장면'을 누르면 그 원칙이 실제 실행에서 드러난 단계로 가요.</p>
 {hub}
 <p>아래 ①~⑦은 다른 쪽에 장면이 없던 원칙을 작은 예제로 어겨 보는 단계예요. 단계마다 서로 독립이에요. 상자를 누르면 그 단계로 가요.</p><div class="flow" id="flow"></div>"""
 steps = [
     K.step(1, "결과에 어떻게 얻었는지 적기", "같은 계산을 실제로 한 결과와 미리 적어 둔 값으로 낸 결과를, 모드를 적은 채로 모아요.",
-           "<p>시험할 때는 외부 API나 GPU 없이도 돌도록 미리 적어 둔 값(fixture)이나 가짜 서버(mock)를 써요. 이건 좋은 습관이에요. 문제는 그렇게 나온 결과가 실제 결과와 같은 칸, 같은 파일에 섞일 때예요.</p>"
+           "<p>시험할 때는 외부 API나 GPU 없이도 돌도록 미리 적어 둔 값(fixture)이나 가짜 서버(mock)를 써요. 문제는 fixture나 mock 자체가 아니라, 그렇게 나온 결과가 실제 결과와 같은 칸, 같은 파일에 섞이는 거예요.</p>"
            + K.code_table([("{\"execution_mode\": \"live\" | \"fixture\" | \"not_run\"}", "결과마다 어떻게 얻었는지"), ("time.perf_counter()", "시간 재기")]), "s1"),
     K.step(2, "원본을 남기고, 바꾼 것은 따로", "정리 함수가 숫자까지 지우는 실수를, 덮어쓴 기록과 원본을 남긴 기록으로 비교해요.", K.code_table([("hashlib.sha256(text.encode()).hexdigest()", "내용으로 만든 지문(해시). 원본이 바뀌었는지 확인"), ("unicodedata.normalize(\"NFC\", text)", "한글 자모 조합 맞추기"), ("re.findall(r\"\\d+\", text)", "글 속 숫자들")]), "s2"),
     K.step(3, "내 입력은 엄격하게, 남의 응답은 필요한 것만 엄격하게", "우리가 받는 요청은 모르는 칸을 거부하고, 남이 주는 응답은 필요한 칸만 엄격하게 읽어요. 없는 값은 채우지 않아요.",
@@ -183,16 +183,16 @@ practice = [("새 프로젝트를 시작할 때", "판 고정 목록(requirement
             ("실패가 났을 때", "앞 단계부터: 권한과 설정 → 준비 상태와 판 → 입력 해석 → 후보 → 순서 → 결과 검사. 고치기 전에 같은 실패를 다시 일으킬 수 있는지 먼저 봐요."),
             ("더 좋아졌다고 말하기 전에", "같은 조건에서 하나만 바꿨나, 여러 사례인가, 같은 때 번갈아 쟀나, 정답이 입력에 새지 않았나, N/A를 0으로 넣지 않았나."),
             ("외부와 닿는 곳에서", "받는 입력은 엄격하게, 남의 응답은 필요한 칸만. 시간 제한, 재시도는 멱등할 때만, 실패는 실패로. 권한은 서버 값으로."),
-            ("규칙을 그대로 믿지 않기", "이 표의 원칙도 조건이 있어요. 대체 경로, 느슨한 읽기, 재시도는 '드러나게, 필요한 것만, 멱등할 때만'이면 좋은 설계예요.")]
+            ("조건까지 지키기", "대체 경로는 드러나게, 느슨한 읽기는 필요한 칸만, 재시도는 멱등할 때만 써요. 조건을 빼면 같은 기법이 문제를 숨겨요.")]
 libs = [("①", "<code>time.perf_counter</code>, <code>statistics.mean</code>", "시간과 평균"), ("②", "<code>hashlib.sha256</code>, <code>unicodedata.normalize</code>, <code>re</code>", "원본 지문, 정리, 비교"),
         ("③", "<code>BaseModel</code>, <code>ConfigDict</code>, <code>ValidationError</code>", "계약 (pydantic)"), ("④", "<code>dotenv_values</code>, <code>sys.executable</code>", "설정 읽기 (python-dotenv)"),
         ("⑤", "<code>httpx.Client</code>, <code>MockTransport</code>, <code>ReadTimeout</code>", "재시도 (httpx)"), ("⑥", "<code>importlib.metadata.version</code>", "판"), ("⑦", "<code>re.search</code>", "키워드 규칙")]
-K.build(ROOT / "topics" / "common" / "principles.html", title="만들 때 지킬 것", h1="만들 때 지킬 것: 어디서나 통하는 원칙 13개", track="공통", crumb="공통 &gt; 트랙과 상관없이",
-        one_line="무엇을 만들든 <b>결과를 믿을 수 있게</b> 만드는 습관이 있어요. 결과가 어디서 왔는지 적고, 실패를 드러내고, 경계와 계약을 서버가 지키고, 비교와 판단을 조심스럽게 해요. 이 쪽은 원칙 13개를 네 묶음으로 모으고, 노트의 다른 쪽에서 <b>실제로 어겨 본 장면</b>으로 이어 주고, 장면이 없던 것은 작은 예제로 어겨 봐요.",
+K.build(ROOT / "topics" / "backend" / "principles.html", title="만들 때 지킬 것", h1="만들 때 지킬 것: 결과를 믿을 수 있게 하는 원칙 13개", track="백엔드", crumb="백엔드 &gt; 외전: 서비스를 완성하는 흐름",
+        one_line="결과를 믿으려면 네 가지가 갖춰져야 해요. 결과가 <b>어디서 왔는지</b> 적혀 있고, 실패가 <b>실패로 보이고</b>, 입력과 권한의 <b>경계를 서버가 지키고</b>, 비교가 <b>공정해야</b> 해요. 이 쪽은 원칙 13개를 이 네 묶음으로 모으고, 원칙마다 노트의 다른 쪽에서 <b>실제로 어긴 장면</b>으로 잇고, 장면이 없는 원칙은 작은 예제로 어겨요.",
         why=why, whole=whole, steps=steps, code_file="examples/principles/principles.py", practice=practice, libs=libs,
         libs_note="<code>measure</code>, <code>live_work</code>, <code>fixture_work</code>, <code>clean_buggy</code>, <code>clean</code>, <code>load_settings</code>, <code>make_server</code>, <code>reserve_with_retry</code>, <code>env_record</code>, <code>keyword_route</code>는 이 파일 안에서 정의한 함수예요.",
-        next_rows=[("<a href=\"../backend/service-flow.html\">외전: 로직 밖에서 서비스를 완성하기</a>", "이 원칙들을 백엔드 서비스 하나에 차례로 적용한 길"), ("<a href=\"../backend/rag-service.html\">RAG 서비스</a>", "증거의 종류, 실패 드러내기"),
-                   ("<a href=\"../backend/rag-eval.html\">RAG 평가</a>", "공정한 비교, 단계별 흔적"), ("<a href=\"../backend/agent-tools.html\">AI Agent와 도구</a>", "권한, 반복 상한, 규칙과 모델")],
+        next_rows=[("<a href=\"service-flow.html\">외전: 로직 밖에서 서비스를 완성하기</a>", "이 원칙들을 백엔드 서비스 하나에 차례로 적용한 길"), ("<a href=\"rag-service.html\">RAG 서비스</a>", "증거의 종류, 실패 드러내기"),
+                   ("<a href=\"rag-eval.html\">RAG 평가</a>", "공정한 비교, 단계별 흔적"), ("<a href=\"agent-tools.html\">AI Agent와 도구</a>", "권한, 반복 상한, 규칙과 모델")],
         sources=["모은 자료: 부트캠프 실습 자료(2026-11-16~27)의 안내문에 날마다 되풀이된 주의 문구를, 실습이나 RAG에 묶이지 않는 일반 원칙으로 다시 정리했어요. 실습 코드와 데이터는 옮기지 않고, 예제는 가상의 스터디룸 예약으로 새로 만들었어요",
                  "더한 원칙: 판 적어 두기, 재시도와 멱등성은 이 노트를 만들며 실제로 겪은 일(라이브러리 판에 따라 동작이 다름, SDK의 자동 재시도)에서 더했어요",
                  "결과 값: <code>tools/pages/principles.py</code>가 <code>examples/principles/principles.py</code>를 단계별로 실제 실행한 결과. ⑥은 이 저장소의 <code>topics/*/*-data.js</code>에 적힌 실행 환경을 읽은 값",

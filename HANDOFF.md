@@ -120,10 +120,10 @@
 
 ## 3. 작업할 때 알아 둘 것
 
-### 공통: 만들 때 지킬 것 (2026-11-26)
+### 백엔드 외전: 만들 때 지킬 것 (2026-11-26, 11-27에 옮김)
 
-- `topics/common/principles.html` (생성기 `tools/pages/principles.py`, 예제 `examples/principles/principles.py`). 트랙에 속하지 않는 첫 쪽이라 `topics/common/` 폴더와 `track="공통"`(pagekit의 tag는 `cv` 색)을 새로 둠
-- 메인에는 RAG 지도와 모델 사이에 `<section class="track common" data-track="common">` 블록. 필터 JS가 `common`은 모델, 백엔드 어느 쪽을 골라도 보이게 해요(검색에는 걸러짐)
+- `topics/backend/principles.html` (생성기 `tools/pages/principles.py`, 예제 `examples/principles/principles.py`). 처음엔 트랙에 속하지 않는 "공통" 블록(`topics/common/`)이었는데, 2026-11-27 사용자 요청으로 백엔드의 "외전: 서비스를 완성하는 흐름" 카테고리로 옮기고 `track="백엔드"`로 바꿨어요. 공통 블록, 그 CSS, 필터 JS의 예외, pagekit의 "공통" 태그는 지웠어요
+- 같은 날 말투도 고쳤어요: "어디서나 통하는", "습관", "기억하기 쉬워요", "외우기보다 … 오래 남아요" 같은 가르치는 말을 단정적인 문장으로(STYLE.md 7장)
 - 실습 안내문에 되풀이된 주의 문구 11개 + 노트를 만들며 겪은 2개(판 적기, 멱등한 재시도) = 원칙 13개, 네 묶음. 위쪽 표는 원칙마다 다른 쪽의 "어겨 본 장면" 단계로 링크하고, `L(page, n)`이 그 쪽에 `id="sN"`이 정말 있는지 `S.claim`으로 확인해요. 다른 쪽의 단계 번호를 바꾸면 이 쪽을 다시 빌드해서 링크를 확인해요
 - 장면이 없던 원칙만 ①~⑦ 작은 예제(서로 독립, 외부 연결 없음, 가상의 스터디룸 예약)로 어겨 봐요. 실습 코드와 데이터는 옮기지 않았어요
 - ⑥은 이 저장소의 `topics/*/*-data.js`에 적힌 실행 환경을 읽어서, 쪽마다 판이 다른 라이브러리를 세요. 쪽을 새로 빌드하면 값이 바뀌어요(주장은 "다섯 개 넘게"만 확인)
